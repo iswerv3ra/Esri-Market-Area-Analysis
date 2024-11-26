@@ -14,7 +14,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          arcgis: ['@arcgis/core'],
+          //arcgis: ['@arcgis/core'],
         },
       },
     },

@@ -8,7 +8,8 @@ import Zoom from '@arcgis/core/widgets/Zoom';
 import Home from '@arcgis/core/widgets/Home';
 import BasemapToggle from '@arcgis/core/widgets/BasemapToggle';
 import Locate from '@arcgis/core/widgets/Locate';
-import '@arcgis/core/assets/esri/themes/light/main.css';
+// Removed the local CSS import
+// import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
@@ -50,6 +51,9 @@ export default function MapComponent() {
     try {
       // Set the API key
       esriConfig.apiKey = API_KEY;
+
+      // Set the assetsPath to use CDN
+      esriConfig.assetsPath = 'https://js.arcgis.com/4.31/@arcgis/core/assets/';
 
       // Initialize corsEnabledServers array if it doesn't exist
       if (!esriConfig.request.corsEnabledServers) {

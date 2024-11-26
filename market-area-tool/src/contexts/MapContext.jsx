@@ -1,18 +1,8 @@
 // src/contexts/MapContext.jsx
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
-import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
-import Graphic from "@arcgis/core/Graphic";
-import Query from "@arcgis/core/rest/support/Query";
-import Circle from "@arcgis/core/geometry/Circle";
-import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils";
-import Polygon from "@arcgis/core/geometry/Polygon";
-import Point from "@arcgis/core/geometry/Point";
-import Polyline from "@arcgis/core/geometry/Polyline";
-import Multipoint from "@arcgis/core/geometry/Multipoint";
-import Extent from "@arcgis/core/geometry/Extent";
 import { ensureValidGeometry } from '../utils'; // Ensure this utility is correctly implemented
+import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils"; // Imported correctly
 
 const MapContext = createContext();
 
@@ -184,25 +174,33 @@ export const MapProvider = ({ children }) => {
   const activeWatchHandle = useRef(null);
   const [layerInitializationQueue, setLayerInitializationQueue] = useState(new Set());
 
-  // Initialize graphics layer
-  const initializeGraphicsLayer = useCallback(() => {
+  // Initialize graphics layer with dynamic import
+  const initializeGraphicsLayer = useCallback(async () => {
     if (!mapView) return;
 
-    const layer = new GraphicsLayer({
-      title: "Selection Graphics",
-      listMode: "hide",
-      elevationInfo: {
-        mode: "relative-to-ground",
-        offset: 1
-      }
-    });
+    try {
+      const GraphicsLayerModule = await import('@arcgis/core/layers/GraphicsLayer');
+      const GraphicsLayer = GraphicsLayerModule.default;
 
-    mapView.map.add(layer);
-    setGraphicsLayer(layer);
+      const layer = new GraphicsLayer({
+        title: "Selection Graphics",
+        listMode: "hide",
+        elevationInfo: {
+          mode: "relative-to-ground",
+          offset: 1
+        }
+      });
+
+      mapView.map.add(layer);
+      setGraphicsLayer(layer);
+      console.log("[MapContext] Graphics layer initialized");
+    } catch (error) {
+      console.error("[MapContext] Error initializing GraphicsLayer:", error);
+    }
   }, [mapView]);
 
-  // Add feature to selection
-  const addToSelection = useCallback((feature) => {
+  // Add feature to selection with dynamic import
+  const addToSelection = useCallback(async (feature) => {
     if (!graphicsLayer || !mapView) return;
 
     try {
@@ -220,6 +218,10 @@ export const MapProvider = ({ children }) => {
       // Ensure valid geometry
       const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
       if (!geometry) return;
+
+      // Dynamically import Graphic
+      const GraphicModule = await import('@arcgis/core/Graphic');
+      const Graphic = GraphicModule.default;
 
       // Determine symbol based on geometry type
       let symbol;
@@ -250,13 +252,14 @@ export const MapProvider = ({ children }) => {
 
       graphicsLayer.add(selectionGraphic);
       setSelectedFeatures(prev => [...prev, feature]);
+      console.log(`[MapContext] Feature added to selection: ${uniqueIdField} = ${feature.attributes[uniqueIdField]}`);
     } catch (error) {
       console.error('Error adding to selection:', error);
     }
   }, [graphicsLayer, activeLayer, selectedFeatures, mapView]);
 
-  // Remove feature from selection
-  const removeFromSelection = useCallback((feature) => {
+  // Remove feature from selection with dynamic import
+  const removeFromSelection = useCallback(async (feature) => {
     if (!graphicsLayer) return;
 
     try {
@@ -276,24 +279,26 @@ export const MapProvider = ({ children }) => {
       setSelectedFeatures(prev => 
         prev.filter(f => f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField])
       );
+      console.log(`[MapContext] Feature removed from selection: ${uniqueIdField} = ${feature.attributes[uniqueIdField]}`);
     } catch (error) {
       console.error('Error removing from selection:', error);
     }
   }, [graphicsLayer, activeLayer]);
 
   // Clear selection
-  const clearSelection = useCallback(() => {
+  const clearSelection = useCallback(async () => {
     if (!graphicsLayer) return;
     try {
       graphicsLayer.removeAll();
       setSelectedFeatures([]);
+      console.log("[MapContext] Selection cleared");
     } catch (error) {
       console.error('Error clearing selection:', error);
     }
   }, [graphicsLayer]);
 
-  // Display features on the graphics layer
-  const displayFeatures = useCallback((features) => {
+  // Display features on the graphics layer with dynamic import
+  const displayFeatures = useCallback(async (features) => {
     if (!graphicsLayer) return;
 
     try {
@@ -305,12 +310,16 @@ export const MapProvider = ({ children }) => {
         console.error(`Active layer configuration not found for layer type: ${activeLayer}`);
         return;
       }
-      const uniqueIdField = current_layer_config.uniqueIdField;
+      const uniqueIdField = currentLayerConfig.uniqueIdField;
 
-      features.forEach(feature => {
+      // Dynamically import Graphic
+      const GraphicModule = await import('@arcgis/core/Graphic');
+      const Graphic = GraphicModule.default;
+
+      for (const feature of features) {
         console.log('Processing feature:', feature);
         const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
-        if (!geometry) return;
+        if (!geometry) continue;
 
         // Determine symbol based on geometry type
         let symbol;
@@ -329,7 +338,7 @@ export const MapProvider = ({ children }) => {
             break;
           default:
             console.warn(`Unsupported geometry type for display: ${geometry.type}`);
-            return;
+            continue;
         }
 
         const graphic = new Graphic({
@@ -338,14 +347,15 @@ export const MapProvider = ({ children }) => {
           symbol: symbol
         });
         graphicsLayer.add(graphic);
-      });
+      }
+      console.log("[MapContext] Features displayed on graphics layer");
     } catch (error) {
       console.error('Error displaying features:', error);
     }
   }, [graphicsLayer, activeLayer, mapView]);
 
-  // Update feature styles function
-  const updateFeatureStyles = useCallback((features, styles) => {
+  // Update feature styles function with dynamic import
+  const updateFeatureStyles = useCallback(async (features, styles) => {
     if (!graphicsLayer || !features.length || !mapView) return;
 
     try {
@@ -354,9 +364,13 @@ export const MapProvider = ({ children }) => {
       const fillRgb = hexToRgb(styles.fill);
       const outlineRgb = hexToRgb(styles.outline);
 
-      features.forEach(feature => {
+      // Dynamically import Graphic
+      const GraphicModule = await import('@arcgis/core/Graphic');
+      const Graphic = GraphicModule.default;
+
+      for (const feature of features) {
         const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
-        if (!geometry) return;
+        if (!geometry) continue;
 
         let symbol;
 
@@ -400,7 +414,7 @@ export const MapProvider = ({ children }) => {
             break;
           default:
             console.warn(`Unsupported geometry type for styling: ${geometry.type}`);
-            return;
+            continue;
         }
 
         const graphic = new Graphic({
@@ -410,14 +424,15 @@ export const MapProvider = ({ children }) => {
         });
 
         graphicsLayer.add(graphic);
-      });
+      }
+      console.log("[MapContext] Feature styles updated");
     } catch (error) {
       console.error('Error updating feature styles:', error);
     }
   }, [graphicsLayer, mapView]);
 
-  // Draw radius around a point
-  const drawRadius = useCallback((point, style = null) => {
+  // Draw radius around a point with dynamic import
+  const drawRadius = useCallback(async (point, style = null) => {
     if (!graphicsLayer || !point?.center || !mapView) return;
 
     try {
@@ -427,6 +442,12 @@ export const MapProvider = ({ children }) => {
 
       const centerPoint = webMercatorToGeographic(center);
       const radius = point.radius * 1609.34; // Convert miles to meters
+
+      // Dynamically import Circle and Graphic
+      const CircleModule = await import('@arcgis/core/geometry/Circle');
+      const Circle = CircleModule.default;
+      const GraphicModule = await import('@arcgis/core/Graphic');
+      const Graphic = GraphicModule.default;
 
       const circle = new Circle({
         center: centerPoint,
@@ -452,13 +473,14 @@ export const MapProvider = ({ children }) => {
       });
 
       graphicsLayer.add(circleGraphic);
+      console.log("[MapContext] Radius drawn on map");
     } catch (error) {
       console.error('Error drawing radius:', error);
     }
   }, [graphicsLayer, mapView]);
 
-  // Initialize a feature layer
-  const initializeFeatureLayer = useCallback((type) => {
+  // Initialize a feature layer with dynamic import
+  const initializeFeatureLayer = useCallback(async (type) => {
     if (!FEATURE_LAYERS[type]) {
       console.error(`Invalid layer type: ${type}`);
       return null;
@@ -472,50 +494,59 @@ export const MapProvider = ({ children }) => {
       console.warn(`Layer type ${type} does not point to a FeatureServer. It may not support queries.`);
     }
 
-    // Determine symbol based on geometry type
-    let symbol;
-    switch (layerConfig.geometryType.toLowerCase()) {
-      case 'point':
-        symbol = SYMBOLS.defaultPoint;
-        break;
-      case 'polyline':
-        symbol = SYMBOLS.defaultPolyline;
-        break;
-      case 'polygon':
-        symbol = SYMBOLS.defaultPolygon;
-        break;
-      case 'multipoint':
-        symbol = SYMBOLS.defaultPoint;
-        break;
-      default:
-        symbol = SYMBOLS.defaultPolygon;
-        console.warn(`Unsupported geometry type: ${layerConfig.geometryType}. Using default polygon symbol.`);
-        break;
-    }
+    try {
+      // Dynamically import FeatureLayer
+      const FeatureLayerModule = await import('@arcgis/core/layers/FeatureLayer');
+      const FeatureLayer = FeatureLayerModule.default;
 
-    const layer = new FeatureLayer({
-      url: layerConfig.url,
-      outFields: layerConfig.outFields,
-      title: layerConfig.title,
-      visible: true,
-      opacity: 1,
-      popupEnabled: true,
-      popupTemplate: layerConfig.popupTemplate,
-      renderer: {
-        type: "simple",
-        symbol: symbol
+      // Determine symbol based on geometry type
+      let symbol;
+      switch (layerConfig.geometryType.toLowerCase()) {
+        case 'point':
+          symbol = SYMBOLS.defaultPoint;
+          break;
+        case 'polyline':
+          symbol = SYMBOLS.defaultPolyline;
+          break;
+        case 'polygon':
+          symbol = SYMBOLS.defaultPolygon;
+          break;
+        case 'multipoint':
+          symbol = SYMBOLS.defaultPoint;
+          break;
+        default:
+          symbol = SYMBOLS.defaultPolygon;
+          console.warn(`Unsupported geometry type: ${layerConfig.geometryType}. Using default polygon symbol.`);
+          break;
       }
-    });
 
-    // Add layer load handlers
-    layer.when(() => {
-      console.log(`Layer ${type} loaded successfully`);
-    }, (error) => {
-      console.error(`Error loading layer ${type}:`, error);
-      // Optionally, set a flag or state to indicate layer load failure
-    });
+      const layer = new FeatureLayer({
+        url: layerConfig.url,
+        outFields: layerConfig.outFields,
+        title: layerConfig.title,
+        visible: true,
+        opacity: 1,
+        popupEnabled: true,
+        popupTemplate: layerConfig.popupTemplate,
+        renderer: {
+          type: "simple",
+          symbol: symbol
+        }
+      });
 
-    return layer;
+      // Add layer load handlers
+      layer.when(() => {
+        console.log(`Layer ${type} loaded successfully`);
+      }, (error) => {
+        console.error(`Error loading layer ${type}:`, error);
+        // Optionally, set a flag or state to indicate layer load failure
+      });
+
+      return layer;
+    } catch (error) {
+      console.error(`Error initializing FeatureLayer for type ${type}:`, error);
+      return null;
+    }
   }, []);
 
   // Function to set active layer type without zoom logic
@@ -528,6 +559,7 @@ export const MapProvider = ({ children }) => {
         }
 
         setIsLayerLoading(true);
+        console.log(`[MapContext] Setting active layer to: ${type}`);
 
         // Store current view state
         const currentExtent = mapView.extent.clone();
@@ -537,8 +569,10 @@ export const MapProvider = ({ children }) => {
         // Clear graphics and selections
         if (graphicsLayer) {
           graphicsLayer.removeAll();
+          console.log("[MapContext] Graphics layer cleared");
         }
         setSelectedFeatures([]);
+        console.log("[MapContext] Selected features cleared");
 
         // Hide all current feature layers
         Object.entries(featureLayers).forEach(([layerType, layers]) => {
@@ -546,15 +580,18 @@ export const MapProvider = ({ children }) => {
             layers.forEach(layer => {
               if (layer && !layer.destroyed) {
                 layer.visible = false;
+                console.log(`[MapContext] Layer ${layerType} hidden`);
               }
             });
           } else if (layers && !layers.destroyed) {
             layers.visible = false;
+            console.log(`[MapContext] Layer ${layerType} hidden`);
           }
         });
 
         if (!type) {
           setActiveLayer(null);
+          console.log("[MapContext] Active layer cleared");
           return;
         }
 
@@ -567,19 +604,24 @@ export const MapProvider = ({ children }) => {
 
           try {
             setLayerInitializationQueue(prev => new Set([...prev, type]));
+            console.log(`[MapContext] Initializing layer: ${type}`);
 
             if (!featureLayers[type]) {
-              const newLayer = initializeFeatureLayer(type);
+              const newLayer = await initializeFeatureLayer(type);
 
               if (newLayer) {
                 // Check if the layer is already in the map
                 const existingLayer = mapView.map.layers.find(l => l.url === newLayer.url);
                 if (!existingLayer) {
                   await mapView.map.add(newLayer);
+                  console.log(`[MapContext] Layer ${type} added to map`);
+                } else {
+                  console.log(`[MapContext] Layer ${type} already exists in map`);
                 }
 
-                // Remove scale-related assignments
-                // Previously: newLayer.minScale and newLayer.maxScale
+                // Dynamically import Graphic for event listener
+                const GraphicModule = await import('@arcgis/core/Graphic');
+                const Graphic = GraphicModule.default;
 
                 // Add click event listener
                 newLayer.on("click", (event) => {
@@ -588,6 +630,7 @@ export const MapProvider = ({ children }) => {
                     addToSelection(event.graphic);
                   }
                 });
+                console.log(`[MapContext] Click event listener added to layer ${type}`);
 
                 setFeatureLayers(prev => ({
                   ...prev,
@@ -599,8 +642,11 @@ export const MapProvider = ({ children }) => {
               const layer = featureLayers[type];
               if (layer && !layer.destroyed) {
                 layer.visible = true;
+                console.log(`[MapContext] Layer ${type} made visible`);
               }
             }
+          } catch (error) {
+            console.error(`Error initializing or showing layer ${type}:`, error);
           } finally {
             setLayerInitializationQueue(prev => {
               const newQueue = new Set(prev);
@@ -611,12 +657,6 @@ export const MapProvider = ({ children }) => {
         };
 
         await initializeOrShowLayer();
-
-        // Remove zoom handle logic
-        if (activeWatchHandle.current) {
-          activeWatchHandle.current.remove();
-          activeWatchHandle.current = null;
-        }
 
         // Restore view state
         try {
@@ -633,17 +673,20 @@ export const MapProvider = ({ children }) => {
           ).catch(() => {
             console.log("View update handled gracefully");
           });
+          console.log("[MapContext] View state restored");
         } catch (error) {
           console.log("View navigation handled:", error);
         }
 
         setActiveLayer(type);
+        console.log(`[MapContext] Active layer set to: ${type}`);
 
       } catch (error) {
         console.error("Error setting active layer:", error);
         // Optionally handle errors related to setting active layer
       } finally {
         setIsLayerLoading(false);
+        console.log(`[MapContext] Layer loading state set to: ${isLayerLoading}`);
       }
     },
     [
@@ -658,9 +701,14 @@ export const MapProvider = ({ children }) => {
     ]
   );
 
-  // Query features
+  // Query features with dynamic import
   const queryFeatures = useCallback(async (searchText) => {
     if (!activeLayer || !featureLayers[activeLayer]) return [];
+
+    if (!mapView) {
+      console.error("Map view not initialized");
+      return [];
+    }
 
     const layer = featureLayers[activeLayer];
     const layerConfig = FEATURE_LAYERS[activeLayer];
@@ -686,11 +734,15 @@ export const MapProvider = ({ children }) => {
     console.log(`Querying ${activeLayer} with where clause:`, whereClause);
 
     try {
+      // Dynamically import Query
+      const QueryModule = await import('@arcgis/core/rest/support/Query');
+      const Query = QueryModule.default;
+
       const query = new Query({
         where: whereClause,
         outFields: ["*"],
         returnGeometry: true,
-        geometry: mapView?.extent,
+        geometry: mapView.extent, // mapView is confirmed to be initialized
         spatialRelationship: "intersects"
       });
 
@@ -698,7 +750,7 @@ export const MapProvider = ({ children }) => {
       console.log(`Query returned ${results.features.length} features`);
 
       if (results.features.length > 0) {
-        displayFeatures(results.features);
+        await displayFeatures(results.features);
       }
 
       return results.features;
@@ -711,6 +763,7 @@ export const MapProvider = ({ children }) => {
   // Initialize graphics layer when mapView is set
   useEffect(() => {
     if (mapView && !graphicsLayer) {
+      console.log("[MapContext] Initializing graphics layer");
       initializeGraphicsLayer();
     }
   }, [mapView, graphicsLayer, initializeGraphicsLayer]);
@@ -718,7 +771,7 @@ export const MapProvider = ({ children }) => {
   // Update the context value
   const value = {
     mapView,
-    setMapView,
+    setMapView, // Ensure this is correctly called in your Map.jsx
     activeLayer,
     setActiveLayerType: setActiveLayerTypeFunc,
     isLayerLoading,
