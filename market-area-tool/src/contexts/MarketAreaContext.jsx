@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const MarketAreaContext = createContext();
 
@@ -17,32 +17,36 @@ export const MarketAreaProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const fetchMarketAreas = useCallback(async (projectId) => {
+    if (!projectId) return;
     setIsLoading(true);
     try {
-      const response = await axios.get(`/api/projects/${projectId}/market-areas/`);
-      setMarketAreas(response.data);
+      const response = await api.get(`/api/projects/${projectId}/market-areas/`);
+      setMarketAreas(Array.isArray(response.data) ? response.data : []);
       setError(null);
     } catch (err) {
-      setError('Failed to fetch market areas');
       console.error('Error fetching market areas:', err);
+      setError('Failed to fetch market areas');
+      setMarketAreas([]); // Ensure it's always an array
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const addMarketArea = useCallback(async (projectId, marketAreaData) => {
+    if (!projectId) throw new Error('Project ID is required');
     setIsLoading(true);
     try {
-      const response = await axios.post(
+      const response = await api.post(
         `/api/projects/${projectId}/market-areas/`,
         marketAreaData
       );
-      setMarketAreas(prev => [...prev, response.data]);
+      const newMarketArea = response.data;
+      setMarketAreas(prev => [...prev, newMarketArea]);
       setError(null);
-      return response.data;
+      return newMarketArea;
     } catch (err) {
-      setError('Failed to create market area');
       console.error('Error creating market area:', err);
+      setError('Failed to create market area');
       throw err;
     } finally {
       setIsLoading(false);
@@ -50,20 +54,22 @@ export const MarketAreaProvider = ({ children }) => {
   }, []);
 
   const updateMarketArea = useCallback(async (projectId, marketAreaId, updateData) => {
+    if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
     setIsLoading(true);
     try {
-      const response = await axios.patch(
+      const response = await api.patch(
         `/api/projects/${projectId}/market-areas/${marketAreaId}/`,
         updateData
       );
-      setMarketAreas(prev => 
-        prev.map(ma => ma.id === marketAreaId ? response.data : ma)
-      );
+      const updatedArea = response.data;
+      setMarketAreas(prev => prev.map(ma => 
+        ma.id === marketAreaId ? updatedArea : ma
+      ));
       setError(null);
-      return response.data;
+      return updatedArea;
     } catch (err) {
-      setError('Failed to update market area');
       console.error('Error updating market area:', err);
+      setError('Failed to update market area');
       throw err;
     } finally {
       setIsLoading(false);
@@ -71,14 +77,15 @@ export const MarketAreaProvider = ({ children }) => {
   }, []);
 
   const deleteMarketArea = useCallback(async (projectId, marketAreaId) => {
+    if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
     setIsLoading(true);
     try {
-      await axios.delete(`/api/projects/${projectId}/market-areas/${marketAreaId}/`);
+      await api.delete(`/api/projects/${projectId}/market-areas/${marketAreaId}/`);
       setMarketAreas(prev => prev.filter(ma => ma.id !== marketAreaId));
       setError(null);
     } catch (err) {
-      setError('Failed to delete market area');
       console.error('Error deleting market area:', err);
+      setError('Failed to delete market area');
       throw err;
     } finally {
       setIsLoading(false);
@@ -86,7 +93,7 @@ export const MarketAreaProvider = ({ children }) => {
   }, []);
 
   const value = {
-    marketAreas,
+    marketAreas: marketAreas || [], // Ensure we always have an array
     isLoading,
     error,
     fetchMarketAreas,

@@ -14,7 +14,7 @@ import {
 export default function MarketAreaList({ onClose, onEdit }) {
   const { projectId } = useParams();
   const { 
-    marketAreas, 
+    marketAreas = [], 
     isLoading, 
     error, 
     fetchMarketAreas,
@@ -32,11 +32,13 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   useEffect(() => {
     const loadAndDisplayMarketAreas = async () => {
+      if (!projectId) return;
+
       await fetchMarketAreas(projectId);
 
       // If there are visible areas, display them on the map
       visibleAreas.forEach(areaId => {
-        const marketArea = marketAreas.find(ma => ma.id === areaId);
+        const marketArea = marketAreas.find(ma => ma?.id === areaId);
         if (marketArea) {
           if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
             marketArea.radius_points.forEach(point => {
@@ -53,10 +55,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
             }
 
             updateFeatureStyles(features, {
-              fill: marketArea.style_settings.fillColor,
-              fillOpacity: marketArea.style_settings.fillOpacity,
-              outline: marketArea.style_settings.borderColor,
-              outlineWidth: marketArea.style_settings.borderWidth
+              fill: marketArea.style_settings?.fillColor,
+              fillOpacity: marketArea.style_settings?.fillOpacity,
+              outline: marketArea.style_settings?.borderColor,
+              outlineWidth: marketArea.style_settings?.borderWidth
             });
           }
         }
@@ -71,11 +73,12 @@ export default function MarketAreaList({ onClose, onEdit }) {
     drawRadius, 
     updateFeatureStyles, 
     setActiveLayerType
-    // Removed 'marketAreas' from dependencies to prevent infinite loop
   ]);
 
   // Handle toggle visibility
   const handleToggleVisibility = async (marketArea) => {
+    if (!marketArea) return;
+
     const newVisibleAreas = new Set(visibleAreas);
     
     if (visibleAreas.has(marketArea.id)) {
@@ -104,10 +107,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
         }));
         
         updateFeatureStyles(features, {
-          fill: marketArea.style_settings.fillColor,
-          fillOpacity: marketArea.style_settings.fillOpacity,
-          outline: marketArea.style_settings.borderColor,
-          outlineWidth: marketArea.style_settings.borderWidth
+          fill: marketArea.style_settings?.fillColor,
+          fillOpacity: marketArea.style_settings?.fillOpacity,
+          outline: marketArea.style_settings?.borderColor,
+          outlineWidth: marketArea.style_settings?.borderWidth
         });
       }
     }
@@ -117,6 +120,8 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   // Handle delete market area
   const handleDelete = async (marketArea) => {
+    if (!marketArea || !projectId) return;
+
     if (window.confirm('Are you sure you want to delete this market area?')) {
       try {
         await deleteMarketArea(projectId, marketArea.id);
@@ -153,14 +158,14 @@ export default function MarketAreaList({ onClose, onEdit }) {
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {marketAreas.length === 0 ? (
+          {!Array.isArray(marketAreas) || marketAreas.length === 0 ? (
             <div className="text-center p-4 text-gray-500 dark:text-gray-400">
               No market areas defined yet
             </div>
           ) : (
             marketAreas.map((marketArea) => (
               <div
-                key={marketArea.id}
+                key={marketArea?.id || `temp-${Date.now()}`}
                 className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
               >
                 <div className="flex items-center justify-between">
@@ -169,13 +174,14 @@ export default function MarketAreaList({ onClose, onEdit }) {
                       {marketArea.name}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {marketArea.type} • {marketArea.short_name}
+                      {marketArea.ma_type} • {marketArea.short_name}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleToggleVisibility(marketArea)}
                       className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                      title={visibleAreas.has(marketArea.id) ? "Hide area" : "Show area"}
                     >
                       {visibleAreas.has(marketArea.id) ? (
                         <EyeIcon className="h-5 w-5" />
@@ -184,20 +190,16 @@ export default function MarketAreaList({ onClose, onEdit }) {
                       )}
                     </button>
                     <button
-                      onClick={() => {
-                        if (typeof onEdit === 'function') {
-                          onEdit(marketArea);
-                        } else {
-                          console.warn('onEdit prop is not a function');
-                        }
-                      }}
+                      onClick={() => onEdit?.(marketArea)}
                       className="p-2 text-blue-400 hover:text-blue-500"
+                      title="Edit area"
                     >
                       <PencilIcon className="h-5 w-5" />
                     </button>
                     <button
                       onClick={() => handleDelete(marketArea)}
                       className="p-2 text-red-400 hover:text-red-500"
+                      title="Delete area"
                     >
                       <TrashIcon className="h-5 w-5" />
                     </button>
