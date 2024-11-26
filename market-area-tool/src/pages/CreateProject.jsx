@@ -7,11 +7,11 @@ import {
   HashtagIcon,
   DocumentTextIcon 
 } from '@heroicons/react/24/outline';
-import axios from 'axios';
+import { projectsAPI } from '../services/api'; // Update this import
 
 function generateProjectNumber() {
   const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 9000) + 1000; // 4-digit number
+  const random = Math.floor(Math.random() * 9000) + 1000;
   return `${year}-${random}`;
 }
 
@@ -40,7 +40,7 @@ export default function CreateProject() {
     setError('');
 
     try {
-      const response = await api.post('/projects/', formData);
+      const response = await projectsAPI.create(formData); // Use the projectsAPI
       navigate(`/projects/${response.data.id}/market-areas`);
     } catch (err) {
       console.error('Error creating project:', err);
@@ -48,6 +48,7 @@ export default function CreateProject() {
         err.response?.data?.detail || 
         'Failed to create project. Please try again.'
       );
+    } finally {
       setIsSubmitting(false);
     }
   };

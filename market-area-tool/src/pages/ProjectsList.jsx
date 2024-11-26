@@ -7,7 +7,7 @@ import {
   MapIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline';
-import axios from 'axios';
+import { projectsAPI } from '../services/api'; // Update this import
 
 export default function ProjectsList() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function ProjectsList() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await api.get('/projects/');
+        const response = await projectsAPI.getAll(); // Use the projectsAPI
         setProjects(response.data);
         setError(null);
       } catch (err) {
