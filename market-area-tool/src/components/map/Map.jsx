@@ -66,7 +66,8 @@ export default function MapComponent() {
           "tiles.arcgis.com",
           "*.arcgis.com",
           "geocode.arcgis.com",
-          "geocode-api.arcgis.com"
+          "geocode-api.arcgis.com",
+          "static.arcgis.com"
         ];
 
         esriConfig.request.corsEnabledServers = [
@@ -76,7 +77,7 @@ export default function MapComponent() {
           ])
         ];
 
-        esriConfig.request.timeout = 30000;
+        esriConfig.request.timeout = 60000; // Increased timeout
         esriConfig.request.retries = 3;
 
         console.log('[Map] Configuration complete:', {
@@ -91,6 +92,11 @@ export default function MapComponent() {
   }, []);
 
   const goToLocation = useCallback(async (view, longitude, latitude, zoom = 12) => {
+    if (!view?.ready) {
+      console.warn('[Map] View not ready for navigation');
+      return;
+    }
+
     try {
       console.log('[Map] Moving to location:', { longitude, latitude, zoom });
       await view.goTo({
@@ -98,7 +104,7 @@ export default function MapComponent() {
         zoom: zoom
       }, {
         duration: 1000,
-        easing: 'ease-in-out'
+        easing: "ease-out"
       });
       console.log('[Map] Successfully moved to location');
     } catch (error) {
@@ -113,17 +119,18 @@ export default function MapComponent() {
       return;
     }
 
+    let view = null;
     const initializeMap = async () => {
       try {
         console.log('[Map] Starting map initialization');
 
         const map = new Map({
-          basemap: "arcgis-navigation",
+          basemap: "streets-vector",
           layers: []
         });
 
         console.log('[Map] Creating view');
-        const view = new MapView({
+        view = new MapView({
           container: mapRef.current,
           map: map,
           zoom: 13,
@@ -153,37 +160,38 @@ export default function MapComponent() {
         viewRef.current = view;
         console.log('[Map] View initialized successfully');
 
-        // Add widgets
+        // Add widgets one at a time to prevent race conditions
         console.log('[Map] Adding widgets');
-        const widgets = [
-          { widget: new Zoom({ view }), position: "bottom-right" },
-          { widget: new Home({ view }), position: "top-left" },
-          { 
-            widget: new BasemapToggle({
-              view,
-              nextBasemap: "arcgis-imagery"
-            }),
-            position: "bottom-right"
-          },
-          {
-            widget: new Locate({
-              view,
-              useHeadingEnabled: false,
-              goToOverride: (view, options) => {
-                options.target.scale = 1500;
-                return view.goTo(options.target, {
-                  duration: 1000,
-                  easing: 'ease-in-out'
-                });
-              }
-            }),
-            position: "top-left"
+        
+        view.ui.add(new Zoom({ view }), "bottom-right");
+        view.ui.add(new Home({ view }), "top-left");
+        
+        // Add locate widget
+        const locateWidget = new Locate({
+          view,
+          useHeadingEnabled: false,
+          goToOverride: (view, options) => {
+            options.target.scale = 1500;
+            return view.goTo(options.target, {
+              duration: 1000,
+              easing: "ease-out"
+            });
           }
-        ];
-
-        widgets.forEach(({ widget, position }) => {
-          view.ui.add(widget, position);
         });
+        view.ui.add(locateWidget, "top-left");
+
+        // Add basemap toggle last
+        setTimeout(() => {
+          try {
+            const basemapToggle = new BasemapToggle({
+              view,
+              nextBasemap: "hybrid"
+            });
+            view.ui.add(basemapToggle, "bottom-right");
+          } catch (error) {
+            console.warn('[Map] Basemap toggle initialization failed:', error);
+          }
+        }, 1000);
 
         console.log('[Map] Setting map view and layer type');
         setMapView(view);
@@ -213,9 +221,9 @@ export default function MapComponent() {
     initializeMap();
 
     return () => {
-      if (viewRef.current) {
+      if (view) {
         console.log('[Map] Cleaning up map view');
-        viewRef.current.destroy();
+        view.destroy();
         viewRef.current = null;
         setMapView(null);
       }
