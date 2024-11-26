@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import esriConfig from '@arcgis/core/config';
 import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
@@ -8,8 +8,8 @@ import BasemapToggle from '@arcgis/core/widgets/BasemapToggle';
 import Locate from '@arcgis/core/widgets/Locate';
 import { useMap } from '../../contexts/MapContext';
 
-// Initialize the API key and clean it
-const API_KEY = "AAPKaa7d8fe6258a4473ac0cfc276d4827fbLlKs8QW26nYdgEbty7iT9YqSgy4sCe66u74mNS8ZoCJfZe2e5AtQUyAZGO7vK0em"
+// Initialize the API key
+const API_KEY = "AAPKaa7d8fe6258a4473ac0cfc276d4827fbLlKs8QW26nYdgEbty7iT9YqSgy4sCe66u74mNS8ZoCJfZe2e5AtQUyAZGO7vK0em";
 
 // Debug API key status
 console.log('ArcGIS API Key Status:', {
@@ -20,9 +20,7 @@ console.log('ArcGIS API Key Status:', {
 
 const ZoomAlert = () => {
   const { isOutsideZoomRange, zoomMessage } = useMap();
-
   if (!isOutsideZoomRange || !zoomMessage) return null;
-
   return (
     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-lg">
@@ -43,59 +41,58 @@ const ZoomAlert = () => {
 
 export default function MapComponent() {
   const mapRef = useRef(null);
+  const viewRef = useRef(null);
   const { setMapView, setActiveLayerType } = useMap();
 
   // Initialize ArcGIS configuration
   useEffect(() => {
     try {
+      console.log('[Map] Initializing ArcGIS configuration');
+      
       if (!API_KEY) {
-        throw new Error('ArcGIS API key not found in environment variables');
+        throw new Error('ArcGIS API key not found');
       }
 
-      // Set the API key
-      esriConfig.apiKey = API_KEY;
+      if (!esriConfig.apiKey) {
+        esriConfig.apiKey = API_KEY;
+        esriConfig.assetsPath = 'https://js.arcgis.com/4.31/@arcgis/core/assets/';
+        
+        // Configure CORS servers
+        const requiredServers = [
+          "route-api.arcgis.com",
+          "services.arcgis.com",
+          "basemaps.arcgis.com",
+          "basemaps-api.arcgis.com",
+          "tiles.arcgis.com",
+          "*.arcgis.com",
+          "geocode.arcgis.com",
+          "geocode-api.arcgis.com"
+        ];
 
-      // Set the assetsPath to use CDN
-      esriConfig.assetsPath = 'https://js.arcgis.com/4.31/@arcgis/core/assets/';
+        esriConfig.request.corsEnabledServers = [
+          ...new Set([
+            ...(esriConfig.request.corsEnabledServers || []),
+            ...requiredServers
+          ])
+        ];
 
-      // Configure CORS servers
-      const requiredServers = [
-        "route-api.arcgis.com",
-        "services.arcgis.com",
-        "basemaps.arcgis.com",
-        "basemaps-api.arcgis.com",
-        "tiles.arcgis.com",
-        "*.arcgis.com",
-        "geocode.arcgis.com",
-        "geocode-api.arcgis.com",
-        "pro-api.geocod.io"
-      ];
+        esriConfig.request.timeout = 30000;
+        esriConfig.request.retries = 3;
 
-      // Ensure unique servers
-      esriConfig.request.corsEnabledServers = [
-        ...new Set([
-          ...(esriConfig.request.corsEnabledServers || []),
-          ...requiredServers
-        ])
-      ];
-
-      // Set request configurations
-      esriConfig.request.timeout = 30000;
-      esriConfig.request.retries = 3;
-
-      console.log("[Map] ArcGIS configuration initialized", {
-        apiKey: !!API_KEY,
-        keyLength: API_KEY.length,
-        corsServers: esriConfig.request.corsEnabledServers,
-        assetsPath: esriConfig.assetsPath
-      });
+        console.log('[Map] Configuration complete:', {
+          apiKey: !!esriConfig.apiKey,
+          assetsPath: esriConfig.assetsPath,
+          corsServers: esriConfig.request.corsEnabledServers
+        });
+      }
     } catch (error) {
-      console.error("[Map] Error initializing ArcGIS configuration:", error);
+      console.error('[Map] Configuration error:', error);
     }
   }, []);
 
-  const goToLocation = async (view, longitude, latitude, zoom = 12) => {
+  const goToLocation = useCallback(async (view, longitude, latitude, zoom = 12) => {
     try {
+      console.log('[Map] Moving to location:', { longitude, latitude, zoom });
       await view.goTo({
         center: [longitude, latitude],
         zoom: zoom
@@ -103,37 +100,35 @@ export default function MapComponent() {
         duration: 1000,
         easing: 'ease-in-out'
       });
-      console.log('[Map] Successfully moved to location:', { longitude, latitude, zoom });
+      console.log('[Map] Successfully moved to location');
     } catch (error) {
       console.error('[Map] Error moving to location:', error);
     }
-  };
+  }, []);
 
+  // Initialize map view
   useEffect(() => {
-    let isMounted = true;
+    if (!mapRef.current || viewRef.current) {
+      console.log('[Map] Skipping initialization - already initialized or no container');
+      return;
+    }
 
     const initializeMap = async () => {
       try {
         console.log('[Map] Starting map initialization');
 
-        // Create the map
         const map = new Map({
           basemap: "arcgis-navigation",
           layers: []
         });
 
-        // Create the view
+        console.log('[Map] Creating view');
         const view = new MapView({
           container: mapRef.current,
           map: map,
           zoom: 13,
           center: [-118.2437, 34.0522],
-          padding: {
-            top: 10,
-            right: 10,
-            bottom: 50,
-            left: 10
-          },
+          padding: { top: 10, right: 10, bottom: 50, left: 10 },
           constraints: {
             snapToZoom: false,
             rotationEnabled: false,
@@ -148,81 +143,68 @@ export default function MapComponent() {
             dockOptions: {
               position: "auto",
               breakpoint: false,
-              margin: {
-                bottom: 50
-              }
+              margin: { bottom: 50 }
             }
           }
         });
 
         console.log('[Map] Waiting for view to initialize');
-        
-        try {
-          await view.when();
-          if (!isMounted) return;
-          console.log('[Map] View initialized successfully');
+        await view.when();
+        viewRef.current = view;
+        console.log('[Map] View initialized successfully');
 
-          // Add widgets
-          const widgets = [
-            {
-              widget: new Zoom({ view }),
-              position: "bottom-right"
-            },
-            {
-              widget: new Home({ view }),
-              position: "top-left"
-            },
-            {
-              widget: new BasemapToggle({
-                view,
-                nextBasemap: "arcgis-imagery"
-              }),
-              position: "bottom-right"
-            },
-            {
-              widget: new Locate({
-                view,
-                useHeadingEnabled: false,
-                goToOverride: (view, options) => {
-                  options.target.scale = 1500;
-                  return view.goTo(options.target, {
-                    duration: 1000,
-                    easing: 'ease-in-out'
-                  });
-                }
-              }),
-              position: "top-left"
-            }
-          ];
-
-          widgets.forEach(({ widget, position }) => {
-            view.ui.add(widget, position);
-          });
-
-          setMapView(view);
-          setActiveLayerType('streetsSample');
-
-          // Handle geolocation
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                const { longitude, latitude } = position.coords;
-                goToLocation(view, longitude, latitude);
-              },
-              (error) => {
-                console.warn('[Map] Geolocation error:', error.message);
-                goToLocation(view, -118.2437, 34.0522);
+        // Add widgets
+        console.log('[Map] Adding widgets');
+        const widgets = [
+          { widget: new Zoom({ view }), position: "bottom-right" },
+          { widget: new Home({ view }), position: "top-left" },
+          { 
+            widget: new BasemapToggle({
+              view,
+              nextBasemap: "arcgis-imagery"
+            }),
+            position: "bottom-right"
+          },
+          {
+            widget: new Locate({
+              view,
+              useHeadingEnabled: false,
+              goToOverride: (view, options) => {
+                options.target.scale = 1500;
+                return view.goTo(options.target, {
+                  duration: 1000,
+                  easing: 'ease-in-out'
+                });
               }
-            );
-          } else {
-            console.warn('[Map] Geolocation not supported');
-            goToLocation(view, -118.2437, 34.0522);
+            }),
+            position: "top-left"
           }
+        ];
 
-        } catch (viewError) {
-          console.error('[Map] Error in view initialization:', viewError);
+        widgets.forEach(({ widget, position }) => {
+          view.ui.add(widget, position);
+        });
+
+        console.log('[Map] Setting map view and layer type');
+        setMapView(view);
+        setActiveLayerType('streetsSample');
+
+        // Handle geolocation
+        if (navigator.geolocation) {
+          console.log('[Map] Getting user location');
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              goToLocation(view, position.coords.longitude, position.coords.latitude);
+            },
+            (error) => {
+              console.warn('[Map] Geolocation error:', error);
+              goToLocation(view, -118.2437, 34.0522);
+            }
+          );
+        } else {
+          console.warn('[Map] Geolocation not supported');
+          goToLocation(view, -118.2437, 34.0522);
         }
-
       } catch (error) {
         console.error('[Map] Error in map initialization:', error);
       }
@@ -231,22 +213,20 @@ export default function MapComponent() {
     initializeMap();
 
     return () => {
-      isMounted = false;
-      if (mapRef.current) {
+      if (viewRef.current) {
         console.log('[Map] Cleaning up map view');
+        viewRef.current.destroy();
+        viewRef.current = null;
         setMapView(null);
       }
     };
-  }, [setMapView, setActiveLayerType]); // Added proper dependencies
+  }, [setMapView, setActiveLayerType, goToLocation]);
 
   return (
     <div 
       ref={mapRef} 
       className="w-full h-full relative"
-      style={{ 
-        position: 'relative',
-        overflow: 'hidden'
-      }}
+      style={{ position: 'relative', overflow: 'hidden' }}
     >
       <ZoomAlert />
     </div>
