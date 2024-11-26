@@ -3,6 +3,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 
+// Get API URL from window.configs (Choreo) or environment variable
+const getApiUrl = () => {
+  if (window.configs?.apiUrl) {
+    return window.configs.apiUrl;
+  }
+  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
+};
+
 export default function Register() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -27,15 +35,17 @@ export default function Register() {
     }
 
     try {
+      const apiUrl = getApiUrl();
+
       // Register the user
-      await axios.post('http://localhost:8000/api/user/register/', {
+      await axios.post(`${apiUrl}/api/user/register/`, {
         username: formData.username,
         email: formData.email,
         password: formData.password,
       });
 
       // Log the user in automatically
-      const loginResponse = await axios.post('http://localhost:8000/api/token/', {
+      const loginResponse = await axios.post(`${apiUrl}/api/token/`, {
         username: formData.username,
         password: formData.password,
       });
@@ -48,13 +58,32 @@ export default function Register() {
       axios.defaults.headers.common['Authorization'] = `Bearer ${loginResponse.data.access}`;
       
       // Redirect to projects page
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (error) {
-      const errorMessage = error.response?.data?.username?.[0] || 
-                          error.response?.data?.email?.[0] ||
-                          error.response?.data?.password?.[0] ||
-                          error.response?.data?.detail ||
-                          'An error occurred during registration. Please try again.';
+      console.error('Registration error:', error);
+      
+      // Enhanced error handling
+      let errorMessage;
+      if (error.response?.data) {
+        // Handle different types of error responses
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        } else {
+          // Handle validation errors
+          const firstError = Object.entries(error.response.data)[0];
+          if (firstError) {
+            const [field, messages] = firstError;
+            errorMessage = Array.isArray(messages) ? messages[0] : messages;
+          } else {
+            errorMessage = 'An error occurred during registration.';
+          }
+        }
+      } else {
+        errorMessage = 'Unable to connect to the server. Please try again later.';
+      }
+      
       setError(errorMessage);
     } finally {
       setIsLoading(false);

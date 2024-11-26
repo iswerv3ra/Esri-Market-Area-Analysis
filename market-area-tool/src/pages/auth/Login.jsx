@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
+import api from '../../services/api';
+
+// Get API URL from window.configs (Choreo) or environment variable
+const getApiUrl = () => {
+  if (window.configs?.apiUrl) {
+    return window.configs.apiUrl;
+  }
+  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
+};
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,7 +27,9 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:8000/api/token/', formData);
+      // Use the API URL from Choreo config or environment
+      const apiUrl = getApiUrl();
+      const response = await axios.post(`${apiUrl}/api/token/`, formData);
       
       // Store tokens in localStorage
       localStorage.setItem('accessToken', response.data.access);
