@@ -9,7 +9,7 @@ const getApiUrl = () => {
   if (window.configs?.apiUrl) {
     return window.configs.apiUrl;
   }
-  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
 };
 
 export default function Login() {

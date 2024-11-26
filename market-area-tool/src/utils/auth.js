@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Get API URL from window.configs (Choreo) or environment variable
-const getApiUrl = () => {
+export const getApiUrl = () => {
   if (window.configs?.apiUrl) {
     return window.configs.apiUrl;
   }
@@ -9,7 +9,7 @@ const getApiUrl = () => {
 };
 
 // Get base URL for API calls
-const getBaseUrl = () => `${getApiUrl()}/api`;
+export const getBaseUrl = () => `${getApiUrl()}/api`;
 
 export const setAuthToken = (token) => {
   if (token) {
