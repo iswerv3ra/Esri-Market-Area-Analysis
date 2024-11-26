@@ -1,20 +1,25 @@
 import axios from 'axios';
 import { getApiUrl, setAuthToken } from '../utils/auth';
 
+const baseURL = getApiUrl();
+
+// Debug configuration in development
+if (import.meta.env.DEV) {
+  console.log('API Service Configuration:', {
+    baseURL,
+    mode: import.meta.env.MODE,
+    isDev: import.meta.env.DEV
+  });
+}
+
 const api = axios.create({
-  baseURL: getApiUrl(),
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Debug API configuration
-console.log('API Configuration:', {
-  baseURL: api.defaults.baseURL,
-  headers: api.defaults.headers
-});
-
-// Request interceptor with debugging
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
@@ -22,44 +27,47 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Ensure trailing slash
     if (!config.url.endsWith('/')) {
       config.url = `${config.url}/`;
     }
     
-    // Debug log
-    console.log('Making request:', {
-      url: `${config.baseURL}${config.url}`,
-      method: config.method,
-      headers: config.headers,
-      data: config.data
-    });
+    // Debug logging in development
+    if (import.meta.env.DEV) {
+      console.log('Making request:', {
+        url: `${config.baseURL}${config.url}`,
+        method: config.method,
+        headers: config.headers,
+        data: config.data
+      });
+    }
     
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor with error logging and token refresh
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log('Response received:', {
-      status: response.status,
-      data: response.data
-    });
+    if (import.meta.env.DEV) {
+      console.log('Response received:', {
+        status: response.status,
+        data: response.data
+      });
+    }
     return response;
   },
   async (error) => {
-    console.error('API Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-      config: error.config
-    });
+    if (import.meta.env.DEV) {
+      console.error('API Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+    }
 
     const originalRequest = error.config;
 
-    // Handle token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -77,12 +85,10 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', access);
         setAuthToken(access);
 
-        // Update the original request with new token
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        // Clear auth data on refresh failure
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         delete api.defaults.headers.common['Authorization'];
@@ -95,6 +101,7 @@ api.interceptors.response.use(
   }
 );
 
+// Auth API endpoints
 export const authAPI = {
   login: async (credentials) => {
     const response = await api.post('/api/token/', credentials);
@@ -123,12 +130,11 @@ export const authAPI = {
   }
 };
 
+// Projects API endpoints
 export const projectsAPI = {
   getAll: async () => {
     try {
-      console.log('Fetching all projects...');
       const response = await api.get('/api/projects/');
-      console.log('Projects fetched:', response.data);
       return response;
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -138,9 +144,7 @@ export const projectsAPI = {
 
   create: async (projectData) => {
     try {
-      console.log('Creating project:', projectData);
       const response = await api.post('/api/projects/', projectData);
-      console.log('Project created:', response.data);
       return response;
     } catch (error) {
       console.error('Error creating project:', error);

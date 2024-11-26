@@ -1,16 +1,25 @@
 import axios from 'axios';
 
-// Get API URL from window.configs (Choreo) or environment variable
+// Helper to determine environment
+const isDevelopment = () => {
+  return import.meta.env.MODE === 'development' || import.meta.env.DEV;
+};
+
+// Get API URL with proper environment handling
 export const getApiUrl = () => {
-  if (window.configs?.apiUrl) {
-    return window.configs.apiUrl;
+  // Development environment - use local URL
+  if (isDevelopment()) {
+    return 'http://localhost:8000';
   }
-  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
+
+  // Production environment - prefer Choreo config, fallback to env
+  return window.configs?.apiUrl || '/choreo-apis/market-area-analysis/backend/v1';
 };
 
 // Get base URL for API calls
 export const getBaseUrl = () => `${getApiUrl()}/api`;
 
+// Token management
 export const setAuthToken = (token) => {
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -30,6 +39,7 @@ export const verifyToken = async (token) => {
   }
 };
 
+// Axios interceptors setup
 export const setupAxiosInterceptors = (navigate) => {
   const requestInterceptor = axios.interceptors.request.use(
     (config) => {
@@ -41,6 +51,15 @@ export const setupAxiosInterceptors = (navigate) => {
       // Ensure trailing slashes for Django
       if (!config.url.endsWith('/')) {
         config.url += '/';
+      }
+      
+      // Debug logging in development
+      if (isDevelopment()) {
+        console.log('Request:', {
+          url: config.url,
+          method: config.method,
+          headers: config.headers
+        });
       }
       
       return config;
@@ -71,7 +90,6 @@ export const setupAxiosInterceptors = (navigate) => {
           localStorage.setItem('accessToken', access);
           setAuthToken(access);
 
-          // Update the original request with new token
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return axios(originalRequest);
         } catch (err) {
@@ -85,7 +103,6 @@ export const setupAxiosInterceptors = (navigate) => {
     }
   );
 
-  // Return cleanup function
   return () => {
     axios.interceptors.request.eject(requestInterceptor);
     axios.interceptors.response.eject(responseInterceptor);
@@ -98,14 +115,10 @@ export const isAuthenticated = () => {
 
 export const logout = async (navigate) => {
   try {
-    // Clear all auth tokens
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    
-    // Clear axios default header
     delete axios.defaults.headers.common['Authorization'];
     
-    // Force navigation to login
     if (navigate) {
       navigate('/login', { replace: true });
     } else {
@@ -113,7 +126,6 @@ export const logout = async (navigate) => {
     }
   } catch (error) {
     console.error('Logout error:', error);
-    // Force redirect even if there's an error
     window.location.href = '/login';
   }
 };

@@ -1,16 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
-import axios from 'axios';
-import api from '../../services/api';
-
-// Get API URL from window.configs (Choreo) or environment variable
-const getApiUrl = () => {
-  if (window.configs?.apiUrl) {
-    return window.configs.apiUrl;
-  }
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
-};
+import { authAPI } from '../../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -27,22 +18,12 @@ export default function Login() {
     setError('');
 
     try {
-      // Use the API URL from Choreo config or environment
-      const apiUrl = getApiUrl();
-      const response = await axios.post(`${apiUrl}/api/token/`, formData);
+      const response = await authAPI.login(formData);
       
-      // Store tokens in localStorage
-      localStorage.setItem('accessToken', response.data.access);
-      localStorage.setItem('refreshToken', response.data.refresh);
-      
-      // Set default Authorization header for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-      
-      // Clear any existing error
-      setError('');
-      
-      // Navigate to home page
-      navigate('/', { replace: true });
+      if (response?.data) {
+        // Navigation is handled in authAPI.login
+        navigate('/', { replace: true });
+      }
     } catch (error) {
       console.error('Login error:', error);
       setError(
@@ -55,10 +36,10 @@ export default function Login() {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   return (

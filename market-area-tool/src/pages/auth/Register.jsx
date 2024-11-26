@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
-import axios from 'axios';
-
-// Get API URL from window.configs (Choreo) or environment variable
-const getApiUrl = () => {
-  if (window.configs?.apiUrl) {
-    return window.configs.apiUrl;
-  }
-  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
-};
+import { authAPI } from '../../services/api';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -35,30 +27,23 @@ export default function Register() {
     }
 
     try {
-      const apiUrl = getApiUrl();
-
-      // Register the user
-      await axios.post(`${apiUrl}/api/user/register/`, {
+      // Register user with authAPI
+      await authAPI.register({
         username: formData.username,
         email: formData.email,
         password: formData.password,
       });
 
-      // Log the user in automatically
-      const loginResponse = await axios.post(`${apiUrl}/api/token/`, {
+      // Log in automatically after successful registration
+      const loginResponse = await authAPI.login({
         username: formData.username,
         password: formData.password,
       });
 
-      // Store tokens
-      localStorage.setItem('accessToken', loginResponse.data.access);
-      localStorage.setItem('refreshToken', loginResponse.data.refresh);
-      
-      // Set default Authorization header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${loginResponse.data.access}`;
-      
-      // Redirect to projects page
-      navigate('/', { replace: true });
+      if (loginResponse?.data) {
+        // Redirect to projects page
+        navigate('/', { replace: true });
+      }
     } catch (error) {
       console.error('Registration error:', error);
       
@@ -91,10 +76,10 @@ export default function Register() {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   return (
