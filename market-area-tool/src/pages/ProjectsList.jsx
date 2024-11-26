@@ -7,7 +7,7 @@ import {
   MapIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline';
-import { projectsAPI } from '../services/api'; // Update this import
+import { projectsAPI } from '../services/api';
 
 export default function ProjectsList() {
   const navigate = useNavigate();
@@ -20,12 +20,18 @@ export default function ProjectsList() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await projectsAPI.getAll(); // Use the projectsAPI
-        setProjects(response.data);
+        const response = await projectsAPI.getAll();
+        // Ensure we're setting an array
+        const projectsData = Array.isArray(response.data) ? response.data : [];
+        console.log('Projects received:', projectsData);
+        setProjects(projectsData);
         setError(null);
       } catch (err) {
-        setError('Failed to load projects. Please try again later.');
-        console.error('Error fetching projects:', err);
+        console.error('Error details:', err.response || err);
+        setError(
+          err.response?.data?.detail || 
+          'Failed to load projects. Please try again later.'
+        );
       } finally {
         setIsLoading(false);
       }
@@ -36,13 +42,18 @@ export default function ProjectsList() {
 
   // Filter projects based on search term
   const filteredProjects = useMemo(() => {
+    if (!Array.isArray(projects)) {
+      console.warn('Projects is not an array:', projects);
+      return [];
+    }
     return projects.filter(project => {
+      if (!project) return false;
       const searchString = [
         project.project_number,
         project.client,
         project.location,
         project.description
-      ].join(' ').toLowerCase();
+      ].filter(Boolean).join(' ').toLowerCase();
       
       return searchString.includes(searchTerm.toLowerCase());
     });
@@ -50,7 +61,9 @@ export default function ProjectsList() {
 
   // Navigation handlers
   const handleProjectClick = (projectId) => {
-    navigate(`/projects/${projectId}/market-areas`);
+    if (projectId) {
+      navigate(`/projects/${projectId}/market-areas`);
+    }
   };
 
   const handleCreateProject = () => {
