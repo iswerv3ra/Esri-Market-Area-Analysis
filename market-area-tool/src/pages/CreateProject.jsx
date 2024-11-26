@@ -40,7 +40,7 @@ export default function CreateProject() {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:8000/api/projects/', formData);
+      const response = await api.post('/projects/', formData);
       navigate(`/projects/${response.data.id}/market-areas`);
     } catch (err) {
       console.error('Error creating project:', err);
@@ -51,6 +51,7 @@ export default function CreateProject() {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

@@ -20,7 +20,7 @@ export default function ProjectsList() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/projects/');
+        const response = await api.get('/projects/');
         setProjects(response.data);
         setError(null);
       } catch (err) {

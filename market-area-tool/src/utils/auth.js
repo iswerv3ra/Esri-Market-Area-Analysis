@@ -1,6 +1,15 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:8000/api';
+// Get API URL from window.configs (Choreo) or environment variable
+const getApiUrl = () => {
+  if (window.configs?.apiUrl) {
+    return window.configs.apiUrl;
+  }
+  return import.meta.env.VITE_API_URL || '/choreo-apis/market-area-analysis/backend/v1';
+};
+
+// Get base URL for API calls
+const getBaseUrl = () => `${getApiUrl()}/api`;
 
 export const setAuthToken = (token) => {
   if (token) {
@@ -12,7 +21,8 @@ export const setAuthToken = (token) => {
 
 export const verifyToken = async (token) => {
   try {
-    await axios.post(`${BASE_URL}/token/verify/`, { token });
+    const baseUrl = getBaseUrl();
+    await axios.post(`${baseUrl}/token/verify/`, { token });
     return true;
   } catch (error) {
     console.error('Token verification failed:', error);
@@ -27,11 +37,15 @@ export const setupAxiosInterceptors = (navigate) => {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      
+      // Ensure trailing slashes for Django
+      if (!config.url.endsWith('/')) {
+        config.url += '/';
+      }
+      
       return config;
     },
-    (error) => {
-      return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
   );
 
   const responseInterceptor = axios.interceptors.response.use(
@@ -48,7 +62,8 @@ export const setupAxiosInterceptors = (navigate) => {
             throw new Error('No refresh token available');
           }
 
-          const response = await axios.post(`${BASE_URL}/token/refresh/`, {
+          const baseUrl = getBaseUrl();
+          const response = await axios.post(`${baseUrl}/token/refresh/`, {
             refresh: refreshToken
           });
 
@@ -56,6 +71,8 @@ export const setupAxiosInterceptors = (navigate) => {
           localStorage.setItem('accessToken', access);
           setAuthToken(access);
 
+          // Update the original request with new token
+          originalRequest.headers.Authorization = `Bearer ${access}`;
           return axios(originalRequest);
         } catch (err) {
           console.error('Token refresh failed:', err);
@@ -68,6 +85,7 @@ export const setupAxiosInterceptors = (navigate) => {
     }
   );
 
+  // Return cleanup function
   return () => {
     axios.interceptors.request.eject(requestInterceptor);
     axios.interceptors.response.eject(responseInterceptor);
@@ -79,17 +97,23 @@ export const isAuthenticated = () => {
 };
 
 export const logout = async (navigate) => {
-  // Clear all auth tokens
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  
-  // Clear axios default header
-  delete axios.defaults.headers.common['Authorization'];
-  
-  // Force navigation to login
-  if (navigate) {
-    navigate('/login', { replace: true });
-  } else {
+  try {
+    // Clear all auth tokens
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    
+    // Clear axios default header
+    delete axios.defaults.headers.common['Authorization'];
+    
+    // Force navigation to login
+    if (navigate) {
+      navigate('/login', { replace: true });
+    } else {
+      window.location.href = '/login';
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    // Force redirect even if there's an error
     window.location.href = '/login';
   }
 };
