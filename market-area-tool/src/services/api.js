@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL;
+// When in Choreo, use the relative path
+// When in development, use the full URL from env
+const API_URL = window.location.hostname.includes('choreoapps.dev') 
+  ? '/market-area-analysis/backend/v1' 
+  : import.meta.env.VITE_API_URL;
+
+// Add debugging to see what URL is being used
+console.log('API URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -9,13 +16,17 @@ const api = axios.create({
   },
 });
 
-// Add a request interceptor
+// Request interceptor with debugging
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Debug log the full URL being requested
+    console.log('Making request to:', `${config.baseURL}${config.url}`);
+    
     return config;
   },
   (error) => {
@@ -23,13 +34,12 @@ api.interceptors.request.use(
   }
 );
 
-// Add a response interceptor
+// Response interceptor remains the same
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error status is 401 and there has been no retry yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -42,11 +52,9 @@ api.interceptors.response.use(
         const { access } = response.data;
         localStorage.setItem('accessToken', access);
 
-        // Retry the original request with the new token
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return axios(originalRequest);
       } catch (error) {
-        // If refresh token fails, logout user
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
