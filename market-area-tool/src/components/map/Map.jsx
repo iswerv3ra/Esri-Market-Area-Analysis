@@ -13,7 +13,7 @@ import Locate from '@arcgis/core/widgets/Locate';
 import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
-const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
+const API_KEY = "AAPKaa7d8fe6258a4473ac0cfc276d4827fbLlKs8QW26nYdgEbty7iT9YqSgy4sCe66u74mNS8ZoCJfZe2e5AtQUyAZGO7vK0em";
 
 // Create ZoomAlert component inline since it's specific to the map
 const ZoomAlert = () => {
