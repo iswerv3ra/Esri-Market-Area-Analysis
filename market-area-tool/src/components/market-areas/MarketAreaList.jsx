@@ -1,4 +1,4 @@
-// src/components/MarketAreaList.jsx
+// src/components/market-areas/MarketAreaList.jsx
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -22,100 +22,108 @@ export default function MarketAreaList({ onClose, onEdit }) {
   } = useMarketAreas();
 
   const { 
-    setActiveLayerType,
     drawRadius,
     updateFeatureStyles,
-    clearSelection
+    clearSelection,
+    hideAllFeatureLayers
   } = useMap();
 
-  const [visibleAreas, setVisibleAreas] = useState(new Set());
+  // Initialize visible IDs from localStorage or default to all visible
+  const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState(() => {
+    const stored = localStorage.getItem(`marketAreas.${projectId}.visible`);
+    return stored ? JSON.parse(stored) : [];
+  });
 
+  // Fetch market areas when projectId changes
   useEffect(() => {
-    const loadAndDisplayMarketAreas = async () => {
+    const loadMarketAreas = async () => {
       if (!projectId) return;
-
       await fetchMarketAreas(projectId);
-
-      // If there are visible areas, display them on the map
-      visibleAreas.forEach(areaId => {
-        const marketArea = marketAreas.find(ma => ma?.id === areaId);
-        if (marketArea) {
-          if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
-            marketArea.radius_points.forEach(point => {
-              drawRadius(point, marketArea.style_settings);
-            });
-          } else if (marketArea.locations) {
-            const features = marketArea.locations.map(loc => ({
-              geometry: loc.geometry,
-              attributes: { id: loc.id }
-            }));
-
-            if (marketArea.ma_type !== 'radius') {
-              setActiveLayerType(marketArea.ma_type);
-            }
-
-            updateFeatureStyles(features, {
-              fill: marketArea.style_settings?.fillColor,
-              fillOpacity: marketArea.style_settings?.fillOpacity,
-              outline: marketArea.style_settings?.borderColor,
-              outlineWidth: marketArea.style_settings?.borderWidth
-            });
-          }
-        }
-      });
     };
+    loadMarketAreas();
+  }, [projectId, fetchMarketAreas]);
 
-    loadAndDisplayMarketAreas();
-  }, [
-    projectId, 
-    fetchMarketAreas, 
-    visibleAreas, 
-    drawRadius, 
-    updateFeatureStyles, 
-    setActiveLayerType
-  ]);
-
-  // Handle toggle visibility
-  const handleToggleVisibility = async (marketArea) => {
-    if (!marketArea) return;
-
-    const newVisibleAreas = new Set(visibleAreas);
-    
-    if (visibleAreas.has(marketArea.id)) {
-      // Hide the market area
-      newVisibleAreas.delete(marketArea.id);
-      if (marketArea.ma_type !== 'radius') {
-        await setActiveLayerType(null);
-      }
-      clearSelection();
-    } else {
-      // Show the market area
-      newVisibleAreas.add(marketArea.id);
-      
-      if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
-        marketArea.radius_points.forEach(point => {
-          drawRadius(point, marketArea.style_settings);
-        });
-      } else if (marketArea.locations) {
-        if (marketArea.ma_type !== 'radius') {
-          await setActiveLayerType(marketArea.ma_type);
-        }
-        
-        const features = marketArea.locations.map(loc => ({
-          geometry: loc.geometry,
-          attributes: { id: loc.id }
-        }));
-        
-        updateFeatureStyles(features, {
-          fill: marketArea.style_settings?.fillColor,
-          fillOpacity: marketArea.style_settings?.fillOpacity,
-          outline: marketArea.style_settings?.borderColor,
-          outlineWidth: marketArea.style_settings?.borderWidth
-        });
+  // Set initial visibility state when market areas first load
+  useEffect(() => {
+    if (marketAreas.length > 0) {
+      const stored = localStorage.getItem(`marketAreas.${projectId}.visible`);
+      if (!stored) {
+        const allIds = marketAreas.map(ma => ma.id);
+        setVisibleMarketAreaIds(allIds);
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`, 
+          JSON.stringify(allIds)
+        );
       }
     }
-    
-    setVisibleAreas(newVisibleAreas);
+  }, [marketAreas, projectId]);
+
+  // Show visible market areas when they or the marketAreas change
+  useEffect(() => {
+    const showVisibleMarketAreas = async () => {
+      if (!marketAreas.length) return;
+
+      hideAllFeatureLayers();
+
+      for (const marketArea of marketAreas) {
+        if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
+
+        if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
+          marketArea.radius_points.forEach(point => {
+            drawRadius(point, marketArea.style_settings);
+          });
+        } else if (marketArea.locations) {
+          const features = marketArea.locations.map(loc => ({
+            geometry: loc.geometry,
+            attributes: { id: loc.id }
+          }));
+
+          updateFeatureStyles(features, {
+            fill: marketArea.style_settings?.fillColor,
+            fillOpacity: marketArea.style_settings?.fillOpacity,
+            outline: marketArea.style_settings?.borderColor,
+            outlineWidth: marketArea.style_settings?.borderWidth
+          }, marketArea.ma_type); // Pass FEATURE_TYPE
+        }
+      }
+    };
+
+    showVisibleMarketAreas();
+  }, [
+    marketAreas, 
+    visibleMarketAreaIds, 
+    hideAllFeatureLayers, 
+    drawRadius, 
+    updateFeatureStyles
+  ]);
+
+  // Update localStorage when visibility changes
+  useEffect(() => {
+    if (projectId) {
+      localStorage.setItem(
+        `marketAreas.${projectId}.visible`,
+        JSON.stringify(visibleMarketAreaIds)
+      );
+    }
+  }, [visibleMarketAreaIds, projectId]);
+
+  // Handle toggle visibility
+  const handleToggleVisibility = (marketArea) => {
+    if (!marketArea) return;
+
+    const { id } = marketArea;
+    const isVisible = visibleMarketAreaIds.includes(id);
+
+    try {
+      if (isVisible) {
+        setVisibleMarketAreaIds(prev => prev.filter(currentId => currentId !== id));
+        clearSelection();
+      } else {
+        setVisibleMarketAreaIds(prev => [...prev, id]);
+      }
+    } catch (error) {
+      console.error('Error toggling market area visibility:', error);
+    }
   };
 
   // Handle delete market area
@@ -126,12 +134,16 @@ export default function MarketAreaList({ onClose, onEdit }) {
       try {
         await deleteMarketArea(projectId, marketArea.id);
         // Remove from visible areas if it was visible
-        if (visibleAreas.has(marketArea.id)) {
-          const newVisibleAreas = new Set(visibleAreas);
-          newVisibleAreas.delete(marketArea.id);
-          setVisibleAreas(newVisibleAreas);
+        if (visibleMarketAreaIds.includes(marketArea.id)) {
+          setVisibleMarketAreaIds(prev => prev.filter(id => id !== marketArea.id));
           clearSelection();
         }
+        // Update localStorage after deletion
+        const updatedVisible = visibleMarketAreaIds.filter(id => id !== marketArea.id);
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`, 
+          JSON.stringify(updatedVisible)
+        );
       } catch (error) {
         console.error('Failed to delete market area:', error);
       }
@@ -158,55 +170,58 @@ export default function MarketAreaList({ onClose, onEdit }) {
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {!Array.isArray(marketAreas) || marketAreas.length === 0 ? (
+          {(!Array.isArray(marketAreas) || marketAreas.length === 0) ? (
             <div className="text-center p-4 text-gray-500 dark:text-gray-400">
               No market areas defined yet
             </div>
           ) : (
-            marketAreas.map((marketArea) => (
-              <div
-                key={marketArea?.id || `temp-${Date.now()}`}
-                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                      {marketArea.name}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {marketArea.ma_type} • {marketArea.short_name}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleToggleVisibility(marketArea)}
-                      className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-                      title={visibleAreas.has(marketArea.id) ? "Hide area" : "Show area"}
-                    >
-                      {visibleAreas.has(marketArea.id) ? (
-                        <EyeIcon className="h-5 w-5" />
-                      ) : (
-                        <EyeSlashIcon className="h-5 w-5" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => onEdit?.(marketArea)}
-                      className="p-2 text-blue-400 hover:text-blue-500"
-                      title="Edit area"
-                    >
-                      <PencilIcon className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(marketArea)}
-                      className="p-2 text-red-400 hover:text-red-500"
-                      title="Delete area"
-                    >
-                      <TrashIcon className="h-5 w-5" />
-                    </button>
+            marketAreas.map((marketArea) => {
+              const isVisible = visibleMarketAreaIds.includes(marketArea.id);
+              return (
+                <div
+                  key={marketArea?.id}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                        {marketArea.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {marketArea.ma_type} • {marketArea.short_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleToggleVisibility(marketArea)}
+                        className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                        title={isVisible ? "Hide area" : "Show area"}
+                      >
+                        {isVisible ? (
+                          <EyeIcon className="h-5 w-5" />
+                        ) : (
+                          <EyeSlashIcon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => onEdit?.(marketArea)}
+                        className="p-2 text-blue-400 hover:text-blue-500"
+                        title="Edit area"
+                      >
+                        <PencilIcon className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(marketArea)}
+                        className="p-2 text-red-400 hover:text-red-500"
+                        title="Delete area"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

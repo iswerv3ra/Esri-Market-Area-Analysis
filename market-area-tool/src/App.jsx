@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import React, { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import axios from 'axios';
@@ -14,6 +16,7 @@ import CreateProject from "./pages/CreateProject";
 
 // Providers
 import { MarketAreaProvider } from './contexts/MarketAreaContext';
+import { MapProvider } from './contexts/MapContext'; // Import MapProvider
 
 // Auth Utilities
 import { setupAxiosInterceptors, isAuthenticated, setAuthToken, verifyToken } from "./utils/auth";
@@ -130,9 +133,11 @@ function App() {
       <Route
         element={
           <ProtectedRoute>
-            <MarketAreaProvider>
-              <RootLayout />
-            </MarketAreaProvider>
+            <MapProvider> {/* Wrap with MapProvider once */}
+              <MarketAreaProvider> {/* Then wrap with MarketAreaProvider */}
+                <RootLayout />
+              </MarketAreaProvider>
+            </MapProvider>
           </ProtectedRoute>
         }
       >

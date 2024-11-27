@@ -8,8 +8,6 @@ import Zoom from '@arcgis/core/widgets/Zoom';
 import Home from '@arcgis/core/widgets/Home';
 import BasemapToggle from '@arcgis/core/widgets/BasemapToggle';
 import Locate from '@arcgis/core/widgets/Locate';
-// Removed the local CSS import
-// import '@arcgis/core/assets/esri/themes/light/main.css';
 import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
@@ -44,7 +42,7 @@ const ZoomAlert = () => {
 
 export default function MapComponent() {
   const mapRef = useRef(null);
-  const { setMapView, setActiveLayerType } = useMap(); // Destructure setActiveLayerType
+  const { setMapView } = useMap(); // Only destructure setMapView
 
   // Initialize ArcGIS configuration
   useEffect(() => {
@@ -199,9 +197,6 @@ export default function MapComponent() {
         // Set the map view in context
         setMapView(view);
 
-        // Set the active layer to 'streetsSample' for testing
-        setActiveLayerType('streetsSample'); // Use the sample layer first
-
         // Handle geolocation
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -234,7 +229,7 @@ export default function MapComponent() {
         setMapView(null);
       }
     };
-  }, []); // **IMPORTANT:** Empty dependency array to run only once
+  }, [setMapView]); // Removed toggleActiveLayerType from dependencies
 
   return (
     <div 

@@ -1,3 +1,5 @@
+// src/components/market-areas/MarketAreaForm.jsx
+
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { ArrowsRightLeftIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
@@ -8,7 +10,6 @@ import Radius from "./Radius";
 export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const { projectId } = useParams();
   const {
-    setActiveLayerType,
     isLayerLoading,
     queryFeatures,
     addToSelection,
@@ -16,6 +17,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     clearSelection,
     updateFeatureStyles,
     drawRadius,
+    addActiveLayer, // Explicitly use addActiveLayer
+    removeActiveLayer, // Explicitly use removeActiveLayer
+    hideAllFeatureLayers, // Added hideAllFeatureLayers
   } = useMap();
 
   const { addMarketArea, updateMarketArea } = useMarketAreas();
@@ -60,7 +64,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         if (editingMarketArea.ma_type === 'radius') {
           setRadiusPoints(editingMarketArea.radius_points);
         } else {
-          await setActiveLayerType(editingMarketArea.ma_type);
+          await addActiveLayer(editingMarketArea.ma_type); // Use addActiveLayer instead of setActiveLayerType
           editingMarketArea.locations.forEach(location => {
             addToSelection({
               geometry: location.geometry,
@@ -72,7 +76,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     };
 
     initializeForm();
-  }, [editingMarketArea, setActiveLayerType, addToSelection]);
+  }, [editingMarketArea, addActiveLayer, addToSelection]);
 
   // Style update handler
   const updateStyles = useCallback(() => {
@@ -122,8 +126,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     setError(null);
 
     clearSelection();
-    if (newType) {
-      await setActiveLayerType(newType === "radius" ? null : newType);
+    if (newType === "radius") {
+      await removeActiveLayer(); // Remove any active layers if switching to radius
+    } else {
+      await addActiveLayer(newType); // Add the selected layer type
     }
   };
 
@@ -230,43 +236,71 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         style_settings: formState.styleSettings,
         locations: null,
         radius_points: null,
-        geometry: null
+        geometry: null,
       };
 
-      // Set the appropriate data based on type
       if (formState.maType === "radius") {
         marketAreaData.radius_points = radiusPoints;
-        // Create geometry from radius points if needed
         marketAreaData.geometry = {
           type: "MultiPolygon",
-          coordinates: radiusPoints.map(point => point.geometry.rings)
+          coordinates: radiusPoints.map((point) => point.geometry.rings),
         };
       } else {
-        marketAreaData.locations = formState.selectedLocations.map(location => ({
-          id: location.id,
-          name: location.name,
-          geometry: location.feature.geometry.toJSON()
-        }));
+        marketAreaData.locations = formState.selectedLocations.map(
+          (location) => ({
+            id: location.id,
+            name: location.name,
+            geometry: location.feature.geometry.toJSON(),
+          })
+        );
         marketAreaData.geometry = {
           type: "MultiPolygon",
-          coordinates: formState.selectedLocations.map(loc => 
+          coordinates: formState.selectedLocations.map((loc) =>
             loc.feature.geometry.rings || loc.feature.geometry.coordinates
-          )
+          ),
         };
       }
 
+      let savedMarketArea;
       if (editingMarketArea) {
-        await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+        savedMarketArea = await updateMarketArea(
+          projectId,
+          editingMarketArea.id,
+          marketAreaData
+        );
       } else {
-        await addMarketArea(projectId, marketAreaData);
+        savedMarketArea = await addMarketArea(projectId, marketAreaData);
       }
 
+      // Clear existing selections but keep graphics
       clearSelection();
-      await setActiveLayerType(null);
+
+      // Hide all feature layers but keep graphics
+      hideAllFeatureLayers();
+
+      // Immediately display the saved market area
+      if (formState.maType === "radius") {
+        radiusPoints.forEach((point) => {
+          drawRadius(point, formState.styleSettings);
+        });
+      } else {
+        const features = marketAreaData.locations.map((loc) => ({
+          geometry: loc.geometry,
+          attributes: { id: loc.id },
+        }));
+
+        updateFeatureStyles(features, {
+          fill: formState.styleSettings.fillColor,
+          fillOpacity: formState.styleSettings.fillOpacity,
+          outline: formState.styleSettings.borderColor,
+          outlineWidth: formState.styleSettings.borderWidth,
+        });
+      }
+
       onClose();
     } catch (error) {
-      console.error('Error saving market area:', error);
-      setError(error.response?.data?.detail || 'Error saving market area');
+      console.error("Error saving market area:", error);
+      setError(error.response?.data?.detail || "Error saving market area");
     } finally {
       setIsSaving(false);
     }
@@ -274,7 +308,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const handleCancel = async () => {
     clearSelection();
-    await setActiveLayerType(null);
+    if (formState.maType !== "radius") {
+      await removeActiveLayer(); // Remove the layer if not radius
+    }
     onClose();
   };
 
@@ -289,15 +325,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       return (
         <Radius
           onFormStateChange={(newState) => setRadiusPoints(newState.radiusPoints)}
-          styleSettings={formState.styleSettings}
-        />
-      );
-    } else if (formState.maType === "drivetime") {
-      return (
-        <DriveTime
-          onFormStateChange={(newState) =>
-            setDriveTimePoints(newState.driveTimePoints)
-          }
           styleSettings={formState.styleSettings}
         />
       );
@@ -342,7 +369,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Available Locations
                 </label>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   {formState.availableLocations.length} found
                 </span>
               </div>
@@ -426,6 +453,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               </div>
             </div>
           )}
+
           {/* MA Type */}
           <div>
             <label
@@ -572,23 +600,37 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             <button
               type="button"
               onClick={handleCancel}
-              className="btn btn-secondary"
+              className={`px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 
+                         dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 
+                         focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                           isSaving ? "opacity-50 cursor-not-allowed" : ""
+                         }`}
               disabled={isSaving}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className={`px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white hover:bg-blue-700 
+                         dark:bg-blue-500 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 
+                         focus:ring-offset-2 ${
+                           isSaving ||
+                           (formState.maType === "radius" && radiusPoints.length === 0) ||
+                           (formState.maType !== "radius" &&
+                             formState.selectedLocations.length === 0) ||
+                           !formState.maName
+                             ? "opacity-50 cursor-not-allowed"
+                             : ""
+                         }`}
               disabled={
                 isSaving ||
                 (formState.maType === "radius" && radiusPoints.length === 0) ||
-                (formState.maType !== "radius" && 
-                 formState.selectedLocations.length === 0) ||
+                (formState.maType !== "radius" &&
+                  formState.selectedLocations.length === 0) ||
                 !formState.maName
               }
             >
-              {isSaving ? 'Saving...' : 'Save & Exit'}
+              {isSaving ? "Saving..." : "Save & Exit"}
             </button>
           </div>
         </form>
