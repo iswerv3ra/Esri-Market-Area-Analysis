@@ -2,22 +2,21 @@ import axios from 'axios';
 
 // Helper to determine environment
 const isDevelopment = () => {
-  return import.meta.env.MODE === 'development' || import.meta.env.DEV;
+  return import.meta.env.VITE_APP_ENV === 'development';
 };
 
 // Get API URL with proper environment handling
 export const getApiUrl = () => {
-  // Development environment - use local URL
-  if (isDevelopment()) {
-    return 'http://localhost:8000';
-  }
-
-  // Production environment - prefer Choreo config, fallback to env
-  return window.configs?.apiUrl || '/choreo-apis/market-area-analysis/backend/v1';
+  // Use environment variable explicitly
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
 };
 
 // Get base URL for API calls
-export const getBaseUrl = () => `${getApiUrl()}/api`;
+export const getBaseUrl = () => {
+  const baseUrl = getApiUrl();
+  // Don't append /api if the URL already contains it
+  return baseUrl.includes('/api') ? baseUrl : `${baseUrl}/api`;
+};
 
 // Token management
 export const setAuthToken = (token) => {
@@ -42,6 +41,12 @@ export const verifyToken = async (token) => {
         }
       });
     }
+
+    if (isDevelopment()) {
+      console.log('Token verification successful for environment:', import.meta.env.VITE_APP_ENV);
+      console.log('Using API URL:', baseUrl);
+    }
+
     return true;
   } catch (error) {
     if (isDevelopment()) {
@@ -50,13 +55,14 @@ export const verifyToken = async (token) => {
         url: error.config?.url,
         method: error.config?.method,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
+        environment: import.meta.env.VITE_APP_ENV,
+        apiUrl: baseUrl
       });
     }
     return false;
   }
 };
-
 // Axios interceptors setup
 export const setupAxiosInterceptors = (navigate) => {
   const requestInterceptor = axios.interceptors.request.use(
