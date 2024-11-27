@@ -43,27 +43,27 @@ const FEATURE_LAYERS = {
     }
   },
   tract: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts_Generalized/FeatureServer/0",
-    outFields: ["OBJECTID", "TRACT", "STATE_NAME", "COUNTY"],
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts/FeatureServer/0",
+    outFields: ["OBJECTID", "TRACT_FIPS", "STATE_ABBR", "COUNTY_FIPS"],
     uniqueIdField: "OBJECTID",
     title: "Census Tracts",
     geometryType: "polygon",
     popupTemplate: {
-      title: "Census Tract {TRACT}",
+      title: "Census Tract {TRACT_FIPS}",
       content: [{
         type: "fields",
         fieldInfos: [
-          { fieldName: "TRACT", label: "Tract" },
-          { fieldName: "COUNTY", label: "County" },
-          { fieldName: "STATE_NAME", label: "State" }
+          { fieldName: "TRACT_FIPS", label: "TRACT" },
+          { fieldName: "COUNTY_FIPS", label: "County" },
+          { fieldName: "STATE_ABBR", label: "State" }
         ]
       }]
     }
   },
   block: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/12",
-    outFields: ["OBJECTID", "GEOID", "STATE", "COUNTY", "TRACT", "BLOCK"],
-    uniqueIdField: "OBJECTID",
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/2",
+    outFields: ["OID", "GEOID", "STATE", "COUNTY", "TRACT", "BLOCK"],
+    uniqueIdField: "OID",
     title: "Census Blocks",
     geometryType: "polygon",
     popupTemplate: {
@@ -160,9 +160,9 @@ const FEATURE_LAYERS = {
     maxScale: 100
   },
   usa: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/84",
-    outFields: ["OBJECTID", "GEOID", "NAME"],
-    uniqueIdField: "OBJECTID",
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_State_Boundaries/MapServer/0",
+    outFields: ["FID", "SUB_REGION", "STATE_NAME", "POPULATION "],
+    uniqueIdField: "FID",
     title: "United States Boundary",
     geometryType: "polygon",
     popupTemplate: {
@@ -170,8 +170,10 @@ const FEATURE_LAYERS = {
       content: [{
         type: "fields",
         fieldInfos: [
-          { fieldName: "NAME", label: "Name" },
-          { fieldName: "GEOID", label: "GEOID" }
+          { fieldName: "FID", label: "FID" },
+          { fieldName: "POPULATION ", label: "Population" },
+          { fieldName: "SUB_REGION", label: "Sub Region" },
+          { fieldName: "STATE_NAME", label: "State" }
         ]
       }]
     },
