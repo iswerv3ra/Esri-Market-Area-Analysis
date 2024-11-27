@@ -28,17 +28,8 @@ export const setAuthToken = (token) => {
 export const verifyToken = async (token) => {
   try {
     const baseUrl = getApiUrl();
-    if (isDevelopment()) {
-      // Local development - send token in request body
-      await axios.post(`${baseUrl}/api/token/verify/`, { token });
-    } else {
-      // Production - send token in Authorization header
-      await axios.post(`${baseUrl}/api/token/verify/`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-    }
+    // Always send token in request body for Django REST Framework
+    await axios.post(`${baseUrl}/api/token/verify/`, { token });
 
     if (isDevelopment()) {
       console.log('Token verification successful');
