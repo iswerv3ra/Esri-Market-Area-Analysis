@@ -7,15 +7,13 @@ const isDevelopment = () => {
 
 // Get API URL with proper environment handling
 export const getApiUrl = () => {
-  // Use environment variable explicitly
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
-};
+  // Development environment - use local URL
+  if (isDevelopment()) {
+    return 'http://localhost:8000';
+  }
 
-// Get base URL for API calls
-export const getBaseUrl = () => {
-  const baseUrl = getApiUrl();
-  // Don't append /api if the URL already contains it
-  return baseUrl.includes('/api') ? baseUrl : `${baseUrl}/api`;
+  // Production environment - use Choreo config
+  return '/choreo-apis/market-area-analysis/backend/v1';
 };
 
 // Token management
@@ -29,13 +27,13 @@ export const setAuthToken = (token) => {
 
 export const verifyToken = async (token) => {
   try {
-    const baseUrl = getBaseUrl();
+    const baseUrl = getApiUrl();
     if (isDevelopment()) {
       // Local development - send token in request body
-      await axios.post(`${baseUrl}/token/verify/`, { token });
+      await axios.post(`${baseUrl}/api/token/verify/`, { token });
     } else {
       // Production - send token in Authorization header
-      await axios.post(`${baseUrl}/token/verify/`, {}, {
+      await axios.post(`${baseUrl}/api/token/verify/`, {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -43,7 +41,7 @@ export const verifyToken = async (token) => {
     }
 
     if (isDevelopment()) {
-      console.log('Token verification successful for environment:', import.meta.env.VITE_APP_ENV);
+      console.log('Token verification successful');
       console.log('Using API URL:', baseUrl);
     }
 
@@ -55,14 +53,13 @@ export const verifyToken = async (token) => {
         url: error.config?.url,
         method: error.config?.method,
         status: error.response?.status,
-        data: error.response?.data,
-        environment: import.meta.env.VITE_APP_ENV,
-        apiUrl: baseUrl
+        data: error.response?.data
       });
     }
     return false;
   }
 };
+
 // Axios interceptors setup
 export const setupAxiosInterceptors = (navigate) => {
   const requestInterceptor = axios.interceptors.request.use(
@@ -106,8 +103,8 @@ export const setupAxiosInterceptors = (navigate) => {
             throw new Error('No refresh token available');
           }
 
-          const baseUrl = getBaseUrl();
-          const response = await axios.post(`${baseUrl}/token/refresh/`, {
+          const baseUrl = getApiUrl();
+          const response = await axios.post(`${baseUrl}/api/token/refresh/`, {
             refresh: refreshToken
           });
 
