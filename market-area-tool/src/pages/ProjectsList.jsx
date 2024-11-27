@@ -5,7 +5,8 @@ import {
   MagnifyingGlassIcon,
   CalendarIcon,
   MapIcon,
-  XCircleIcon
+  XCircleIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { projectsAPI } from '../services/api';
 
@@ -15,13 +16,13 @@ export default function ProjectsList() {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, projectId: null, projectName: '' });
   
   // Fetch projects from API
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const response = await projectsAPI.getAll();
-        // Ensure we're setting an array
         const projectsData = Array.isArray(response.data) ? response.data : [];
         console.log('Projects received:', projectsData);
         setProjects(projectsData);
@@ -68,6 +69,19 @@ export default function ProjectsList() {
 
   const handleCreateProject = () => {
     navigate('/projects/create');
+  };
+
+  // Handle project deletion
+  const handleDeleteProject = async () => {
+    try {
+      await projectsAPI.delete(deleteConfirmation.projectId);
+      setProjects(projects.filter(p => p.id !== deleteConfirmation.projectId));
+      setDeleteConfirmation({ isOpen: false, projectId: null, projectName: '' });
+      alert('Project deleted successfully');
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      alert(err.response?.data?.detail || 'Failed to delete project');
+    }
   };
 
   if (isLoading) {
@@ -172,6 +186,21 @@ export default function ProjectsList() {
                     </div>
                   </div>
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteConfirmation({ 
+                      isOpen: true, 
+                      projectId: project.id,
+                      projectName: `${project.project_number} - ${project.client}`
+                    });
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-600 rounded-full 
+                            hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  title="Delete project"
+                >
+                  <TrashIcon className="h-5 w-5" />
+                </button>
               </div>
             </div>
           ))
@@ -212,6 +241,47 @@ export default function ProjectsList() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Delete Project
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              Are you sure you want to delete "{deleteConfirmation.projectName}"? 
+              This will permanently remove the project and all its market areas. 
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteConfirmation({ isOpen: false, projectId: null, projectName: '' });
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white 
+                         border border-gray-300 rounded-md hover:bg-gray-50
+                         dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 
+                         dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteProject();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 
+                         rounded-md hover:bg-red-700 focus:outline-none 
+                         focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Delete Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
