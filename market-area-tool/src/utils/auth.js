@@ -31,10 +31,23 @@ export const setAuthToken = (token) => {
 export const verifyToken = async (token) => {
   try {
     const baseUrl = getBaseUrl();
-    await axios.post(`${baseUrl}/token/verify/`, { token });
-    return true;
+    // Send token in Authorization header instead of request body
+    const response = await axios.get(`${baseUrl}/token/verify/`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.status === 200;
   } catch (error) {
-    console.error('Token verification failed:', error);
+    if (isDevelopment()) {
+      console.error('Token verification failed:', error);
+      console.log('Request details:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+    }
     return false;
   }
 };
@@ -72,6 +85,7 @@ export const setupAxiosInterceptors = (navigate) => {
     async (error) => {
       const originalRequest = error.config;
 
+      // Handle 401 errors (unauthorized)
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
 
@@ -90,12 +104,25 @@ export const setupAxiosInterceptors = (navigate) => {
           localStorage.setItem('accessToken', access);
           setAuthToken(access);
 
+          // Update the failed request with new token
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return axios(originalRequest);
         } catch (err) {
-          console.error('Token refresh failed:', err);
+          if (isDevelopment()) {
+            console.error('Token refresh failed:', err);
+          }
           await logout(navigate);
           return Promise.reject(err);
+        }
+      }
+
+      // Handle 405 errors (method not allowed)
+      if (error.response?.status === 405) {
+        if (isDevelopment()) {
+          console.error('Method not allowed:', {
+            url: error.config?.url,
+            method: error.config?.method
+          });
         }
       }
 
@@ -125,7 +152,9 @@ export const logout = async (navigate) => {
       window.location.href = '/login';
     }
   } catch (error) {
-    console.error('Logout error:', error);
+    if (isDevelopment()) {
+      console.error('Logout error:', error);
+    }
     window.location.href = '/login';
   }
 };
