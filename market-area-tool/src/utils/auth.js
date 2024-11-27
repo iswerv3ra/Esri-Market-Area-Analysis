@@ -31,13 +31,18 @@ export const setAuthToken = (token) => {
 export const verifyToken = async (token) => {
   try {
     const baseUrl = getBaseUrl();
-    // Send token in Authorization header instead of request body
-    const response = await axios.get(`${baseUrl}/token/verify/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    return response.status === 200;
+    if (isDevelopment()) {
+      // Local development - send token in request body
+      await axios.post(`${baseUrl}/token/verify/`, { token });
+    } else {
+      // Production - send token in Authorization header
+      await axios.post(`${baseUrl}/token/verify/`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    }
+    return true;
   } catch (error) {
     if (isDevelopment()) {
       console.error('Token verification failed:', error);
