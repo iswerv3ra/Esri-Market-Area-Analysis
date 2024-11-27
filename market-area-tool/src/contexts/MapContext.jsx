@@ -16,15 +16,13 @@ const FEATURE_LAYERS = {
     geometryType: "polygon",
     popupTemplate: {
       title: "ZIP Code: {ZIP}",
-      content: [
-        {
-          type: "fields",
-          fieldInfos: [
-            { fieldName: "ZIP", label: "ZIP Code" },
-            { fieldName: "PO_NAME", label: "Post Office Name" }
-          ]
-        }
-      ]
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "ZIP", label: "ZIP Code" },
+          { fieldName: "PO_NAME", label: "Post Office Name" }
+        ]
+      }]
     }
   },
   county: {
@@ -45,8 +43,8 @@ const FEATURE_LAYERS = {
     }
   },
   tract: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Tracts/FeatureServer/0",
-    outFields: ["OBJECTID", "TRACT", "STATE_FIPS", "CNTY_FIPS"],
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts_Generalized/FeatureServer/0",
+    outFields: ["OBJECTID", "TRACT", "STATE_NAME", "COUNTY"],
     uniqueIdField: "OBJECTID",
     title: "Census Tracts",
     geometryType: "polygon",
@@ -56,16 +54,16 @@ const FEATURE_LAYERS = {
         type: "fields",
         fieldInfos: [
           { fieldName: "TRACT", label: "Tract" },
-          { fieldName: "CNTY_FIPS", label: "County" },
-          { fieldName: "STATE_FIPS", label: "State" }
+          { fieldName: "COUNTY", label: "County" },
+          { fieldName: "STATE_NAME", label: "State" }
         ]
       }]
     }
   },
   block: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/14",
-    outFields: ["GEOID", "BLOCK", "TRACT", "COUNTY", "STATE"],
-    uniqueIdField: "GEOID",
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/12",
+    outFields: ["OBJECTID", "GEOID", "STATE", "COUNTY", "TRACT", "BLOCK"],
+    uniqueIdField: "OBJECTID",
     title: "Census Blocks",
     geometryType: "polygon",
     popupTemplate: {
@@ -76,10 +74,108 @@ const FEATURE_LAYERS = {
           { fieldName: "BLOCK", label: "Block" },
           { fieldName: "TRACT", label: "Tract" },
           { fieldName: "COUNTY", label: "County" },
-          { fieldName: "STATE", label: "State" }
+          { fieldName: "STATE", label: "State" },
+          { fieldName: "GEOID", label: "GEOID" }
+        ]
+      }]
+    },
+    minScale: 18056,
+    maxScale: 0
+  },
+  blockgroup: {
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_BlockGroups/FeatureServer/0",
+    outFields: ["OBJECTID", "BLOCKGROUP_FIPS", "TRACT_FIPS", "COUNTY_FIPS", "STATE_FIPS"],
+    uniqueIdField: "OBJECTID",
+    title: "Block Groups",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "Block Group {BLOCKGROUP_FIPS}",
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "BLOCKGROUP_FIPS", label: "Block Group" },
+          { fieldName: "TRACT_FIPS", label: "Tract" },
+          { fieldName: "COUNTY_FIPS", label: "County" },
+          { fieldName: "STATE_FIPS", label: "State" }
         ]
       }]
     }
+  },
+  place: {
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
+    outFields: ["OBJECTID", "GEOID", "STATE", "PLACE", "NAME", "BASENAME", "LSADC"],
+    uniqueIdField: "OBJECTID",
+    title: "Places",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "{NAME}",
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "NAME", label: "Place Name" },
+          { fieldName: "STATE", label: "State" },
+          { fieldName: "LSADC", label: "Legal/Statistical Area Description" },
+          { fieldName: "BASENAME", label: "Base Name" }
+        ]
+      }]
+    }
+  },
+  state: {
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized/FeatureServer/0",
+    outFields: ["STATE_NAME", "STATE_ABBR"],
+    uniqueIdField: "OBJECTID",
+    title: "States",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "{STATE_NAME}",
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "STATE_NAME", label: "State" },
+          { fieldName: "STATE_ABBR", label: "Abbreviation" }
+        ]
+      }]
+    }
+  },
+  cbsa: {
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/97",
+    outFields: ["OBJECTID", "GEOID", "NAME", "BASENAME", "CSA", "LSADC", "POP100", "HU100"],
+    uniqueIdField: "OBJECTID",
+    title: "Combined Statistical Areas",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "{NAME}",
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "NAME", label: "Area Name" },
+          { fieldName: "POP100", label: "Population" },
+          { fieldName: "HU100", label: "Housing Units" },
+          { fieldName: "CSA", label: "CSA Code" },
+          { fieldName: "LSADC", label: "Statistical Area Type" }
+        ]
+      }]
+    },
+    minScale: 22000000,
+    maxScale: 100
+  },
+  usa: {
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/84",
+    outFields: ["OBJECTID", "GEOID", "NAME"],
+    uniqueIdField: "OBJECTID",
+    title: "United States Boundary",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "United States",
+      content: [{
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "NAME", label: "Name" },
+          { fieldName: "GEOID", label: "GEOID" }
+        ]
+      }]
+    },
+    definitionExpression: "GEOID = '010'"
   }
 };
 
@@ -151,6 +247,32 @@ export const MapProvider = ({ children }) => {
   const [activeLayers, setActiveLayers] = useState([]);
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState([]);
+
+  const formatLocationName = (feature, layerType) => {
+    const attrs = feature.attributes;
+    switch (layerType) {
+      case "zip":
+        return `${attrs.ZIP || ""} - ${attrs.PO_NAME || ""}`;
+      case "county":
+        return `${attrs.NAME} County, ${attrs.STATE_NAME || ""}`;
+      case "tract":
+        return `Tract ${attrs.TRACT}, ${attrs.COUNTY || ""} County, ${attrs.STATE_NAME || attrs.STATE || ""}`;
+      case "block":
+        return `Block ${attrs.BLOCK}, Tract ${attrs.TRACT}, ${attrs.COUNTY} County`;
+      case "blockgroup":
+        return `Block Group ${attrs.BLOCKGROUP_FIPS}, Tract ${attrs.TRACT_FIPS}, ${attrs.COUNTY_FIPS} County`;
+      case "cbsa":
+        return attrs.NAME || "";
+      case "state":
+        return attrs.STATE_NAME || "";
+      case "place":
+        return `${attrs.NAME}${attrs.LSADC ? ` (${attrs.LSADC})` : ""}`;
+      case "usa":
+        return attrs.NAME || "United States";
+      default:
+        return attrs.NAME || "";
+    }
+  };
 
   // Initialize graphics layer with dynamic import
   const initializeGraphicsLayer = useCallback(async () => {
@@ -528,43 +650,60 @@ export const MapProvider = ({ children }) => {
       console.error(`Invalid layer type or map not initialized: ${type}`);
       return;
     }
-
-    if (activeLayers.includes(type)) {
-      console.log(`Layer ${type} is already active`);
-      return;
-    }
-
+  
     setIsLayerLoading(true);
-
+  
     try {
-      if (!featureLayers[type]) {
-        const newLayer = await initializeFeatureLayer(type);
-        if (newLayer) {
-          await mapView.map.add(newLayer);
+      // First, ensure all other layers are hidden
+      Object.entries(featureLayers).forEach(([layerType, layer]) => {
+        if (layer && !layer.destroyed && layerType !== type) {
+          layer.visible = false;
+          console.log(`[MapContext] Hiding layer ${layerType}`);
+        }
+      });
+  
+      let layer = featureLayers[type];
+  
+      // Initialize the layer if it doesn't exist
+      if (!layer) {
+        layer = await initializeFeatureLayer(type);
+        if (layer) {
+          await mapView.map.add(layer);
           setFeatureLayers(prev => ({
             ...prev,
-            [type]: newLayer
+            [type]: layer
           }));
-          console.log(`[MapContext] FeatureLayer for type ${type} added to the map.`);
+          console.log(`[MapContext] New FeatureLayer for type ${type} added to the map.`);
         }
       }
-
-      const layer = featureLayers[type];
+  
+      // Ensure the layer is visible and added to active layers
       if (layer && !layer.destroyed) {
-        layer.visible = true;
-        console.log(`[MapContext] FeatureLayer ${type} set to visible.`);
+        // Force layer visibility and wait for it to be ready
+        try {
+          await layer.when();
+          layer.visible = true;
+          console.log(`[MapContext] FeatureLayer ${type} set to visible.`);
+        } catch (error) {
+          console.error(`[MapContext] Error setting layer visibility for ${type}:`, error);
+        }
+        
+        setActiveLayers(prev => {
+          if (!prev.includes(type)) {
+            console.log(`[MapContext] Adding layer ${type} to activeLayers.`);
+            return [...prev, type];
+          }
+          return prev;
+        });
       }
-
-      setActiveLayers(prev => {
-        console.log(`[MapContext] Adding layer ${type} to activeLayers.`);
-        return [...prev, type];
-      });
+  
     } catch (error) {
       console.error(`Error adding active layer ${type}:`, error);
+      throw error;
     } finally {
       setIsLayerLoading(false);
     }
-  }, [mapView, activeLayers, featureLayers, initializeFeatureLayer]);
+  }, [mapView, featureLayers, initializeFeatureLayer]);
 
   // Updated removeActiveLayer function
   const removeActiveLayer = useCallback(async (type) => {
@@ -624,9 +763,11 @@ export const MapProvider = ({ children }) => {
   }, [mapView, featureLayers, graphicsLayer]);
 
   // New function to hide all feature layers
-  const hideAllFeatureLayers = useCallback(() => {
-    console.log("[MapContext] Hiding all feature layers.");
-    Object.values(featureLayers).forEach(layer => {
+  // Update the hideAllFeatureLayers function
+const hideAllFeatureLayers = useCallback(() => {
+  console.log("[MapContext] Hiding all feature layers.");
+  try {
+    Object.entries(featureLayers).forEach(([type, layer]) => {
       if (layer && !layer.destroyed) {
         layer.visible = false;
         console.log(`[MapContext] FeatureLayer hidden: ${layer.title}`);
@@ -634,7 +775,10 @@ export const MapProvider = ({ children }) => {
     });
     setActiveLayers([]);
     console.log(`[MapContext] activeLayers cleared after hiding all layers.`);
-  }, [featureLayers]);
+  } catch (error) {
+    console.error("[MapContext] Error hiding feature layers:", error);
+  }
+}, [featureLayers]);
 
   // Query features
   const queryFeatures = useCallback(async (searchText) => {
