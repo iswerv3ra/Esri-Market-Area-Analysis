@@ -7,8 +7,7 @@ import {
   PhotoIcon,
   MapIcon,
   TableCellsIcon,
-  CodeBracketSquareIcon,
-  DocumentArrowDownIcon,
+  DocumentArrowDownIcon, // Ensure this icon exists
   PlusIcon,
   ListBulletIcon,
 } from "@heroicons/react/24/outline";
@@ -17,6 +16,8 @@ import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import { enrichmentService } from "../../services/enrichmentService";
 import { toast } from "react-hot-toast";
 import axios from "axios";
+import { saveAs } from 'file-saver';
+import jsPDF from "jspdf";
 
 export default function Toolbar({ onCreateMA, onToggleList }) {
   const { projectId } = useParams();
@@ -45,15 +46,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       const csvContent = enrichmentService.exportToCSV(enrichedData, marketAreas);
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `market_areas_enriched_${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      window.URL.revokeObjectURL(url);
+      saveAs(blob, `market_areas_enriched_${new Date().toISOString().split("T")[0]}.csv`);
 
       toast.dismiss(loadingToast);
       toast.success("Export completed successfully");
@@ -74,27 +67,72 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
     try {
       setIsExporting(true);
-      toast.loading("Exporting map as JPEG...");
+      const loadingToast = toast.loading("Exporting map as JPEG...");
 
-      const mapContainer = mapView.container;
-      const canvas = await html2canvas(mapContainer, {
-        useCORS: true,
-        allowTaint: true,
-        foreignObjectRendering: true,
+      const screenshot = await mapView.takeScreenshot({
+        format: "png", // Use "jpeg" if supported
+        quality: 90,
       });
 
-      const link = document.createElement("a");
-      link.download = `market_areas_map_${new Date().toISOString().split("T")[0]}.jpg`;
-      link.href = canvas.toDataURL("image/jpeg", 0.9);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Convert to Blob
+      const response = await fetch(screenshot.dataUrl);
+      const blob = await response.blob();
 
-      toast.dismiss();
+      // Save the image
+      saveAs(blob, `market_areas_map_${new Date().toISOString().split("T")[0]}.jpg`);
+
+      toast.dismiss(loadingToast);
       toast.success("Map exported successfully");
     } catch (error) {
       console.error("JPEG export failed:", error);
       toast.error("Failed to export map: " + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Export PDF using jsPDF
+  const handleExportPDF = async () => {
+    if (!mapView) {
+      toast.error("Map not ready for export");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const loadingToast = toast.loading("Exporting map as PDF...");
+
+      // Capture the map view as a screenshot
+      const screenshot = await mapView.takeScreenshot({
+        format: "png",
+        quality: 90,
+      });
+
+      // Initialize jsPDF
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "px",
+        format: [screenshot.data.width, screenshot.data.height],
+      });
+
+      // Add the image to the PDF
+      pdf.addImage(
+        screenshot.dataUrl,
+        "PNG",
+        0,
+        0,
+        screenshot.data.width,
+        screenshot.data.height
+      );
+
+      // Save the PDF
+      pdf.save(`market_areas_map_${new Date().toISOString().split("T")[0]}.pdf`);
+
+      toast.dismiss(loadingToast);
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      toast.error("Failed to export PDF: " + error.message);
     } finally {
       setIsExporting(false);
     }
@@ -109,7 +147,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
     try {
       setIsExporting(true);
-      toast.loading("Preparing web map export...");
+      const loadingToast = toast.loading("Preparing web map export...");
 
       const webMapJson = {
         operationalLayers: marketAreas.map((area) => ({
@@ -149,12 +187,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       };
 
       const blob = new Blob([JSON.stringify(webMapJson, null, 2)], { type: "application/json" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `market_areas_webmap_${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      saveAs(blob, `market_areas_webmap_${new Date().toISOString().split("T")[0]}.json`);
 
       toast.dismiss();
       toast.success("Web map exported successfully");
@@ -271,6 +304,21 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export JPEG
+                      </button>
+                    )}
+                  </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleExportPDF}
+                        disabled={isExporting}
+                        className={`${
+                          active ? "bg-gray-100 dark:bg-gray-600" : ""
+                        } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
+                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        <DocumentArrowDownIcon className="mr-3 h-5 w-5" />
+                        Export PDF
                       </button>
                     )}
                   </Menu.Item>
