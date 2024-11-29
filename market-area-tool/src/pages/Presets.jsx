@@ -172,9 +172,7 @@ const PresetsProvider = ({ children }) => {
     try {
       const response = await stylePresetsAPI.makeGlobal(id);
       setStylePresets((prev) =>
-        prev.map((p) =>
-          p.id === id ? { ...p, is_global: true } : p
-        )
+        prev.map((p) => (p.id === id ? { ...p, is_global: true } : p))
       );
       toast.success('Style preset is now global');
       return response.data;
@@ -189,9 +187,7 @@ const PresetsProvider = ({ children }) => {
     try {
       const response = await variablePresetsAPI.makeGlobal(id);
       setVariablePresets((prev) =>
-        prev.map((p) =>
-          p.id === id ? { ...p, is_global: true } : p
-        )
+        prev.map((p) => (p.id === id ? { ...p, is_global: true } : p))
       );
       toast.success('Variable preset is now global');
       return response.data;
@@ -273,7 +269,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
 // 7. **StylePresetModalContent Component**
 const StylePresetModalContent = ({ preset, closeModal }) => {
-  const { updateStylePreset, makeStylePresetGlobal } = usePresets();
+  const {
+    updateStylePreset,
+    makeStylePresetGlobal,
+    deleteStylePreset,
+  } = usePresets();
   const [editableStyles, setEditableStyles] = useState(() =>
     JSON.parse(JSON.stringify(preset.styles))
   );
@@ -314,6 +314,22 @@ const StylePresetModalContent = ({ preset, closeModal }) => {
       toast.error('Failed to make preset global');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeletePreset = async () => {
+    if (window.confirm('Are you sure you want to delete this style preset?')) {
+      setIsLoading(true);
+      try {
+        await deleteStylePreset(preset.id);
+        toast.success('Style preset deleted');
+        closeModal();
+      } catch (error) {
+        console.error('Error deleting preset:', error);
+        toast.error('Failed to delete preset');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -412,8 +428,7 @@ const StylePresetModalContent = ({ preset, closeModal }) => {
                 <span
                   className="h-8 w-8 rounded"
                   style={{
-                    backgroundColor:
-                      editableStyles[typeItem.value].borderColor,
+                    backgroundColor: editableStyles[typeItem.value].borderColor,
                   }}
                 ></span>
               </div>
@@ -475,13 +490,29 @@ const StylePresetModalContent = ({ preset, closeModal }) => {
       >
         {isLoading ? 'Saving...' : 'Save Changes'}
       </button>
+
+      {/* Delete Preset Button */}
+      {!preset.is_global && (
+        <button
+          onClick={handleDeletePreset}
+          disabled={isLoading}
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? 'Deleting...' : 'Delete Preset'}
+        </button>
+      )}
     </div>
   );
 };
 
 // 8. **VariablePresetModalContent Component**
 const VariablePresetModalContent = ({ preset, closeModal }) => {
-  const { updateVariablePreset, makeVariablePresetGlobal } = usePresets();
+  const {
+    updateVariablePreset,
+    makeVariablePresetGlobal,
+    deleteVariablePreset,
+  } = usePresets();
   const [isLoading, setIsLoading] = useState(false);
 
   const getVariableLabel = (variableId) => {
@@ -519,6 +550,22 @@ const VariablePresetModalContent = ({ preset, closeModal }) => {
       toast.error('Failed to make preset global');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeletePreset = async () => {
+    if (window.confirm('Are you sure you want to delete this variable preset?')) {
+      setIsLoading(true);
+      try {
+        await deleteVariablePreset(preset.id);
+        toast.success('Variable preset deleted');
+        closeModal();
+      } catch (error) {
+        console.error('Error deleting preset:', error);
+        toast.error('Failed to delete preset');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -562,6 +609,18 @@ const VariablePresetModalContent = ({ preset, closeModal }) => {
           </li>
         ))}
       </ul>
+
+      {/* Delete Preset Button */}
+      {!preset.is_global && (
+        <button
+          onClick={handleDeletePreset}
+          disabled={isLoading}
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? 'Deleting...' : 'Delete Preset'}
+        </button>
+      )}
     </div>
   );
 };
@@ -1093,15 +1152,13 @@ const PresetsContent = () => {
                         >
                           <MagnifyingGlassIcon className="h-4 w-4" />
                         </button>
-                        {!preset.is_global && (
-                          <button
-                            onClick={() => deleteStylePreset(preset.id)}
-                            className="text-red-600 hover:text-red-700"
-                            title="Delete Preset"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => deleteStylePreset(preset.id)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete Preset"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1156,15 +1213,13 @@ const PresetsContent = () => {
                         >
                           <MagnifyingGlassIcon className="h-4 w-4" />
                         </button>
-                        {!preset.is_global && (
-                          <button
-                            onClick={() => deleteVariablePreset(preset.id)}
-                            className="text-red-600 hover:text-red-700"
-                            title="Delete Preset"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => deleteVariablePreset(preset.id)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete Preset"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1176,12 +1231,12 @@ const PresetsContent = () => {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Modal for Preset Details */}
-          <Modal isOpen={isModalOpen} onClose={closeModal} title={modalTitle}>
-            {modalContent}
-          </Modal>
+            {/* Modal for Preset Details */}
+            <Modal isOpen={isModalOpen} onClose={closeModal} title={modalTitle}>
+              {modalContent}
+            </Modal>
+          </div>
         </div>
       </div>
     </div>
