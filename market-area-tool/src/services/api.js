@@ -1,3 +1,5 @@
+// src/api.js
+
 import axios from 'axios';
 import { getApiUrl, setAuthToken } from '../utils/auth';
 
@@ -23,14 +25,17 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
-    if (token) {
+    const isTokenRefreshUrl = config.url.includes('/api/token/refresh/');
+
+    // Exclude Authorization header for token refresh requests
+    if (token && !isTokenRefreshUrl) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     if (!config.url.endsWith('/')) {
       config.url = `${config.url}/`;
     }
-    
+
     // Debug logging in development
     if (import.meta.env.DEV) {
       console.log('Making request:', {
@@ -40,7 +45,7 @@ api.interceptors.request.use(
         data: config.data
       });
     }
-    
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -58,13 +63,11 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    if (import.meta.env.DEV) {
-      console.error('API Error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-    }
+    console.error('API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
 
     const originalRequest = error.config;
 
@@ -77,9 +80,16 @@ api.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        const response = await api.post('/api/token/refresh/', {
-          refresh: refreshToken
-        });
+        // Exclude Authorization header when refreshing token
+        const response = await axios.post(
+          `${baseURL}/api/token/refresh/`,
+          { refresh: refreshToken },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
         const { access } = response.data;
         localStorage.setItem('accessToken', access);
@@ -117,7 +127,15 @@ export const authAPI = {
   },
 
   refreshToken: async (refreshToken) => {
-    return api.post('/api/token/refresh/', { refresh: refreshToken });
+    return axios.post(
+      `${baseURL}/api/token/refresh/`,
+      { refresh: refreshToken },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   },
 
   verifyToken: async (token) => {
