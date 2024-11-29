@@ -22,7 +22,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
   } = useMarketAreas();
 
   const { 
-    drawRadius,
+    drawRadius, 
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers

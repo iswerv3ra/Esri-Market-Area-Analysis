@@ -11,8 +11,9 @@ class Project(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="projects")
-
+    # Replace owner with users
+    users = models.ManyToManyField(User, related_name="projects")
+    
     def __str__(self):
         return f"{self.project_number} - {self.client}"
     

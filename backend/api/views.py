@@ -15,14 +15,16 @@ class ProjectList(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Project.objects.filter(owner=self.request.user)
+        # Return all projects
+        return Project.objects.all()
 
 class ProjectDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Project.objects.filter(owner=self.request.user)
+        # Return all projects
+        return Project.objects.all()
 
 class MarketAreaList(generics.ListCreateAPIView):
     serializer_class = MarketAreaSerializer
@@ -31,13 +33,12 @@ class MarketAreaList(generics.ListCreateAPIView):
     def get_queryset(self):
         project_id = self.kwargs.get('project_id')
         return MarketArea.objects.filter(
-            project__owner=self.request.user, 
             project_id=project_id
         ).select_related('project')
 
     def perform_create(self, serializer):
         project_id = self.kwargs.get('project_id')
-        project = Project.objects.get(id=project_id, owner=self.request.user)
+        project = Project.objects.get(id=project_id)
         serializer.save(project=project)
 
     def create(self, request, *args, **kwargs):
@@ -56,7 +57,6 @@ class MarketAreaDetail(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         project_id = self.kwargs.get('project_id')
         return MarketArea.objects.filter(
-            project__owner=self.request.user,
             project_id=project_id
         ).select_related('project')
 

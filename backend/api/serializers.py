@@ -44,15 +44,26 @@ class MarketAreaSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     market_areas = MarketAreaSerializer(many=True, read_only=True)
     market_areas_count = serializers.IntegerField(source='market_areas.count', read_only=True)
+    users = UserSerializer(many=True, read_only=True)
     
     class Meta:
         model = Project
         fields = [
             'id', 'project_number', 'client', 'location', 'description',
-            'created_at', 'last_modified', 'market_areas', 'market_areas_count'
+            'created_at', 'last_modified', 'market_areas', 'market_areas_count',
+            'users'
         ]
         read_only_fields = ['created_at', 'last_modified']
 
     def create(self, validated_data):
-        validated_data['owner'] = self.context['request'].user
-        return super().create(validated_data)
+        # Create the project
+        project = Project.objects.create(
+            project_number=validated_data['project_number'],
+            client=validated_data['client'],
+            location=validated_data['location'],
+            description=validated_data.get('description', '')
+        )
+        # Add all users to the project
+        all_users = User.objects.all()
+        project.users.set(all_users)
+        return project
