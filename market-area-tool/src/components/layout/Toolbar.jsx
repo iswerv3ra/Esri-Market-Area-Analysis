@@ -344,7 +344,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         </div>
 
         {/* Center section - Search Widget */}
-        <div ref={searchWidgetRef} className="flex-1 max-w-2xl mx-4 relative"></div>
+        <div ref={searchWidgetRef} className="flex-1 max-w-2xl mx-4 relative border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+        ></div>
 
         {/* Right section - Actions */}
         <div className="flex items-center space-x-2">

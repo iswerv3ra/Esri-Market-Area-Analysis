@@ -135,8 +135,21 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 ...point.center,
                 spatialReference: { wkid: 4326 },
               },
+              // Ensure that geometry is a valid Polygon
+              geometry: point.geometry ? {
+                type: "Polygon",
+                rings: point.geometry.rings
+              } : undefined
             }))
           );
+
+          // Draw existing radius points
+          editingMarketArea.radius_points.forEach((point) => {
+            drawRadius({
+              center: point.center,
+              radius: point.radius
+            }, editingMarketArea.style_settings);
+          });
         } else {
           // For non-radius types, initialize the feature layer and selections
           await addActiveLayer(editingMarketArea.ma_type);
@@ -183,7 +196,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     clearSelection,
     hideAllFeatureLayers,
     updateFeatureStyles,
-    formatLocationName
+    formatLocationName,
+    drawRadius
   ]);
 
   // Style update handler with better error handling
@@ -369,10 +383,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       };
 
       if (formState.maType === "radius") {
-        marketAreaData.radius_points = radiusPoints;
+        marketAreaData.radius_points = radiusPoints.map(point => ({
+          center: point.center,
+          radius: point.radius,
+          geometry: point.geometry // Ensure geometry is included
+        }));
+
+        // Ensure all radiusPoints have valid geometry with 'rings'
+        const geometries = radiusPoints.map((point) => {
+          if (point.geometry && point.geometry.rings) {
+            return point.geometry.rings;
+          } else {
+            console.warn(`Invalid geometry for radius point:`, point);
+            return [];
+          }
+        });
+
         marketAreaData.geometry = {
           type: "MultiPolygon",
-          coordinates: radiusPoints.map((point) => point.geometry.rings),
+          coordinates: geometries,
         };
       } else {
         // Handle both new and edited locations
@@ -384,6 +413,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           })
         );
 
+        // Ensure that each location has valid geometry with 'rings'
         marketAreaData.geometry = {
           type: "MultiPolygon",
           coordinates: marketAreaData.locations.map((loc) => {

@@ -225,6 +225,7 @@ const SYMBOLS = {
     }
   }
 };
+
 const hexToRgb = (hex) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? [
@@ -243,7 +244,8 @@ export const useMap = () => {
 export const MapProvider = ({ children }) => {
   const [mapView, setMapView] = useState(null);
   const [featureLayers, setFeatureLayers] = useState({});
-  const [graphicsLayer, setGraphicsLayer] = useState(null);
+  const [selectionGraphicsLayer, setSelectionGraphicsLayer] = useState(null);
+  const [radiusGraphicsLayer, setRadiusGraphicsLayer] = useState(null);
   const [activeLayers, setActiveLayers] = useState([]);
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState([]);
@@ -275,15 +277,16 @@ export const MapProvider = ({ children }) => {
     }
   };
 
-  // Initialize graphics layer with dynamic import
-  const initializeGraphicsLayer = useCallback(async () => {
+  // Initialize graphics layers with dynamic import
+  const initializeGraphicsLayers = useCallback(async () => {
     if (!mapView) return;
 
     try {
       const GraphicsLayerModule = await import('@arcgis/core/layers/GraphicsLayer');
       const GraphicsLayer = GraphicsLayerModule.default;
 
-      const layer = new GraphicsLayer({
+      // Selection Graphics Layer
+      const selectionLayer = new GraphicsLayer({
         title: "Selection Graphics",
         listMode: "hide",
         elevationInfo: {
@@ -292,11 +295,23 @@ export const MapProvider = ({ children }) => {
         }
       });
 
-      mapView.map.add(layer);
-      setGraphicsLayer(layer);
-      console.log("[MapContext] Graphics layer initialized");
+      // Radius Graphics Layer
+      const radiusLayer = new GraphicsLayer({
+        title: "Radius Graphics",
+        listMode: "hide",
+        elevationInfo: {
+          mode: "relative-to-ground",
+          offset: 1
+        }
+      });
+
+      // Add both layers to the map, ensuring radiusLayer is on top
+      mapView.map.addMany([selectionLayer, radiusLayer]);
+      setSelectionGraphicsLayer(selectionLayer);
+      setRadiusGraphicsLayer(radiusLayer);
+      console.log("[MapContext] Graphics layers initialized");
     } catch (error) {
-      console.error("[MapContext] Error initializing GraphicsLayer:", error);
+      console.error("[MapContext] Error initializing GraphicsLayers:", error);
     }
   }, [mapView]);
 
@@ -304,8 +319,8 @@ export const MapProvider = ({ children }) => {
   const removeFromSelection = useCallback(async (feature, layerType) => {
     console.log(`[MapContext] removeFromSelection called with feature:`, feature.attributes);
     
-    if (!graphicsLayer) {
-      console.warn(`[MapContext] Cannot remove from selection: graphicsLayer not initialized`);
+    if (!selectionGraphicsLayer) {
+      console.warn(`[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized`);
       return;
     }
 
@@ -319,11 +334,11 @@ export const MapProvider = ({ children }) => {
 
       console.log(`[MapContext] Unique ID field for layer ${layerType}: ${uniqueIdField}`);
 
-      // Remove the graphic from graphicsLayer
-      graphicsLayer.graphics.forEach(g => {
+      // Remove the graphic from selectionGraphicsLayer
+      selectionGraphicsLayer.graphics.forEach(g => {
         if (g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]) {
-          graphicsLayer.remove(g);
-          console.log(`[MapContext] Graphic removed from graphicsLayer for feature:`, feature.attributes);
+          selectionGraphicsLayer.remove(g);
+          console.log(`[MapContext] Graphic removed from selectionGraphicsLayer for feature:`, feature.attributes);
         }
       });
 
@@ -337,14 +352,14 @@ export const MapProvider = ({ children }) => {
     } catch (error) {
       console.error('[MapContext] Error in removeFromSelection:', error);
     }
-  }, [graphicsLayer]);
+  }, [selectionGraphicsLayer]);
 
   // Add feature to selection with dynamic import
   const addToSelection = useCallback(async (feature, layerType) => {
     console.log(`[MapContext] addToSelection called with feature:`, feature.attributes);
     
-    if (!graphicsLayer || !mapView) {
-      console.warn(`[MapContext] Cannot add to selection: graphicsLayer or mapView not initialized`);
+    if (!selectionGraphicsLayer || !mapView) {
+      console.warn(`[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`);
       return;
     }
 
@@ -409,8 +424,8 @@ export const MapProvider = ({ children }) => {
           symbol: symbol
         });
 
-        graphicsLayer.add(selectionGraphic);
-        console.log(`[MapContext] Graphic added to graphicsLayer for feature:`, feature.attributes);
+        selectionGraphicsLayer.add(selectionGraphic);
+        console.log(`[MapContext] Graphic added to selectionGraphicsLayer for feature:`, feature.attributes);
 
         // Update selectedFeatures state
         setSelectedFeatures(prev => {
@@ -422,27 +437,27 @@ export const MapProvider = ({ children }) => {
     } catch (error) {
       console.error('[MapContext] Error in addToSelection:', error);
     }
-  }, [graphicsLayer, activeLayers, mapView, selectedFeatures, removeFromSelection]);
+  }, [selectionGraphicsLayer, mapView, selectedFeatures, removeFromSelection]);
 
   // Clear selection
   const clearSelection = useCallback(async () => {
-    if (!graphicsLayer) return;
+    if (!selectionGraphicsLayer) return;
     try {
-      graphicsLayer.removeAll();
+      selectionGraphicsLayer.removeAll();
       setSelectedFeatures([]);
       console.log("[MapContext] Selection cleared");
     } catch (error) {
       console.error('Error clearing selection:', error);
     }
-  }, [graphicsLayer]);
+  }, [selectionGraphicsLayer]);
 
-  // Display features on the graphics layer with dynamic import
+  // Display features on the selection graphics layer with dynamic import
   const displayFeatures = useCallback(async (features) => {
-    if (!graphicsLayer || !mapView) return;
+    if (!selectionGraphicsLayer || !mapView) return;
 
     try {
       console.log(`Displaying ${features.length} features for layers: ${activeLayers.join(', ')}`);
-      graphicsLayer.removeAll();
+      selectionGraphicsLayer.removeAll();
 
       const GraphicModule = await import('@arcgis/core/Graphic');
       const Graphic = GraphicModule.default;
@@ -479,24 +494,24 @@ export const MapProvider = ({ children }) => {
           },
           symbol
         });
-        graphicsLayer.add(graphic);
+        selectionGraphicsLayer.add(graphic);
       }
     } catch (error) {
       console.error('Error displaying features:', error);
     }
-  }, [graphicsLayer, activeLayers, mapView]);
+  }, [selectionGraphicsLayer, activeLayers, mapView]);
 
   // Update feature styles function with dynamic import
   const updateFeatureStyles = useCallback(async (features, styles, featureType) => {
-    if (!graphicsLayer || !features.length || !mapView) return;
+    if (!selectionGraphicsLayer || !features.length || !mapView) return;
 
     try {
       // Don't remove all graphics, only update the ones we're styling
-      const existingGraphics = graphicsLayer.graphics.filter(g => 
+      const existingGraphics = selectionGraphicsLayer.graphics.filter(g => 
         !features.some(f => f.attributes?.FID === g.attributes?.FID)
       );
-      graphicsLayer.removeAll();
-      existingGraphics.forEach(g => graphicsLayer.add(g));
+      selectionGraphicsLayer.removeAll();
+      existingGraphics.forEach(g => selectionGraphicsLayer.add(g));
 
       const fillRgb = styles?.fill ? hexToRgb(styles.fill) : [0, 0, 0];
       const outlineRgb = styles?.outline ? hexToRgb(styles.outline) : [128, 128, 128];
@@ -561,16 +576,16 @@ export const MapProvider = ({ children }) => {
           symbol
         });
 
-        graphicsLayer.add(graphic);
+        selectionGraphicsLayer.add(graphic);
       }
     } catch (error) {
       console.error('Error updating feature styles:', error);
     }
-  }, [graphicsLayer, mapView]);
+  }, [selectionGraphicsLayer, mapView]);
 
-  // Draw radius around a point with dynamic import
+  // Draw radius around a point with GeometryEngine.geodesicBuffer
   const drawRadius = useCallback(async (point, style = null) => {
-    if (!graphicsLayer || !point?.center || !mapView) return;
+    if (!radiusGraphicsLayer || !point?.center || !mapView) return;
 
     try {
       const center = ensureValidGeometry(point.center, mapView.spatialReference);
@@ -579,24 +594,19 @@ export const MapProvider = ({ children }) => {
       const centerPoint = webMercatorToGeographic(center);
       const radius = point.radius * 1609.34; // Convert miles to meters
 
-      const CircleModule = await import('@arcgis/core/geometry/Circle');
-      const Circle = CircleModule.default;
+      const GeometryEngineModule = await import('@arcgis/core/geometry/GeometryEngine');
+      const GeometryEngine = GeometryEngineModule.default;
       const GraphicModule = await import('@arcgis/core/Graphic');
       const Graphic = GraphicModule.default;
 
-      const circle = new Circle({
-        center: centerPoint,
-        geodesic: true,
-        radius: radius,
-        radiusUnit: "meters",
-        spatialReference: mapView.spatialReference
-      });
+      // Create a buffer polygon around the center point
+      const polygon = GeometryEngine.geodesicBuffer(centerPoint, radius, "meters");
 
       const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [0, 123, 255];
       const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 123, 255];
 
       const circleGraphic = new Graphic({
-        geometry: circle,
+        geometry: polygon, // Use Polygon geometry
         attributes: { 
           FEATURE_TYPE: 'radius'
         },
@@ -610,12 +620,12 @@ export const MapProvider = ({ children }) => {
         }
       });
 
-      graphicsLayer.add(circleGraphic);
-      console.log(`[MapContext] Radius graphic added to graphicsLayer.`);
+      radiusGraphicsLayer.add(circleGraphic);
+      console.log(`[MapContext] Radius graphic added to radiusGraphicsLayer.`);
     } catch (error) {
       console.error('Error drawing radius:', error);
     }
-  }, [graphicsLayer, mapView]);
+  }, [radiusGraphicsLayer, mapView]);
 
   // Initialize a feature layer with dynamic import
   const initializeFeatureLayer = useCallback(async (type) => {
@@ -778,20 +788,20 @@ export const MapProvider = ({ children }) => {
       });
 
       // Only remove graphics related to this layer type if specified
-      if (graphicsLayer && type) {
-        const remainingGraphics = graphicsLayer.graphics.filter(g => 
+      if (selectionGraphicsLayer && type) {
+        const remainingGraphics = selectionGraphicsLayer.graphics.filter(g => 
           g.attributes?.FEATURE_TYPE !== type
         );
-        graphicsLayer.removeAll();
-        remainingGraphics.forEach(g => graphicsLayer.add(g));
-        console.log(`[MapContext] Removed graphics related to layer ${type} from graphicsLayer.`);
+        selectionGraphicsLayer.removeAll();
+        remainingGraphics.forEach(g => selectionGraphicsLayer.add(g));
+        console.log(`[MapContext] Removed graphics related to layer ${type} from selectionGraphicsLayer.`);
       }
     } catch (error) {
       console.error(`Error removing layer ${type}:`, error);
     } finally {
       setIsLayerLoading(false);
     }
-  }, [mapView, featureLayers, graphicsLayer]);
+  }, [mapView, featureLayers, selectionGraphicsLayer]);
 
   // New function to hide all feature layers
   const hideAllFeatureLayers = useCallback(() => {
@@ -877,12 +887,12 @@ export const MapProvider = ({ children }) => {
     }
   }, [activeLayers, addActiveLayer, removeActiveLayer]);
 
-  // Initialize graphics layer when mapView is set
+  // Initialize graphics layers when mapView is set
   useEffect(() => {
-    if (mapView && !graphicsLayer) {
-      initializeGraphicsLayer();
+    if (mapView && !selectionGraphicsLayer && !radiusGraphicsLayer) {
+      initializeGraphicsLayers();
     }
-  }, [mapView, graphicsLayer, initializeGraphicsLayer]);
+  }, [mapView, selectionGraphicsLayer, radiusGraphicsLayer, initializeGraphicsLayers]);
 
   // Handle map clicks for selection
   useEffect(() => {
@@ -953,7 +963,9 @@ export const MapProvider = ({ children }) => {
     drawRadius,
     isMapSelectionActive,
     setIsMapSelectionActive,
-    formatLocationName
+    formatLocationName,
+    // Optionally expose radiusGraphicsLayer if needed elsewhere
+    radiusGraphicsLayer
   }), [
     mapView,
     activeLayers,
@@ -972,7 +984,8 @@ export const MapProvider = ({ children }) => {
     drawRadius,
     isMapSelectionActive,
     setIsMapSelectionActive,
-    formatLocationName
+    formatLocationName,
+    radiusGraphicsLayer
   ]);
 
   return (

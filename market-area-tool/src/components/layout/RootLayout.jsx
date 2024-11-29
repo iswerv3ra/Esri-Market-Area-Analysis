@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { SunIcon, MoonIcon, HomeIcon, AdjustmentsHorizontalIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { Dialog } from '@headlessui/react';
+import { logout } from '../../utils/auth';
 
 export default function RootLayout() {
   const navigate = useNavigate();
@@ -23,9 +24,15 @@ export default function RootLayout() {
     setShowLogoutConfirm(true);
   };
 
-  const handleLogoutConfirm = () => {
-    localStorage.clear();
-    navigate('/login', { replace: true });
+  const handleLogoutConfirm = async () => {
+    try {
+      setShowLogoutConfirm(false);
+      await logout(navigate);
+    } catch (error) {
+      console.error('Logout failed:', error);
+      localStorage.clear();
+      navigate('/login', { replace: true });
+    }
   };
 
   return (
@@ -49,8 +56,8 @@ export default function RootLayout() {
           </div>
 
           {/* Center Section: Title */}
-          <div className="flex-grow flex justify-center">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-teal-400 px-4 py-1 rounded-lg">
               Market Area Definition Tool
             </h1>
           </div>
@@ -93,7 +100,35 @@ export default function RootLayout() {
         onClose={() => setShowLogoutConfirm(false)}
         className="relative z-50"
       >
-        {/* Dialog implementation remains the same */}
+        {/* Backdrop */}
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+
+        {/* Dialog Panel */}
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-lg max-w-sm w-full p-6 shadow-xl">
+            <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white">
+              Confirm Logout
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-gray-500 dark:text-gray-400">
+              Are you sure you want to logout?
+            </Dialog.Description>
+
+            <div className="mt-4 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogoutConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
+              >
+                Logout
+              </button>
+            </div>
+          </Dialog.Panel>
+        </div>
       </Dialog>
     </div>
   );

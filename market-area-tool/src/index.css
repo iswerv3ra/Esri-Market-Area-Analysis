@@ -116,3 +116,26 @@ a {
          hover:text-green-700 dark:hover:text-green-400;
   text-decoration: inherit;
 }
+
+/* Style the ArcGIS Search widget input */
+.esri-search {
+  width: 100% !important;
+}
+
+.esri-search__input {
+  border: none !important;
+  height: 36px !important;
+  padding: 0.5rem 1rem !important;
+}
+
+.esri-search__input:focus {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove default ArcGIS container styles */
+.esri-search__container {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

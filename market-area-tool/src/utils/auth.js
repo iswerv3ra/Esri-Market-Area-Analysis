@@ -11,7 +11,6 @@ export const getApiUrl = () => {
   if (isDevelopment()) {
     return 'http://localhost:8000';
   }
-
   // Production environment - use Choreo config
   return '/choreo-apis/market-area-analysis/backend/v1';
 };
@@ -28,27 +27,36 @@ export const setAuthToken = (token) => {
 export const verifyToken = async (token) => {
   try {
     const baseUrl = getApiUrl();
-    // Always send token in request body for Django REST Framework
     await axios.post(`${baseUrl}/api/token/verify/`, { token });
-
+    
     if (isDevelopment()) {
       console.log('Token verification successful');
       console.log('Using API URL:', baseUrl);
     }
-
+    
     return true;
   } catch (error) {
     if (isDevelopment()) {
       console.error('Token verification failed:', error);
-      console.log('Request details:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        status: error.response?.status,
-        data: error.response?.data
-      });
     }
     return false;
   }
+};
+
+// Direct navigation helper
+const navigateToLogin = (navigate) => {
+  if (navigate) {
+    navigate('/login', { replace: true });
+  } else {
+    window.location.href = '/login';
+  }
+};
+
+// Clear tokens helper
+const clearTokens = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  delete axios.defaults.headers.common['Authorization'];
 };
 
 // Axios interceptors setup
@@ -56,21 +64,25 @@ export const setupAxiosInterceptors = (navigate) => {
   const requestInterceptor = axios.interceptors.request.use(
     (config) => {
       const token = localStorage.getItem('accessToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      
+      // Check for token existence before making request
+      if (!token) {
+        clearTokens();
+        navigateToLogin(navigate);
+        return Promise.reject(new Error('No access token'));
       }
+      
+      config.headers.Authorization = `Bearer ${token}`;
       
       // Ensure trailing slashes for Django
       if (!config.url.endsWith('/')) {
         config.url += '/';
       }
       
-      // Debug logging in development
       if (isDevelopment()) {
         console.log('Request:', {
           url: config.url,
-          method: config.method,
-          headers: config.headers
+          method: config.method
         });
       }
       
@@ -91,7 +103,9 @@ export const setupAxiosInterceptors = (navigate) => {
         try {
           const refreshToken = localStorage.getItem('refreshToken');
           if (!refreshToken) {
-            throw new Error('No refresh token available');
+            clearTokens();
+            navigateToLogin(navigate);
+            return Promise.reject(error);
           }
 
           const baseUrl = getApiUrl();
@@ -102,26 +116,15 @@ export const setupAxiosInterceptors = (navigate) => {
           const { access } = response.data;
           localStorage.setItem('accessToken', access);
           setAuthToken(access);
-
-          // Update the failed request with new token
+          
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return axios(originalRequest);
+          
         } catch (err) {
-          if (isDevelopment()) {
-            console.error('Token refresh failed:', err);
-          }
-          await logout(navigate);
-          return Promise.reject(err);
-        }
-      }
-
-      // Handle 405 errors (method not allowed)
-      if (error.response?.status === 405) {
-        if (isDevelopment()) {
-          console.error('Method not allowed:', {
-            url: error.config?.url,
-            method: error.config?.method
-          });
+          // Immediately clear tokens and redirect on refresh failure
+          clearTokens();
+          navigateToLogin(navigate);
+          return Promise.reject(error);
         }
       }
 
@@ -141,19 +144,13 @@ export const isAuthenticated = () => {
 
 export const logout = async (navigate) => {
   try {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    delete axios.defaults.headers.common['Authorization'];
-    
-    if (navigate) {
-      navigate('/login', { replace: true });
-    } else {
-      window.location.href = '/login';
-    }
+    clearTokens();
+    navigateToLogin(navigate);
   } catch (error) {
     if (isDevelopment()) {
       console.error('Logout error:', error);
     }
+    // Fallback to direct navigation if error occurs
     window.location.href = '/login';
   }
 };
