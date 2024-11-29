@@ -20,7 +20,7 @@ import MarketAreasLayout from "./pages/MarketAreasLayout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CreateProject from "./pages/CreateProject";
-import Presets from "./pages/Presets";
+import Presets from "./pages/Presets"; // Ensure correct import
 
 // Providers
 import { MarketAreaProvider } from "./contexts/MarketAreaContext";
@@ -142,10 +142,7 @@ function App() {
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
-            <Route
-              path="/"
-              element={<RootLayout />}
-            >
+            <Route path="/" element={<RootLayout />}>
               {/* Nested Routes */}
               <Route index element={<ProjectsList />} />
               <Route path="projects/create" element={<CreateProject />} />
@@ -153,7 +150,12 @@ function App() {
                 path="projects/:projectId/market-areas"
                 element={<MarketAreasLayout />}
               />
-              <Route path="/presets" element={<Presets />} /> {/* Updated path */}
+
+              {/* **Top-Level Presets Route** */}
+              <Route
+                path="presets"
+                element={<Presets />}
+              />
 
               {/* Catch-all Redirect */}
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -63,3 +63,36 @@ class MarketArea(models.Model):
                 "borderWidth": 2
             }
         super().save(*args, **kwargs)
+
+
+class StylePreset(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, 
+                              related_name="style_presets", null=True, blank=True)
+    styles = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+    is_global = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, 
+                                 null=True, related_name="created_style_presets")
+
+    class Meta:
+        ordering = ['-last_modified']
+        unique_together = [['project', 'name'], ['name', 'is_global']]
+
+class VariablePreset(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, 
+                              related_name="variable_presets", null=True, blank=True)
+    variables = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+    is_global = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, 
+                                 null=True, related_name="created_variable_presets")
+
+    class Meta:
+        ordering = ['-last_modified']
+        unique_together = [['project', 'name'], ['name', 'is_global']]

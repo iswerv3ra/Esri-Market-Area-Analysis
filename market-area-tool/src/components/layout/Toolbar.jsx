@@ -1,15 +1,16 @@
 import { useState, useEffect, Fragment, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Menu, Transition } from "@headlessui/react";
+import { Menu, Transition, Dialog } from "@headlessui/react";
 import {
   ChevronDownIcon,
   ArrowLeftIcon,
   PhotoIcon,
   MapIcon,
   TableCellsIcon,
-  DocumentArrowDownIcon, // Ensure this icon exists
+  DocumentArrowDownIcon,
   PlusIcon,
   ListBulletIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
@@ -19,10 +20,140 @@ import axios from "axios";
 import { saveAs } from 'file-saver';
 import jsPDF from "jspdf";
 
+// Export Dialog Component
+const ExportDialog = ({ isOpen, onClose, onExport }) => {
+  const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [exportOption, setExportOption] = useState('selected-preset');
+  const [variablePresets, setVariablePresets] = useState(() => {
+    const saved = localStorage.getItem('savedVariablePresets');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleExport = () => {
+    let variables = [];
+    if (exportOption === 'selected-preset' && selectedPresetId) {
+      const preset = variablePresets.find(p => p.id === selectedPresetId);
+      variables = preset ? preset.variables : [];
+    } else if (exportOption === 'all-variables') {
+      variables = variablePresets.flatMap(preset => preset.variables);
+      variables = [...new Set(variables)];
+    }
+    
+    onExport(variables);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+              <TableCellsIcon className="h-5 w-5" />
+              Export Enriched Data
+            </Dialog.Title>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="px-4 py-4">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Export Options
+                </label>
+                <div className="mt-2 space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="selected-preset"
+                      checked={exportOption === 'selected-preset'}
+                      onChange={(e) => setExportOption(e.target.value)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                      Use Selected Preset
+                    </span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="all-variables"
+                      checked={exportOption === 'all-variables'}
+                      onChange={(e) => setExportOption(e.target.value)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                      Use All Variables
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {exportOption === 'selected-preset' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Select Variable Preset
+                  </label>
+                  <select
+                    value={selectedPresetId}
+                    onChange={(e) => setSelectedPresetId(e.target.value)}
+                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
+                             bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
+                             focus:outline-none focus:ring-blue-500 dark:text-white"
+                  >
+                    <option value="">Select a preset...</option>
+                    {variablePresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name} ({preset.variables.length} variables)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border 
+                       border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 
+                       dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exportOption === 'selected-preset' && !selectedPresetId}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md 
+                       hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Export
+            </button>
+          </div>
+        </Dialog.Panel>
+      </div>
+    </Dialog>
+  );
+};
+
+// Main Toolbar Component
 export default function Toolbar({ onCreateMA, onToggleList }) {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const searchWidgetRef = useRef(null);
   const { mapView } = useMap();
   const { marketAreas } = useMarketAreas();
@@ -32,9 +163,14 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   };
 
   // Export Data (Enrichment)
-  const handleExportData = async () => {
+  const handleExportData = async (selectedVariables = []) => {
     if (!marketAreas.length) {
       toast.error("No market areas defined to export");
+      return;
+    }
+
+    if (!selectedVariables.length) {
+      setIsExportDialogOpen(true);
       return;
     }
 
@@ -42,7 +178,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(true);
       const loadingToast = toast.loading("Enriching market areas...");
 
-      const enrichedData = await enrichmentService.enrichAreas(marketAreas);
+      const enrichedData = await enrichmentService.enrichAreas(marketAreas, selectedVariables);
       const csvContent = enrichmentService.exportToCSV(enrichedData, marketAreas);
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -200,97 +336,96 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   };
 
   // Initialize the ArcGIS Search widget
-  useEffect(() => {
-    let searchWidget;
+ useEffect(() => {
+  let searchWidget;
 
-    const initializeSearchWidget = async () => {
-      if (!mapView) return;
+  const initializeSearchWidget = async () => {
+    if (!mapView) return;
 
-      try {
-        const [Search] = await Promise.all([
-          import("@arcgis/core/widgets/Search").then((module) => module.default),
-        ]);
+    try {
+      const [Search] = await Promise.all([
+        import("@arcgis/core/widgets/Search").then((module) => module.default),
+      ]);
 
-        searchWidget = new Search({
-          view: mapView,
-          container: searchWidgetRef.current,
-        });
+      searchWidget = new Search({
+        view: mapView,
+        container: searchWidgetRef.current,
+      });
 
-        searchWidget.on("select-result", (event) => {
-          if (event.result && event.result.extent) {
-            mapView.goTo({
-              target: event.result.extent.center,
-              zoom: 14,
-            });
-          }
-        });
+      searchWidget.on("select-result", (event) => {
+        if (event.result && event.result.extent) {
+          mapView.goTo({
+            target: event.result.extent.center,
+            zoom: 14,
+          });
+        }
+      });
 
-        console.log("Search widget initialized");
-      } catch (error) {
-        console.error("Error initializing Search widget:", error);
-      }
-    };
+      console.log("Search widget initialized");
+    } catch (error) {
+      console.error("Error initializing Search widget:", error);
+    }
+  };
 
-    initializeSearchWidget();
+  initializeSearchWidget();
 
-    return () => {
-      if (searchWidget) {
-        searchWidget.destroy();
-        console.log("Search widget destroyed");
-      }
-    };
-  }, [mapView]);
+  return () => {
+    if (searchWidget) {
+      searchWidget.destroy();
+      console.log("Search widget destroyed");
+    }
+  };
+}, [mapView]);
 
-  return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      <div className="h-14 px-4 flex items-center justify-between">
-        {/* Left section */}
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={handleBack}
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 
-                     dark:text-gray-300 dark:hover:text-white"
+return (
+  <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div className="h-14 px-4 flex items-center justify-between">
+      {/* Left section */}
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={handleBack}
+          className="inline-flex items-center text-gray-600 hover:text-gray-900 
+                   dark:text-gray-300 dark:hover:text-white"
+        >
+          <ArrowLeftIcon className="h-5 w-5 mr-2" />
+          Back to Projects
+        </button>
+
+        <Menu as="div" className="relative">
+          <Menu.Button className="inline-flex items-center px-3 py-2 text-sm 
+                                text-gray-600 hover:text-gray-900 dark:text-gray-300 
+                                dark:hover:text-white">
+            Actions
+            <ChevronDownIcon className="ml-2 h-5 w-5" />
+          </Menu.Button>
+
+          <Transition
+            as={Fragment}
+            enter="transition ease-out duration-200"
+            enterFrom="transform opacity-0 scale-95"
+            enterTo="transform opacity-100 scale-100"
+            leave="transition ease-in duration-75"
+            leaveFrom="transform opacity-100 scale-100"
+            leaveTo="transform opacity-0 scale-95"
           >
-            <ArrowLeftIcon className="h-5 w-5 mr-2" />
-            Back to Projects
-          </button>
-
-          <Menu as="div" className="relative">
-            <Menu.Button className="inline-flex items-center px-3 py-2 text-sm 
-                                  text-gray-600 hover:text-gray-900 dark:text-gray-300 
-                                  dark:hover:text-white">
-              Actions
-              <ChevronDownIcon className="ml-2 h-5 w-5" />
-            </Menu.Button>
-
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-200"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items className="absolute left-0 z-10 mt-2 w-56 origin-top-left rounded-md 
-                                   bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black 
-                                   ring-opacity-5 focus:outline-none">
-                {/* Export Options */}
-                <div className="py-1">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={handleExportData}
-                        disabled={isExporting}
-                        className={`${
-                          active ? "bg-gray-100 dark:bg-gray-600" : ""
-                        } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        <TableCellsIcon className="mr-3 h-5 w-5" />
-                        Export Enriched Data
-                      </button>
-                    )}
+            <Menu.Items className="absolute left-0 z-10 mt-2 w-56 origin-top-left rounded-md 
+                                 bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black 
+                                 ring-opacity-5 focus:outline-none">
+              <div className="py-1">
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={() => handleExportData()}
+                      disabled={isExporting}
+                      className={`${
+                        active ? "bg-gray-100 dark:bg-gray-600" : ""
+                      } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
+                         ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <TableCellsIcon className="mr-3 h-5 w-5" />
+                      Export Enriched Data
+                    </button>
+                  )}
                   </Menu.Item>
                   <Menu.Item>
                     {({ active }) => (
@@ -371,6 +506,13 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           </button>
         </div>
       </div>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        onExport={handleExportData}
+      />
     </div>
   );
 }

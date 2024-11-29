@@ -201,4 +201,116 @@ export const projectsAPI = {
   }
 };
 
+// Style Presets API endpoints
+export const stylePresetsAPI = {
+  // **Updated: Removed projectId parameter to fetch all style presets**
+  getAll: async () => {
+    try {
+      const response = await api.get('/api/style-presets/');
+      return response;
+    } catch (error) {
+      console.error('Error fetching style presets:', error);
+      throw error;
+    }
+  },
+
+  create: async (presetData) => {
+    try {
+      // **Ensure presetData does not include projectId, only is_global flag**
+      const response = await api.post('/api/style-presets/', presetData);
+      return response;
+    } catch (error) {
+      console.error('Error creating style preset:', error);
+      throw error;
+    }
+  },
+
+  update: async (id, presetData) => {
+    try {
+      const response = await api.put(`/api/style-presets/${id}/`, presetData);
+      return response;
+    } catch (error) {
+      console.error(`Error updating style preset ${id}:`, error);
+      throw error;
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/api/style-presets/${id}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error deleting style preset ${id}:`, error);
+      throw error;
+    }
+  },
+
+  makeGlobal: async (id) => {
+    try {
+      // **Ensure the endpoint matches your backend configuration**
+      const response = await api.post(`/api/style-presets/${id}/make_global/`);
+      return response;
+    } catch (error) {
+      console.error(`Error making style preset ${id} global:`, error);
+      throw error;
+    }
+  }
+};
+
+// Variable Presets API endpoints
+export const variablePresetsAPI = {
+  // **Updated: Removed projectId parameter to fetch all variable presets**
+  getAll: async () => {
+    try {
+      const response = await api.get('/api/variable-presets/');
+      return response;
+    } catch (error) {
+      console.error('Error fetching variable presets:', error);
+      throw error;
+    }
+  },
+
+  create: async (presetData) => {
+    try {
+      // **Ensure presetData does not include projectId, only is_global flag**
+      const response = await api.post('/api/variable-presets/', presetData);
+      return response;
+    } catch (error) {
+      console.error('Error creating variable preset:', error);
+      throw error;
+    }
+  },
+
+  update: async (id, presetData) => {
+    try {
+      const response = await api.put(`/api/variable-presets/${id}/`, presetData);
+      return response;
+    } catch (error) {
+      console.error(`Error updating variable preset ${id}:`, error);
+      throw error;
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/api/variable-presets/${id}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error deleting variable preset ${id}:`, error);
+      throw error;
+    }
+  },
+
+  makeGlobal: async (id) => {
+    try {
+      // **Ensure the endpoint matches your backend configuration**
+      const response = await api.post(`/api/variable-presets/${id}/make_global/`);
+      return response;
+    } catch (error) {
+      console.error(`Error making variable preset ${id} global:`, error);
+      throw error;
+    }
+  }
+};
+
 export default api;

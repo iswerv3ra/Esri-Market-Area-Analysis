@@ -1,5 +1,11 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
+
+# Create a router and register the preset viewsets
+router = DefaultRouter()
+router.register(r'style-presets', views.StylePresetViewSet, basename='style-preset')
+router.register(r'variable-presets', views.VariablePresetViewSet, basename='variable-preset')
 
 urlpatterns = [
     # Project endpoints
@@ -11,4 +17,7 @@ urlpatterns = [
          views.MarketAreaList.as_view(), name='market-area-list'),
     path('projects/<uuid:project_id>/market-areas/<uuid:pk>/', 
          views.MarketAreaDetail.as_view(), name='market-area-detail'),
+         
+    # Include the preset router URLs
+    path('', include(router.urls)),
 ]

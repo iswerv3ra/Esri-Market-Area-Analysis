@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, MarketArea
+from .models import Project, MarketArea, StylePreset, VariablePreset
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -56,14 +56,73 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'last_modified']
 
     def create(self, validated_data):
-        # Create the project
         project = Project.objects.create(
             project_number=validated_data['project_number'],
             client=validated_data['client'],
             location=validated_data['location'],
             description=validated_data.get('description', '')
         )
-        # Add all users to the project
         all_users = User.objects.all()
         project.users.set(all_users)
         return project
+
+class StylePresetSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    
+    class Meta:
+        model = StylePreset
+        fields = ['id', 'name', 'project', 'styles', 'is_global', 
+                 'created_at', 'last_modified', 'created_by', 'created_by_username']
+        read_only_fields = ['created_at', 'last_modified', 'created_by']
+
+    def validate(self, data):
+        # Validate that styles contain all required fields
+        styles = data.get('styles', {})
+        required_fields = {'fillColor', 'fillOpacity', 'borderColor', 'borderWidth'}
+        
+        if not isinstance(styles, dict):
+            raise serializers.ValidationError({"styles": "Styles must be a dictionary"})
+        
+        for ma_type, style in styles.items():
+            missing_fields = required_fields - set(style.keys())
+            if missing_fields:
+                raise serializers.ValidationError({
+                    "styles": f"Style for {ma_type} is missing required fields: {missing_fields}"
+                })
+            
+            # Validate opacity is between 0 and 1
+            if not 0 <= style.get('fillOpacity', 0) <= 1:
+                raise serializers.ValidationError({
+                    "styles": f"Fill opacity for {ma_type} must be between 0 and 1"
+                })
+        
+        return data
+
+class VariablePresetSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    variable_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = VariablePreset
+        fields = ['id', 'name', 'project', 'variables', 'is_global', 
+                 'created_at', 'last_modified', 'created_by', 'created_by_username',
+                 'variable_count']
+        read_only_fields = ['created_at', 'last_modified', 'created_by']
+
+    def get_variable_count(self, obj):
+        return len(obj.variables)
+
+    def validate_variables(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Variables must be a list")
+        if not value:
+            raise serializers.ValidationError("Variables list cannot be empty")
+        return value
+
+    def validate(self, data):
+        # Check uniqueness for global presets
+        if data.get('is_global') and data.get('project'):
+            raise serializers.ValidationError(
+                {"is_global": "Global presets cannot be associated with a specific project"}
+            )
+        return data

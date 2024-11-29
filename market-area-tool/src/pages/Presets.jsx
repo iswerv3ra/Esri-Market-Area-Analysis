@@ -1,5 +1,6 @@
 // src/pages/Presets.jsx
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   PlusIcon,
@@ -9,12 +10,26 @@ import {
   ChevronRightIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 
-// Import from enrichment service
-import { enrichmentService, analysisCategories, getAllVariables } from '../services/enrichmentService';
+// Import APIs (Ensure these paths are correct)
+import { stylePresetsAPI, variablePresetsAPI } from '../services/api';
+import { analysisCategories, getAllVariables } from '../services/enrichmentService';
 
-// Market area types definition
+// 1. **Create Presets Context**
+const PresetsContext = createContext(null);
+
+// 2. **Context Hook**
+const usePresets = () => {
+  const context = useContext(PresetsContext);
+  if (!context) {
+    throw new Error('usePresets must be used within PresetsProvider');
+  }
+  return context;
+};
+
+// 3. **Market Area Types Definition**
 const marketAreaTypes = [
   { value: 'radius', label: 'Radius' },
   { value: 'zip', label: 'Zip Code' },
@@ -28,6 +43,7 @@ const marketAreaTypes = [
   { value: 'usa', label: 'USA' },
 ];
 
+// 4. **Default Style Configuration**
 const DEFAULT_STYLE = {
   fillColor: '#0078D4',
   fillOpacity: 0.3,
@@ -35,10 +51,180 @@ const DEFAULT_STYLE = {
   borderWidth: 2,
 };
 
-/**
- * Modal Component
- * A reusable modal component that handles its own visibility and accessibility features.
- */
+// 5. **PresetsProvider Component**
+const PresetsProvider = ({ children }) => {
+  const [stylePresets, setStylePresets] = useState([]);
+  const [variablePresets, setVariablePresets] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch presets on mount
+  useEffect(() => {
+    const fetchPresets = async () => {
+      setIsLoading(true);
+      try {
+        const [styleRes, variableRes] = await Promise.all([
+          stylePresetsAPI.getAll(),
+          variablePresetsAPI.getAll(),
+        ]);
+        setStylePresets(styleRes.data);
+        setVariablePresets(variableRes.data);
+      } catch (error) {
+        console.error('Error fetching presets:', error);
+        toast.error('Failed to load presets');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPresets();
+  }, []);
+
+  // Preset CRUD operations
+  const saveStylePreset = async (name, styles, isGlobal = false) => {
+    try {
+      const response = await stylePresetsAPI.create({
+        name,
+        styles,
+        is_global: isGlobal,
+      });
+      setStylePresets((prev) => [...prev, response.data]);
+      toast.success('Style preset saved');
+      return response.data;
+    } catch (error) {
+      console.error('Error saving style preset:', error);
+      toast.error('Failed to save style preset');
+      throw error;
+    }
+  };
+
+  const saveVariablePreset = async (name, variables, isGlobal = false) => {
+    try {
+      const response = await variablePresetsAPI.create({
+        name,
+        variables,
+        is_global: isGlobal,
+      });
+      setVariablePresets((prev) => [...prev, response.data]);
+      toast.success('Variable preset saved');
+      return response.data;
+    } catch (error) {
+      console.error('Error saving variable preset:', error);
+      toast.error('Failed to save variable preset');
+      throw error;
+    }
+  };
+
+  const updateStylePreset = async (id, styles) => {
+    try {
+      const response = await stylePresetsAPI.update(id, { styles });
+      setStylePresets((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, styles } : p))
+      );
+      toast.success('Style preset updated');
+      return response.data;
+    } catch (error) {
+      console.error('Error updating style preset:', error);
+      toast.error('Failed to update style preset');
+      throw error;
+    }
+  };
+
+  const updateVariablePreset = async (id, variables) => {
+    try {
+      const response = await variablePresetsAPI.update(id, { variables });
+      setVariablePresets((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, variables } : p))
+      );
+      toast.success('Variable preset updated');
+      return response.data;
+    } catch (error) {
+      console.error('Error updating variable preset:', error);
+      toast.error('Failed to update variable preset');
+      throw error;
+    }
+  };
+
+  const deleteStylePreset = async (id) => {
+    try {
+      await stylePresetsAPI.delete(id);
+      setStylePresets((prev) => prev.filter((p) => p.id !== id));
+      toast.success('Style preset deleted');
+    } catch (error) {
+      console.error('Error deleting style preset:', error);
+      toast.error('Failed to delete style preset');
+      throw error;
+    }
+  };
+
+  const deleteVariablePreset = async (id) => {
+    try {
+      await variablePresetsAPI.delete(id);
+      setVariablePresets((prev) => prev.filter((p) => p.id !== id));
+      toast.success('Variable preset deleted');
+    } catch (error) {
+      console.error('Error deleting variable preset:', error);
+      toast.error('Failed to delete variable preset');
+      throw error;
+    }
+  };
+
+  const makeStylePresetGlobal = async (id) => {
+    try {
+      const response = await stylePresetsAPI.makeGlobal(id);
+      setStylePresets((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, is_global: true } : p
+        )
+      );
+      toast.success('Style preset is now global');
+      return response.data;
+    } catch (error) {
+      console.error('Error making style preset global:', error);
+      toast.error('Failed to make style preset global');
+      throw error;
+    }
+  };
+
+  const makeVariablePresetGlobal = async (id) => {
+    try {
+      const response = await variablePresetsAPI.makeGlobal(id);
+      setVariablePresets((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, is_global: true } : p
+        )
+      );
+      toast.success('Variable preset is now global');
+      return response.data;
+    } catch (error) {
+      console.error('Error making variable preset global:', error);
+      toast.error('Failed to make variable preset global');
+      throw error;
+    }
+  };
+
+  // Context value
+  const value = {
+    stylePresets,
+    variablePresets,
+    isLoading,
+    saveStylePreset,
+    saveVariablePreset,
+    updateStylePreset,
+    updateVariablePreset,
+    deleteStylePreset,
+    deleteVariablePreset,
+    makeStylePresetGlobal,
+    makeVariablePresetGlobal,
+  };
+
+  return (
+    <PresetsContext.Provider value={value}>
+      {children}
+    </PresetsContext.Provider>
+  );
+};
+
+// 6. **Modal Component**
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     const handleEsc = (event) => {
@@ -72,7 +258,10 @@ const Modal = ({ isOpen, onClose, title, children }) => {
           <XMarkIcon className="h-6 w-6" />
         </button>
         <div className="p-6">
-          <h2 id="modal-title" className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+          <h2
+            id="modal-title"
+            className="text-2xl font-semibold text-gray-900 dark:text-white mb-4"
+          >
             {title}
           </h2>
           <div className="max-h-96 overflow-y-auto">{children}</div>
@@ -82,14 +271,13 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-/**
- * StylePresetModalContent Component
- * Handles viewing and editing of Style Presets within the modal.
- */
-const StylePresetModalContent = ({ preset, updatePreset, closeModal }) => {
+// 7. **StylePresetModalContent Component**
+const StylePresetModalContent = ({ preset, closeModal }) => {
+  const { updateStylePreset, makeStylePresetGlobal } = usePresets();
   const [editableStyles, setEditableStyles] = useState(() =>
     JSON.parse(JSON.stringify(preset.styles))
   );
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleEdit = (type, property, value) => {
     setEditableStyles((prev) => ({
@@ -101,17 +289,58 @@ const StylePresetModalContent = ({ preset, updatePreset, closeModal }) => {
     }));
   };
 
-  const saveChanges = () => {
-    updatePreset(preset.id, editableStyles);
-    toast.success('Style preset updated');
-    closeModal();
+  const saveChanges = async () => {
+    setIsLoading(true);
+    try {
+      await updateStylePreset(preset.id, editableStyles);
+      toast.success('Style preset updated');
+      closeModal();
+    } catch (error) {
+      console.error('Error updating preset:', error);
+      toast.error('Failed to update preset');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMakeGlobal = async () => {
+    setIsLoading(true);
+    try {
+      await makeStylePresetGlobal(preset.id);
+      toast.success('Style preset is now global');
+      closeModal();
+    } catch (error) {
+      console.error('Error making preset global:', error);
+      toast.error('Failed to make preset global');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div>
-      <p>
-        <strong>Name:</strong> {preset.name}
-      </p>
+      <div className="flex justify-between items-center mb-4">
+        <p>
+          <strong>Name:</strong> {preset.name}
+          {preset.is_global && (
+            <span className="ml-2 inline-flex items-center text-blue-600">
+              <GlobeAltIcon className="h-4 w-4 mr-1" />
+              Global
+            </span>
+          )}
+        </p>
+        {!preset.is_global && (
+          <button
+            onClick={handleMakeGlobal}
+            disabled={isLoading}
+            className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+          >
+            <GlobeAltIcon className="h-4 w-4 mr-1" />
+            Make Global
+          </button>
+        )}
+      </div>
+
       <h4 className="mt-4 mb-2 font-medium">Styles:</h4>
       <div className="space-y-4">
         {marketAreaTypes.map((typeItem) => (
@@ -120,29 +349,41 @@ const StylePresetModalContent = ({ preset, updatePreset, closeModal }) => {
             <div className="grid grid-cols-2 gap-4">
               {/* Fill Color */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Fill Color:</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Fill Color:
+                </span>
                 <input
                   type="color"
                   value={editableStyles[typeItem.value].fillColor}
-                  onChange={(e) => handleEdit(typeItem.value, 'fillColor', e.target.value)}
+                  onChange={(e) =>
+                    handleEdit(typeItem.value, 'fillColor', e.target.value)
+                  }
                   className="h-8 w-8 rounded cursor-pointer"
                 />
                 <span
                   className="h-8 w-8 rounded"
-                  style={{ backgroundColor: editableStyles[typeItem.value].fillColor }}
+                  style={{
+                    backgroundColor: editableStyles[typeItem.value].fillColor,
+                  }}
                 ></span>
               </div>
 
               {/* Fill Opacity */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Fill Opacity:</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Fill Opacity:
+                </span>
                 <input
                   type="range"
                   min="0"
                   max="100"
                   value={editableStyles[typeItem.value].fillOpacity * 100}
                   onChange={(e) =>
-                    handleEdit(typeItem.value, 'fillOpacity', Number(e.target.value) / 100)
+                    handleEdit(
+                      typeItem.value,
+                      'fillOpacity',
+                      Number(e.target.value) / 100
+                    )
                   }
                   className="flex-1"
                 />
@@ -153,38 +394,59 @@ const StylePresetModalContent = ({ preset, updatePreset, closeModal }) => {
 
               {/* Border Color */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Border Color:</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Border Color:
+                </span>
                 <input
                   type="color"
                   value={editableStyles[typeItem.value].borderColor}
-                  onChange={(e) => handleEdit(typeItem.value, 'borderColor', e.target.value)}
+                  onChange={(e) =>
+                    handleEdit(
+                      typeItem.value,
+                      'borderColor',
+                      e.target.value
+                    )
+                  }
                   className="h-8 w-8 rounded cursor-pointer"
                 />
                 <span
                   className="h-8 w-8 rounded"
-                  style={{ backgroundColor: editableStyles[typeItem.value].borderColor }}
+                  style={{
+                    backgroundColor:
+                      editableStyles[typeItem.value].borderColor,
+                  }}
                 ></span>
               </div>
 
               {/* Border Width */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Border Width:</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Border Width:
+                </span>
                 <input
                   type="number"
                   min="1"
                   max="5"
                   value={editableStyles[typeItem.value].borderWidth}
                   onChange={(e) =>
-                    handleEdit(typeItem.value, 'borderWidth', Number(e.target.value))
+                    handleEdit(
+                      typeItem.value,
+                      'borderWidth',
+                      Number(e.target.value)
+                    )
                   }
                   className="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-400">px</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  px
+                </span>
               </div>
 
               {/* Preview */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Preview:</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Preview:
+                </span>
                 <div
                   className="h-8 w-16 rounded border-2 relative overflow-hidden"
                   style={{
@@ -207,19 +469,21 @@ const StylePresetModalContent = ({ preset, updatePreset, closeModal }) => {
       {/* Save Changes Button */}
       <button
         onClick={saveChanges}
-        className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+        disabled={isLoading}
+        className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
+                 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Save Changes
+        {isLoading ? 'Saving...' : 'Save Changes'}
       </button>
     </div>
   );
 };
 
-/**
- * VariablePresetModalContent Component
- * Handles viewing and managing Variable Presets within the modal.
- */
-const VariablePresetModalContent = ({ preset, removeVariable, closeModal }) => {
+// 8. **VariablePresetModalContent Component**
+const VariablePresetModalContent = ({ preset, closeModal }) => {
+  const { updateVariablePreset, makeVariablePresetGlobal } = usePresets();
+  const [isLoading, setIsLoading] = useState(false);
+
   const getVariableLabel = (variableId) => {
     for (const category of Object.values(analysisCategories)) {
       const variable = category.variables.find((v) => v.id === variableId);
@@ -227,22 +491,70 @@ const VariablePresetModalContent = ({ preset, removeVariable, closeModal }) => {
         return variable.label;
       }
     }
-    return variableId; // Return the ID if no label is found
+    return variableId;
+  };
+
+  const handleRemoveVariable = async (varId) => {
+    setIsLoading(true);
+    try {
+      const updatedVariables = preset.variables.filter((id) => id !== varId);
+      await updateVariablePreset(preset.id, updatedVariables);
+      toast.success('Variable removed');
+    } catch (error) {
+      console.error('Error removing variable:', error);
+      toast.error('Failed to remove variable');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMakeGlobal = async () => {
+    setIsLoading(true);
+    try {
+      await makeVariablePresetGlobal(preset.id);
+      toast.success('Variable preset is now global');
+      closeModal();
+    } catch (error) {
+      console.error('Error making preset global:', error);
+      toast.error('Failed to make preset global');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div>
-      <p>
-        <strong>Name:</strong> {preset.name}
-      </p>
+      <div className="flex justify-between items-center mb-4">
+        <p>
+          <strong>Name:</strong> {preset.name}
+          {preset.is_global && (
+            <span className="ml-2 inline-flex items-center text-blue-600">
+              <GlobeAltIcon className="h-4 w-4 mr-1" />
+              Global
+            </span>
+          )}
+        </p>
+        {!preset.is_global && (
+          <button
+            onClick={handleMakeGlobal}
+            disabled={isLoading}
+            className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+          >
+            <GlobeAltIcon className="h-4 w-4 mr-1" />
+            Make Global
+          </button>
+        )}
+      </div>
+
       <h4 className="mt-4 mb-2 font-medium">Variables:</h4>
       <ul className="list-disc list-inside max-h-60 overflow-y-auto space-y-2">
         {preset.variables.map((varId) => (
           <li key={varId} className="flex items-center justify-between">
             <span>{getVariableLabel(varId)}</span>
             <button
-              onClick={() => removeVariable(varId)}
-              className="text-red-600 hover:text-red-700"
+              onClick={() => handleRemoveVariable(varId)}
+              disabled={isLoading}
+              className="text-red-600 hover:text-red-700 disabled:opacity-50"
               title="Remove Variable"
             >
               <TrashIcon className="h-4 w-4" />
@@ -254,11 +566,13 @@ const VariablePresetModalContent = ({ preset, removeVariable, closeModal }) => {
   );
 };
 
-/**
- * VariablesPanel Component
- * Manages the selection of analysis variables with search and expand/collapse functionalities.
- */
-const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, setSearchTerm }) => {
+// 9. **VariablesPanel Component**
+const VariablesPanel = ({
+  selectedVariables,
+  setSelectedVariables,
+  searchTerm,
+  setSearchTerm,
+}) => {
   const [expandedCategories, setExpandedCategories] = useState(new Set());
 
   const toggleCategory = (categoryId) => {
@@ -309,7 +623,6 @@ const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, s
     );
   };
 
-  // Handler for Global Select All
   const handleGlobalSelectAll = () => {
     const allVariableIds = getAllVariables();
     const allSelected = allVariableIds.every((id) => selectedVariables.has(id));
@@ -337,12 +650,13 @@ const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, s
                      bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          {/* Global Select All Button */}
           <button
             onClick={handleGlobalSelectAll}
             className="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
           >
-            {getAllVariables().every((id) => selectedVariables.has(id)) ? 'Deselect All' : 'Select All'}
+            {getAllVariables().every((id) => selectedVariables.has(id))
+              ? 'Deselect All'
+              : 'Select All'}
           </button>
         </div>
       </div>
@@ -378,7 +692,9 @@ const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, s
                   }}
                   className="ml-auto text-sm text-blue-600 hover:text-blue-700"
                 >
-                  {category.variables.every((v) => selectedVariables.has(v.id)) ? 'Deselect All' : 'Select All'}
+                  {category.variables.every((v) => selectedVariables.has(v.id))
+                    ? 'Deselect All'
+                    : 'Select All'}
                 </button>
               </div>
 
@@ -407,8 +723,12 @@ const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, s
                         }}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
                       />
-                      <span className="text-sm text-gray-900 dark:text-white">{variable.label}</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{variable.id}</span>
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {variable.label}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                        {variable.id}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -421,10 +741,7 @@ const VariablesPanel = ({ selectedVariables, setSelectedVariables, searchTerm, s
   );
 };
 
-/**
- * StyleEditor Component
- * Allows users to customize styles for different market area types.
- */
+// 10. **StyleEditor Component**
 const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
   const handleStyleChange = (type, property, value) => {
     setCurrentStyle((prev) => ({
@@ -440,16 +757,29 @@ const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
     <div className="flex-1 overflow-auto p-4">
       <div className="grid gap-4">
         {marketAreaTypes.map((type) => (
-          <div key={type.value} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">{type.label}</h3>
+          <div
+            key={type.value}
+            className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg"
+          >
+            <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">
+              {type.label}
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">Fill Color</label>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Fill Color
+                </label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
                     value={currentStyle[type.value].fillColor}
-                    onChange={(e) => handleStyleChange(type.value, 'fillColor', e.target.value)}
+                    onChange={(e) =>
+                      handleStyleChange(
+                        type.value,
+                        'fillColor',
+                        e.target.value
+                      )
+                    }
                     className="h-8 w-8 rounded cursor-pointer"
                   />
                   <input
@@ -458,7 +788,11 @@ const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
                     max="100"
                     value={currentStyle[type.value].fillOpacity * 100}
                     onChange={(e) =>
-                      handleStyleChange(type.value, 'fillOpacity', Number(e.target.value) / 100)
+                      handleStyleChange(
+                        type.value,
+                        'fillOpacity',
+                        Number(e.target.value) / 100
+                      )
                     }
                     className="flex-1"
                   />
@@ -469,12 +803,20 @@ const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">Border</label>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Border
+                </label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
                     value={currentStyle[type.value].borderColor}
-                    onChange={(e) => handleStyleChange(type.value, 'borderColor', e.target.value)}
+                    onChange={(e) =>
+                      handleStyleChange(
+                        type.value,
+                        'borderColor',
+                        e.target.value
+                      )
+                    }
                     className="h-8 w-8 rounded cursor-pointer"
                   />
                   <input
@@ -483,15 +825,20 @@ const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
                     max="5"
                     value={currentStyle[type.value].borderWidth}
                     onChange={(e) =>
-                      handleStyleChange(type.value, 'borderWidth', Number(e.target.value))
+                      handleStyleChange(
+                        type.value,
+                        'borderWidth',
+                        Number(e.target.value)
+                      )
                     }
                     className="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                   />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">px</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    px
+                  </span>
                 </div>
               </div>
 
-              {/* Preview */}
               <div
                 className="h-16 w-full rounded-lg border-2 relative overflow-hidden"
                 style={{
@@ -513,106 +860,53 @@ const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
   );
 };
 
-/**
- * Presets Component
- * The main component that brings together Style Editor, Variables Selector, Saved Presets, and Modal functionalities.
- */
-export default function Presets() {
-  // Style Presets State
-  const [stylePresets, setStylePresets] = useState(() => {
-    const saved = localStorage.getItem('savedStylePresets');
-    try {
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+// 11. **PresetsContent Component**
+const PresetsContent = () => {
+  const {
+    stylePresets,
+    variablePresets,
+    isLoading,
+    saveStylePreset,
+    saveVariablePreset,
+    deleteStylePreset,
+    deleteVariablePreset,
+  } = usePresets();
 
   const [currentStyle, setCurrentStyle] = useState(() => {
-    const saved = localStorage.getItem('currentStylePreset');
-    try {
-      return saved
-        ? JSON.parse(saved)
-        : marketAreaTypes.reduce((acc, type) => {
-            acc[type.value] = { ...DEFAULT_STYLE }; // Deep clone
-            return acc;
-          }, {});
-    } catch {
-      return marketAreaTypes.reduce((acc, type) => {
-        acc[type.value] = { ...DEFAULT_STYLE };
-        return acc;
-      }, {});
-    }
-  });
-
-  // Variable Presets State
-  const [variablePresets, setVariablePresets] = useState(() => {
-    const saved = localStorage.getItem('savedVariablePresets');
-    try {
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+    return marketAreaTypes.reduce((acc, type) => {
+      acc[type.value] = { ...DEFAULT_STYLE };
+      return acc;
+    }, {});
   });
 
   const [selectedVariables, setSelectedVariables] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [newPresetName, setNewPresetName] = useState('');
+  const [isGlobal, setIsGlobal] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState(null);
 
-  // Save states to localStorage
-  useEffect(() => {
-    localStorage.setItem('savedStylePresets', JSON.stringify(stylePresets));
-    localStorage.setItem('currentStylePreset', JSON.stringify(currentStyle));
-    localStorage.setItem('savedVariablePresets', JSON.stringify(variablePresets));
-  }, [stylePresets, currentStyle, variablePresets]);
-
-  // Style Preset Handlers
-  const handleSaveStylePreset = () => {
+  const handleSaveStylePreset = async () => {
     if (!newPresetName.trim()) {
       toast.error('Please enter a preset name');
       return;
     }
 
-    // Check for duplicate preset names
-    if (
-      stylePresets.some(
-        (preset) => preset.name.toLowerCase() === newPresetName.trim().toLowerCase()
-      )
-    ) {
-      toast.error('A style preset with this name already exists');
-      return;
+    try {
+      await saveStylePreset(newPresetName.trim(), currentStyle, isGlobal);
+      setNewPresetName('');
+      setIsGlobal(false);
+    } catch (error) {
+      // Error is already handled in the context
     }
-
-    const newPreset = {
-      id: Date.now().toString(),
-      name: newPresetName.trim(),
-      styles: { ...currentStyle },
-    };
-
-    setStylePresets((prev) => [...prev, newPreset]);
-    setNewPresetName('');
-    toast.success('Style preset saved');
   };
 
-  // Variable Preset Handlers
-  const handleSaveVariablePreset = () => {
+  const handleSaveVariablePreset = async () => {
     if (!newPresetName.trim()) {
       toast.error('Please enter a preset name');
-      return;
-    }
-
-    // Check for duplicate preset names
-    if (
-      variablePresets.some(
-        (preset) => preset.name.toLowerCase() === newPresetName.trim().toLowerCase()
-      )
-    ) {
-      toast.error('A variable preset with this name already exists');
       return;
     }
 
@@ -621,97 +915,55 @@ export default function Presets() {
       return;
     }
 
-    const newPreset = {
-      id: Date.now().toString(),
-      name: newPresetName.trim(),
-      variables: Array.from(selectedVariables),
-    };
-
-    setVariablePresets((prev) => [...prev, newPreset]);
-    setNewPresetName('');
-    toast.success('Variable preset saved');
-  };
-
-  /**
-   * Function to get variable label from ID
-   * If labels are needed instead of just IDs, you can use this function within VariablePresetModalContent.
-   */
-  const getVariableLabel = (variableId) => {
-    for (const category of Object.values(analysisCategories)) {
-      const variable = category.variables.find((v) => v.id === variableId);
-      if (variable) {
-        return variable.label;
-      }
+    try {
+      await saveVariablePreset(
+        newPresetName.trim(),
+        Array.from(selectedVariables),
+        isGlobal
+      );
+      setNewPresetName('');
+      setIsGlobal(false);
+    } catch (error) {
+      // Error is already handled in the context
     }
-    return variableId; // Return the ID if no label is found
   };
 
-  /**
-   * Function to open the modal with preset details
-   * Depending on the type ('style' or 'variable'), it sets the appropriate content.
-   */
   const openPresetModal = (preset, type) => {
     setModalTitle(`${type === 'style' ? 'Style' : 'Variable'} Preset Details`);
     if (type === 'style') {
       setModalContent(
-        <StylePresetModalContent
-          preset={preset}
-          updatePreset={updateStylePreset}
-          closeModal={closeModal}
-        />
+        <StylePresetModalContent preset={preset} closeModal={closeModal} />
       );
     } else if (type === 'variable') {
       setModalContent(
-        <VariablePresetModalContent
-          preset={preset}
-          removeVariable={(varId) => removeVariableFromPreset(preset.id, varId)}
-          closeModal={closeModal}
-        />
+        <VariablePresetModalContent preset={preset} closeModal={closeModal} />
       );
     }
     setIsModalOpen(true);
   };
 
-  /**
-   * Handler to close the modal
-   */
   const closeModal = () => {
     setIsModalOpen(false);
     setModalContent(null);
     setModalTitle('');
   };
 
-  /**
-   * Function to update a style preset after editing
-   */
-  const updateStylePreset = (presetId, updatedStyles) => {
-    setStylePresets((prev) =>
-      prev.map((preset) =>
-        preset.id === presetId ? { ...preset, styles: updatedStyles } : preset
-      )
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+      </div>
     );
-  };
-
-  /**
-   * Function to remove a variable from a variable preset
-   */
-  const removeVariableFromPreset = (presetId, varId) => {
-    setVariablePresets((prev) =>
-      prev.map((preset) =>
-        preset.id === presetId
-          ? { ...preset, variables: preset.variables.filter((id) => id !== varId) }
-          : preset
-      )
-    );
-    toast.success('Variable removed from preset');
-  };
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="flex-none bg-white dark:bg-gray-800 shadow">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Market Area Presets</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Market Area Presets
+          </h1>
         </div>
       </div>
 
@@ -721,15 +973,22 @@ export default function Presets() {
           {/* Left Panel - Style Editor */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Style Editor</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                Style Editor
+              </h2>
             </div>
-            <StyleEditor currentStyle={currentStyle} setCurrentStyle={setCurrentStyle} />
+            <StyleEditor
+              currentStyle={currentStyle}
+              setCurrentStyle={setCurrentStyle}
+            />
           </div>
 
           {/* Middle Panel - Variables Selector */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Analysis Variables</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                Analysis Variables
+              </h2>
             </div>
             <VariablesPanel
               selectedVariables={selectedVariables}
@@ -742,39 +1001,65 @@ export default function Presets() {
           {/* Right Panel - Saved Presets */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Saved Presets</h2>
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={newPresetName}
-                  onChange={(e) => setNewPresetName(e.target.value)}
-                  placeholder="Enter preset name"
-                  className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 
-                           shadow-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 
-                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                <button
-                  onClick={handleSaveStylePreset}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
-                  title="Save Style Preset"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                  <span className="ml-2">Save Style</span>
-                </button>
-                <button
-                  onClick={handleSaveVariablePreset}
-                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"
-                  title="Save Variable Preset"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                  <span className="ml-2">Save Variable</span>
-                </button>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Saved Presets
+              </h2>
+              <div className="flex flex-col gap-4">
+                {/* Preset Name and Global Checkbox */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
+                    placeholder="Enter preset name"
+                    className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 
+                             shadow-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 
+                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isGlobal}
+                      onChange={(e) => setIsGlobal(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Global
+                    </span>
+                  </label>
+                </div>
+
+                {/* Save Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveStylePreset}
+                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
+                             flex items-center justify-center"
+                    title="Save Style Preset"
+                  >
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    Save Style
+                  </button>
+                  <button
+                    onClick={handleSaveVariablePreset}
+                    className="flex-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
+                             flex items-center justify-center"
+                    title="Save Variable Preset"
+                  >
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    Save Variable
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Presets Lists */}
             <div className="flex-1 overflow-auto p-4">
-              {/* Style Presets */}
+              {/* Style Presets List */}
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Style Presets</h3>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Style Presets
+                </h3>
                 <div className="space-y-2">
                   {stylePresets.map((preset) => (
                     <div
@@ -782,8 +1067,13 @@ export default function Presets() {
                       className="flex items-center justify-between p-2 bg-gray-50 
                                dark:bg-gray-700 rounded-lg"
                     >
-                      <div>
-                        <span className="text-sm text-gray-900 dark:text-white">{preset.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {preset.name}
+                        </span>
+                        {preset.is_global && (
+                          <GlobeAltIcon className="h-4 w-4 text-blue-600" />
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -803,22 +1093,15 @@ export default function Presets() {
                         >
                           <MagnifyingGlassIcon className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Are you sure you want to delete the style preset "${preset.name}"?`
-                              )
-                            ) {
-                              setStylePresets((prev) => prev.filter((p) => p.id !== preset.id));
-                              toast.success('Style preset deleted');
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700"
-                          title="Delete Preset"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
+                        {!preset.is_global && (
+                          <button
+                            onClick={() => deleteStylePreset(preset.id)}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete Preset"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -830,9 +1113,11 @@ export default function Presets() {
                 </div>
               </div>
 
-              {/* Variable Presets */}
+              {/* Variable Presets List */}
               <div>
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Variable Presets</h3>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Variable Presets
+                </h3>
                 <div className="space-y-2">
                   {variablePresets.map((preset) => (
                     <div
@@ -841,8 +1126,15 @@ export default function Presets() {
                                dark:bg-gray-700 rounded-lg"
                     >
                       <div>
-                        <span className="text-sm text-gray-900 dark:text-white">{preset.name}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-900 dark:text-white">
+                            {preset.name}
+                          </span>
+                          {preset.is_global && (
+                            <GlobeAltIcon className="h-4 w-4 text-blue-600" />
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {preset.variables.length} variables
                         </span>
                       </div>
@@ -864,22 +1156,15 @@ export default function Presets() {
                         >
                           <MagnifyingGlassIcon className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Are you sure you want to delete the variable preset "${preset.name}"?`
-                              )
-                            ) {
-                              setVariablePresets((prev) => prev.filter((p) => p.id !== preset.id));
-                              toast.success('Variable preset deleted');
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700"
-                          title="Delete Preset"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
+                        {!preset.is_global && (
+                          <button
+                            onClick={() => deleteVariablePreset(preset.id)}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete Preset"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -892,13 +1177,22 @@ export default function Presets() {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Modal for Preset Details */}
-        <Modal isOpen={isModalOpen} onClose={closeModal} title={modalTitle}>
-          {modalContent}
-        </Modal>
+          {/* Modal for Preset Details */}
+          <Modal isOpen={isModalOpen} onClose={closeModal} title={modalTitle}>
+            {modalContent}
+          </Modal>
+        </div>
       </div>
     </div>
+  );
+};
+
+// 12. **Main Presets Component**
+export default function Presets() {
+  return (
+    <PresetsProvider>
+      <PresetsContent />
+    </PresetsProvider>
   );
 }
