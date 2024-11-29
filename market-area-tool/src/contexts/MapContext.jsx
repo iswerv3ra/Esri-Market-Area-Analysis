@@ -594,8 +594,8 @@ export const MapProvider = ({ children }) => {
       const centerPoint = webMercatorToGeographic(center);
       const radius = point.radius * 1609.34; // Convert miles to meters
 
-      const GeometryEngineModule = await import('@arcgis/core/geometry/GeometryEngine');
-      const GeometryEngine = GeometryEngineModule.default;
+      const geometryEngineModule = await import('@arcgis/core/geometry/geometryEngine');
+      const geometryEngine = geometryEngineModule.default;
       const GraphicModule = await import('@arcgis/core/Graphic');
       const Graphic = GraphicModule.default;
 
