@@ -1,23 +1,31 @@
-import { useState, useEffect } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { SunIcon, MoonIcon, HomeIcon, AdjustmentsHorizontalIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
-import { Dialog } from '@headlessui/react';
-import { logout } from '../../utils/auth';
+// src/components/layout/RootLayout.jsx
+
+import { useState, useEffect } from "react";
+import { Link, Outlet, useNavigate } from "react-router-dom";
+import {
+  SunIcon,
+  MoonIcon,
+  HomeIcon,
+  AdjustmentsHorizontalIcon,
+  ArrowRightOnRectangleIcon,
+} from "@heroicons/react/24/outline";
+import { Dialog } from "@headlessui/react";
+import { logout } from "../../utils/auth";
 
 export default function RootLayout() {
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(
-    localStorage.getItem('theme') === 'dark'
+    localStorage.getItem("theme") === "dark"
   );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
   const handleLogoutClick = () => {
@@ -29,9 +37,9 @@ export default function RootLayout() {
       setShowLogoutConfirm(false);
       await logout(navigate);
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
       localStorage.clear();
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   };
 
@@ -91,6 +99,7 @@ export default function RootLayout() {
 
       {/* Main Content Area - Fills remaining height */}
       <main className="flex-1 overflow-hidden">
+        {/* Outlet renders the matched child route */}
         <Outlet />
       </main>
 

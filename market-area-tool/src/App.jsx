@@ -1,8 +1,15 @@
 // src/App.jsx
 
 import React, { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
-import axios from 'axios';
+import {
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+  Outlet,
+} from "react-router-dom";
+import axios from "axios";
 
 // Layout Components
 import RootLayout from "./components/layout/RootLayout";
@@ -13,13 +20,19 @@ import MarketAreasLayout from "./pages/MarketAreasLayout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CreateProject from "./pages/CreateProject";
+import Presets from "./pages/Presets";
 
 // Providers
-import { MarketAreaProvider } from './contexts/MarketAreaContext';
-import { MapProvider } from './contexts/MapContext'; // Import MapProvider
+import { MarketAreaProvider } from "./contexts/MarketAreaContext";
+import { MapProvider } from "./contexts/MapContext";
 
 // Auth Utilities
-import { setupAxiosInterceptors, isAuthenticated, setAuthToken, verifyToken } from "./utils/auth";
+import {
+  setupAxiosInterceptors,
+  isAuthenticated,
+  setAuthToken,
+  verifyToken,
+} from "./utils/auth";
 
 // Loading Component
 const LoadingSpinner = () => (
@@ -29,7 +42,7 @@ const LoadingSpinner = () => (
 );
 
 // Protected Route Component
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
@@ -37,7 +50,7 @@ const ProtectedRoute = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem("accessToken");
       if (!token) {
         setIsChecking(false);
         return;
@@ -48,9 +61,9 @@ const ProtectedRoute = ({ children }) => {
         const valid = await verifyToken(token);
         setIsValid(valid);
       } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        console.error("Auth check failed:", error);
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
       } finally {
         setIsChecking(false);
       }
@@ -67,7 +80,7 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return children;
+  return <Outlet />;
 };
 
 function App() {
@@ -79,22 +92,22 @@ function App() {
       const cleanup = setupAxiosInterceptors(navigate);
 
       try {
-        const token = localStorage.getItem('accessToken');
+        const token = localStorage.getItem("accessToken");
         if (token) {
           setAuthToken(token);
           const isValid = await verifyToken(token);
-          
+
           if (!isValid) {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            navigate('/login');
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            navigate("/login");
           }
         }
       } catch (error) {
-        console.error('Initialization error:', error);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        navigate('/login');
+        console.error("Initialization error:", error);
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        navigate("/login");
       } finally {
         setIsInitializing(false);
       }
@@ -110,55 +123,45 @@ function App() {
   }
 
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route 
-        path="/login" 
-        element={
-          isAuthenticated() ? 
-          <Navigate to="/" replace /> : 
-          <Login />
-        } 
-      />
-      <Route 
-        path="/register" 
-        element={
-          isAuthenticated() ? 
-          <Navigate to="/" replace /> : 
-          <Register />
-        } 
-      />
+    <MapProvider>
+      <MarketAreaProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route
+            path="/login"
+            element={
+              isAuthenticated() ? <Navigate to="/" replace /> : <Login />
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              isAuthenticated() ? <Navigate to="/" replace /> : <Register />
+            }
+          />
 
-      {/* Protected Routes */}
-      <Route
-        element={
-          <ProtectedRoute>
-            <MapProvider> {/* Wrap with MapProvider once */}
-              <MarketAreaProvider> {/* Then wrap with MarketAreaProvider */}
-                <RootLayout />
-              </MarketAreaProvider>
-            </MapProvider>
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<ProjectsList />} />
-        <Route path="projects/create" element={<CreateProject />} />
-        <Route 
-          path="projects/:projectId/market-areas" 
-          element={<MarketAreasLayout />} 
-        />
-      </Route>
+          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route
+              path="/"
+              element={<RootLayout />}
+            >
+              {/* Nested Routes */}
+              <Route index element={<ProjectsList />} />
+              <Route path="projects/create" element={<CreateProject />} />
+              <Route
+                path="projects/:projectId/market-areas"
+                element={<MarketAreasLayout />}
+              />
+              <Route path="/presets" element={<Presets />} /> {/* Updated path */}
 
-      {/* Catch-all redirect */}
-      <Route 
-        path="*" 
-        element={
-          isAuthenticated() ? 
-          <Navigate to="/" replace /> : 
-          <Navigate to="/login" replace />
-        } 
-      />
-    </Routes>
+              {/* Catch-all Redirect */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Route>
+        </Routes>
+      </MarketAreaProvider>
+    </MapProvider>
   );
 }
 
@@ -173,7 +176,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error("Error caught by boundary:", error, errorInfo);
   }
 
   render() {
@@ -186,9 +189,9 @@ class ErrorBoundary extends React.Component {
             </h2>
             <button
               onClick={() => {
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('refreshToken');
-                window.location.href = '/login';
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("refreshToken");
+                window.location.href = "/login";
               }}
               className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 
                        focus:outline-none focus:ring-2 focus:ring-green-500"
