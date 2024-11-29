@@ -1,3 +1,5 @@
+// src/utils/auth.js
+
 import axios from 'axios';
 
 // Helper to determine environment
@@ -64,16 +66,20 @@ export const setupAxiosInterceptors = (navigate) => {
   const requestInterceptor = axios.interceptors.request.use(
     (config) => {
       const token = localStorage.getItem('accessToken');
+      const isTokenRefreshUrl = config.url.includes('/api/token/refresh/');
       
       // Check for token existence before making request
-      if (!token) {
+      if (!token && !isTokenRefreshUrl) {
         clearTokens();
         navigateToLogin(navigate);
         return Promise.reject(new Error('No access token'));
       }
       
-      config.headers.Authorization = `Bearer ${token}`;
-      
+      // Exclude Authorization header for token refresh requests
+      if (token && !isTokenRefreshUrl) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
       // Ensure trailing slashes for Django
       if (!config.url.endsWith('/')) {
         config.url += '/';
@@ -82,7 +88,8 @@ export const setupAxiosInterceptors = (navigate) => {
       if (isDevelopment()) {
         console.log('Request:', {
           url: config.url,
-          method: config.method
+          method: config.method,
+          headers: config.headers,
         });
       }
       
@@ -109,9 +116,16 @@ export const setupAxiosInterceptors = (navigate) => {
           }
 
           const baseUrl = getApiUrl();
-          const response = await axios.post(`${baseUrl}/api/token/refresh/`, {
-            refresh: refreshToken
-          });
+          // Exclude Authorization header when refreshing token
+          const response = await axios.post(
+            `${baseUrl}/api/token/refresh/`,
+            { refresh: refreshToken },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          );
 
           const { access } = response.data;
           localStorage.setItem('accessToken', access);
