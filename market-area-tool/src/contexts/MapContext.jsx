@@ -661,28 +661,24 @@ export const MapProvider = ({ children }) => {
     [activeLayers, mapView]
   );
 
-  // Update feature styles
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayerRef.current || !mapView) return;
-
+  
       try {
         const [{ default: Graphic }, geometryEngine] = await Promise.all([
           import("@arcgis/core/Graphic"),
           import("@arcgis/core/geometry/geometryEngine"),
-          
         ]);
-        console.log("geometryEngine:", geometryEngine);
-
-        // Instead of removing all graphics, only remove graphics for the current market areas being updated
-        const marketAreaIds = new Set(features.map((f) => f.attributes.marketAreaId));
+  
+        // Clear all existing graphics for the specific feature type
         const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
-          (g) => !marketAreaIds.has(g.attributes.marketAreaId)
+          (g) => g.attributes.FEATURE_TYPE !== featureType
         );
-
+  
         selectionGraphicsLayerRef.current.removeAll();
         graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-
+  
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
           const marketAreaId = feature.attributes.marketAreaId;
@@ -690,17 +686,17 @@ export const MapProvider = ({ children }) => {
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
-
+  
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
           const geometries = maFeatures.map((f) => f.geometry);
-
+  
           // Ensure all geometries are valid before union
           const validGeometries = geometries.filter((g) => g != null);
           if (validGeometries.length === 0) continue;
-
+  
           const unionGeometry = geometryEngine.union(validGeometries);
-
+  
           if (unionGeometry) {
             const symbol = {
               type: "simple-fill",
@@ -710,7 +706,7 @@ export const MapProvider = ({ children }) => {
                 width: styles.outlineWidth,
               },
             };
-
+  
             const unionGraphic = new Graphic({
               geometry: unionGeometry,
               symbol: symbol,
@@ -719,7 +715,7 @@ export const MapProvider = ({ children }) => {
                 FEATURE_TYPE: featureType,
               },
             });
-
+  
             selectionGraphicsLayerRef.current.add(unionGraphic);
           }
         }
