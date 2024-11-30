@@ -216,11 +216,17 @@ export const stylePresetsAPI = {
 
   create: async (presetData) => {
     try {
-      // **Ensure presetData does not include projectId, only is_global flag**
-      const response = await api.post('/api/style-presets/', presetData);
+      console.log('Variable Preset API - Creating preset with data:', presetData);
+      const response = await api.post('/api/variable-presets/', presetData);
+      console.log('Variable Preset API - Response:', response);
       return response;
     } catch (error) {
-      console.error('Error creating style preset:', error);
+      console.error('Error creating variable preset:', error);
+      console.error('Error response:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw error;
     }
   },

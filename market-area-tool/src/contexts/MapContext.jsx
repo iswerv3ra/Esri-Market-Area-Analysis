@@ -623,14 +623,16 @@ export const MapProvider = ({ children }) => {
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayer || !mapView) return;
-
+  
       try {
-        // Import required modules
         const [Graphic, geometryEngine] = await Promise.all([
           import("@arcgis/core/Graphic"),
           import("@arcgis/core/geometry/geometryEngine"),
         ]);
-
+  
+        // First completely remove all existing graphics for these market areas
+        selectionGraphicsLayer.removeAll();
+  
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
           const marketAreaId = feature.attributes.marketAreaId;
@@ -638,25 +640,12 @@ export const MapProvider = ({ children }) => {
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
-
-        // Clear only graphics related to the current operation
-        const existingGraphics = selectionGraphicsLayer.graphics.filter(
-          (g) =>
-            !features.some(
-              (f) => f.attributes.marketAreaId === g.attributes.marketAreaId
-            )
-        );
-        selectionGraphicsLayer.removeAll();
-        existingGraphics.forEach((g) => selectionGraphicsLayer.add(g));
-
-        // Process each market area's features separately
-        for (const [marketAreaId, maFeatures] of Object.entries(
-          featuresByMarketArea
-        )) {
-          // Union geometries for this market area
-          const geometries = maFeatures.map((f) => f.geometry);
+  
+        // Process each market area's features
+        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          const geometries = maFeatures.map(f => f.geometry);
           const unionGeometry = geometryEngine.union(geometries);
-
+  
           if (unionGeometry) {
             const symbol = {
               type: "simple-fill",
@@ -666,7 +655,7 @@ export const MapProvider = ({ children }) => {
                 width: styles.outlineWidth,
               },
             };
-
+  
             const unionGraphic = new Graphic.default({
               geometry: unionGeometry,
               symbol: symbol,
@@ -675,7 +664,7 @@ export const MapProvider = ({ children }) => {
                 FEATURE_TYPE: featureType,
               },
             });
-
+  
             selectionGraphicsLayer.add(unionGraphic);
           }
         }

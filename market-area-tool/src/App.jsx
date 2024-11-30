@@ -1,5 +1,3 @@
-// src/App.jsx
-
 import React, { useEffect, useState } from "react";
 import {
   Routes,
@@ -20,11 +18,12 @@ import MarketAreasLayout from "./pages/MarketAreasLayout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CreateProject from "./pages/CreateProject";
-import Presets from "./pages/Presets"; // Ensure correct import
+import Presets from "./pages/Presets";
 
 // Providers
 import { MarketAreaProvider } from "./contexts/MarketAreaContext";
 import { MapProvider } from "./contexts/MapContext";
+import { PresetsProvider } from "./contexts/PresetsContext"; // Add this import
 
 // Auth Utilities
 import {
@@ -125,43 +124,42 @@ function App() {
   return (
     <MapProvider>
       <MarketAreaProvider>
-        <Routes>
-          {/* Public Routes */}
-          <Route
-            path="/login"
-            element={
-              isAuthenticated() ? <Navigate to="/" replace /> : <Login />
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              isAuthenticated() ? <Navigate to="/" replace /> : <Register />
-            }
-          />
+        <PresetsProvider> {/* Add PresetsProvider here */}
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/login"
+              element={
+                isAuthenticated() ? <Navigate to="/" replace /> : <Login />
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                isAuthenticated() ? <Navigate to="/" replace /> : <Register />
+              }
+            />
 
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<RootLayout />}>
-              {/* Nested Routes */}
-              <Route index element={<ProjectsList />} />
-              <Route path="projects/create" element={<CreateProject />} />
-              <Route
-                path="projects/:projectId/market-areas"
-                element={<MarketAreasLayout />}
-              />
+            {/* Protected Routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<RootLayout />}>
+                {/* Nested Routes */}
+                <Route index element={<ProjectsList />} />
+                <Route path="projects/create" element={<CreateProject />} />
+                <Route
+                  path="projects/:projectId/market-areas"
+                  element={<MarketAreasLayout />}
+                />
 
-              {/* **Top-Level Presets Route** */}
-              <Route
-                path="presets"
-                element={<Presets />}
-              />
+                {/* Top-Level Presets Route */}
+                <Route path="presets" element={<Presets />} />
 
-              {/* Catch-all Redirect */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Catch-all Redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </PresetsProvider>
       </MarketAreaProvider>
     </MapProvider>
   );

@@ -1,23 +1,31 @@
 import React, { useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { getAllVariables } from "../../services/enrichmentService";
 
 const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [] }) => {
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [exportOption, setExportOption] = useState('selected-preset');
 
   const handleExport = () => {
+    console.log('Export triggered with option:', exportOption);
     let variables = [];
+    
     if (exportOption === 'selected-preset' && selectedPresetId) {
       const preset = variablePresets.find(p => p.id === selectedPresetId);
       variables = preset ? preset.variables : [];
+      console.log('Selected preset variables:', variables);
     } else if (exportOption === 'all-variables') {
-      // Use all variables
-      variables = variablePresets.flatMap(preset => preset.variables);
-      // Remove duplicates
-      variables = [...new Set(variables)];
+      try {
+        variables = getAllVariables();
+        console.log('All variables:', variables);
+      } catch (error) {
+        console.error('Error getting all variables:', error);
+        variables = [];
+      }
     }
     
+    console.log('Final variables to export:', variables);
     onExport(variables);
     onClose();
   };
@@ -91,6 +99,7 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [] }) => {
                     {variablePresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name} ({preset.variables.length} variables)
+                        {preset.is_global ? ' (Global)' : ''}
                       </option>
                     ))}
                   </select>

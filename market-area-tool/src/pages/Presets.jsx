@@ -99,16 +99,23 @@ const PresetsProvider = ({ children }) => {
 
   const saveVariablePreset = async (name, variables, isGlobal = false) => {
     try {
-      const response = await variablePresetsAPI.create({
+      const presetData = {
         name,
         variables,
         is_global: isGlobal,
-      });
+        project: null  // Add this line
+      };
+      console.log('Saving variable preset with data:', presetData);
+      
+      const response = await variablePresetsAPI.create(presetData);
+      console.log('Response from variable preset creation:', response);
+      
       setVariablePresets((prev) => [...prev, response.data]);
       toast.success('Variable preset saved');
       return response.data;
     } catch (error) {
       console.error('Error saving variable preset:', error);
+      console.error('Error response data:', error.response?.data);
       toast.error('Failed to save variable preset');
       throw error;
     }
