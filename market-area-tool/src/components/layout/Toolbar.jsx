@@ -40,48 +40,49 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     navigate("/");
   };
 
-  // In Toolbar component
-  const handleExportData = async (selectedVariables = []) => {
+  const handleExportData = async (selectedVariables = [], selectedMarketAreas = marketAreas, fileName = '') => {
     console.log("handleExportData called with variables:", selectedVariables);
-
-    if (!marketAreas.length) {
-      toast.error("No market areas defined to export");
+  
+    if (!selectedMarketAreas || selectedMarketAreas.length === 0) {
+      toast.error("No market areas selected for export");
       return;
     }
-
+  
     // If no variables selected, open dialog
     if (!selectedVariables.length) {
       console.log("No variables selected, opening dialog");
       setIsExportDialogOpen(true);
       return;
     }
-
+  
     try {
       console.log("Starting export process");
       setIsExporting(true);
       const loadingToast = toast.loading("Enriching market areas...");
-
+  
       const variables =
         selectedVariables.length > 0 ? selectedVariables : getAllVariables();
-
+  
       console.log("Variables to export:", variables);
-
+  
+      // Use selected market areas instead of all market areas
       const enrichedData = await enrichmentService.enrichAreas(
-        marketAreas,
+        selectedMarketAreas,
         variables
       );
+  
+      // Generate CSV content with selected market areas
       const csvContent = enrichmentService.exportToCSV(
         enrichedData,
-        marketAreas,
+        selectedMarketAreas,
         variables
       );
-
+  
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      saveAs(
-        blob,
-        `market_areas_enriched_${new Date().toISOString().split("T")[0]}.csv`
-      );
-
+      const outputFileName = fileName || `market_areas_enriched_${new Date().toISOString().split("T")[0]}`;
+      
+      saveAs(blob, `${outputFileName}.csv`);
+  
       toast.dismiss(loadingToast);
       toast.success("Export completed successfully");
     } catch (error) {
@@ -431,18 +432,23 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         </div>
       </div>
 
-      {/* Fix the ExportDialog props */}
+      {/* Export Dialog */}
       <ExportDialog
         isOpen={isExportDialogOpen}
         onClose={() => {
           console.log("Closing export dialog");
           setIsExportDialogOpen(false);
         }}
-        onExport={(variables) => {
-          console.log("Export triggered with variables:", variables);
-          handleExportData(variables);
+        onExport={(variables, selectedMarketAreas, fileName) => {
+          console.log("Export triggered with:", {
+            variables,
+            selectedMarketAreas,
+            fileName
+          });
+          handleExportData(variables, selectedMarketAreas, fileName);
         }}
-        variablePresets={variablePresets} // Fix the props syntax
+        variablePresets={variablePresets}
+        marketAreas={marketAreas}
       />
     </div>
   );

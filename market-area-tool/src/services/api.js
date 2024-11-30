@@ -14,6 +14,14 @@ if (import.meta.env.DEV) {
   });
 }
 
+// Create separate axios instances to prevent interceptor loops
+const authAxios = axios.create({
+  baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 const api = axios.create({
   baseURL,
   headers: {
@@ -21,14 +29,55 @@ const api = axios.create({
   },
 });
 
+// Track refresh token promise to prevent multiple refresh attempts
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+// Helper function to add new request to subscribers
+const subscribeTokenRefresh = (callback) => {
+  refreshSubscribers.push(callback);
+};
+
+// Helper function to execute all subscribers
+const onRefreshed = (token) => {
+  refreshSubscribers.map(callback => callback(token));
+  refreshSubscribers = [];
+};
+
+// Handle token refresh
+const refreshAuthToken = async () => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  try {
+    const response = await authAxios.post('/api/token/refresh/', {
+      refresh: refreshToken
+    });
+    const { access } = response.data;
+    localStorage.setItem('accessToken', access);
+    setAuthToken(access);
+    return access;
+  } catch (error) {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/login';
+    throw error;
+  }
+};
+
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
-    const isTokenRefreshUrl = config.url.includes('/api/token/refresh/');
+    const isAuthEndpoint = [
+      '/api/token/',
+      '/api/token/refresh/',
+      '/api/token/verify/'
+    ].some(endpoint => config.url.includes(endpoint));
 
-    // Exclude Authorization header for token refresh requests
-    if (token && !isTokenRefreshUrl) {
+    if (token && !isAuthEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -63,46 +112,35 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    console.error('API Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Wait for token refresh
+        try {
+          const token = await new Promise(resolve => {
+            subscribeTokenRefresh(token => {
+              resolve(token);
+            });
+          });
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        // Exclude Authorization header when refreshing token
-        const response = await axios.post(
-          `${baseURL}/api/token/refresh/`,
-          { refresh: refreshToken },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        const { access } = response.data;
-        localStorage.setItem('accessToken', access);
-        setAuthToken(access);
-
-        originalRequest.headers.Authorization = `Bearer ${access}`;
+        const token = await refreshAuthToken();
+        onRefreshed(token);
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        isRefreshing = false;
         return api(originalRequest);
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        delete api.defaults.headers.common['Authorization'];
-        window.location.href = '/login';
+        isRefreshing = false;
         return Promise.reject(refreshError);
       }
     }
@@ -114,7 +152,7 @@ api.interceptors.response.use(
 // Auth API endpoints
 export const authAPI = {
   login: async (credentials) => {
-    const response = await api.post('/api/token/', credentials);
+    const response = await authAxios.post('/api/token/', credentials);
     const { access, refresh } = response.data;
     localStorage.setItem('accessToken', access);
     localStorage.setItem('refreshToken', refresh);
@@ -123,24 +161,16 @@ export const authAPI = {
   },
   
   register: async (userData) => {
-    return api.post('/api/user/register/', userData);
+    return authAxios.post('/api/user/register/', userData);
   },
 
   refreshToken: async (refreshToken) => {
-    return axios.post(
-      `${baseURL}/api/token/refresh/`,
-      { refresh: refreshToken },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return authAxios.post('/api/token/refresh/', { refresh: refreshToken });
   },
 
   verifyToken: async (token) => {
     try {
-      await api.post('/api/token/verify/', { token });
+      await authAxios.post('/api/token/verify/', { token });
       return true;
     } catch (error) {
       return false;
@@ -203,7 +233,6 @@ export const projectsAPI = {
 
 // Style Presets API endpoints
 export const stylePresetsAPI = {
-  // **Updated: Removed projectId parameter to fetch all style presets**
   getAll: async () => {
     try {
       const response = await api.get('/api/style-presets/');
@@ -216,17 +245,10 @@ export const stylePresetsAPI = {
 
   create: async (presetData) => {
     try {
-      console.log('Variable Preset API - Creating preset with data:', presetData);
-      const response = await api.post('/api/variable-presets/', presetData);
-      console.log('Variable Preset API - Response:', response);
+      const response = await api.post('/api/style-presets/', presetData);
       return response;
     } catch (error) {
-      console.error('Error creating variable preset:', error);
-      console.error('Error response:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
+      console.error('Error creating style preset:', error);
       throw error;
     }
   },
@@ -253,7 +275,6 @@ export const stylePresetsAPI = {
 
   makeGlobal: async (id) => {
     try {
-      // **Ensure the endpoint matches your backend configuration**
       const response = await api.post(`/api/style-presets/${id}/make_global/`);
       return response;
     } catch (error) {
@@ -265,7 +286,6 @@ export const stylePresetsAPI = {
 
 // Variable Presets API endpoints
 export const variablePresetsAPI = {
-  // **Updated: Removed projectId parameter to fetch all variable presets**
   getAll: async () => {
     try {
       const response = await api.get('/api/variable-presets/');
@@ -278,11 +298,17 @@ export const variablePresetsAPI = {
 
   create: async (presetData) => {
     try {
-      // **Ensure presetData does not include projectId, only is_global flag**
+      console.log('Variable Preset API - Creating preset with data:', presetData);
       const response = await api.post('/api/variable-presets/', presetData);
+      console.log('Variable Preset API - Response:', response);
       return response;
     } catch (error) {
       console.error('Error creating variable preset:', error);
+      console.error('Error response:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw error;
     }
   },
@@ -309,7 +335,6 @@ export const variablePresetsAPI = {
 
   makeGlobal: async (id) => {
     try {
-      // **Ensure the endpoint matches your backend configuration**
       const response = await api.post(`/api/variable-presets/${id}/make_global/`);
       return response;
     } catch (error) {
