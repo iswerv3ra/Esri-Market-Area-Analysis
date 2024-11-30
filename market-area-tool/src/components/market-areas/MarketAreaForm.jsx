@@ -367,13 +367,46 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         newStyleSettings.noFill = value;
         if (value) {
           newStyleSettings.fillOpacity = 0;
-          // Keep the original color but set opacity to fully transparent
           newStyleSettings.fillColor = newStyleSettings.fillColor;
         } else {
           newStyleSettings.fillOpacity = 0.3;
         }
+      } else if (type === "fillOpacity") {
+        // Ensure value is between 0 and 1
+        newStyleSettings.fillOpacity = Math.max(0, Math.min(1, value));
+        // If opacity is being set, ensure noFill is false
+        if (value > 0) {
+          newStyleSettings.noFill = false;
+        }
       } else {
         newStyleSettings[type] = value;
+      }
+  
+      // Immediately trigger style update for the map
+      if (formState.maType === "radius") {
+        clearSelection();
+        radiusPoints.forEach((point) => {
+          drawRadius(point, newStyleSettings);
+        });
+      } else if (formState.selectedLocations.length > 0) {
+        const features = formState.selectedLocations.map((loc) => ({
+          geometry: loc.geometry || loc.feature?.geometry,
+          attributes: {
+            FID: loc.id,
+            name: loc.name,
+          },
+        }));
+  
+        updateFeatureStyles(
+          features,
+          {
+            fill: newStyleSettings.fillColor,
+            fillOpacity: newStyleSettings.fillOpacity,
+            outline: newStyleSettings.borderColor,
+            outlineWidth: newStyleSettings.borderWidth,
+          },
+          formState.maType
+        );
       }
   
       return {
@@ -381,7 +414,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         styleSettings: newStyleSettings,
       };
     });
-  }, []);
+  }, [
+    formState.maType,
+    formState.selectedLocations,
+    radiusPoints,
+    clearSelection,
+    drawRadius,
+    updateFeatureStyles,
+  ]);
 
 
   const handleSubmit = async (e) => {
