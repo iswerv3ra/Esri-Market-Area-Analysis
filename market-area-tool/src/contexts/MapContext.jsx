@@ -716,79 +716,143 @@ export const MapProvider = ({ children }) => {
     },
     [activeLayers, mapView]
   );
-
-  // Enhanced updateFeatureStyles function with proper cleanup
-  const updateFeatureStyles = async (features, styles, featureType) => {
-    if (!selectionGraphicsLayerRef.current || !mapView) return;
-
-    try {
-      const [{ default: Graphic }, { union }] = await Promise.all([
-        import("@arcgis/core/Graphic"),
-        import("@arcgis/core/geometry/geometryEngine"),
-      ]);
-
-      // First, remove ALL existing graphics for this feature type
-      const currentGraphics =
-        selectionGraphicsLayerRef.current.graphics.toArray();
-      const graphicsToRemove = currentGraphics.filter(
-        (g) =>
-          g.attributes.FEATURE_TYPE === featureType ||
-          g.attributes.marketAreaId === features[0]?.attributes.marketAreaId
-      );
-
-      graphicsToRemove.forEach((g) =>
-        selectionGraphicsLayerRef.current.remove(g)
-      );
-
-      // Group features by market area ID
-      const featuresByMarketArea = features.reduce((acc, feature) => {
-        const marketAreaId = feature.attributes.marketAreaId;
-        if (!acc[marketAreaId]) acc[marketAreaId] = [];
-        acc[marketAreaId].push(feature);
-        return acc;
-      }, {});
-
-      // Process each market area's features
-      for (const [marketAreaId, maFeatures] of Object.entries(
-        featuresByMarketArea
-      )) {
-        // Collect all valid geometries
-        const validGeometries = maFeatures
-          .map((f) => ensureValidGeometry(f.geometry, mapView.spatialReference))
-          .filter((g) => g != null);
-
-        if (validGeometries.length === 0) continue;
-
-        // Create union of all geometries for this market area
-        const unionGeometry = union(validGeometries);
-
-        if (!unionGeometry) continue;
-
-        // Create new graphic with updated styles
-        const symbol = {
-          type: "simple-fill",
-          color: [...hexToRgb(styles.fill), styles.fillOpacity],
-          outline: {
-            color: styles.outline,
-            width: styles.outlineWidth,
-          },
-        };
-
-        const newGraphic = new Graphic({
-          geometry: unionGeometry,
-          symbol,
-          attributes: {
-            marketAreaId,
-            FEATURE_TYPE: featureType,
-          },
-        });
-
-        selectionGraphicsLayerRef.current.add(newGraphic);
+  const updateFeatureStyles = useCallback(
+    async (features, styles, featureType) => {
+      if (!selectionGraphicsLayerRef.current || !mapView) {
+        console.log("Selection layer or map view not initialized");
+        return;
       }
-    } catch (error) {
-      console.error("Error updating feature styles:", error);
-    }
-  };
+  
+      try {
+        const [{ default: Graphic }, { default: Polygon }, geometryEngine] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/Polygon"),
+          import("@arcgis/core/geometry/geometryEngine")
+        ]);
+  
+        // Group features by market area ID
+        const featuresByMarketArea = features.reduce((acc, feature) => {
+          const marketAreaId = feature.attributes?.marketAreaId || 'default';
+          if (!acc[marketAreaId]) acc[marketAreaId] = [];
+          acc[marketAreaId].push(feature);
+          return acc;
+        }, {});
+  
+        // Clear existing graphics only for the market areas we're updating
+        const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
+        const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
+        );
+        
+        selectionGraphicsLayerRef.current.removeAll();
+        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+  
+        // Process each market area
+        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          try {
+            // Create polygons for all features in this market area
+            const polygons = maFeatures.map(feature => {
+              const rings = feature.geometry?.rings || 
+                           feature.geometry?.toJSON?.()?.rings ||
+                           (feature.geometry?.type === "polygon" ? feature.geometry.coordinates : null);
+              
+              if (rings) {
+                const polygon = new Polygon({
+                  rings: rings,
+                  spatialReference: mapView.spatialReference
+                });
+                return polygon;
+              }
+              return null;
+            }).filter(p => p !== null);
+  
+            if (polygons.length === 0) continue;
+  
+            // Find separate, non-contiguous sections using geometryEngine
+            let sections = [];
+            let remainingPolygons = [...polygons];
+  
+            while (remainingPolygons.length > 0) {
+              let currentSection = remainingPolygons[0];
+              let sectionPolygons = [remainingPolygons[0]];
+              remainingPolygons = remainingPolygons.slice(1);
+  
+              let foundIntersection;
+              do {
+                foundIntersection = false;
+                for (let i = remainingPolygons.length - 1; i >= 0; i--) {
+                  const testPolygon = remainingPolygons[i];
+                  if (geometryEngine.intersects(currentSection, testPolygon)) {
+                    currentSection = geometryEngine.union([currentSection, testPolygon]);
+                    sectionPolygons.push(testPolygon);
+                    remainingPolygons.splice(i, 1);
+                    foundIntersection = true;
+                  }
+                }
+              } while (foundIntersection);
+  
+              sections.push(currentSection);
+            }
+  
+            // Create graphics for each section
+            sections.forEach((section, index) => {
+              // Create the fill graphic (no border)
+              const fillSymbol = {
+                type: "simple-fill",
+                color: [...hexToRgb(styles.fill), styles.fillOpacity],
+                outline: {
+                  color: [0, 0, 0, 0],
+                  width: 0
+                }
+              };
+  
+              const fillGraphic = new Graphic({
+                geometry: section,
+                symbol: fillSymbol,
+                attributes: {
+                  marketAreaId,
+                  FEATURE_TYPE: featureType,
+                  sectionIndex: index
+                }
+              });
+  
+              // Create the border graphic (no fill)
+              if (styles.outlineWidth !== -1) {
+                const borderSymbol = {
+                  type: "simple-line",
+                  color: styles.outline,
+                  width: styles.outlineWidth,
+                  style: "solid"
+                };
+  
+                const borderGraphic = new Graphic({
+                  geometry: section,
+                  symbol: borderSymbol,
+                  attributes: {
+                    marketAreaId,
+                    FEATURE_TYPE: featureType,
+                    sectionIndex: index,
+                    isBorder: true
+                  }
+                });
+  
+                selectionGraphicsLayerRef.current.add(borderGraphic);
+              }
+  
+              selectionGraphicsLayerRef.current.add(fillGraphic);
+            });
+            
+          } catch (error) {
+            console.error(`Error processing market area ${marketAreaId}:`, error);
+          }
+        }
+  
+      } catch (error) {
+        console.error("Error in updateFeatureStyles:", error);
+      }
+    },
+    [mapView]
+  );    
 
   // Helper function to handle geometry validation
   const ensureValidGeometry = (geometry, spatialReference) => {
