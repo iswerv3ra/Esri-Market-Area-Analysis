@@ -28,9 +28,7 @@ const ZoomAlert = () => {
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-sm text-yellow-700">
-              {zoomMessage}
-            </p>
+            <p className="text-sm text-yellow-700">{zoomMessage}</p>
           </div>
         </div>
       </div>
@@ -38,9 +36,10 @@ const ZoomAlert = () => {
   );
 };
 
-export default function MapComponent() {
+export default function MapComponent({ onToggleList }) {
   const mapRef = useRef(null);
   const { setMapView } = useMap();
+  const initCompleteRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -112,7 +111,7 @@ export default function MapComponent() {
           padding: {
             top: 10,
             right: 10,
-            bottom: 35, // Reduced bottom padding to accommodate fixed attribution bar
+            bottom: 35,
             left: 10
           },
           constraints: {
@@ -131,22 +130,18 @@ export default function MapComponent() {
               position: "auto",
               breakpoint: false,
               margin: {
-                bottom: 35 // Match bottom padding
+                bottom: 35
               }
             }
           }
         });
 
-        // Customize attribution styling after view initialization
         view.when(() => {
           const attributionNode = view.ui.find("attribution");
           if (attributionNode) {
-            // Remove default positioning
             view.ui.remove(attributionNode);
-            // Add with custom positioning
             view.ui.add(attributionNode, "manual");
             
-            // Apply custom styling to attribution element
             const attributionDiv = attributionNode.container;
             if (attributionDiv) {
               attributionDiv.style.position = 'fixed';
@@ -167,7 +162,6 @@ export default function MapComponent() {
         if (!isMounted) return;
         console.log('[Map] View initialized successfully');
 
-        // Add widgets with updated positions
         const widgets = [
           {
             widget: new Zoom({
@@ -217,6 +211,15 @@ export default function MapComponent() {
 
         setMapView(view);
 
+        // Auto-toggle MA list after map initialization
+        if (!initCompleteRef.current && onToggleList) {
+          console.log('[Map] Triggering auto-toggle of MA list');
+          setTimeout(() => {
+            onToggleList();
+            initCompleteRef.current = true;
+          }, 1000);
+        }
+
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (position) => {
@@ -247,7 +250,7 @@ export default function MapComponent() {
         setMapView(null);
       }
     };
-  }, [setMapView]);
+  }, [setMapView, onToggleList]);
 
   return (
     <div 
