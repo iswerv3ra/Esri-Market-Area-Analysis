@@ -36,7 +36,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const initializationDone = useRef(false);
   const locationsInitialized = useRef(false);
 
-  // Form state initialization with noBorder defined
   const [formState, setFormState] = useState({
     maType: editingMarketArea?.ma_type || "",
     maName: editingMarketArea?.name || "",
@@ -63,7 +62,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Market area types definition
   const maTypes = [
     { value: "radius", label: "Radius" },
     { value: "zip", label: "Zip Code" },
@@ -77,6 +75,20 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "usa", label: "USA" },
   ];
 
+  const appendLocations = useCallback((newLocations) => {
+    setFormState((prev) => {
+      const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
+      const locationsToAdd = newLocations.filter(
+        (loc) => !existingIds.has(loc.id)
+      );
+
+      return {
+        ...prev,
+        selectedLocations: [...prev.selectedLocations, ...locationsToAdd],
+      };
+    });
+  }, []);
+  
   // Toggle map selection mode
   const handleToggleMapSelection = useCallback(() => {
     setIsMapSelectionActive((prev) => !prev);
@@ -91,40 +103,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   useEffect(() => {
     if (!selectedFeatures.length || formState.maType === "radius") return;
 
-    console.log(
-      `[MarketAreaForm] selectedFeatures changed:`,
-      selectedFeatures
-    );
+    const newLocations = selectedFeatures.map((feature) => ({
+      id: feature.attributes.FID,
+      name: formatLocationName(feature, formState.maType),
+      feature: feature,
+      geometry: feature.geometry,
+    }));
 
-    // Process newly selected features
-    const updatedLocations = selectedFeatures
-      .map((feature) => ({
-        id: feature.attributes.FID,
-        name: formatLocationName(feature, formState.maType),
-        feature: feature,
-        geometry: feature.geometry,
-      }))
-      .filter((loc) => loc.name && loc.name.trim() !== ""); // Filter out empty names
-
-    console.log(`[MarketAreaForm] Updated Locations:`, updatedLocations);
-
-    setFormState((prev) => {
-      // Filter out any duplicates using a Set for efficiency
-      const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
-      const newLocations = updatedLocations.filter(
-        (loc) => !existingIds.has(loc.id)
-      );
-
-      return {
-        ...prev,
-        selectedLocations: [...prev.selectedLocations, ...newLocations],
-        // Update availableLocations to remove any newly selected locations
-        availableLocations: prev.availableLocations.filter(
-          (loc) => !newLocations.some((sel) => sel.id === loc.id)
-        ),
-      };
-    });
-  }, [selectedFeatures, formState.maType, formatLocationName]);
+    appendLocations(newLocations);
+  }, [selectedFeatures, formState.maType, appendLocations, formatLocationName]);
 
   // Enhanced initialization effect for editing
   useEffect(() => {
@@ -369,14 +356,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             }))
             .filter((loc) => loc.name && loc.name.trim() !== ""); // Filter out invalid names
 
-          setFormState((prev) => ({
-            ...prev,
-            availableLocations: mappedResults.filter(
-              (loc) =>
-                !prev.selectedLocations.some((sel) => sel.id === loc.id)
-            ),
-            isSearching: false,
-          }));
+            setFormState((prev) => ({
+              ...prev,
+              availableLocations: mappedResults.filter(
+                (loc) => !prev.selectedLocations.some((sel) => sel.id === loc.id)
+              ),
+              isSearching: false,
+            }));
           console.log(`[MarketAreaForm] Search results updated:`, mappedResults);
         } catch (error) {
           console.error("Search error:", error);
@@ -505,91 +491,48 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           ? -1
           : formState.styleSettings.borderWidth,
       };
-      // Remove UI-only properties
-      delete styleSettings.noBorder;
-      delete styleSettings.noFill;
 
       const marketAreaData = {
         ma_type: formState.maType,
         name: formState.maName,
         short_name: formState.shortName,
         style_settings: styleSettings,
-        locations: null,
-        radius_points: null,
-        geometry: null,
+        locations: formState.selectedLocations.map((loc) => ({
+          id: loc.id,
+          name: loc.name,
+          geometry: loc.geometry,
+        })),
+        radius_points:
+          formState.maType === "radius"
+            ? radiusPoints.map((point) => ({
+                center: point.center,
+                radius: point.radius,
+                geometry: point.geometry,
+              }))
+            : null,
+        geometry:
+          formState.maType === "radius"
+            ? {
+                type: "MultiPolygon",
+                coordinates: radiusPoints.map((point) =>
+                  point.geometry?.rings ? point.geometry.rings : []
+                ),
+              }
+            : {
+                type: "MultiPolygon",
+                coordinates: formState.selectedLocations.map((loc) =>
+                  loc.geometry?.rings || []
+                ),
+              },
       };
 
-      if (formState.maType === "radius") {
-        marketAreaData.radius_points = radiusPoints.map((point) => ({
-          center: point.center,
-          radius: point.radius,
-          geometry: point.geometry,
-        }));
-
-        const geometries = radiusPoints
-          .map((point) => {
-            if (point.geometry && point.geometry.rings) {
-              return point.geometry.rings;
-            } else {
-              console.warn(`Invalid geometry for radius point:`, point);
-              return [];
-            }
-          })
-          .filter((rings) => rings.length > 0);
-
-        marketAreaData.geometry = {
-          type: "MultiPolygon",
-          coordinates: geometries,
-        };
-      } else {
-        // Handle both new and edited locations
-        marketAreaData.locations = selectedFeatures
-          .map((feature) => {
-            // Ensure we have a valid geometry object
-            const geometry = feature.geometry?.toJSON?.() || feature.geometry;
-
-            return {
-              id: feature.attributes.FID,
-              name: formatLocationName(feature, formState.maType),
-              geometry: geometry,
-            };
-          })
-          .filter(
-            (loc) =>
-              loc.geometry &&
-              loc.name &&
-              loc.name.trim() !== ""
-          );
-
-        // Then update the geometry creation to handle either format
-        marketAreaData.geometry = {
-          type: "MultiPolygon",
-          coordinates: marketAreaData.locations
-            .map((loc) => {
-              const geom =
-                loc.geometry.rings ||
-                loc.geometry.coordinates ||
-                (loc.geometry.toJSON
-                  ? loc.geometry.toJSON().rings
-                  : null);
-
-              if (!geom) {
-                console.warn("Invalid geometry for location:", loc);
-                return [];
-              }
-
-              return Array.isArray(geom) ? geom : [geom];
-            })
-            .filter((rings) => rings.length > 0),
-        };
-      }
-
-      // Validate before saving
       if (
         (formState.maType === "radius" &&
-          marketAreaData.radius_points.length === 0) ||
+          (!marketAreaData.radius_points ||
+            marketAreaData.radius_points.length === 0)) ||
         (formState.maType !== "radius" &&
-          marketAreaData.locations.length === 0)
+          (!marketAreaData.locations ||
+            marketAreaData.locations.length === 0))
       ) {
         throw new Error("No valid locations to save");
       }
@@ -607,35 +550,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         toast.success("Market area created successfully");
       }
 
-      // Clean up
       setIsMapSelectionActive(false);
       clearSelection();
       hideAllFeatureLayers();
       removeActiveLayer();
 
-      // Wait for cleanup before closing
       setTimeout(() => {
         onClose?.();
       }, 100);
     } catch (error) {
       console.error("Error saving market area:", error);
-      let errorMessage;
-
-      if (error.response?.status === 400) {
-        if (
-          error.response.data?.detail?.includes("UNIQUE constraint failed")
-        ) {
-          errorMessage = `A market area with the name "${formState.maName}" already exists in this project. Please choose a different name.`;
-        } else {
-          errorMessage =
-            error.response.data?.detail || "Invalid data submitted";
-        }
-      } else {
-        errorMessage = error.message || "Error saving market area";
-      }
-
-      setError(errorMessage);
-      toast.error(errorMessage);
+      setError(error.message || "Error saving market area");
+      toast.error(error.message || "Error saving market area");
     } finally {
       setIsSaving(false);
     }
@@ -643,15 +569,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const handleCancel = useCallback(() => {
     try {
-      // Disable map selection and clear the selected features
       setIsMapSelectionActive(false);
       clearSelection();
-
-      // Remove the feature layer and hide everything
       hideAllFeatureLayers();
       removeActiveLayer();
-
-      // Reset form state
       setFormState((prev) => ({
         ...prev,
         maType: "",
@@ -659,14 +580,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         availableLocations: [],
         selectedLocations: [],
       }));
-
-      // Reset radius points if any
       setRadiusPoints([]);
-
-      // Clear any errors
       setError(null);
-
-      // Wait for cleanup to complete before closing
       setTimeout(() => {
         onClose?.();
       }, 100);
