@@ -1,31 +1,31 @@
 // src/components/market-areas/MarketAreaList.jsx
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useMarketAreas } from '../../contexts/MarketAreaContext';
-import { useMap } from '../../contexts/MapContext';
-import { 
-  PencilIcon, 
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useMarketAreas } from "../../contexts/MarketAreaContext";
+import { useMap } from "../../contexts/MapContext";
+import {
+  PencilIcon,
   TrashIcon,
   EyeIcon,
-  EyeSlashIcon 
-} from '@heroicons/react/24/outline';
+  EyeSlashIcon,
+} from "@heroicons/react/24/outline";
 
 export default function MarketAreaList({ onClose, onEdit }) {
   const { projectId } = useParams();
-  const { 
-    marketAreas = [], 
-    isLoading, 
-    error, 
+  const {
+    marketAreas = [],
+    isLoading,
+    error,
     fetchMarketAreas,
-    deleteMarketArea 
+    deleteMarketArea,
   } = useMarketAreas();
 
-  const { 
-    drawRadius, 
+  const {
+    drawRadius,
     updateFeatureStyles,
     clearSelection,
-    hideAllFeatureLayers
+    hideAllFeatureLayers,
   } = useMap();
 
   // Initialize visible IDs from localStorage or default to all visible
@@ -48,10 +48,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
     if (marketAreas.length > 0) {
       const stored = localStorage.getItem(`marketAreas.${projectId}.visible`);
       if (!stored) {
-        const allIds = marketAreas.map(ma => ma.id);
+        const allIds = marketAreas.map((ma) => ma.id);
         setVisibleMarketAreaIds(allIds);
         localStorage.setItem(
-          `marketAreas.${projectId}.visible`, 
+          `marketAreas.${projectId}.visible`,
           JSON.stringify(allIds)
         );
       }
@@ -64,10 +64,12 @@ export default function MarketAreaList({ onClose, onEdit }) {
       if (!marketAreas.length) return;
 
       // Clear only hidden market areas instead of all
-      const hiddenAreas = marketAreas.filter(ma => !visibleMarketAreaIds.includes(ma.id));
+      const hiddenAreas = marketAreas.filter(
+        (ma) => !visibleMarketAreaIds.includes(ma.id)
+      );
       for (const hiddenArea of hiddenAreas) {
         // Clear graphics for hidden areas
-        if (hiddenArea.ma_type === 'radius') {
+        if (hiddenArea.ma_type === "radius") {
           // Clear radius graphics for hidden areas
           // You might need to add a method to clear specific radius graphics
         } else if (hiddenArea.locations) {
@@ -79,32 +81,41 @@ export default function MarketAreaList({ onClose, onEdit }) {
       for (const marketArea of marketAreas) {
         if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
 
-        if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
-          marketArea.radius_points.forEach(point => {
+        if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+          marketArea.radius_points.forEach((point) => {
             drawRadius(point, marketArea.style_settings);
           });
         } else if (marketArea.locations) {
-          const features = marketArea.locations.map(loc => ({
+          const features = marketArea.locations.map((loc) => ({
             geometry: loc.geometry,
-            attributes: { 
+            attributes: {
               id: loc.id,
-              marketAreaId: marketArea.id // Add market area ID to track source
-            }
+              marketAreaId: marketArea.id, // Add market area ID to track source
+            },
           }));
 
-          updateFeatureStyles(features, {
-            fill: marketArea.style_settings?.fillColor,
-            fillOpacity: marketArea.style_settings?.fillOpacity,
-            outline: marketArea.style_settings?.borderColor,
-            outlineWidth: marketArea.style_settings?.borderWidth
-          }, marketArea.ma_type);
+          updateFeatureStyles(
+            features,
+            {
+              fill: marketArea.style_settings?.fillColor,
+              fillOpacity: marketArea.style_settings?.fillOpacity,
+              outline: marketArea.style_settings?.borderColor,
+              outlineWidth: marketArea.style_settings?.borderWidth,
+            },
+            marketArea.ma_type
+          );
         }
       }
     };
 
     showVisibleMarketAreas();
-  }, [marketAreas, visibleMarketAreaIds, hideAllFeatureLayers, drawRadius, updateFeatureStyles]);
-
+  }, [
+    marketAreas,
+    visibleMarketAreaIds,
+    hideAllFeatureLayers,
+    drawRadius,
+    updateFeatureStyles,
+  ]);
   // Update localStorage when visibility changes
   useEffect(() => {
     if (projectId) {
@@ -124,13 +135,15 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
     try {
       if (isVisible) {
-        setVisibleMarketAreaIds(prev => prev.filter(currentId => currentId !== id));
+        setVisibleMarketAreaIds((prev) =>
+          prev.filter((currentId) => currentId !== id)
+        );
         clearSelection();
       } else {
-        setVisibleMarketAreaIds(prev => [...prev, id]);
+        setVisibleMarketAreaIds((prev) => [...prev, id]);
       }
     } catch (error) {
-      console.error('Error toggling market area visibility:', error);
+      console.error("Error toggling market area visibility:", error);
     }
   };
 
@@ -138,22 +151,26 @@ export default function MarketAreaList({ onClose, onEdit }) {
   const handleDelete = async (marketArea) => {
     if (!marketArea || !projectId) return;
 
-    if (window.confirm('Are you sure you want to delete this market area?')) {
+    if (window.confirm("Are you sure you want to delete this market area?")) {
       try {
         await deleteMarketArea(projectId, marketArea.id);
         // Remove from visible areas if it was visible
         if (visibleMarketAreaIds.includes(marketArea.id)) {
-          setVisibleMarketAreaIds(prev => prev.filter(id => id !== marketArea.id));
+          setVisibleMarketAreaIds((prev) =>
+            prev.filter((id) => id !== marketArea.id)
+          );
           clearSelection();
         }
         // Update localStorage after deletion
-        const updatedVisible = visibleMarketAreaIds.filter(id => id !== marketArea.id);
+        const updatedVisible = visibleMarketAreaIds.filter(
+          (id) => id !== marketArea.id
+        );
         localStorage.setItem(
-          `marketAreas.${projectId}.visible`, 
+          `marketAreas.${projectId}.visible`,
           JSON.stringify(updatedVisible)
         );
       } catch (error) {
-        console.error('Failed to delete market area:', error);
+        console.error("Failed to delete market area:", error);
       }
     }
   };
@@ -167,18 +184,14 @@ export default function MarketAreaList({ onClose, onEdit }) {
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-red-600">
-        {error}
-      </div>
-    );
+    return <div className="p-4 text-red-600">{error}</div>;
   }
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {(!Array.isArray(marketAreas) || marketAreas.length === 0) ? (
+          {!Array.isArray(marketAreas) || marketAreas.length === 0 ? (
             <div className="text-center p-4 text-gray-500 dark:text-gray-400">
               No market areas defined yet
             </div>

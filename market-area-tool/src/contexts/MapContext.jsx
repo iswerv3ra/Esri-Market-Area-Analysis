@@ -631,55 +631,52 @@ export const MapProvider = ({ children }) => {
           import("@arcgis/core/geometry/geometryEngine"),
         ]);
 
-        // First, clear ALL existing graphics for this feature type
-        const graphicsToKeep = selectionGraphicsLayer.graphics.filter(
-          (g) => g.attributes?.FEATURE_TYPE !== featureType
-        );
-        selectionGraphicsLayer.removeAll();
-        graphicsToKeep.forEach((g) => selectionGraphicsLayer.add(g));
-
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
-          const marketAreaId = feature.attributes.marketAreaId || "default";
+          const marketAreaId = feature.attributes.marketAreaId;
           if (!acc[marketAreaId]) acc[marketAreaId] = [];
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
+
+        // Clear only graphics related to the current operation
+        const existingGraphics = selectionGraphicsLayer.graphics.filter(
+          (g) =>
+            !features.some(
+              (f) => f.attributes.marketAreaId === g.attributes.marketAreaId
+            )
+        );
+        selectionGraphicsLayer.removeAll();
+        existingGraphics.forEach((g) => selectionGraphicsLayer.add(g));
 
         // Process each market area's features separately
         for (const [marketAreaId, maFeatures] of Object.entries(
           featuresByMarketArea
         )) {
           // Union geometries for this market area
-          const geometries = maFeatures.map((f) =>
-            ensureValidGeometry(f.geometry, mapView.spatialReference)
-          );
-          const validGeometries = geometries.filter((g) => g != null);
+          const geometries = maFeatures.map((f) => f.geometry);
+          const unionGeometry = geometryEngine.union(geometries);
 
-          if (validGeometries.length > 0) {
-            const unionGeometry = geometryEngine.union(validGeometries);
+          if (unionGeometry) {
+            const symbol = {
+              type: "simple-fill",
+              color: [...hexToRgb(styles.fill), styles.fillOpacity],
+              outline: {
+                color: styles.outline,
+                width: styles.outlineWidth,
+              },
+            };
 
-            if (unionGeometry) {
-              const symbol = {
-                type: "simple-fill",
-                color: [...hexToRgb(styles.fill), styles.fillOpacity],
-                outline: {
-                  color: styles.outline,
-                  width: styles.outlineWidth,
-                },
-              };
+            const unionGraphic = new Graphic.default({
+              geometry: unionGeometry,
+              symbol: symbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+              },
+            });
 
-              const unionGraphic = new Graphic.default({
-                geometry: unionGeometry,
-                symbol: symbol,
-                attributes: {
-                  marketAreaId,
-                  FEATURE_TYPE: featureType,
-                },
-              });
-
-              selectionGraphicsLayer.add(unionGraphic);
-            }
+            selectionGraphicsLayer.add(unionGraphic);
           }
         }
       } catch (error) {
