@@ -1,11 +1,9 @@
-// src/components/MarketAreaForm.jsx
-
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
   ArrowsRightLeftIcon,
   MagnifyingGlassIcon,
-  CursorArrowRaysIcon, // Added for map selection
+  CursorArrowRaysIcon,
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
@@ -34,20 +32,24 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const { addMarketArea, updateMarketArea } = useMarketAreas();
 
-  // Form state initialization with selectedLocations defined
+  // Form state initialization with noBorder defined
   const [formState, setFormState] = useState({
     maType: editingMarketArea?.ma_type || "",
     maName: editingMarketArea?.name || "",
     shortName: editingMarketArea?.short_name || "",
     locationSearch: "",
     availableLocations: [],
-    selectedLocations: [], // Initialized as an empty array
+    selectedLocations: [],
     isSearching: false,
-    styleSettings: editingMarketArea?.style_settings || {
-      fillColor: "#0078D4",
-      fillOpacity: 0.3,
-      borderColor: "#0078D4",
-      borderWidth: 2,
+    styleSettings: {
+      ...editingMarketArea?.style_settings || {
+        fillColor: "#0078D4",
+        fillOpacity: 0.3,
+        borderColor: "#0078D4",
+        borderWidth: 2,
+      },
+      noBorder: editingMarketArea?.style_settings?.borderWidth === -1 || false,
+      noFill: editingMarketArea?.style_settings?.fillOpacity === 0 || false,
     },
   });
 
@@ -354,41 +356,68 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     [removeFromSelection, formState.maType]
   );
 
-  // Style change handler
   const handleStyleChange = useCallback((type, value) => {
-    setFormState((prev) => ({
-      ...prev,
-      styleSettings: {
-        ...prev.styleSettings,
-        [type]: value,
-      },
-    }));
+    setFormState((prev) => {
+      const newStyleSettings = { ...prev.styleSettings };
+  
+      if (type === "noBorder") {
+        newStyleSettings.noBorder = value;
+        newStyleSettings.borderWidth = value ? -1 : 2;
+      } else if (type === "noFill") {
+        newStyleSettings.noFill = value;
+        if (value) {
+          newStyleSettings.fillOpacity = 0;
+          // Keep the original color but set opacity to fully transparent
+          newStyleSettings.fillColor = newStyleSettings.fillColor;
+        } else {
+          newStyleSettings.fillOpacity = 0.3;
+        }
+      } else {
+        newStyleSettings[type] = value;
+      }
+  
+      return {
+        ...prev,
+        styleSettings: newStyleSettings,
+      };
+    });
   }, []);
 
-  // Enhanced submit handler with better error handling
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-
+  
     try {
+      const styleSettings = {
+        fillColor: formState.styleSettings.fillColor,
+        // When noFill is true, set opacity to 0 for complete transparency
+        fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+        borderColor: formState.styleSettings.borderColor,
+        borderWidth: formState.styleSettings.noBorder ? -1 : formState.styleSettings.borderWidth
+      };
+      // Remove UI-only properties
+      delete styleSettings.noBorder;
+      delete styleSettings.noFill;
+
       const marketAreaData = {
         ma_type: formState.maType,
         name: formState.maName,
         short_name: formState.shortName,
-        style_settings: formState.styleSettings,
+        style_settings: styleSettings,
         locations: null,
         radius_points: null,
         geometry: null,
       };
-
+  
       if (formState.maType === "radius") {
         marketAreaData.radius_points = radiusPoints.map(point => ({
           center: point.center,
           radius: point.radius,
-          geometry: point.geometry // Ensure geometry is included
+          geometry: point.geometry
         }));
-
+  
         // Ensure all radiusPoints have valid geometry with 'rings'
         const geometries = radiusPoints.map((point) => {
           if (point.geometry && point.geometry.rings) {
@@ -398,7 +427,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             return [];
           }
         });
-
+  
         marketAreaData.geometry = {
           type: "MultiPolygon",
           coordinates: geometries,
@@ -412,7 +441,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             geometry: feature.geometry.toJSON(),
           })
         );
-
+  
         // Ensure that each location has valid geometry with 'rings'
         marketAreaData.geometry = {
           type: "MultiPolygon",
@@ -422,7 +451,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }),
         };
       }
-
+  
       let savedMarketArea;
       if (editingMarketArea) {
         savedMarketArea = await updateMarketArea(
@@ -435,41 +464,52 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         savedMarketArea = await addMarketArea(projectId, marketAreaData);
         toast.success("Market area created successfully");
       }
-
+  
       // Clear existing selections but keep graphics
       clearSelection();
       hideAllFeatureLayers();
-
+  
       // Display the saved market area
       if (formState.maType === "radius") {
         radiusPoints.forEach((point) => {
-          drawRadius(point, formState.styleSettings);
+          drawRadius(point, styleSettings);
         });
       } else {
         const features = selectedFeatures.map((feature) => ({
           geometry: feature.geometry,
           attributes: { FID: feature.attributes.FID },
         }));
-
+  
+        // Use consistent style settings format for updateFeatureStyles
         updateFeatureStyles(
           features,
           {
-            fill: formState.styleSettings.fillColor,
-            fillOpacity: formState.styleSettings.fillOpacity,
-            outline: formState.styleSettings.borderColor,
-            outlineWidth: formState.styleSettings.borderWidth, // Corrected here
+            fill: styleSettings.fillColor,
+            fillOpacity: styleSettings.fillOpacity,
+            outline: styleSettings.borderColor,
+            outlineWidth: styleSettings.borderWidth,
           },
           formState.maType
         );
       }
-
+  
       onClose();
     } catch (error) {
       console.error("Error saving market area:", error);
-      const errorMessage =
-        error.response?.data?.detail ||
-        error.message ||
-        "Error saving market area";
+      let errorMessage;
+      
+      // Handle specific error cases
+      if (error.response?.status === 400) {
+        // Check for unique constraint violation
+        if (error.response.data?.detail?.includes('UNIQUE constraint failed')) {
+          errorMessage = `A market area with the name "${formState.maName}" already exists in this project. Please choose a different name.`;
+        } else {
+          errorMessage = error.response.data?.detail || 'Invalid data submitted';
+        }
+      } else {
+        errorMessage = error.message || "Error saving market area";
+      }
+      
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -611,7 +651,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             </div>
           </div>
 
-          {/* Style Controls */}
           <div className="space-y-4 p-4 border rounded-md">
             <h3 className="font-medium text-gray-900 dark:text-gray-100">
               Style Settings
@@ -625,24 +664,35 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   <input
                     type="color"
                     value={formState.styleSettings.fillColor}
-                    onChange={(e) =>
-                      handleStyleChange("fillColor", e.target.value)
-                    }
+                    onChange={(e) => handleStyleChange("fillColor", e.target.value)}
                     className="h-8 w-8 rounded cursor-pointer"
+                    disabled={formState.styleSettings.noFill}
                   />
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={formState.styleSettings.fillOpacity * 100}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        "fillOpacity",
-                        Number(e.target.value) / 100
-                      )
-                    }
+                    onChange={(e) => handleStyleChange("fillOpacity", Number(e.target.value) / 100)}
                     className="ml-2 flex-1"
+                    disabled={formState.styleSettings.noFill}
                   />
+                </div>
+                {/* No Fill Checkbox */}
+                <div className="flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    id="noFill"
+                    checked={formState.styleSettings.noFill}
+                    onChange={(e) => handleStyleChange("noFill", e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="noFill"
+                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                  >
+                    No fill
+                  </label>
                 </div>
               </div>
 
@@ -654,21 +704,35 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   <input
                     type="color"
                     value={formState.styleSettings.borderColor}
-                    onChange={(e) =>
-                      handleStyleChange("borderColor", e.target.value)
-                    }
+                    onChange={(e) => handleStyleChange("borderColor", e.target.value)}
                     className="h-8 w-8 rounded cursor-pointer"
+                    disabled={formState.styleSettings.noBorder}
                   />
                   <input
                     type="range"
-                    min="1"
+                    min="-1"
                     max="5"
                     value={formState.styleSettings.borderWidth}
-                    onChange={(e) =>
-                      handleStyleChange("borderWidth", Number(e.target.value))
-                    }
+                    onChange={(e) => handleStyleChange("borderWidth", Number(e.target.value))}
                     className="ml-2 flex-1"
+                    disabled={formState.styleSettings.noBorder}
                   />
+                </div>
+                {/* No Border Checkbox */}
+                <div className="flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    id="noBorder"
+                    checked={formState.styleSettings.noBorder}
+                    onChange={(e) => handleStyleChange("noBorder", e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="noBorder"
+                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                  >
+                    No border
+                  </label>
                 </div>
               </div>
             </div>

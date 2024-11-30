@@ -501,82 +501,58 @@ export const MapProvider = ({ children }) => {
     }
   }, [selectionGraphicsLayer, activeLayers, mapView]);
 
-  // Update feature styles function with dynamic import
   const updateFeatureStyles = useCallback(async (features, styles, featureType) => {
-    if (!selectionGraphicsLayer || !features.length || !mapView) return;
-
+    if (!selectionGraphicsLayer || !mapView) return;
+  
     try {
-      // Don't remove all graphics, only update the ones we're styling
+      // Import required modules
+      const [Graphic, geometryEngine] = await Promise.all([
+        import('@arcgis/core/Graphic'),
+        import('@arcgis/core/geometry/geometryEngine')
+      ]);
+  
+      // Group features by market area ID
+      const featuresByMarketArea = features.reduce((acc, feature) => {
+        const marketAreaId = feature.attributes.marketAreaId;
+        if (!acc[marketAreaId]) acc[marketAreaId] = [];
+        acc[marketAreaId].push(feature);
+        return acc;
+      }, {});
+  
+      // Clear only graphics related to the current operation
       const existingGraphics = selectionGraphicsLayer.graphics.filter(g => 
-        !features.some(f => f.attributes?.FID === g.attributes?.FID)
+        !features.some(f => f.attributes.marketAreaId === g.attributes.marketAreaId)
       );
       selectionGraphicsLayer.removeAll();
       existingGraphics.forEach(g => selectionGraphicsLayer.add(g));
-
-      const fillRgb = styles?.fill ? hexToRgb(styles.fill) : [0, 0, 0];
-      const outlineRgb = styles?.outline ? hexToRgb(styles.outline) : [128, 128, 128];
-
-      const GraphicModule = await import('@arcgis/core/Graphic');
-      const Graphic = GraphicModule.default;
-
-      for (const feature of features) {
-        const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
-        if (!geometry) continue;
-
-        let symbol;
-        switch (geometry.type.toLowerCase()) {
-          case 'point':
-            symbol = {
-              type: "simple-marker",
-              color: [...fillRgb, styles.fillOpacity || 0.5],
-              outline: {
-                color: [...outlineRgb, 1],
-                width: styles.outlineWidth || 1
-              }
-            };
-            break;
-          case 'polyline':
-            symbol = {
-              type: "simple-line",
-              color: [...outlineRgb, 1],
-              width: styles.outlineWidth || 1
-            };
-            break;
-          case 'polygon':
-            symbol = {
-              type: "simple-fill",
-              color: [...fillRgb, styles.fillOpacity || 0.3],
-              outline: {
-                color: [...outlineRgb, 1],
-                width: styles.outlineWidth || 1
-              }
-            };
-            break;
-          case 'multipoint':
-            symbol = {
-              type: "simple-marker",
-              color: [...fillRgb, styles.fillOpacity || 0.5],
-              outline: {
-                color: [...outlineRgb, 1],
-                width: styles.outlineWidth || 1
-              }
-            };
-            break;
-          default:
-            console.warn(`Unsupported geometry type for styling: ${geometry.type}`);
-            continue;
+  
+      // Process each market area's features separately
+      for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+        // Union geometries for this market area
+        const geometries = maFeatures.map(f => f.geometry);
+        const unionGeometry = geometryEngine.union(geometries);
+  
+        if (unionGeometry) {
+          const symbol = {
+            type: "simple-fill",
+            color: [...hexToRgb(styles.fill), styles.fillOpacity],
+            outline: {
+              color: styles.outline,
+              width: styles.outlineWidth
+            }
+          };
+  
+          const unionGraphic = new Graphic.default({
+            geometry: unionGeometry,
+            symbol: symbol,
+            attributes: {
+              marketAreaId,
+              FEATURE_TYPE: featureType
+            }
+          });
+  
+          selectionGraphicsLayer.add(unionGraphic);
         }
-
-        const graphic = new Graphic({
-          geometry,
-          attributes: { 
-            ...feature.attributes,
-            FEATURE_TYPE: featureType
-          },
-          symbol
-        });
-
-        selectionGraphicsLayer.add(graphic);
       }
     } catch (error) {
       console.error('Error updating feature styles:', error);

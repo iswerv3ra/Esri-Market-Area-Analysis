@@ -58,13 +58,24 @@ export default function MarketAreaList({ onClose, onEdit }) {
     }
   }, [marketAreas, projectId]);
 
-  // Show visible market areas when they or the marketAreas change
+  // Inside MarketAreaList.jsx
   useEffect(() => {
     const showVisibleMarketAreas = async () => {
       if (!marketAreas.length) return;
 
-      hideAllFeatureLayers();
+      // Clear only hidden market areas instead of all
+      const hiddenAreas = marketAreas.filter(ma => !visibleMarketAreaIds.includes(ma.id));
+      for (const hiddenArea of hiddenAreas) {
+        // Clear graphics for hidden areas
+        if (hiddenArea.ma_type === 'radius') {
+          // Clear radius graphics for hidden areas
+          // You might need to add a method to clear specific radius graphics
+        } else if (hiddenArea.locations) {
+          updateFeatureStyles([], {}, hiddenArea.ma_type);
+        }
+      }
 
+      // Show visible market areas
       for (const marketArea of marketAreas) {
         if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
 
@@ -75,7 +86,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
         } else if (marketArea.locations) {
           const features = marketArea.locations.map(loc => ({
             geometry: loc.geometry,
-            attributes: { id: loc.id }
+            attributes: { 
+              id: loc.id,
+              marketAreaId: marketArea.id // Add market area ID to track source
+            }
           }));
 
           updateFeatureStyles(features, {
@@ -83,19 +97,13 @@ export default function MarketAreaList({ onClose, onEdit }) {
             fillOpacity: marketArea.style_settings?.fillOpacity,
             outline: marketArea.style_settings?.borderColor,
             outlineWidth: marketArea.style_settings?.borderWidth
-          }, marketArea.ma_type); // Pass FEATURE_TYPE
+          }, marketArea.ma_type);
         }
       }
     };
 
     showVisibleMarketAreas();
-  }, [
-    marketAreas, 
-    visibleMarketAreaIds, 
-    hideAllFeatureLayers, 
-    drawRadius, 
-    updateFeatureStyles
-  ]);
+  }, [marketAreas, visibleMarketAreaIds, hideAllFeatureLayers, drawRadius, updateFeatureStyles]);
 
   // Update localStorage when visibility changes
   useEffect(() => {
