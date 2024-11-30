@@ -22,8 +22,9 @@ import { toast } from "react-hot-toast";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
-import ExportDialog from "./ExportDialog"; // Add this import
-import { usePresets } from "../../contexts/PresetsContext"; // Assuming we'll create a PresetsContext
+import ExportDialog from "./ExportDialog";
+import { usePresets } from "../../contexts/PresetsContext";
+import ScaleBar from "@arcgis/core/widgets/ScaleBar"; // Static Import
 
 // Main Toolbar Component
 export default function Toolbar({ onCreateMA, onToggleList }) {
@@ -40,45 +41,53 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     navigate("/");
   };
 
-  const handleExportData = async ({ variables, formattedMarketAreas, selectedMarketAreas, fileName }) => {
-    console.log("handleExportData called with full market areas:", selectedMarketAreas);
+  const handleExportData = async ({
+    variables,
+    formattedMarketAreas,
+    selectedMarketAreas,
+    fileName,
+  }) => {
+    console.log(
+      "handleExportData called with full market areas:",
+      selectedMarketAreas
+    );
 
     console.log("handleExportData called with:", {
       variables,
       selectedMarketAreas,
-      fileName
+      fileName,
     });
-  
+
     if (!variables || variables.length === 0) {
       console.log("No variables selected, opening dialog");
       setIsExportDialogOpen(true);
       return;
     }
-  
+
     try {
       console.log("Starting export process");
       setIsExporting(true);
       const loadingToast = toast.loading("Enriching market areas...");
-  
+
       // Get the enriched data
       const enrichedData = await enrichmentService.enrichAreas(
         selectedMarketAreas,
         variables
       );
-      
+
       console.log("Enriched data:", enrichedData);
       console.log("Selected market areas:", selectedMarketAreas);
-  
+
       // Generate CSV content
       const csvContent = enrichmentService.exportToCSV(
         enrichedData,
         selectedMarketAreas, // Pass the actual market areas array
         variables
       );
-  
+
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       saveAs(blob, `${fileName}.csv`);
-  
+
       toast.dismiss(loadingToast);
       toast.success("Export completed successfully");
     } catch (error) {
@@ -89,43 +98,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     }
   };
 
-  // Export JPEG
-  const handleExportJPEG = async () => {
-    if (!mapView) {
-      toast.error("Map not ready for export");
-      return;
-    }
-
-    try {
-      setIsExporting(true);
-      const loadingToast = toast.loading("Exporting map as JPEG...");
-
-      const screenshot = await mapView.takeScreenshot({
-        format: "png", // Use "jpeg" if supported
-        quality: 90,
-      });
-
-      // Convert to Blob
-      const response = await fetch(screenshot.dataUrl);
-      const blob = await response.blob();
-
-      // Save the image
-      saveAs(
-        blob,
-        `market_areas_map_${new Date().toISOString().split("T")[0]}.jpg`
-      );
-
-      toast.dismiss(loadingToast);
-      toast.success("Map exported successfully");
-    } catch (error) {
-      console.error("JPEG export failed:", error);
-      toast.error("Failed to export map: " + error.message);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Export PDF using jsPDF
+  // Add this function back to your component
   const handleExportPDF = async () => {
     if (!mapView) {
       toast.error("Map not ready for export");
@@ -136,10 +109,24 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting map as PDF...");
 
+      // Create and add scale bar first
+      const tempScaleBar = new ScaleBar({
+        view: mapView,
+        unit: "dual",
+        style: "ruler",
+        visible: true,
+      });
+
+      mapView.ui.add(tempScaleBar, "top-left");
+
+      // Wait for scale bar to render
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Capture the map view as a screenshot
       const screenshot = await mapView.takeScreenshot({
         format: "png",
-        quality: 90,
+        quality: 100,
+        includeUI: true,
       });
 
       // Initialize jsPDF
@@ -164,6 +151,9 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         `market_areas_map_${new Date().toISOString().split("T")[0]}.pdf`
       );
 
+      // Cleanup
+      mapView.ui.remove(tempScaleBar);
+
       toast.dismiss(loadingToast);
       toast.success("PDF exported successfully");
     } catch (error) {
@@ -173,6 +163,205 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(false);
     }
   };
+
+  
+  const handleExportJPEG = async () => {
+    if (!mapView) {
+      console.log("No mapView available");
+      toast.error("Map not ready for export");
+      return;
+    }
+  
+    try {
+      setIsExporting(true);
+      const loadingToast = toast.loading("Exporting map as JPEG...");
+      console.log("Starting JPEG export process");
+  
+      // Get the current scale from the mapView
+      const scale = mapView.scale;
+  
+      // Keep original canvas size
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 80;
+      const ctx = canvas.getContext('2d');
+  
+      // Calculate initial distances - adjusted divisor to match ESRI scale
+      const metersDistance = scale / 24;  // Adjusted from /6 to /24 to better match ESRI scale
+      const milesDistance = metersDistance * 0.000621371;
+  
+      // Function to get nice round numbers
+      const getNiceNumber = (value) => {
+        const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+        const normalized = value / magnitude;
+        
+        // Array of nice numbers to snap to
+        const niceNumbers = [1, 2, 2.5, 5, 10];
+        
+        // Find the closest nice number that's larger than our value
+        for (const nice of niceNumbers) {
+          if (nice >= normalized) {
+            return nice * magnitude;
+          }
+        }
+        return niceNumbers[niceNumbers.length - 1] * magnitude * 10;
+      };
+  
+      // Get nice round number for display
+      let displayDistance;
+      let displayText;
+      let originalWidth = 320; // This is our default/maximum width
+  
+      // Convert to feet to check threshold
+      const feetDistance = milesDistance * 5280;
+  
+      // Use miles if over 1000ft, otherwise use feet
+      if (feetDistance >= 1000) {
+        displayDistance = getNiceNumber(milesDistance);
+        displayText = `${displayDistance} mi`;
+      } else {
+        displayDistance = getNiceNumber(feetDistance);
+        displayText = `${numberWithCommas(displayDistance)} ft`;
+      }
+  
+      // Calculate the actual bar width based on the nice number
+      const widthRatio = feetDistance >= 1000
+        ? displayDistance / milesDistance 
+        : (displayDistance / 5280) / milesDistance;
+      const barWidth = Math.min(originalWidth, originalWidth * widthRatio);
+  
+      // Draw background with semi-transparency
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2;
+      ctx.roundRect(0, 0, canvas.width, canvas.height, 8);
+      ctx.fill();
+  
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+  
+      const drawScaleBar = (y, text) => {
+        const startX = (canvas.width - barWidth) / 2; // Center the bar
+  
+        // Draw main bar
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(startX, y, barWidth, 2);
+  
+        // Draw start and end markers
+        ctx.fillRect(startX, y - 5, 1, 10);
+        ctx.fillRect(startX + barWidth, y - 5, 1, 10);
+  
+        // Add text
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#333333';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, startX + barWidth / 2, y + 25);
+      };
+  
+      // Draw scale bar
+      drawScaleBar(35, displayText);
+  
+      // Convert canvas to data URL
+      const scaleBarImage = canvas.toDataURL();
+  
+      // Take the main screenshot
+      const screenshot = await mapView.takeScreenshot({
+        format: "png",
+        quality: 100
+      });
+  
+      // Create final canvas and combine images
+      const finalCanvas = document.createElement('canvas');
+      const mainImage = new Image();
+      const scaleBarImg = new Image();
+  
+      await new Promise((resolve, reject) => {
+        mainImage.onload = () => {
+          finalCanvas.width = mainImage.width;
+          finalCanvas.height = mainImage.height;
+          const finalCtx = finalCanvas.getContext('2d');
+  
+          finalCtx.drawImage(mainImage, 0, 0);
+  
+          scaleBarImg.onload = () => {
+            const padding = 30;
+            finalCtx.drawImage(
+              scaleBarImg, 
+              mainImage.width - scaleBarImg.width - padding,
+              mainImage.height - scaleBarImg.height - padding
+            );
+            resolve();
+          };
+          scaleBarImg.src = scaleBarImage;
+        };
+        mainImage.src = screenshot.dataUrl;
+      });
+  
+      // Export final image
+      const finalDataUrl = finalCanvas.toDataURL('image/jpeg', 1.0);
+      const response = await fetch(finalDataUrl);
+      const blob = await response.blob();
+      
+      const date = new Date().toISOString().split("T")[0];
+      const filename = `market_areas_map_${date}.jpg`;
+      saveAs(blob, filename);
+  
+      toast.dismiss(loadingToast);
+      toast.success("Map exported successfully with scale bar");
+      
+    } catch (error) {
+      console.error("JPEG export failed:", error);
+      console.error("Full error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      toast.error("Failed to export map: " + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+  
+  // Helper function to format miles
+  function formatMiles(miles) {
+    if (miles >= 1) {
+      return `${miles.toFixed(1)} mi`;
+    } else {
+      return `${(miles * 5280).toFixed(0)} ft`;
+    }
+  }
+  
+  // Helper function to format kilometers
+  function formatKilometers(km) {
+    if (km >= 1) {
+      return `${km.toFixed(1)} km`;
+    } else {
+      return `${(km * 1000).toFixed(0)} m`;
+    }
+  }
+  
+  // Helper function to add commas to large numbers
+  function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  
+  // Add this to your component if not already present
+  if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, width, height, radius) {
+      if (width < 2 * radius) radius = width / 2;
+      if (height < 2 * radius) radius = height / 2;
+      this.beginPath();
+      this.moveTo(x + radius, y);
+      this.arcTo(x + width, y, x + width, y + height, radius);
+      this.arcTo(x + width, y + height, x, y + height, radius);
+      this.arcTo(x, y + height, x, y, radius);
+      this.arcTo(x, y, x + width, y, radius);
+      this.closePath();
+      return this;
+    };
+  }
 
   // Export MXD (WebMap)
   const handleExportMXD = async () => {
@@ -354,23 +543,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export JPEG
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={handleExportPDF}
-                        disabled={isExporting}
-                        className={`${
-                          active ? "bg-gray-100 dark:bg-gray-600" : ""
-                        } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${
-                             isExporting ? "opacity-50 cursor-not-allowed" : ""
-                           }`}
-                      >
-                        <DocumentArrowDownIcon className="mr-3 h-5 w-5" />
-                        Export PDF
                       </button>
                     )}
                   </Menu.Item>

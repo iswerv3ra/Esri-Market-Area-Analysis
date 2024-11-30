@@ -112,7 +112,7 @@ export default function MapComponent() {
           padding: {
             top: 10,
             right: 10,
-            bottom: 50,
+            bottom: 35, // Reduced bottom padding to accommodate fixed attribution bar
             left: 10
           },
           constraints: {
@@ -120,7 +120,7 @@ export default function MapComponent() {
             rotationEnabled: false,
             minZoom: 2,
             maxZoom: 20,
-            zoomFactor: 1.1  // Added zoomFactor for smoother zooming
+            zoomFactor: 1.1
           },
           ui: {
             components: ["attribution"]
@@ -131,8 +131,33 @@ export default function MapComponent() {
               position: "auto",
               breakpoint: false,
               margin: {
-                bottom: 50
+                bottom: 35 // Match bottom padding
               }
+            }
+          }
+        });
+
+        // Customize attribution styling after view initialization
+        view.when(() => {
+          const attributionNode = view.ui.find("attribution");
+          if (attributionNode) {
+            // Remove default positioning
+            view.ui.remove(attributionNode);
+            // Add with custom positioning
+            view.ui.add(attributionNode, "manual");
+            
+            // Apply custom styling to attribution element
+            const attributionDiv = attributionNode.container;
+            if (attributionDiv) {
+              attributionDiv.style.position = 'fixed';
+              attributionDiv.style.bottom = '0';
+              attributionDiv.style.left = '0';
+              attributionDiv.style.right = '0';
+              attributionDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+              attributionDiv.style.padding = '5px';
+              attributionDiv.style.zIndex = '50';
+              attributionDiv.style.fontSize = '11px';
+              attributionDiv.style.textAlign = 'center';
             }
           }
         });
@@ -180,7 +205,7 @@ export default function MapComponent() {
           {
             widget: new ScaleBar({
               view: view,
-              unit: "imperial" // Automatically switches between miles and feet
+              unit: "imperial"
             }),
             position: "bottom-right"
           }
