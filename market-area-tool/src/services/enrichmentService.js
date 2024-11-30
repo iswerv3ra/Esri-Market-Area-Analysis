@@ -30,13 +30,34 @@ export const analysisCategories = {
     label: "Income by Age (25-34)",
     variables: [
       { id: "incomebyage.A25I0_CY", label: "Income Age 25-34: < $15,000" },
-      { id: "incomebyage.A25I15_CY", label: "Income Age 25-34: $15,000-$24,999" },
-      { id: "incomebyage.A25I25_CY", label: "Income Age 25-34: $25,000-$34,999" },
-      { id: "incomebyage.A25I35_CY", label: "Income Age 25-34: $35,000-$49,999" },
-      { id: "incomebyage.A25I50_CY", label: "Income Age 25-34: $50,000-$74,999" },
-      { id: "incomebyage.A25I75_CY", label: "Income Age 25-34: $75,000-$99,999" },
-      { id: "incomebyage.A25I100_CY", label: "Income Age 25-34: $100,000-$149,999" },
-      { id: "incomebyage.A25I150_CY", label: "Income Age 25-34: $150,000-$199,999" },
+      {
+        id: "incomebyage.A25I15_CY",
+        label: "Income Age 25-34: $15,000-$24,999",
+      },
+      {
+        id: "incomebyage.A25I25_CY",
+        label: "Income Age 25-34: $25,000-$34,999",
+      },
+      {
+        id: "incomebyage.A25I35_CY",
+        label: "Income Age 25-34: $35,000-$49,999",
+      },
+      {
+        id: "incomebyage.A25I50_CY",
+        label: "Income Age 25-34: $50,000-$74,999",
+      },
+      {
+        id: "incomebyage.A25I75_CY",
+        label: "Income Age 25-34: $75,000-$99,999",
+      },
+      {
+        id: "incomebyage.A25I100_CY",
+        label: "Income Age 25-34: $100,000-$149,999",
+      },
+      {
+        id: "incomebyage.A25I150_CY",
+        label: "Income Age 25-34: $150,000-$199,999",
+      },
       { id: "incomebyage.A25I200_CY", label: "Income Age 25-34: $200,000+" },
     ],
   },
@@ -44,13 +65,34 @@ export const analysisCategories = {
     label: "Income by Age (35-44)",
     variables: [
       { id: "incomebyage.A35I0_CY", label: "Income Age 35-44: < $15,000" },
-      { id: "incomebyage.A35I15_CY", label: "Income Age 35-44: $15,000-$24,999" },
-      { id: "incomebyage.A35I25_CY", label: "Income Age 35-44: $25,000-$34,999" },
-      { id: "incomebyage.A35I35_CY", label: "Income Age 35-44: $35,000-$49,999" },
-      { id: "incomebyage.A35I50_CY", label: "Income Age 35-44: $50,000-$74,999" },
-      { id: "incomebyage.A35I75_CY", label: "Income Age 35-44: $75,000-$99,999" },
-      { id: "incomebyage.A35I100_CY", label: "Income Age 35-44: $100,000-$149,999" },
-      { id: "incomebyage.A35I150_CY", label: "Income Age 35-44: $150,000-$199,999" },
+      {
+        id: "incomebyage.A35I15_CY",
+        label: "Income Age 35-44: $15,000-$24,999",
+      },
+      {
+        id: "incomebyage.A35I25_CY",
+        label: "Income Age 35-44: $25,000-$34,999",
+      },
+      {
+        id: "incomebyage.A35I35_CY",
+        label: "Income Age 35-44: $35,000-$49,999",
+      },
+      {
+        id: "incomebyage.A35I50_CY",
+        label: "Income Age 35-44: $50,000-$74,999",
+      },
+      {
+        id: "incomebyage.A35I75_CY",
+        label: "Income Age 35-44: $75,000-$99,999",
+      },
+      {
+        id: "incomebyage.A35I100_CY",
+        label: "Income Age 35-44: $100,000-$149,999",
+      },
+      {
+        id: "incomebyage.A35I150_CY",
+        label: "Income Age 35-44: $150,000-$199,999",
+      },
       { id: "incomebyage.A35I200_CY", label: "Income Age 35-44: $200,000+" },
     ],
   },
@@ -58,13 +100,34 @@ export const analysisCategories = {
     label: "Income by Age (45-54)",
     variables: [
       { id: "incomebyage.A45I0_CY", label: "Income Age 45-54: < $15,000" },
-      { id: "incomebyage.A45I15_CY", label: "Income Age 45-54: $15,000-$24,999" },
-      { id: "incomebyage.A45I25_CY", label: "Income Age 45-54: $25,000-$34,999" },
-      { id: "incomebyage.A45I35_CY", label: "Income Age 45-54: $35,000-$49,999" },
-      { id: "incomebyage.A45I50_CY", label: "Income Age 45-54: $50,000-$74,999" },
-      { id: "incomebyage.A45I75_CY", label: "Income Age 45-54: $75,000-$99,999" },
-      { id: "incomebyage.A45I100_CY", label: "Income Age 45-54: $100,000-$149,999" },
-      { id: "incomebyage.A45I150_CY", label: "Income Age 45-54: $150,000-$199,999" },
+      {
+        id: "incomebyage.A45I15_CY",
+        label: "Income Age 45-54: $15,000-$24,999",
+      },
+      {
+        id: "incomebyage.A45I25_CY",
+        label: "Income Age 45-54: $25,000-$34,999",
+      },
+      {
+        id: "incomebyage.A45I35_CY",
+        label: "Income Age 45-54: $35,000-$49,999",
+      },
+      {
+        id: "incomebyage.A45I50_CY",
+        label: "Income Age 45-54: $50,000-$74,999",
+      },
+      {
+        id: "incomebyage.A45I75_CY",
+        label: "Income Age 45-54: $75,000-$99,999",
+      },
+      {
+        id: "incomebyage.A45I100_CY",
+        label: "Income Age 45-54: $100,000-$149,999",
+      },
+      {
+        id: "incomebyage.A45I150_CY",
+        label: "Income Age 45-54: $150,000-$199,999",
+      },
       { id: "incomebyage.A45I200_CY", label: "Income Age 45-54: $200,000+" },
     ],
   },
@@ -101,24 +164,78 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80_CY", label: "Population Age 80-84" },
       { id: "5yearincrements.POP85_CY", label: "Population Age 85+" },
       { id: "5yearincrements.MEDAGE_CY", label: "Median Age" },
-      { id: "5yearincrements.POP0_FY", label: "Population Age 0-4 (Future Year)" },
-      { id: "5yearincrements.POP5_FY", label: "Population Age 5-9 (Future Year)" },
-      { id: "5yearincrements.POP10_FY", label: "Population Age 10-14 (Future Year)" },
-      { id: "5yearincrements.POP15_FY", label: "Population Age 15-19 (Future Year)" },
-      { id: "5yearincrements.POP20_FY", label: "Population Age 20-24 (Future Year)" },
-      { id: "5yearincrements.POP25_FY", label: "Population Age 25-29 (Future Year)" },
-      { id: "5yearincrements.POP30_FY", label: "Population Age 30-34 (Future Year)" },
-      { id: "5yearincrements.POP35_FY", label: "Population Age 35-39 (Future Year)" },
-      { id: "5yearincrements.POP40_FY", label: "Population Age 40-44 (Future Year)" },
-      { id: "5yearincrements.POP45_FY", label: "Population Age 45-49 (Future Year)" },
-      { id: "5yearincrements.POP50_FY", label: "Population Age 50-54 (Future Year)" },
-      { id: "5yearincrements.POP55_FY", label: "Population Age 55-59 (Future Year)" },
-      { id: "5yearincrements.POP60_FY", label: "Population Age 60-64 (Future Year)" },
-      { id: "5yearincrements.POP65_FY", label: "Population Age 65-69 (Future Year)" },
-      { id: "5yearincrements.POP70_FY", label: "Population Age 70-74 (Future Year)" },
-      { id: "5yearincrements.POP75_FY", label: "Population Age 75-79 (Future Year)" },
-      { id: "5yearincrements.POP80_FY", label: "Population Age 80-84 (Future Year)" },
-      { id: "5yearincrements.POP85_FY", label: "Population Age 85+ (Future Year)" },
+      {
+        id: "5yearincrements.POP0_FY",
+        label: "Population Age 0-4 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP5_FY",
+        label: "Population Age 5-9 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP10_FY",
+        label: "Population Age 10-14 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP15_FY",
+        label: "Population Age 15-19 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP20_FY",
+        label: "Population Age 20-24 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP25_FY",
+        label: "Population Age 25-29 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP30_FY",
+        label: "Population Age 30-34 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP35_FY",
+        label: "Population Age 35-39 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP40_FY",
+        label: "Population Age 40-44 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP45_FY",
+        label: "Population Age 45-49 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP50_FY",
+        label: "Population Age 50-54 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP55_FY",
+        label: "Population Age 55-59 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP60_FY",
+        label: "Population Age 60-64 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP65_FY",
+        label: "Population Age 65-69 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP70_FY",
+        label: "Population Age 70-74 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP75_FY",
+        label: "Population Age 75-79 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP80_FY",
+        label: "Population Age 80-84 (Future Year)",
+      },
+      {
+        id: "5yearincrements.POP85_FY",
+        label: "Population Age 85+ (Future Year)",
+      },
       { id: "5yearincrements.MEDAGE_FY", label: "Median Age (Future Year)" },
       { id: "5yearincrements.POP0C10", label: "Population Age 0-4 (C10)" },
       { id: "5yearincrements.POP5C10", label: "Population Age 5-9 (C10)" },
@@ -151,44 +268,105 @@ export const analysisCategories = {
     label: "Household Income Distribution",
     variables: [
       { id: "householdincome.HINC0_CY", label: "Household Income < $15,000" },
-      { id: "householdincome.HINC15_CY", label: "Household Income $15,000-$24,999" },
-      { id: "householdincome.HINC25_CY", label: "Household Income $25,000-$34,999" },
-      { id: "householdincome.HINC35_CY", label: "Household Income $35,000-$49,999" },
-      { id: "householdincome.HINC50_CY", label: "Household Income $50,000-$74,999" },
-      { id: "householdincome.HINC75_CY", label: "Household Income $75,000-$99,999" },
-      { id: "householdincome.HINC100_CY", label: "Household Income $100,000-$149,999" },
-      { id: "householdincome.HINC150_CY", label: "Household Income $150,000-$199,999" },
+      {
+        id: "householdincome.HINC15_CY",
+        label: "Household Income $15,000-$24,999",
+      },
+      {
+        id: "householdincome.HINC25_CY",
+        label: "Household Income $25,000-$34,999",
+      },
+      {
+        id: "householdincome.HINC35_CY",
+        label: "Household Income $35,000-$49,999",
+      },
+      {
+        id: "householdincome.HINC50_CY",
+        label: "Household Income $50,000-$74,999",
+      },
+      {
+        id: "householdincome.HINC75_CY",
+        label: "Household Income $75,000-$99,999",
+      },
+      {
+        id: "householdincome.HINC100_CY",
+        label: "Household Income $100,000-$149,999",
+      },
+      {
+        id: "householdincome.HINC150_CY",
+        label: "Household Income $150,000-$199,999",
+      },
       { id: "householdincome.HINC200_CY", label: "Household Income $200,000+" },
-      { id: "householdincome.HINC0_FY", label: "Household Income < $15,000 (Future Year)" },
-      { id: "householdincome.HINC15_FY", label: "Household Income $15,000-$24,999 (Future Year)" },
-      { id: "householdincome.HINC25_FY", label: "Household Income $25,000-$34,999 (Future Year)" },
-      { id: "householdincome.HINC35_FY", label: "Household Income $35,000-$49,999 (Future Year)" },
-      { id: "householdincome.HINC50_FY", label: "Household Income $50,000-$74,999 (Future Year)" },
-      { id: "householdincome.HINC75_FY", label: "Household Income $75,000-$99,999 (Future Year)" },
-      { id: "householdincome.HINC100_FY", label: "Household Income $100,000-$149,999 (Future Year)" },
-      { id: "householdincome.HINC150_FY", label: "Household Income $150,000-$199,999 (Future Year)" },
-      { id: "householdincome.HINC200_FY", label: "Household Income $200,000+ (Future Year)" },
-      { id: "householdincome.MEDHINC_FY", label: "Median Household Income (Future Year)" },
-      { id: "householdincome.AVGHINC_FY", label: "Average Household Income (Future Year)" },
+      {
+        id: "householdincome.HINC0_FY",
+        label: "Household Income < $15,000 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC15_FY",
+        label: "Household Income $15,000-$24,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC25_FY",
+        label: "Household Income $25,000-$34,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC35_FY",
+        label: "Household Income $35,000-$49,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC50_FY",
+        label: "Household Income $50,000-$74,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC75_FY",
+        label: "Household Income $75,000-$99,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC100_FY",
+        label: "Household Income $100,000-$149,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC150_FY",
+        label: "Household Income $150,000-$199,999 (Future Year)",
+      },
+      {
+        id: "householdincome.HINC200_FY",
+        label: "Household Income $200,000+ (Future Year)",
+      },
+      {
+        id: "householdincome.MEDHINC_FY",
+        label: "Median Household Income (Future Year)",
+      },
+      {
+        id: "householdincome.AVGHINC_FY",
+        label: "Average Household Income (Future Year)",
+      },
     ],
   },
   health: {
     label: "Health",
-    variables: [
-      { id: "Health.MEDHINC_CY", label: "Median Household Income" },
-    ],
+    variables: [{ id: "Health.MEDHINC_CY", label: "Median Household Income" }],
   },
   householdTotals: {
     label: "Household Totals",
     variables: [
-      { id: "householdtotals.FAMHH_FY", label: "Family Households (Future Year)" },
-      { id: "householdtotals.AVGHHSZ_FY", label: "Average Household Size (Future Year)" },
+      {
+        id: "householdtotals.FAMHH_FY",
+        label: "Family Households (Future Year)",
+      },
+      {
+        id: "householdtotals.AVGHHSZ_FY",
+        label: "Average Household Size (Future Year)",
+      },
     ],
   },
   housingUnitTotals: {
     label: "Housing Unit Totals",
     variables: [
-      { id: "housingunittotals.TOTHU_FY", label: "Total Housing Units (Future Year)" },
+      {
+        id: "housingunittotals.TOTHU_FY",
+        label: "Total Housing Units (Future Year)",
+      },
     ],
   },
   netWorth: {
@@ -214,23 +392,44 @@ export const analysisCategories = {
     label: "Future Year Demographics",
     variables: [
       { id: "gender.AGEBASE_FY", label: "Base Age (Future Year)" },
-      { id: "householdtotals.FAMHH_FY", label: "Family Households (Future Year)" },
-      { id: "housingunittotals.TOTHU_FY", label: "Total Housing Units (Future Year)" },
-      { id: "householdtotals.AVGHHSZ_FY", label: "Average Household Size (Future Year)" },
+      {
+        id: "householdtotals.FAMHH_FY",
+        label: "Family Households (Future Year)",
+      },
+      {
+        id: "housingunittotals.TOTHU_FY",
+        label: "Total Housing Units (Future Year)",
+      },
+      {
+        id: "householdtotals.AVGHHSZ_FY",
+        label: "Average Household Size (Future Year)",
+      },
     ],
   },
   historicalPopulation: {
     label: "Historical Population",
     variables: [
-      { id: "HistoricalPopulation.TSPOP10_CY", label: "Historical Total Population 2010" },
+      {
+        id: "HistoricalPopulation.TSPOP10_CY",
+        label: "Historical Total Population 2010",
+      },
     ],
   },
   householdsBySize: {
     label: "Households by Size",
     variables: [
-      { id: "householdsbysize.FAM2PERS10", label: "Family Households with 2 Persons" },
-      { id: "householdsbysize.NF2PERS10", label: "Non-Family Households with 2 Persons" },
-      { id: "householdsbysize.NF1PERS10", label: "Non-Family Households with 1 Person" },
+      {
+        id: "householdsbysize.FAM2PERS10",
+        label: "Family Households with 2 Persons",
+      },
+      {
+        id: "householdsbysize.NF2PERS10",
+        label: "Non-Family Households with 2 Persons",
+      },
+      {
+        id: "householdsbysize.NF1PERS10",
+        label: "Non-Family Households with 1 Person",
+      },
     ],
   },
   tapestryHouseholds: {
@@ -308,9 +507,18 @@ export const analysisCategories = {
   householdsbysize: {
     label: "Households by Size",
     variables: [
-      { id: "householdsbysize.FAM2PERS10", label: "Family Households with 2 Persons" },
-      { id: "householdsbysize.NF2PERS10", label: "Non-Family Households with 2 Persons" },
-      { id: "householdsbysize.NF1PERS10", label: "Non-Family Households with 1 Person" },
+      {
+        id: "householdsbysize.FAM2PERS10",
+        label: "Family Households with 2 Persons",
+      },
+      {
+        id: "householdsbysize.NF2PERS10",
+        label: "Non-Family Households with 2 Persons",
+      },
+      {
+        id: "householdsbysize.NF1PERS10",
+        label: "Non-Family Households with 1 Person",
+      },
     ],
   },
 };
@@ -363,7 +571,9 @@ export default class EnrichmentService {
 
         const projectedPolygon = projection.project(polygon, { wkid: 4326 });
         if (!projectedPolygon) {
-          throw new Error(`Projection failed for ${area.name}, ring ${ringIndex}`);
+          throw new Error(
+            `Projection failed for ${area.name}, ring ${ringIndex}`
+          );
         }
 
         return {
@@ -468,80 +678,142 @@ export default class EnrichmentService {
     return shortKeyToLabelMap[shortKey] || shortKey; // Return the label or the shortKey if not found
   }
 
-  // Method to export enrichment data to CSV
   exportToCSV(enrichmentData, marketAreas, selectedVariables = null) {
-    if (
-      !enrichmentData ||
-      !enrichmentData.results ||
-      enrichmentData.results.length === 0
-    ) {
-      throw new Error("No data available for export.");
+    console.log("Starting export with full data:", {
+      enrichmentData,
+      marketAreas,
+      selectedVariables
+    });
+  
+    const csvRows = [];
+  
+    // Add Market Area Name row
+    csvRows.push(['Market Area Name', ...marketAreas.map(ma => ma.name)]);
+  
+    // Add Short Name row if it exists
+    if (marketAreas.some(ma => ma.short_name)) {
+      csvRows.push(['Short Name', ...marketAreas.map(ma => ma.short_name || '')]);
     }
-
-    const rows = [];
-    const headers = ["Market Area Name", "Type", "Areas Included", "ID"];
-
-    // Get the variables we want to export
-    const variablesToExport = selectedVariables || getAllVariables();
-
-    // Add variable headers with labels
-    variablesToExport.forEach((variableId) => {
-      const shortKey = variableId.split(".").pop(); // e.g., "A35I0_CY"
-      const label = this.getVariableLabel(shortKey);
-      headers.push(label);
-    });
-
-    // Group results by Market Area
-    const groupedResults = {};
-    enrichmentData.results.forEach((result) => {
-      if (!result.value || !result.value.FeatureSet) return;
-      result.value.FeatureSet.forEach((featureSet) => {
-        if (!featureSet.features) return;
-        featureSet.features.forEach((feature) => {
-          const objectId = feature.attributes.ObjectID.split("-")[0];
-          if (!groupedResults[objectId]) {
-            groupedResults[objectId] = [];
-          }
-          groupedResults[objectId].push(feature.attributes);
+  
+    // Add Definition Type row
+    csvRows.push(['Definition Type', ...marketAreas.map(ma => ma.ma_type?.toUpperCase() || '')]);
+  
+    // Add Areas Included row - for ZIP codes, get from locations array
+    csvRows.push(['Areas Included', ...marketAreas.map(ma => {
+      if (ma.ma_type === 'zip' && ma.locations?.length > 0) {
+        return ma.locations
+          .map(loc => loc.name.split(' - ')[0]) // Get just the ZIP code part
+          .join(', ');
+      }
+      return '';
+    })]);
+  
+    // Add State row
+    csvRows.push(['State', ...marketAreas.map(ma => ma.ma_type === 'zip' ? 'CA' : '')]);
+    
+    // Add blank row for separation
+    csvRows.push(['']);
+  
+    // Process enrichment data
+    if (enrichmentData?.results?.length > 0) {
+      csvRows.push(['Enrichment Variables']);
+  
+      selectedVariables.forEach(variableId => {
+        const shortKey = variableId.split('.').pop();
+        const label = this.getVariableLabel(shortKey);
+        
+        // Get values for each market area
+        const values = marketAreas.map((_, index) => {
+          const result = enrichmentData.results.find(r => {
+            const maIndex = r.value?.FeatureSet?.[0]?.features?.[0]?.attributes?.ObjectID.split('-')[0];
+            return maIndex === String(index);
+          });
+          const value = result?.value?.FeatureSet?.[0]?.features?.[0]?.attributes?.[shortKey];
+          console.log(`Found value for ${label} in area ${index}:`, value);
+          return value || '';
         });
+  
+        csvRows.push([label, ...values]);
       });
-    });
+    }
+  
+    // Convert to CSV string with proper escaping
+    const processField = (field) => {
+      if (field === null || field === undefined) return '';
+      const stringField = String(field);
+      if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+        return `"${stringField.replace(/"/g, '""')}"`;
+      }
+      return stringField;
+    };
+  
+    const output = csvRows
+      .map(row => row.map(processField).join(','))
+      .join('\n');
+  
+    console.log("Final CSV output:", output);
+    return output;
+  }
 
-    // Process each Market Area
-    marketAreas.forEach((area, areaIndex) => {
-      const areaResults = groupedResults[areaIndex] || [];
-      const areasIncluded =
-        area.locations?.map((loc) => loc.name || "Unknown").join(";") || "N/A";
+  // Helper method for state names
+  getStateFullName(stateAbbr) {
+    if (!stateAbbr) return "";
 
-      const aggregatedData = this.aggregateResults(areaResults, area);
+    const stateMap = {
+      AL: "Alabama",
+      AK: "Alaska",
+      AZ: "Arizona",
+      AR: "Arkansas",
+      CA: "California",
+      CO: "Colorado",
+      CT: "Connecticut",
+      DE: "Delaware",
+      FL: "Florida",
+      GA: "Georgia",
+      HI: "Hawaii",
+      ID: "Idaho",
+      IL: "Illinois",
+      IN: "Indiana",
+      IA: "Iowa",
+      KS: "Kansas",
+      KY: "Kentucky",
+      LA: "Louisiana",
+      ME: "Maine",
+      MD: "Maryland",
+      MA: "Massachusetts",
+      MI: "Michigan",
+      MN: "Minnesota",
+      MS: "Mississippi",
+      MO: "Missouri",
+      MT: "Montana",
+      NE: "Nebraska",
+      NV: "Nevada",
+      NH: "New Hampshire",
+      NJ: "New Jersey",
+      NM: "New Mexico",
+      NY: "New York",
+      NC: "North Carolina",
+      ND: "North Dakota",
+      OH: "Ohio",
+      OK: "Oklahoma",
+      OR: "Oregon",
+      PA: "Pennsylvania",
+      RI: "Rhode Island",
+      SC: "South Carolina",
+      SD: "South Dakota",
+      TN: "Tennessee",
+      TX: "Texas",
+      UT: "Utah",
+      VT: "Vermont",
+      VA: "Virginia",
+      WA: "Washington",
+      WV: "West Virginia",
+      WI: "Wisconsin",
+      WY: "Wyoming",
+      DC: "District of Columbia",
+    };
 
-      // Debugging: Log aggregated data for verification
-      console.log(`Aggregated Data for Area Index ${areaIndex}:`, aggregatedData);
-
-      // Build the row with only selected variables
-      const row = [
-        `"${area.name || "N/A"}"`, // Wrap in quotes to handle commas in names
-        area.ma_type || "N/A",
-        `"${areasIncluded}"`, // Wrap in quotes to handle commas
-        areaIndex,
-      ];
-
-      // Add data for each selected variable
-      variablesToExport.forEach((variableId) => {
-        const shortKey = variableId.split(".").pop(); // e.g., "A35I0_CY"
-        const value = aggregatedData[shortKey];
-        const finalValue =
-          value !== undefined && value !== null ? value : "N/A";
-        row.push(typeof finalValue === "string" ? `"${finalValue}"` : finalValue);
-      });
-
-      rows.push(row.join(","));
-    });
-
-    // Include headers at the top
-    rows.unshift(headers.join(","));
-
-    return rows.join("\n");
+    return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
   }
 
   // Optional: Helper method to get variable categories for UI

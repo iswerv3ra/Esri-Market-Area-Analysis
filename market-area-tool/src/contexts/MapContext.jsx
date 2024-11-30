@@ -716,6 +716,8 @@ export const MapProvider = ({ children }) => {
     },
     [activeLayers, mapView]
   );
+
+  
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
