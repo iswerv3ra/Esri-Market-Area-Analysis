@@ -7,13 +7,13 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import { ensureValidGeometry } from "../utils";
 import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils";
 
 const MapContext = createContext();
 
-// Define your FEATURE_LAYERS and SYMBOLS here
 const FEATURE_LAYERS = {
   zip: {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_ZIP_Codes/FeatureServer/0",
@@ -293,51 +293,41 @@ export const useMap = () => {
 
 export const MapProvider = ({ children }) => {
   const [mapView, setMapView] = useState(null);
-  const [featureLayers, setFeatureLayers] = useState({});
-  const [selectionGraphicsLayer, setSelectionGraphicsLayer] = useState(null);
-  const [radiusGraphicsLayer, setRadiusGraphicsLayer] = useState(null);
+  const featureLayersRef = useRef({});
+  const selectionGraphicsLayerRef = useRef(null);
+  const radiusGraphicsLayerRef = useRef(null);
   const [activeLayers, setActiveLayers] = useState([]);
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [isMapSelectionActive, setIsMapSelectionActive] = useState(false);
 
-  const formatLocationName = (feature, layerType) => {
+  const formatLocationName = useCallback((feature, layerType) => {
     const attrs = feature.attributes;
     switch (layerType) {
       case "zip":
-        return `${attrs.ZIP || ""} - ${attrs.PO_NAME || ""}`;
-      case "county":
-        return `${attrs.NAME} County, ${attrs.STATE_NAME || ""}`;
-      case "tract":
-        return `Tract ${attrs.TRACT}, ${attrs.COUNTY || ""} County, ${
-          attrs.STATE_NAME || attrs.STATE || ""
-        }`;
-      case "block":
-        return `Block ${attrs.BLOCK}, Tract ${attrs.TRACT}, ${attrs.COUNTY} County`;
-      case "blockgroup":
-        return `Block Group ${attrs.BLOCKGROUP_FIPS}, Tract ${attrs.TRACT_FIPS}, ${attrs.COUNTY_FIPS} County`;
-      case "cbsa":
-        return attrs.NAME || "";
-      case "state":
-        return attrs.STATE_NAME || "";
-      case "place":
-        return `${attrs.NAME}${attrs.LSADC ? ` (${attrs.LSADC})` : ""}`;
-      case "usa":
-        return attrs.NAME || "United States";
+        const zip = attrs.ZIP || "";
+        const poName = attrs.PO_NAME || "";
+        if (zip && poName) {
+          return `${zip} - ${poName}`;
+        } else if (zip) {
+          return zip;
+        } else if (poName) {
+          return poName;
+        } else {
+          return "";
+        }
+      // Handle other layer types as needed
       default:
         return attrs.NAME || "";
     }
-  };
+  }, []);
 
-  // Initialize graphics layers with dynamic import
+  // Initialize graphics layers
   const initializeGraphicsLayers = useCallback(async () => {
     if (!mapView) return;
 
     try {
-      const GraphicsLayerModule = await import(
-        "@arcgis/core/layers/GraphicsLayer"
-      );
-      const GraphicsLayer = GraphicsLayerModule.default;
+      const { default: GraphicsLayer } = await import("@arcgis/core/layers/GraphicsLayer");
 
       // Selection Graphics Layer
       const selectionLayer = new GraphicsLayer({
@@ -359,394 +349,20 @@ export const MapProvider = ({ children }) => {
         },
       });
 
-      // Add both layers to the map, ensuring radiusLayer is on top
+      // Add both layers to the map
       mapView.map.addMany([selectionLayer, radiusLayer]);
-      setSelectionGraphicsLayer(selectionLayer);
-      setRadiusGraphicsLayer(radiusLayer);
+
+      // Update refs
+      selectionGraphicsLayerRef.current = selectionLayer;
+      radiusGraphicsLayerRef.current = radiusLayer;
+
       console.log("[MapContext] Graphics layers initialized");
     } catch (error) {
       console.error("[MapContext] Error initializing GraphicsLayers:", error);
     }
   }, [mapView]);
 
-  // Remove feature from selection with dynamic import
-  const removeFromSelection = useCallback(
-    async (feature, layerType) => {
-      console.log(
-        `[MapContext] removeFromSelection called with feature:`,
-        feature.attributes
-      );
-
-      if (!selectionGraphicsLayer) {
-        console.warn(
-          `[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized`
-        );
-        return;
-      }
-
-      try {
-        const currentLayerConfig = FEATURE_LAYERS[layerType];
-        if (!currentLayerConfig) {
-          console.error(
-            `[MapContext] Layer configuration not found for layer type: ${layerType}`
-          );
-          return;
-        }
-        const uniqueIdField = currentLayerConfig.uniqueIdField;
-
-        console.log(
-          `[MapContext] Unique ID field for layer ${layerType}: ${uniqueIdField}`
-        );
-
-        // Remove the graphic from selectionGraphicsLayer
-        selectionGraphicsLayer.graphics.forEach((g) => {
-          if (
-            g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
-          ) {
-            selectionGraphicsLayer.remove(g);
-            console.log(
-              `[MapContext] Graphic removed from selectionGraphicsLayer for feature:`,
-              feature.attributes
-            );
-          }
-        });
-
-        // Update selectedFeatures state
-        setSelectedFeatures((prev) => {
-          const newSelectedFeatures = prev.filter(
-            (f) =>
-              f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
-          );
-          console.log(
-            `[MapContext] Feature removed from selection:`,
-            feature.attributes
-          );
-          return newSelectedFeatures;
-        });
-      } catch (error) {
-        console.error("[MapContext] Error in removeFromSelection:", error);
-      }
-    },
-    [selectionGraphicsLayer]
-  );
-
-  // Add feature to selection with dynamic import
-  const addToSelection = useCallback(
-    async (feature, layerType) => {
-      console.log(
-        `[MapContext] addToSelection called with feature:`,
-        feature.attributes
-      );
-
-      if (!selectionGraphicsLayer || !mapView) {
-        console.warn(
-          `[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`
-        );
-        return;
-      }
-
-      try {
-        const currentLayerConfig = FEATURE_LAYERS[layerType];
-        if (!currentLayerConfig) {
-          console.error(
-            `[MapContext] Layer configuration not found for layer type: ${layerType}`
-          );
-          return;
-        }
-        const uniqueIdField = currentLayerConfig.uniqueIdField;
-
-        console.log(
-          `[MapContext] Unique ID field for layer ${layerType}: ${uniqueIdField}`
-        );
-
-        // Ensure valid geometry
-        const geometry = ensureValidGeometry(
-          feature.geometry,
-          mapView.spatialReference
-        );
-        if (!geometry) {
-          console.warn(
-            `[MapContext] Invalid geometry for feature:`,
-            feature.attributes
-          );
-          return;
-        }
-
-        console.log(`[MapContext] Feature geometry type: ${geometry.type}`);
-
-        // Dynamically import Graphic
-        const GraphicModule = await import("@arcgis/core/Graphic");
-        const Graphic = GraphicModule.default;
-
-        // Determine symbol based on geometry type
-        let symbol;
-        switch (geometry.type.toLowerCase()) {
-          case "point":
-            symbol = SYMBOLS.selectedPoint;
-            break;
-          case "polyline":
-            symbol = SYMBOLS.selectedPolyline;
-            break;
-          case "polygon":
-            symbol = SYMBOLS.selectedPolygon;
-            break;
-          case "multipoint":
-            symbol = SYMBOLS.selectedPoint;
-            break;
-          default:
-            console.warn(
-              `[MapContext] Unsupported geometry type for selection: ${geometry.type}`
-            );
-            return;
-        }
-
-        // Check if feature is already selected
-        const isAlreadySelected = selectedFeatures.some(
-          (f) =>
-            f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
-        );
-
-        if (isAlreadySelected) {
-          console.log(
-            `[MapContext] Feature already selected:`,
-            feature.attributes
-          );
-          // Remove the feature from selection
-          await removeFromSelection(feature, layerType);
-        } else {
-          // Add the feature to selection
-          const selectionGraphic = new Graphic({
-            geometry,
-            attributes: {
-              ...feature.attributes,
-              FEATURE_TYPE: layerType, // Ensure FEATURE_TYPE is set
-            },
-            symbol: symbol,
-          });
-
-          selectionGraphicsLayer.add(selectionGraphic);
-          console.log(
-            `[MapContext] Graphic added to selectionGraphicsLayer for feature:`,
-            feature.attributes
-          );
-
-          // Update selectedFeatures state
-          setSelectedFeatures((prev) => {
-            console.log(
-              `[MapContext] Feature added to selection:`,
-              feature.attributes
-            );
-            return [...prev, feature];
-          });
-        }
-      } catch (error) {
-        console.error("[MapContext] Error in addToSelection:", error);
-      }
-    },
-    [selectionGraphicsLayer, mapView, selectedFeatures, removeFromSelection]
-  );
-
-  // Clear selection
-  const clearSelection = useCallback(async () => {
-    if (!selectionGraphicsLayer) return;
-    try {
-      selectionGraphicsLayer.removeAll();
-      setSelectedFeatures([]);
-      console.log("[MapContext] Selection cleared");
-    } catch (error) {
-      console.error("Error clearing selection:", error);
-    }
-  }, [selectionGraphicsLayer]);
-
-  // Display features on the selection graphics layer with dynamic import
-  const displayFeatures = useCallback(
-    async (features) => {
-      if (!selectionGraphicsLayer || !mapView) return;
-
-      try {
-        console.log(
-          `Displaying ${
-            features.length
-          } features for layers: ${activeLayers.join(", ")}`
-        );
-        selectionGraphicsLayer.removeAll();
-
-        const GraphicModule = await import("@arcgis/core/Graphic");
-        const Graphic = GraphicModule.default;
-
-        for (const feature of features) {
-          const geometry = ensureValidGeometry(
-            feature.geometry,
-            mapView.spatialReference
-          );
-          if (!geometry) continue;
-
-          // Determine symbol based on geometry type
-          let symbol;
-          switch (geometry.type.toLowerCase()) {
-            case "point":
-              symbol = SYMBOLS.defaultPoint;
-              break;
-            case "polyline":
-              symbol = SYMBOLS.defaultPolyline;
-              break;
-            case "polygon":
-              symbol = SYMBOLS.defaultPolygon;
-              break;
-            case "multipoint":
-              symbol = SYMBOLS.defaultPoint;
-              break;
-            default:
-              console.warn(
-                `Unsupported geometry type for display: ${geometry.type}`
-              );
-              continue;
-          }
-
-          const graphic = new Graphic({
-            geometry,
-            attributes: {
-              ...feature.attributes,
-              FEATURE_TYPE: activeLayers[activeLayers.length - 1],
-            },
-            symbol,
-          });
-          selectionGraphicsLayer.add(graphic);
-        }
-      } catch (error) {
-        console.error("Error displaying features:", error);
-      }
-    },
-    [selectionGraphicsLayer, activeLayers, mapView]
-  );
-
-  const updateFeatureStyles = useCallback(
-    async (features, styles, featureType) => {
-      if (!selectionGraphicsLayer || !mapView) return;
-  
-      try {
-        const [Graphic, geometryEngine] = await Promise.all([
-          import("@arcgis/core/Graphic"),
-          import("@arcgis/core/geometry/geometryEngine"),
-        ]);
-  
-        // Instead of removing all graphics, only remove graphics for the current market areas being updated
-        const marketAreaIds = new Set(features.map(f => f.attributes.marketAreaId));
-        const graphicsToKeep = selectionGraphicsLayer.graphics.filter(g => 
-          !marketAreaIds.has(g.attributes.marketAreaId)
-        );
-        
-        selectionGraphicsLayer.removeAll();
-        graphicsToKeep.forEach(g => selectionGraphicsLayer.add(g));
-  
-        // Group features by market area ID
-        const featuresByMarketArea = features.reduce((acc, feature) => {
-          const marketAreaId = feature.attributes.marketAreaId;
-          if (!acc[marketAreaId]) acc[marketAreaId] = [];
-          acc[marketAreaId].push(feature);
-          return acc;
-        }, {});
-  
-        // Process each market area's features
-        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
-          const geometries = maFeatures.map(f => f.geometry);
-          
-          // Ensure all geometries are valid before union
-          const validGeometries = geometries.filter(g => g != null);
-          if (validGeometries.length === 0) continue;
-          
-          const unionGeometry = geometryEngine.union(validGeometries);
-  
-          if (unionGeometry) {
-            const symbol = {
-              type: "simple-fill",
-              color: [...hexToRgb(styles.fill), styles.fillOpacity],
-              outline: {
-                color: styles.outline,
-                width: styles.outlineWidth,
-              },
-            };
-  
-            const unionGraphic = new Graphic.default({
-              geometry: unionGeometry,
-              symbol: symbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-              },
-            });
-  
-            selectionGraphicsLayer.add(unionGraphic);
-          }
-        }
-      } catch (error) {
-        console.error("Error updating feature styles:", error);
-      }
-    },
-    [selectionGraphicsLayer, mapView]
-  );
-
-  // Similarly, update the drawRadius function to clear previous radius graphics
-  const drawRadius = useCallback(
-    async (point, style = null) => {
-      if (!radiusGraphicsLayer || !point?.center || !mapView) return;
-
-      try {
-        // Clear existing radius graphics for this point
-        radiusGraphicsLayer.removeAll();
-
-        const center = ensureValidGeometry(
-          point.center,
-          mapView.spatialReference
-        );
-        if (!center) return;
-
-        const centerPoint = webMercatorToGeographic(center);
-        const radius = point.radius * 1609.34; // Convert miles to meters
-
-        const [geometryEngine, Graphic] = await Promise.all([
-          import("@arcgis/core/geometry/geometryEngine"),
-          import("@arcgis/core/Graphic"),
-        ]);
-
-        // Create a buffer polygon around the center point
-        const polygon = geometryEngine.geodesicBuffer(
-          centerPoint,
-          radius,
-          "meters"
-        );
-
-        const fillRgb = style?.fillColor
-          ? hexToRgb(style.fillColor)
-          : [0, 123, 255];
-        const outlineRgb = style?.borderColor
-          ? hexToRgb(style.borderColor)
-          : [0, 123, 255];
-
-        const circleGraphic = new Graphic.default({
-          geometry: polygon,
-          attributes: {
-            FEATURE_TYPE: "radius",
-          },
-          symbol: {
-            type: "simple-fill",
-            color: [...fillRgb, style?.fillOpacity || 0.3],
-            outline: {
-              color: [...outlineRgb, 1],
-              width: style?.borderWidth || 2,
-            },
-          },
-        });
-
-        radiusGraphicsLayer.add(circleGraphic);
-      } catch (error) {
-        console.error("Error drawing radius:", error);
-      }
-    },
-    [radiusGraphicsLayer, mapView]
-  );
-
-  // Initialize a feature layer with dynamic import
+  // Initialize a feature layer
   const initializeFeatureLayer = useCallback(async (type) => {
     if (!type || !FEATURE_LAYERS[type]) {
       console.error(`Invalid or undefined layer type: ${type}`);
@@ -755,10 +371,7 @@ export const MapProvider = ({ children }) => {
 
     const layerConfig = FEATURE_LAYERS[type];
     try {
-      const FeatureLayerModule = await import(
-        "@arcgis/core/layers/FeatureLayer"
-      );
-      const FeatureLayer = FeatureLayerModule.default;
+      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer");
 
       let symbol;
       switch (layerConfig.geometryType.toLowerCase()) {
@@ -771,9 +384,6 @@ export const MapProvider = ({ children }) => {
         case "polygon":
           symbol = SYMBOLS.defaultPolygon;
           break;
-        case "multipoint":
-          symbol = SYMBOLS.defaultPoint;
-          break;
         default:
           symbol = SYMBOLS.defaultPolygon;
           break;
@@ -783,7 +393,7 @@ export const MapProvider = ({ children }) => {
         url: layerConfig.url,
         outFields: layerConfig.outFields,
         title: layerConfig.title,
-        visible: false, // Initialize as hidden
+        visible: false,
         opacity: 1,
         popupEnabled: true,
         popupTemplate: layerConfig.popupTemplate,
@@ -820,43 +430,34 @@ export const MapProvider = ({ children }) => {
       setIsLayerLoading(true);
 
       try {
-        // First, ensure all other layers are hidden
-        Object.entries(featureLayers).forEach(([layerType, layer]) => {
+        // Hide other layers
+        Object.entries(featureLayersRef.current).forEach(([layerType, layer]) => {
           if (layer && !layer.destroyed && layerType !== type) {
             layer.visible = false;
             console.log(`[MapContext] Hiding layer ${layerType}`);
           }
         });
 
-        let layer = featureLayers[type];
+        let layer = featureLayersRef.current[type];
 
         // Initialize the layer if it doesn't exist
         if (!layer) {
           layer = await initializeFeatureLayer(type);
           if (layer) {
             await mapView.map.add(layer);
-            setFeatureLayers((prev) => ({
-              ...prev,
-              [type]: layer,
-            }));
-            console.log(
-              `[MapContext] New FeatureLayer for type ${type} added to the map.`
-            );
+            featureLayersRef.current[type] = layer;
+            console.log(`[MapContext] New FeatureLayer for type ${type} added to the map.`);
           }
         }
 
         // Ensure the layer is visible and added to active layers
         if (layer && !layer.destroyed) {
-          // Force layer visibility and wait for it to be ready
           try {
             await layer.when();
             layer.visible = true;
             console.log(`[MapContext] FeatureLayer ${type} set to visible.`);
           } catch (error) {
-            console.error(
-              `[MapContext] Error setting layer visibility for ${type}:`,
-              error
-            );
+            console.error(`[MapContext] Error setting layer visibility for ${type}:`, error);
           }
 
           setActiveLayers((prev) => {
@@ -874,10 +475,310 @@ export const MapProvider = ({ children }) => {
         setIsLayerLoading(false);
       }
     },
-    [mapView, featureLayers, initializeFeatureLayer]
+    [mapView, initializeFeatureLayer]
   );
 
-  // Updated removeActiveLayer function
+  // Remove feature from selection
+  const removeFromSelection = useCallback(
+    async (feature, layerType) => {
+      console.log(`[MapContext] removeFromSelection called with feature:`, feature.attributes);
+
+      if (!selectionGraphicsLayerRef.current) {
+        console.warn(`[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized`);
+        return;
+      }
+
+      try {
+        const currentLayerConfig = FEATURE_LAYERS[layerType];
+        if (!currentLayerConfig) {
+          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
+          return;
+        }
+        const uniqueIdField = currentLayerConfig.uniqueIdField;
+
+        // Remove the graphic from selectionGraphicsLayer
+        selectionGraphicsLayerRef.current.graphics.forEach((g) => {
+          if (g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]) {
+            selectionGraphicsLayerRef.current.remove(g);
+            console.log(`[MapContext] Graphic removed from selectionGraphicsLayer for feature:`, feature.attributes);
+          }
+        });
+
+        // Update selectedFeatures state
+        setSelectedFeatures((prev) => {
+          const newSelectedFeatures = prev.filter(
+            (f) => f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
+          );
+          console.log(`[MapContext] Feature removed from selection:`, feature.attributes);
+          return newSelectedFeatures;
+        });
+      } catch (error) {
+        console.error("[MapContext] Error in removeFromSelection:", error);
+      }
+    },
+    []
+  );
+
+  // Add feature to selection
+  const addToSelection = useCallback(
+    async (feature, layerType) => {
+      console.log(`[MapContext] addToSelection called with feature:`, feature.attributes);
+
+      if (!selectionGraphicsLayerRef.current || !mapView) {
+        console.warn(`[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`);
+        return;
+      }
+
+      try {
+        const currentLayerConfig = FEATURE_LAYERS[layerType];
+        if (!currentLayerConfig) {
+          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
+          return;
+        }
+        const uniqueIdField = currentLayerConfig.uniqueIdField;
+
+        // Ensure valid geometry
+        const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
+        if (!geometry) {
+          console.warn(`[MapContext] Invalid geometry for feature:`, feature.attributes);
+          return;
+        }
+
+        // Dynamically import Graphic
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+
+        // Determine symbol based on geometry type
+        let symbol;
+        switch (geometry.type.toLowerCase()) {
+          case "point":
+            symbol = SYMBOLS.selectedPoint;
+            break;
+          case "polyline":
+            symbol = SYMBOLS.selectedPolyline;
+            break;
+          case "polygon":
+            symbol = SYMBOLS.selectedPolygon;
+            break;
+          default:
+            console.warn(`[MapContext] Unsupported geometry type for selection: ${geometry.type}`);
+            return;
+        }
+
+        // Check if feature is already selected
+        const isAlreadySelected = selectedFeatures.some(
+          (f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+        );
+
+        if (isAlreadySelected) {
+          console.log(`[MapContext] Feature already selected:`, feature.attributes);
+          // Remove the feature from selection
+          await removeFromSelection(feature, layerType);
+        } else {
+          // Add the feature to selection
+          const selectionGraphic = new Graphic({
+            geometry,
+            attributes: {
+              ...feature.attributes,
+              FEATURE_TYPE: layerType,
+            },
+            symbol: symbol,
+          });
+
+          selectionGraphicsLayerRef.current.add(selectionGraphic);
+          console.log(`[MapContext] Graphic added to selectionGraphicsLayer for feature:`, feature.attributes);
+
+          // Update selectedFeatures state
+          setSelectedFeatures((prev) => {
+            console.log(`[MapContext] Feature added to selection:`, feature.attributes);
+            return [...prev, feature];
+          });
+        }
+      } catch (error) {
+        console.error("[MapContext] Error in addToSelection:", error);
+      }
+    },
+    [mapView, selectedFeatures, removeFromSelection]
+  );
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    if (!selectionGraphicsLayerRef.current) return;
+    try {
+      selectionGraphicsLayerRef.current.removeAll();
+      setSelectedFeatures([]);
+      console.log("[MapContext] Selection cleared");
+    } catch (error) {
+      console.error("Error clearing selection:", error);
+    }
+  }, []);
+
+  // Display features
+  const displayFeatures = useCallback(
+    async (features) => {
+      if (!selectionGraphicsLayerRef.current || !mapView) return;
+
+      try {
+        console.log(`Displaying ${features.length} features for layers: ${activeLayers.join(", ")}`);
+        selectionGraphicsLayerRef.current.removeAll();
+
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+
+        for (const feature of features) {
+          const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
+          if (!geometry) continue;
+
+          // Determine symbol based on geometry type
+          let symbol;
+          switch (geometry.type.toLowerCase()) {
+            case "point":
+              symbol = SYMBOLS.defaultPoint;
+              break;
+            case "polyline":
+              symbol = SYMBOLS.defaultPolyline;
+              break;
+            case "polygon":
+              symbol = SYMBOLS.defaultPolygon;
+              break;
+            default:
+              console.warn(`Unsupported geometry type for display: ${geometry.type}`);
+              continue;
+          }
+
+          const graphic = new Graphic({
+            geometry,
+            attributes: {
+              ...feature.attributes,
+              FEATURE_TYPE: activeLayers[activeLayers.length - 1],
+            },
+            symbol,
+          });
+          selectionGraphicsLayerRef.current.add(graphic);
+        }
+      } catch (error) {
+        console.error("Error displaying features:", error);
+      }
+    },
+    [activeLayers, mapView]
+  );
+
+  // Update feature styles
+  const updateFeatureStyles = useCallback(
+    async (features, styles, featureType) => {
+      if (!selectionGraphicsLayerRef.current || !mapView) return;
+
+      try {
+        const [{ default: Graphic }, geometryEngine] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/geometryEngine"),
+          
+        ]);
+        console.log("geometryEngine:", geometryEngine);
+
+        // Instead of removing all graphics, only remove graphics for the current market areas being updated
+        const marketAreaIds = new Set(features.map((f) => f.attributes.marketAreaId));
+        const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => !marketAreaIds.has(g.attributes.marketAreaId)
+        );
+
+        selectionGraphicsLayerRef.current.removeAll();
+        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+
+        // Group features by market area ID
+        const featuresByMarketArea = features.reduce((acc, feature) => {
+          const marketAreaId = feature.attributes.marketAreaId;
+          if (!acc[marketAreaId]) acc[marketAreaId] = [];
+          acc[marketAreaId].push(feature);
+          return acc;
+        }, {});
+
+        // Process each market area's features
+        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          const geometries = maFeatures.map((f) => f.geometry);
+
+          // Ensure all geometries are valid before union
+          const validGeometries = geometries.filter((g) => g != null);
+          if (validGeometries.length === 0) continue;
+
+          const unionGeometry = geometryEngine.union(validGeometries);
+
+          if (unionGeometry) {
+            const symbol = {
+              type: "simple-fill",
+              color: [...hexToRgb(styles.fill), styles.fillOpacity],
+              outline: {
+                color: styles.outline,
+                width: styles.outlineWidth,
+              },
+            };
+
+            const unionGraphic = new Graphic({
+              geometry: unionGeometry,
+              symbol: symbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+              },
+            });
+
+            selectionGraphicsLayerRef.current.add(unionGraphic);
+          }
+        }
+      } catch (error) {
+        console.error("Error updating feature styles:", error);
+      }
+    },
+    [mapView]
+  );
+
+  // Draw radius
+  const drawRadius = useCallback(
+    async (point, style = null) => {
+      if (!radiusGraphicsLayerRef.current || !point?.center || !mapView) return;
+
+      try {
+        // Clear existing radius graphics for this point
+        radiusGraphicsLayerRef.current.removeAll();
+
+        const center = ensureValidGeometry(point.center, mapView.spatialReference);
+        if (!center) return;
+        const centerPoint = webMercatorToGeographic(center);
+        const radius = point.radius * 1609.34; // Convert miles to meters
+
+        const [{ default: geometryEngine }, { default: Graphic }] = await Promise.all([
+          import("@arcgis/core/geometry/geometryEngine"),
+          import("@arcgis/core/Graphic"),
+        ]);
+
+        // Create a buffer polygon around the center point
+        const polygon = geometryEngine.geodesicBuffer(centerPoint, radius, "meters");
+
+        const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [0, 123, 255];
+        const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 123, 255];
+
+        const circleGraphic = new Graphic({
+          geometry: polygon,
+          attributes: {
+            FEATURE_TYPE: "radius",
+          },
+          symbol: {
+            type: "simple-fill",
+            color: [...fillRgb, style?.fillOpacity || 0.3],
+            outline: {
+              color: [...outlineRgb, 1],
+              width: style?.borderWidth || 2,
+            },
+          },
+        });
+
+        radiusGraphicsLayerRef.current.add(circleGraphic);
+      } catch (error) {
+        console.error("Error drawing radius:", error);
+      }
+    },
+    [mapView]
+  );
+
+  // Remove an active layer
   const removeActiveLayer = useCallback(
     async (type) => {
       if (!mapView) {
@@ -885,9 +786,8 @@ export const MapProvider = ({ children }) => {
         return;
       }
 
-      // If no type is specified, hide all feature layers but keep graphics
       if (!type) {
-        Object.values(featureLayers).forEach((layer) => {
+        Object.values(featureLayersRef.current).forEach((layer) => {
           if (layer && !layer.destroyed) {
             layer.visible = false;
             console.log(`[MapContext] FeatureLayer hidden: ${layer.title}`);
@@ -906,29 +806,24 @@ export const MapProvider = ({ children }) => {
       setIsLayerLoading(true);
 
       try {
-        // Hide the layer
-        const layer = featureLayers[type];
+        const layer = featureLayersRef.current[type];
         if (layer && !layer.destroyed) {
           layer.visible = false;
           console.log(`[MapContext] FeatureLayer ${type} set to hidden.`);
         }
 
-        // Remove from activeLayers
         setActiveLayers((prev) => {
           console.log(`[MapContext] Removing layer ${type} from activeLayers.`);
           return prev.filter((l) => l !== type);
         });
 
-        // Only remove graphics related to this layer type if specified
-        if (selectionGraphicsLayer && type) {
-          const remainingGraphics = selectionGraphicsLayer.graphics.filter(
+        if (selectionGraphicsLayerRef.current && type) {
+          const remainingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
             (g) => g.attributes?.FEATURE_TYPE !== type
           );
-          selectionGraphicsLayer.removeAll();
-          remainingGraphics.forEach((g) => selectionGraphicsLayer.add(g));
-          console.log(
-            `[MapContext] Removed graphics related to layer ${type} from selectionGraphicsLayer.`
-          );
+          selectionGraphicsLayerRef.current.removeAll();
+          remainingGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+          console.log(`[MapContext] Removed graphics related to layer ${type} from selectionGraphicsLayer.`);
         }
       } catch (error) {
         console.error(`Error removing layer ${type}:`, error);
@@ -936,14 +831,14 @@ export const MapProvider = ({ children }) => {
         setIsLayerLoading(false);
       }
     },
-    [mapView, featureLayers, selectionGraphicsLayer]
+    [mapView]
   );
 
-  // New function to hide all feature layers
+  // Hide all feature layers
   const hideAllFeatureLayers = useCallback(() => {
     console.log("[MapContext] Hiding all feature layers.");
     try {
-      Object.entries(featureLayers).forEach(([type, layer]) => {
+      Object.entries(featureLayersRef.current).forEach(([type, layer]) => {
         if (layer && !layer.destroyed) {
           layer.visible = false;
           console.log(`[MapContext] FeatureLayer hidden: ${layer.title}`);
@@ -954,7 +849,7 @@ export const MapProvider = ({ children }) => {
     } catch (error) {
       console.error("[MapContext] Error hiding feature layers:", error);
     }
-  }, [featureLayers]);
+  }, []);
 
   // Query features
   const queryFeatures = useCallback(
@@ -964,7 +859,7 @@ export const MapProvider = ({ children }) => {
       const allFeatures = [];
 
       for (const type of activeLayers) {
-        const layer = featureLayers[type];
+        const layer = featureLayersRef.current[type];
         const layerConfig = FEATURE_LAYERS[type];
 
         if (!layer || !layerConfig) continue;
@@ -984,8 +879,7 @@ export const MapProvider = ({ children }) => {
         }
 
         try {
-          const QueryModule = await import("@arcgis/core/rest/support/Query");
-          const Query = QueryModule.default;
+          const { default: Query } = await import("@arcgis/core/rest/support/Query");
 
           const query = new Query({
             where: whereClause,
@@ -998,9 +892,7 @@ export const MapProvider = ({ children }) => {
           const results = await layer.queryFeatures(query);
           if (results.features.length > 0) {
             allFeatures.push(...results.features);
-            console.log(
-              `[MapContext] Query returned ${results.features.length} features for layer ${type}`
-            );
+            console.log(`[MapContext] Query returned ${results.features.length} features for layer ${type}`);
           }
         } catch (error) {
           console.error(`Error querying features for layer ${type}:`, error);
@@ -1009,16 +901,14 @@ export const MapProvider = ({ children }) => {
 
       if (allFeatures.length > 0) {
         await displayFeatures(allFeatures);
-        console.log(
-          `[MapContext] Displayed ${allFeatures.length} features on the map.`
-        );
+        console.log(`[MapContext] Displayed ${allFeatures.length} features on the map.`);
       } else {
         console.log(`[MapContext] No features found for the query.`);
       }
 
       return allFeatures;
     },
-    [activeLayers, featureLayers, mapView, displayFeatures]
+    [activeLayers, mapView, displayFeatures]
   );
 
   // Toggle active layer type
@@ -1035,15 +925,10 @@ export const MapProvider = ({ children }) => {
 
   // Initialize graphics layers when mapView is set
   useEffect(() => {
-    if (mapView && !selectionGraphicsLayer && !radiusGraphicsLayer) {
+    if (mapView && !selectionGraphicsLayerRef.current && !radiusGraphicsLayerRef.current) {
       initializeGraphicsLayers();
     }
-  }, [
-    mapView,
-    selectionGraphicsLayer,
-    radiusGraphicsLayer,
-    initializeGraphicsLayers,
-  ]);
+  }, [mapView, initializeGraphicsLayers]);
 
   // Handle map clicks for selection
   useEffect(() => {
@@ -1052,9 +937,7 @@ export const MapProvider = ({ children }) => {
     const handleMapClick = async (event) => {
       console.log(`[MapContext] Map clicked at:`, event.mapPoint);
       if (!isMapSelectionActive || !activeLayers.length) {
-        console.log(
-          `[MapContext] Map selection is not active or no active layers.`
-        );
+        console.log(`[MapContext] Map selection is not active or no active layers.`);
         return;
       }
 
@@ -1063,16 +946,12 @@ export const MapProvider = ({ children }) => {
         console.log(`[MapContext] hitTest result:`, hitResult);
 
         if (hitResult && hitResult.results.length > 0) {
-          // Log all layer titles in the hitTest results
           hitResult.results.forEach((r) => {
             console.log(`[MapContext] hitTest Layer Title:`, r.layer.title);
           });
 
-          // Find a graphic where the layer title matches the title defined in FEATURE_LAYERS for any active layer type
           const graphicResult = hitResult.results.find((r) =>
-            activeLayers.some(
-              (type) => FEATURE_LAYERS[type].title === r.layer.title
-            )
+            activeLayers.some((type) => FEATURE_LAYERS[type].title === r.layer.title)
           );
 
           if (graphicResult && graphicResult.graphic) {
@@ -1080,15 +959,10 @@ export const MapProvider = ({ children }) => {
             const matchedLayerType = activeLayers.find(
               (type) => FEATURE_LAYERS[type].title === graphicResult.layer.title
             );
-            console.log(
-              `[MapContext] Graphic found on layer ${matchedLayerType}:`,
-              graphic.attributes
-            );
+            console.log(`[MapContext] Graphic found on layer ${matchedLayerType}:`, graphic.attributes);
             await addToSelection(graphic, matchedLayerType);
           } else {
-            console.log(
-              `[MapContext] No matching graphic found in active layers.`
-            );
+            console.log(`[MapContext] No matching graphic found in active layers.`);
           }
         } else {
           console.log(`[MapContext] No results from hitTest.`);
@@ -1105,7 +979,7 @@ export const MapProvider = ({ children }) => {
     };
   }, [mapView, isMapSelectionActive, activeLayers, addToSelection]);
 
-  // Memoize the context value to prevent unnecessary re-renders
+  // Memoize the context value
   const value = useMemo(
     () => ({
       mapView,
@@ -1121,14 +995,13 @@ export const MapProvider = ({ children }) => {
       addToSelection,
       removeFromSelection,
       clearSelection,
-      featureLayers,
+      featureLayers: featureLayersRef.current,
       updateFeatureStyles,
       drawRadius,
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
-      // Optionally expose radiusGraphicsLayer if needed elsewhere
-      radiusGraphicsLayer,
+      radiusGraphicsLayer: radiusGraphicsLayerRef.current,
     }),
     [
       mapView,
@@ -1143,13 +1016,11 @@ export const MapProvider = ({ children }) => {
       addToSelection,
       removeFromSelection,
       clearSelection,
-      featureLayers,
       updateFeatureStyles,
       drawRadius,
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
-      radiusGraphicsLayer,
     ]
   );
 
