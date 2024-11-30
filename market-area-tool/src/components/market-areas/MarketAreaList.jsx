@@ -1,6 +1,5 @@
 // src/components/market-areas/MarketAreaList.jsx
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";  // Add useCallback here
 import { useParams } from "react-router-dom";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import { useMap } from "../../contexts/MapContext";
@@ -146,6 +145,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
       console.error("Error toggling market area visibility:", error);
     }
   };
+  const handleEdit = useCallback((marketArea) => {
+    onEdit?.(marketArea);
+  }, [onEdit]);
+
 
   // Handle delete market area
   const handleDelete = async (marketArea) => {

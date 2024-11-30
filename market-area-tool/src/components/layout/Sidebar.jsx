@@ -1,10 +1,16 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';  // Add useEffect to imports
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import MarketAreaForm from '../market-areas/MarketAreaForm';
 import MarketAreaList from '../market-areas/MarketAreaList';
 
 export default function Sidebar({ isOpen, onClose, sidebarContent, editingMarketArea, onEdit }) {
   if (!isOpen) return null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      onEdit?.(null); // Make the callback optional with ?. operator
+    }
+  }, [isOpen, onEdit]);
   
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800 shadow-xl">
