@@ -102,16 +102,74 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   // Watch for selected features from map clicks
   useEffect(() => {
     if (!selectedFeatures.length || formState.maType === "radius") return;
-
-    const newLocations = selectedFeatures.map((feature) => ({
-      id: feature.attributes.FID,
-      name: formatLocationName(feature, formState.maType),
-      feature: feature,
-      geometry: feature.geometry,
-    }));
-
-    appendLocations(newLocations);
-  }, [selectedFeatures, formState.maType, appendLocations, formatLocationName]);
+  
+    setFormState((prev) => {
+      const deselectedLocations = [];
+      const remainingSelectedLocations = [];
+  
+      prev.selectedLocations.forEach((loc) => {
+        const isDeselected = selectedFeatures.some(
+          (feature) => feature.attributes.FID === loc.id
+        );
+  
+        if (isDeselected) {
+          deselectedLocations.push(loc);
+        } else {
+          remainingSelectedLocations.push(loc);
+        }
+      });
+  
+      const newSelectedLocations = selectedFeatures
+        .filter(
+          (feature) =>
+            !prev.selectedLocations.some(
+              (loc) => loc.id === feature.attributes.FID
+            )
+        )
+        .map((feature) => ({
+          id: feature.attributes.FID,
+          name: formatLocationName(feature, formState.maType),
+          feature: feature,
+          geometry: feature.geometry,
+        }));
+  
+      return {
+        ...prev,
+        selectedLocations: [...remainingSelectedLocations, ...newSelectedLocations],
+        availableLocations: [
+          ...prev.availableLocations,
+          ...deselectedLocations,
+        ].sort((a, b) => a.name.localeCompare(b.name)), // Sort optional
+      };
+    });
+  
+    // Update the map visuals
+    selectedFeatures.forEach((feature) => {
+      const featureId = feature.attributes.FID;
+      const isDeselected = formState.selectedLocations.some(
+        (loc) => loc.id === featureId
+      );
+  
+      if (isDeselected) {
+        removeFromSelection(feature, formState.maType);
+        toast.success(
+          `Deselected: ${formatLocationName(feature, formState.maType)}`
+        );
+      } else {
+        addToSelection(feature, formState.maType);
+        toast.success(
+          `Selected: ${formatLocationName(feature, formState.maType)}`
+        );
+      }
+    });
+  }, [
+    selectedFeatures,
+    formState.maType,
+    addToSelection,
+    removeFromSelection,
+    formatLocationName,
+  ]);
+  
 
   // Enhanced initialization effect for editing
   useEffect(() => {
@@ -395,7 +453,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     (location) => {
       console.log(`[MarketAreaForm] Deselecting location:`, location);
       try {
-        removeFromSelection(location.feature, formState.maType); // Pass layerType
+        // Remove the location from selectedLocations
+        setFormState((prev) => {
+          const updatedSelectedLocations = prev.selectedLocations.filter(
+            (loc) => loc.id !== location.id
+          );
+          const updatedAvailableLocations = [
+            ...prev.availableLocations,
+            location,
+          ].sort((a, b) => a.name.localeCompare(b.name)); // Optional: sort alphabetically
+  
+          return {
+            ...prev,
+            selectedLocations: updatedSelectedLocations,
+            availableLocations: updatedAvailableLocations,
+          };
+        });
+  
+        // Call removeFromSelection to update the map
+        removeFromSelection(location.feature, formState.maType);
         toast.success(`Deselected: ${location.name}`);
       } catch (error) {
         console.error("Error deselecting location:", error);
