@@ -1,5 +1,3 @@
-// src/components/Map/Map.jsx
-
 import { useEffect, useRef } from 'react';
 import esriConfig from '@arcgis/core/config';
 import Map from '@arcgis/core/Map';
@@ -8,6 +6,7 @@ import Zoom from '@arcgis/core/widgets/Zoom';
 import Home from '@arcgis/core/widgets/Home';
 import BasemapToggle from '@arcgis/core/widgets/BasemapToggle';
 import Locate from '@arcgis/core/widgets/Locate';
+import ScaleBar from '@arcgis/core/widgets/ScaleBar';
 import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
@@ -24,7 +23,6 @@ const ZoomAlert = () => {
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-lg">
         <div className="flex">
           <div className="flex-shrink-0">
-            {/* Warning Icon */}
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
@@ -42,23 +40,17 @@ const ZoomAlert = () => {
 
 export default function MapComponent() {
   const mapRef = useRef(null);
-  const { setMapView } = useMap(); // Only destructure setMapView
+  const { setMapView } = useMap();
 
-  // Initialize ArcGIS configuration
   useEffect(() => {
     try {
-      // Set the API key
       esriConfig.apiKey = API_KEY;
-
-      // Set the assetsPath to use CDN
       esriConfig.assetsPath = 'https://js.arcgis.com/4.31/@arcgis/core/assets/';
 
-      // Initialize corsEnabledServers array if it doesn't exist
       if (!esriConfig.request.corsEnabledServers) {
         esriConfig.request.corsEnabledServers = [];
       }
 
-      // Add the required servers
       const serversToAdd = [
         "route-api.arcgis.com",
         "services.arcgis.com",
@@ -73,8 +65,7 @@ export default function MapComponent() {
         }
       });
 
-      // Set other configurations
-      esriConfig.request.timeout = 30000; // 30 seconds timeout
+      esriConfig.request.timeout = 30000;
       esriConfig.request.retries = 3;
 
       console.log("[Map] ArcGIS configuration initialized", {
@@ -102,24 +93,22 @@ export default function MapComponent() {
   };
 
   useEffect(() => {
-    let isMounted = true; // Flag to prevent state updates on unmounted component
+    let isMounted = true;
 
     const initializeMap = async () => {
       try {
         console.log('[Map] Starting map initialization');
 
-        // Create the map with a standard basemap
         const map = new Map({
-          basemap: "arcgis-navigation", // Use the navigation basemap
+          basemap: "arcgis-navigation",
           layers: [],
         });
 
-        // Create the map view
         const view = new MapView({
           container: mapRef.current,
           map: map,
           zoom: 13,
-          center: [-118.2437, 34.0522], // Default to Los Angeles
+          center: [-118.2437, 34.0522],
           padding: {
             top: 10,
             right: 10,
@@ -130,7 +119,8 @@ export default function MapComponent() {
             snapToZoom: false,
             rotationEnabled: false,
             minZoom: 2,
-            maxZoom: 20
+            maxZoom: 20,
+            zoomFactor: 1.1  // Added zoomFactor for smoother zooming
           },
           ui: {
             components: ["attribution"]
@@ -149,16 +139,16 @@ export default function MapComponent() {
 
         console.log('[Map] Waiting for view to initialize');
         await view.when();
-        if (!isMounted) return; // Prevent state updates if unmounted
+        if (!isMounted) return;
         console.log('[Map] View initialized successfully');
 
-        // Add widgets
+        // Add widgets with updated positions
         const widgets = [
           {
             widget: new Zoom({
               view: view
             }),
-            position: "bottom-right"
+            position: "top-left"
           },
           {
             widget: new Home({
@@ -186,18 +176,22 @@ export default function MapComponent() {
               }
             }),
             position: "top-left"
+          },
+          {
+            widget: new ScaleBar({
+              view: view,
+              unit: "imperial" // Automatically switches between miles and feet
+            }),
+            position: "bottom-right"
           }
         ];
 
-        // Add all widgets to the view
         widgets.forEach(({ widget, position }) => {
           view.ui.add(widget, position);
         });
 
-        // Set the map view in context
         setMapView(view);
 
-        // Handle geolocation
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (position) => {
@@ -206,12 +200,12 @@ export default function MapComponent() {
             },
             (error) => {
               console.warn('[Map] Geolocation error:', error.message);
-              goToLocation(view, -118.2437, 34.0522); // Default to LA
+              goToLocation(view, -118.2437, 34.0522);
             }
           );
         } else {
           console.warn('[Map] Geolocation not supported');
-          goToLocation(view, -118.2437, 34.0522); // Default to LA
+          goToLocation(view, -118.2437, 34.0522);
         }
 
       } catch (error) {
@@ -221,7 +215,6 @@ export default function MapComponent() {
 
     initializeMap();
 
-    // Cleanup function
     return () => {
       isMounted = false;
       if (mapRef.current) {
@@ -229,7 +222,7 @@ export default function MapComponent() {
         setMapView(null);
       }
     };
-  }, [setMapView]); // Removed toggleActiveLayerType from dependencies
+  }, [setMapView]);
 
   return (
     <div 
