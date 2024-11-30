@@ -630,8 +630,14 @@ export const MapProvider = ({ children }) => {
           import("@arcgis/core/geometry/geometryEngine"),
         ]);
   
-        // First completely remove all existing graphics for these market areas
+        // Instead of removing all graphics, only remove graphics for the current market areas being updated
+        const marketAreaIds = new Set(features.map(f => f.attributes.marketAreaId));
+        const graphicsToKeep = selectionGraphicsLayer.graphics.filter(g => 
+          !marketAreaIds.has(g.attributes.marketAreaId)
+        );
+        
         selectionGraphicsLayer.removeAll();
+        graphicsToKeep.forEach(g => selectionGraphicsLayer.add(g));
   
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
@@ -644,7 +650,12 @@ export const MapProvider = ({ children }) => {
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
           const geometries = maFeatures.map(f => f.geometry);
-          const unionGeometry = geometryEngine.union(geometries);
+          
+          // Ensure all geometries are valid before union
+          const validGeometries = geometries.filter(g => g != null);
+          if (validGeometries.length === 0) continue;
+          
+          const unionGeometry = geometryEngine.union(validGeometries);
   
           if (unionGeometry) {
             const symbol = {
