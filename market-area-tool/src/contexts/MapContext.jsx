@@ -291,7 +291,7 @@ export const useMap = () => {
   return context;
 };
 
-export const MapProvider = ({ children }) => {
+export const MapProvider = ({ children, marketAreas = [] }) => {
   const [mapView, setMapView] = useState(null);
   const featureLayersRef = useRef({});
   const selectionGraphicsLayerRef = useRef(null);
@@ -300,6 +300,7 @@ export const MapProvider = ({ children }) => {
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [isMapSelectionActive, setIsMapSelectionActive] = useState(false);
+  const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
 
   const formatLocationName = useCallback((feature, layerType) => {
     const attrs = feature.attributes;
@@ -717,144 +718,163 @@ export const MapProvider = ({ children }) => {
     [activeLayers, mapView]
   );
 
-  
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
         console.log("Selection layer or map view not initialized");
         return;
       }
-  
+
       try {
-        const [{ default: Graphic }, { default: Polygon }, geometryEngine] = await Promise.all([
-          import("@arcgis/core/Graphic"),
-          import("@arcgis/core/geometry/Polygon"),
-          import("@arcgis/core/geometry/geometryEngine")
-        ]);
-  
+        const [{ default: Graphic }, { default: Polygon }, geometryEngine] =
+          await Promise.all([
+            import("@arcgis/core/Graphic"),
+            import("@arcgis/core/geometry/Polygon"),
+            import("@arcgis/core/geometry/geometryEngine"),
+          ]);
+
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
-          const marketAreaId = feature.attributes?.marketAreaId || 'default';
+          const marketAreaId = feature.attributes?.marketAreaId || "default";
           if (!acc[marketAreaId]) acc[marketAreaId] = [];
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
-  
+
         // Clear existing graphics only for the market areas we're updating
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
-        const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
-          (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
-        );
-        
+        const graphicsToKeep =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
+          );
+
         selectionGraphicsLayerRef.current.removeAll();
         graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-  
-        // Process each market area
-        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+
+        // Sort market areas by order (if available)
+        const sortedMarketAreaIds = Object.keys(featuresByMarketArea).sort(
+          (a, b) => {
+            const orderA = featuresByMarketArea[a][0]?.attributes?.order ?? 0;
+            const orderB = featuresByMarketArea[b][0]?.attributes?.order ?? 0;
+            return orderA - orderB;
+          }
+        );
+
+        // Process each market area in order
+        for (const marketAreaId of sortedMarketAreaIds) {
+          const maFeatures = featuresByMarketArea[marketAreaId];
+
           try {
             // Create polygons for all features in this market area
-            const polygons = maFeatures.map(feature => {
-              const rings = feature.geometry?.rings || 
-                           feature.geometry?.toJSON?.()?.rings ||
-                           (feature.geometry?.type === "polygon" ? feature.geometry.coordinates : null);
-              
-              if (rings) {
-                const polygon = new Polygon({
-                  rings: rings,
-                  spatialReference: mapView.spatialReference
-                });
-                return polygon;
-              }
-              return null;
-            }).filter(p => p !== null);
-  
+            const polygons = maFeatures
+              .map((feature) => {
+                const rings =
+                  feature.geometry?.rings ||
+                  feature.geometry?.toJSON?.()?.rings ||
+                  (feature.geometry?.type === "polygon"
+                    ? feature.geometry.coordinates
+                    : null);
+
+                if (rings) {
+                  return new Polygon({
+                    rings: rings,
+                    spatialReference: mapView.spatialReference,
+                  });
+                }
+                return null;
+              })
+              .filter((p) => p !== null);
+
             if (polygons.length === 0) continue;
-  
+
             // Find separate, non-contiguous sections using geometryEngine
             let sections = [];
             let remainingPolygons = [...polygons];
-  
+
             while (remainingPolygons.length > 0) {
               let currentSection = remainingPolygons[0];
-              let sectionPolygons = [remainingPolygons[0]];
               remainingPolygons = remainingPolygons.slice(1);
-  
+
               let foundIntersection;
               do {
                 foundIntersection = false;
                 for (let i = remainingPolygons.length - 1; i >= 0; i--) {
                   const testPolygon = remainingPolygons[i];
                   if (geometryEngine.intersects(currentSection, testPolygon)) {
-                    currentSection = geometryEngine.union([currentSection, testPolygon]);
-                    sectionPolygons.push(testPolygon);
+                    currentSection = geometryEngine.union([
+                      currentSection,
+                      testPolygon,
+                    ]);
                     remainingPolygons.splice(i, 1);
                     foundIntersection = true;
                   }
                 }
               } while (foundIntersection);
-  
+
               sections.push(currentSection);
             }
-  
-            // Create graphics for each section
+
+            // Create graphics for each section with z-index based on order
             sections.forEach((section, index) => {
+              const order = maFeatures[0]?.attributes?.order ?? 0;
+
               // Create the fill graphic (no border)
-              const fillSymbol = {
-                type: "simple-fill",
-                color: [...hexToRgb(styles.fill), styles.fillOpacity],
-                outline: {
-                  color: [0, 0, 0, 0],
-                  width: 0
-                }
-              };
-  
               const fillGraphic = new Graphic({
                 geometry: section,
-                symbol: fillSymbol,
+                symbol: {
+                  type: "simple-fill",
+                  color: [...hexToRgb(styles.fill), styles.fillOpacity],
+                  outline: {
+                    color: [0, 0, 0, 0],
+                    width: 0,
+                  },
+                },
                 attributes: {
                   marketAreaId,
                   FEATURE_TYPE: featureType,
-                  sectionIndex: index
-                }
+                  sectionIndex: index,
+                  order, // Include order in attributes
+                },
               });
-  
+
               // Create the border graphic (no fill)
               if (styles.outlineWidth !== -1) {
-                const borderSymbol = {
-                  type: "simple-line",
-                  color: styles.outline,
-                  width: styles.outlineWidth,
-                  style: "solid"
-                };
-  
                 const borderGraphic = new Graphic({
                   geometry: section,
-                  symbol: borderSymbol,
+                  symbol: {
+                    type: "simple-line",
+                    color: styles.outline,
+                    width: styles.outlineWidth,
+                    style: "solid",
+                  },
                   attributes: {
                     marketAreaId,
                     FEATURE_TYPE: featureType,
                     sectionIndex: index,
-                    isBorder: true
-                  }
+                    order, // Include order in attributes
+                    isBorder: true,
+                  },
                 });
-  
+
+                // Add graphics with higher order (top of list) appearing on top
                 selectionGraphicsLayerRef.current.add(borderGraphic);
               }
-  
+
               selectionGraphicsLayerRef.current.add(fillGraphic);
             });
-            
           } catch (error) {
-            console.error(`Error processing market area ${marketAreaId}:`, error);
+            console.error(
+              `Error processing market area ${marketAreaId}:`,
+              error
+            );
           }
         }
-  
       } catch (error) {
         console.error("Error in updateFeatureStyles:", error);
       }
     },
     [mapView]
-  );    
+  );
 
   // Helper function to handle geometry validation
   const ensureValidGeometry = (geometry, spatialReference) => {
@@ -1157,7 +1177,64 @@ export const MapProvider = ({ children }) => {
     };
   }, [mapView, isMapSelectionActive, activeLayers, addToSelection]);
 
-  // Memoize the context value
+  useEffect(() => {
+    const showVisibleMarketAreas = async () => {
+      if (!marketAreas.length) return;
+
+      // Clear all market areas first
+      hideAllFeatureLayers();
+
+      // Sort market areas by order field to control rendering order
+      const sortedAreas = [...marketAreas].sort((a, b) => a.order - b.order);
+
+      // Now render each market area
+      for (const marketArea of sortedAreas) {
+        if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
+
+        if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+          for (const point of marketArea.radius_points) {
+            await drawRadius(point, marketArea.style_settings);
+          }
+        } else if (marketArea.locations) {
+          const features = marketArea.locations.map((loc) => ({
+            geometry: loc.geometry,
+            attributes: {
+              id: loc.id,
+              marketAreaId: marketArea.id,
+              order: marketArea.order,
+            },
+          }));
+
+          await updateFeatureStyles(
+            features,
+            {
+              fill: marketArea.style_settings?.fillColor,
+              fillOpacity: marketArea.style_settings?.fillOpacity,
+              outline: marketArea.style_settings?.borderColor,
+              outlineWidth: marketArea.style_settings?.borderWidth,
+            },
+            marketArea.ma_type
+          );
+        }
+      }
+    };
+
+    showVisibleMarketAreas();
+  }, [
+    marketAreas,
+    visibleMarketAreaIds,
+    hideAllFeatureLayers,
+    drawRadius,
+    updateFeatureStyles,
+  ]);
+
+  // Update visibleMarketAreaIds when marketAreas changes
+  useEffect(() => {
+    if (marketAreas.length > 0) {
+      setVisibleMarketAreaIds(marketAreas.map((ma) => ma.id));
+    }
+  }, [marketAreas]);
+
   const value = useMemo(
     () => ({
       mapView,
@@ -1180,6 +1257,8 @@ export const MapProvider = ({ children }) => {
       setIsMapSelectionActive,
       formatLocationName,
       radiusGraphicsLayer: radiusGraphicsLayerRef.current,
+      visibleMarketAreaIds,
+      setVisibleMarketAreaIds,
     }),
     [
       mapView,
@@ -1199,6 +1278,7 @@ export const MapProvider = ({ children }) => {
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
+      visibleMarketAreaIds,
     ]
   );
 

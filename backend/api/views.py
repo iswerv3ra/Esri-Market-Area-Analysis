@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import models, transaction
 from .models import Project, MarketArea, StylePreset, VariablePreset
 from .serializers import (
     UserSerializer, ProjectSerializer, MarketAreaSerializer,
@@ -37,7 +37,7 @@ class MarketAreaList(generics.ListCreateAPIView):
         project_id = self.kwargs.get('project_id')
         return MarketArea.objects.filter(
             project_id=project_id
-        ).select_related('project')
+        ).select_related('project').order_by('order', '-last_modified')
 
     def perform_create(self, serializer):
         project_id = self.kwargs.get('project_id')
@@ -81,6 +81,59 @@ class MarketAreaDetail(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+class MarketAreaReorder(generics.GenericAPIView):
+    serializer_class = MarketAreaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        project_id = self.kwargs.get('project_id')
+        return MarketArea.objects.filter(
+            project_id=project_id
+        ).select_related('project')
+
+    def put(self, request, project_id=None):
+        order = request.data.get('order', [])
+        
+        if not order:
+            return Response(
+                {'error': 'Order list is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            with transaction.atomic():
+                # Validate all IDs exist and belong to this project
+                market_areas = MarketArea.objects.filter(
+                    project_id=project_id, 
+                    id__in=order
+                )
+                
+                if len(market_areas) != len(order):
+                    return Response(
+                        {'error': 'Invalid market area IDs or some IDs do not belong to this project'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Update order field for each market area
+                order_mapping = {str(id): index for index, id in enumerate(order)}
+                for market_area in market_areas:
+                    market_area.order = order_mapping[str(market_area.id)]
+                    market_area.save()
+                
+                # Return the reordered market areas
+                updated_market_areas = MarketArea.objects.filter(
+                    project_id=project_id
+                ).order_by('order')
+                serializer = self.get_serializer(updated_market_areas, many=True)
+                
+                return Response(serializer.data)
+                
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class StylePresetViewSet(viewsets.ModelViewSet):
     serializer_class = StylePresetSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -103,7 +156,7 @@ class StylePresetViewSet(viewsets.ModelViewSet):
         preset = self.get_object()
         if not preset.is_global:
             preset.is_global = True
-            preset.project = None  # Remove project association
+            preset.project = None
             preset.save()
         return Response({'status': 'preset is now global'})
 
@@ -138,7 +191,7 @@ class VariablePresetViewSet(viewsets.ModelViewSet):
         preset = self.get_object()
         if not preset.is_global:
             preset.is_global = True
-            preset.project = None  # Remove project association
+            preset.project = None
             preset.save()
         return Response({'status': 'preset is now global'})
 

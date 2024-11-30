@@ -1,3 +1,4 @@
+// src/contexts/MarketAreaContext.jsx
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import api from '../services/api';
 
@@ -13,6 +14,7 @@ export const useMarketAreas = () => {
 
 export const MarketAreaProvider = ({ children }) => {
   const [marketAreas, setMarketAreas] = useState([]);
+  const [order, setOrder] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,16 +23,31 @@ export const MarketAreaProvider = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await api.get(`/api/projects/${projectId}/market-areas/`);
-      setMarketAreas(Array.isArray(response.data) ? response.data : []);
+      const areas = Array.isArray(response.data) ? response.data : [];
+      
+      // If we have an order, use it to sort the areas
+      if (order.length > 0) {
+        areas.sort((a, b) => {
+          const aIndex = order.indexOf(a.id);
+          const bIndex = order.indexOf(b.id);
+          return aIndex - bIndex;
+        });
+      } else {
+        // If no order exists, establish initial order from areas
+        setOrder(areas.map(area => area.id));
+      }
+      
+      setMarketAreas(areas);
       setError(null);
     } catch (err) {
       console.error('Error fetching market areas:', err);
       setError('Failed to fetch market areas');
-      setMarketAreas([]); // Ensure it's always an array
+      setMarketAreas([]); 
+      setOrder([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [order]);
 
   const addMarketArea = useCallback(async (projectId, marketAreaData) => {
     if (!projectId) throw new Error('Project ID is required');
@@ -41,7 +58,11 @@ export const MarketAreaProvider = ({ children }) => {
         marketAreaData
       );
       const newMarketArea = response.data;
+      
       setMarketAreas(prev => [...prev, newMarketArea]);
+      // Add new market area to the end of the order
+      setOrder(prev => [...prev, newMarketArea.id]);
+      
       setError(null);
       return newMarketArea;
     } catch (err) {
@@ -62,9 +83,11 @@ export const MarketAreaProvider = ({ children }) => {
         updateData
       );
       const updatedArea = response.data;
+      
       setMarketAreas(prev => prev.map(ma => 
         ma.id === marketAreaId ? updatedArea : ma
       ));
+      
       setError(null);
       return updatedArea;
     } catch (err) {
@@ -81,7 +104,11 @@ export const MarketAreaProvider = ({ children }) => {
     setIsLoading(true);
     try {
       await api.delete(`/api/projects/${projectId}/market-areas/${marketAreaId}/`);
+      
       setMarketAreas(prev => prev.filter(ma => ma.id !== marketAreaId));
+      // Remove the deleted market area from the order
+      setOrder(prev => prev.filter(id => id !== marketAreaId));
+      
       setError(null);
     } catch (err) {
       console.error('Error deleting market area:', err);
@@ -92,14 +119,63 @@ export const MarketAreaProvider = ({ children }) => {
     }
   }, []);
 
+  
+  const reorderMarketAreas = useCallback(async (projectId, newOrder) => {
+    if (!projectId) throw new Error('Project ID is required');
+    
+    // Store the previous state in case we need to rollback
+    const previousMarketAreas = [...marketAreas];
+    const previousOrder = [...order];
+    
+    try {
+      // Optimistically update the UI
+      const reorderedAreas = [...marketAreas].sort((a, b) => {
+        const aIndex = newOrder.indexOf(a.id);
+        const bIndex = newOrder.indexOf(b.id);
+        return aIndex - bIndex;
+      });
+      
+      setMarketAreas(reorderedAreas);
+      setOrder(newOrder);
+      setError(null);
+  
+      // Try to sync with the backend
+      setIsLoading(true);
+      try {
+        await api.put(`/api/projects/${projectId}/market-areas/reorder/`, {
+          order: newOrder
+        });
+      } catch (err) {
+        console.error('Error reordering market areas:', err);
+        // If backend fails, revert to previous state
+        setMarketAreas(previousMarketAreas);
+        setOrder(previousOrder);
+        setError('Failed to save new order');
+        throw err;
+      }
+    } catch (err) {
+      console.error('Error in reorderMarketAreas:', err);
+      // Revert to previous state if anything fails
+      setMarketAreas(previousMarketAreas);
+      setOrder(previousOrder);
+      setError('Failed to reorder market areas');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [marketAreas, order]);
+
+  // Memoize the context value to prevent unnecessary re-renders
   const value = {
     marketAreas: marketAreas || [], // Ensure we always have an array
+    order,
     isLoading,
     error,
     fetchMarketAreas,
     addMarketArea,
     updateMarketArea,
-    deleteMarketArea
+    deleteMarketArea,
+    reorderMarketAreas
   };
 
   return (
@@ -108,3 +184,5 @@ export const MarketAreaProvider = ({ children }) => {
     </MarketAreaContext.Provider>
   );
 };
+
+export default MarketAreaContext;

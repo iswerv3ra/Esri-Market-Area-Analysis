@@ -11,7 +11,6 @@ class Project(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
-    # Replace owner with users
     users = models.ManyToManyField(User, related_name="projects")
     
     def __str__(self):
@@ -43,6 +42,7 @@ class MarketArea(models.Model):
     style_settings = models.JSONField(default=dict)  # Store style settings
     locations = models.JSONField(null=True, blank=True)  # Store location data
     radius_points = models.JSONField(null=True, blank=True)  # Store radius points data
+    order = models.IntegerField(default=0)  # New field for ordering
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
 
@@ -50,7 +50,7 @@ class MarketArea(models.Model):
         return f"{self.name} ({self.project.project_number})"
     
     class Meta:
-        ordering = ['-last_modified']
+        ordering = ['order', '-last_modified']  # Updated ordering
         unique_together = ['project', 'name']
 
     def save(self, *args, **kwargs):
@@ -62,9 +62,14 @@ class MarketArea(models.Model):
                 "borderColor": "#0078D4",
                 "borderWidth": 2
             }
+        # Set order to the last position if not specified
+        if not self.order and not self.id:
+            last_order = MarketArea.objects.filter(project=self.project).aggregate(
+                models.Max('order'))['order__max']
+            self.order = (last_order or 0) + 1
         super().save(*args, **kwargs)
 
-
+# Rest of the models remain unchanged
 class StylePreset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
