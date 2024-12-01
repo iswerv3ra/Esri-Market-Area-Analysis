@@ -9,7 +9,6 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { ensureValidGeometry } from "../utils";
 import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils";
 
 const MapContext = createContext();
@@ -493,13 +492,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   // Remove feature from selection
   const removeFromSelection = useCallback(async (feature, layerType) => {
     console.log(
-      `[MapContext] removeFromSelection called with feature:`,
+      "[MapContext] removeFromSelection called with feature:",
       feature.attributes
     );
 
     if (!selectionGraphicsLayerRef.current) {
       console.warn(
-        `[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized`
+        "[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized"
       );
       return;
     }
@@ -519,7 +518,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         if (g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]) {
           selectionGraphicsLayerRef.current.remove(g);
           console.log(
-            `[MapContext] Graphic removed from selectionGraphicsLayer for feature:`,
+            "[MapContext] Graphic removed from selectionGraphicsLayer for feature:",
             feature.attributes
           );
         }
@@ -532,7 +531,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
         );
         console.log(
-          `[MapContext] Feature removed from selection:`,
+          "[MapContext] Feature removed from selection:",
           feature.attributes
         );
         return newSelectedFeatures;
@@ -546,13 +545,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const addToSelection = useCallback(
     async (feature, layerType) => {
       console.log(
-        `[MapContext] addToSelection called with feature:`,
+        "[MapContext] addToSelection called with feature:",
         feature.attributes
       );
 
       if (!selectionGraphicsLayerRef.current || !mapView) {
         console.warn(
-          `[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`
+          "[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized"
         );
         return;
       }
@@ -574,7 +573,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         );
         if (!geometry) {
           console.warn(
-            `[MapContext] Invalid geometry for feature:`,
+            "[MapContext] Invalid geometry for feature:",
             feature.attributes
           );
           return;
@@ -610,7 +609,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
         if (isAlreadySelected) {
           console.log(
-            `[MapContext] Feature already selected:`,
+            "[MapContext] Feature already selected:",
             feature.attributes
           );
           // Remove the feature from selection
@@ -628,14 +627,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
           selectionGraphicsLayerRef.current.add(selectionGraphic);
           console.log(
-            `[MapContext] Graphic added to selectionGraphicsLayer for feature:`,
+            "[MapContext] Graphic added to selectionGraphicsLayer for feature:",
             feature.attributes
           );
 
           // Update selectedFeatures state
           setSelectedFeatures((prev) => {
             console.log(
-              `[MapContext] Feature added to selection:`,
+              "[MapContext] Feature added to selection:",
               feature.attributes
             );
             return [...prev, feature];
@@ -653,6 +652,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     if (!selectionGraphicsLayerRef.current) return;
     try {
       selectionGraphicsLayerRef.current.removeAll();
+      radiusGraphicsLayerRef.current?.removeAll(); // Clear radius graphics as well
       setSelectedFeatures([]);
       console.log("[MapContext] Selection cleared");
     } catch (error) {
@@ -667,9 +667,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       try {
         console.log(
-          `Displaying ${
-            features.length
-          } features for layers: ${activeLayers.join(", ")}`
+          `Displaying ${features.length} features for layers: ${activeLayers.join(
+            ", "
+          )}`
         );
         selectionGraphicsLayerRef.current.removeAll();
 
@@ -892,13 +892,19 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-  // Draw radius
+  // Updated drawRadius function to handle multiple radii per point
   const drawRadius = useCallback(
     async (point, style = null) => {
-      if (!radiusGraphicsLayerRef.current || !point?.center || !mapView) return;
+      if (
+        !radiusGraphicsLayerRef.current ||
+        !point?.center ||
+        !point?.radii ||
+        !mapView
+      )
+        return;
 
       try {
-        // Clear existing radius graphics for this point
+        // Remove existing graphics for this point
         radiusGraphicsLayerRef.current.removeAll();
 
         const center = ensureValidGeometry(
@@ -907,20 +913,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         );
         if (!center) return;
         const centerPoint = webMercatorToGeographic(center);
-        const radius = point.radius * 1609.34; // Convert miles to meters
 
-        const [{ default: geometryEngine }, { default: Graphic }] =
-          await Promise.all([
-            import("@arcgis/core/geometry/geometryEngine"),
-            import("@arcgis/core/Graphic"),
-          ]);
-
-        // Create a buffer polygon around the center point
-        const polygon = geometryEngine.geodesicBuffer(
-          centerPoint,
-          radius,
-          "meters"
-        );
+        const [geometryEngine, { default: Graphic }] = await Promise.all([
+          import("@arcgis/core/geometry/geometryEngine"),
+          import("@arcgis/core/Graphic"),
+        ]);
 
         const fillRgb = style?.fillColor
           ? hexToRgb(style.fillColor)
@@ -929,22 +926,34 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           ? hexToRgb(style.borderColor)
           : [0, 123, 255];
 
-        const circleGraphic = new Graphic({
-          geometry: polygon,
-          attributes: {
-            FEATURE_TYPE: "radius",
-          },
-          symbol: {
-            type: "simple-fill",
-            color: [...fillRgb, style?.fillOpacity || 0.3],
-            outline: {
-              color: [...outlineRgb, 1],
-              width: style?.borderWidth || 2,
-            },
-          },
-        });
+        // Draw each radius
+        for (const radiusMiles of point.radii) {
+          const radiusMeters = radiusMiles * 1609.34; // Convert miles to meters
 
-        radiusGraphicsLayerRef.current.add(circleGraphic);
+          // Create a buffer polygon around the center point
+          const polygon = geometryEngine.geodesicBuffer(
+            centerPoint,
+            radiusMeters,
+            "meters"
+          );
+
+          const circleGraphic = new Graphic({
+            geometry: polygon,
+            attributes: {
+              FEATURE_TYPE: "radius",
+            },
+            symbol: {
+              type: "simple-fill",
+              color: [...fillRgb, style?.fillOpacity || 0.3],
+              outline: {
+                color: [...outlineRgb, 1],
+                width: style?.borderWidth || 2,
+              },
+            },
+          });
+
+          radiusGraphicsLayerRef.current.add(circleGraphic);
+        }
       } catch (error) {
         console.error("Error drawing radius:", error);
       }
@@ -968,7 +977,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           }
         });
         setActiveLayers([]);
-        console.log(`[MapContext] activeLayers cleared.`);
+        console.log("[MapContext] activeLayers cleared.");
         return;
       }
 
@@ -1024,7 +1033,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         }
       });
       setActiveLayers([]);
-      console.log(`[MapContext] activeLayers cleared after hiding all layers.`);
+      console.log("[MapContext] activeLayers cleared after hiding all layers.");
     } catch (error) {
       console.error("[MapContext] Error hiding feature layers:", error);
     }
@@ -1088,7 +1097,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           `[MapContext] Displayed ${allFeatures.length} features on the map.`
         );
       } else {
-        console.log(`[MapContext] No features found for the query.`);
+        console.log("[MapContext] No features found for the query.");
       }
 
       return allFeatures;
@@ -1124,21 +1133,21 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     if (!mapView) return;
 
     const handleMapClick = async (event) => {
-      console.log(`[MapContext] Map clicked at:`, event.mapPoint);
+      console.log("[MapContext] Map clicked at:", event.mapPoint);
       if (!isMapSelectionActive || !activeLayers.length) {
         console.log(
-          `[MapContext] Map selection is not active or no active layers.`
+          "[MapContext] Map selection is not active or no active layers."
         );
         return;
       }
 
       try {
         const hitResult = await mapView.hitTest(event);
-        console.log(`[MapContext] hitTest result:`, hitResult);
+        console.log("[MapContext] hitTest result:", hitResult);
 
         if (hitResult && hitResult.results.length > 0) {
           hitResult.results.forEach((r) => {
-            console.log(`[MapContext] hitTest Layer Title:`, r.layer.title);
+            console.log("[MapContext] hitTest Layer Title:", r.layer.title);
           });
 
           const graphicResult = hitResult.results.find((r) =>
@@ -1159,11 +1168,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             await addToSelection(graphic, matchedLayerType);
           } else {
             console.log(
-              `[MapContext] No matching graphic found in active layers.`
+              "[MapContext] No matching graphic found in active layers."
             );
           }
         } else {
-          console.log(`[MapContext] No results from hitTest.`);
+          console.log("[MapContext] No results from hitTest.");
         }
       } catch (error) {
         console.error("[MapContext] Error handling map click:", error);
@@ -1183,6 +1192,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       // Clear all market areas first
       hideAllFeatureLayers();
+      radiusGraphicsLayerRef.current?.removeAll();
+      selectionGraphicsLayerRef.current?.removeAll();
 
       // Sort market areas by order field to control rendering order
       const sortedAreas = [...marketAreas].sort((a, b) => a.order - b.order);

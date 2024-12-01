@@ -1,20 +1,22 @@
-//market-area-tool/src/components/market-areas/Radius.jsx
+// src/components/market-areas/Radius.jsx
+
 import { useState, useEffect } from "react";
 import { MapPinIcon } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
+import { toast } from "react-hot-toast";
 
-export default function Radius({ onFormStateChange, styleSettings }) {
-  const {
-    mapView,
-    drawRadius,
-    clearSelection
-  } = useMap();
+export default function Radius({
+  onFormStateChange,
+  styleSettings,
+  existingRadiusPoints = [],
+}) {
+  const { mapView, drawRadius, clearSelection } = useMap();
 
   const [formState, setFormState] = useState({
-    radiusPoints: [], // Array of {center: Point, radii: number[]} objects
+    radiusPoints: existingRadiusPoints, // Array of { center: Point, radii: number[] } objects
     currentRadius: 1, // Default 1-mile radius
     selectedPinIndex: null, // For tracking selected pin
-    isPlacingPin: false
+    isPlacingPin: false,
   });
 
   // Map click handler for placing pins
@@ -27,23 +29,25 @@ export default function Radius({ onFormStateChange, styleSettings }) {
       try {
         const point = {
           center: event.mapPoint,
-          radii: [formState.currentRadius]
+          radii: [formState.currentRadius],
         };
 
         await drawRadius(point, styleSettings);
 
-        setFormState(prev => ({
+        setFormState((prev) => ({
           ...prev,
           radiusPoints: [...prev.radiusPoints, point],
-          isPlacingPin: false
+          isPlacingPin: false,
+          selectedPinIndex: prev.radiusPoints.length, // Select the newly added point
         }));
 
         // Notify parent of state change
         onFormStateChange({
-          radiusPoints: [...formState.radiusPoints, point]
+          radiusPoints: [...formState.radiusPoints, point],
         });
       } catch (error) {
         console.error("Error handling map click:", error);
+        toast.error("Failed to place pin on the map");
       }
     };
 
@@ -52,53 +56,60 @@ export default function Radius({ onFormStateChange, styleSettings }) {
     return () => {
       clickHandler.remove();
     };
-  }, [mapView, formState.isPlacingPin, formState.currentRadius, formState.radiusPoints, drawRadius, styleSettings, onFormStateChange]);
+  }, [
+    mapView,
+    formState.isPlacingPin,
+    formState.currentRadius,
+    formState.radiusPoints,
+    drawRadius,
+    styleSettings,
+    onFormStateChange,
+  ]);
 
   // Add radius to selected or last point
-  const addCurrentRadius = () => {
+  const addCurrentRadius = async () => {
     if (!formState.radiusPoints.length) return;
 
     const updatedPoints = [...formState.radiusPoints];
-    const targetIndex = formState.selectedPinIndex !== null
-      ? formState.selectedPinIndex
-      : updatedPoints.length - 1;
+    const targetIndex =
+      formState.selectedPinIndex !== null
+        ? formState.selectedPinIndex
+        : updatedPoints.length - 1;
     const targetPoint = updatedPoints[targetIndex];
 
     if (!targetPoint.radii.includes(formState.currentRadius)) {
       targetPoint.radii.push(formState.currentRadius);
       targetPoint.radii.sort((a, b) => a - b);
 
-      drawRadius(
-        {
-          center: targetPoint.center,
-          radii: [formState.currentRadius]
-        },
-        styleSettings
-      );
+      await drawRadius(targetPoint, styleSettings);
 
-      setFormState(prev => ({
+      setFormState((prev) => ({
         ...prev,
-        radiusPoints: updatedPoints
+        radiusPoints: updatedPoints,
       }));
 
       // Notify parent of state change
       onFormStateChange({ radiusPoints: updatedPoints });
+    } else {
+      toast.error("This radius already exists for the selected point");
     }
   };
 
   // Remove an entire point and its radii
   const removeRadiusPoint = (pointIndex) => {
-    const updatedPoints = formState.radiusPoints.filter((_, i) => i !== pointIndex);
-    
-    setFormState(prev => ({
+    const updatedPoints = formState.radiusPoints.filter(
+      (_, i) => i !== pointIndex
+    );
+
+    setFormState((prev) => ({
       ...prev,
       radiusPoints: updatedPoints,
-      selectedPinIndex: null
+      selectedPinIndex: null,
     }));
 
     // Clear and redraw remaining points
     clearSelection();
-    updatedPoints.forEach(point => {
+    updatedPoints.forEach((point) => {
       drawRadius(point, styleSettings);
     });
 
@@ -115,26 +126,26 @@ export default function Radius({ onFormStateChange, styleSettings }) {
     if (newRadii.length === 0) {
       // If no radii left, remove the entire point
       updatedPoints.splice(pointIndex, 1);
-      setFormState(prev => ({
+      setFormState((prev) => ({
         ...prev,
         radiusPoints: updatedPoints,
-        selectedPinIndex: null
+        selectedPinIndex: null,
       }));
     } else {
       // Update the radii array
       updatedPoints[pointIndex] = {
         ...point,
-        radii: newRadii
+        radii: newRadii,
       };
-      setFormState(prev => ({
+      setFormState((prev) => ({
         ...prev,
-        radiusPoints: updatedPoints
+        radiusPoints: updatedPoints,
       }));
     }
 
     // Clear and redraw remaining points
     clearSelection();
-    updatedPoints.forEach(point => {
+    updatedPoints.forEach((point) => {
       drawRadius(point, styleSettings);
     });
 
@@ -144,28 +155,33 @@ export default function Radius({ onFormStateChange, styleSettings }) {
 
   // Handle pin selection
   const handlePinSelect = (pointIndex) => {
-    setFormState(prev => ({
+    setFormState((prev) => ({
       ...prev,
-      selectedPinIndex: prev.selectedPinIndex === pointIndex ? null : pointIndex,
-      isPlacingPin: false
+      selectedPinIndex:
+        prev.selectedPinIndex === pointIndex ? null : pointIndex,
+      isPlacingPin: false, // Disable placing pin when selecting
     }));
   };
 
   // Toggle pin placement mode
   const togglePinPlacement = () => {
-    setFormState(prev => ({
+    setFormState((prev) => ({
       ...prev,
       isPlacingPin: !prev.isPlacingPin,
-      selectedPinIndex: null // Clear selection when placing new pin
+      selectedPinIndex: null, // Clear selection when placing new pin
     }));
+
+    if (!formState.isPlacingPin) {
+      toast.success("Click on the map to place a new pin");
+    }
   };
 
   // Update radius value
   const handleRadiusChange = (e) => {
     const value = parseFloat(e.target.value) || 0;
-    setFormState(prev => ({
+    setFormState((prev) => ({
       ...prev,
-      currentRadius: Math.max(0.1, value)
+      currentRadius: Math.max(0.1, value),
     }));
   };
 
@@ -173,11 +189,11 @@ export default function Radius({ onFormStateChange, styleSettings }) {
   useEffect(() => {
     if (formState.radiusPoints.length > 0) {
       clearSelection();
-      formState.radiusPoints.forEach(point => {
+      formState.radiusPoints.forEach((point) => {
         drawRadius(point, styleSettings);
       });
     }
-  }, [styleSettings, clearSelection, drawRadius]);
+  }, [styleSettings, clearSelection, drawRadius, formState.radiusPoints]);
 
   return (
     <div className="space-y-6">
@@ -259,7 +275,7 @@ export default function Radius({ onFormStateChange, styleSettings }) {
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Point {pointIndex + 1} {" "}
+                  Point {pointIndex + 1}{" "}
                   {formState.selectedPinIndex === pointIndex && "(Selected)"}
                 </span>
                 <button
