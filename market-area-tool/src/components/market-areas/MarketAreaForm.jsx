@@ -47,13 +47,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     styleSettings: {
       ...(editingMarketArea?.style_settings || {
         fillColor: "#0078D4",
-        fillOpacity: 0.3,
+        fillOpacity: 1, // Default to fully opaque
         borderColor: "#0078D4",
-        borderWidth: 2,
+        borderWidth: 1, // Default border width
       }),
       noBorder:
-        editingMarketArea?.style_settings?.borderWidth === -1 || false,
-      noFill: editingMarketArea?.style_settings?.fillOpacity === 0 || false,
+        editingMarketArea?.style_settings?.borderWidth === 0 || false,
+      noFill:
+        editingMarketArea?.style_settings?.fillOpacity === 0 || false,
     },
   });
 
@@ -123,9 +124,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       const newSelectedLocations = selectedFeatures
         .filter(
           (feature) =>
-            !prev.selectedLocations.some(
-              (loc) => loc.id === feature.attributes.FID
-            )
+            !prev.selectedLocations.some((loc) => loc.id === feature.attributes.FID)
         )
         .map((feature) => ({
           id: feature.attributes.FID,
@@ -200,7 +199,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               styleSettings: {
                 ...editingMarketArea.style_settings,
                 noBorder:
-                  editingMarketArea.style_settings?.borderWidth === -1,
+                  editingMarketArea.style_settings?.borderWidth === 0,
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
               },
               selectedLocations: editingMarketArea.locations
@@ -253,7 +252,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               styleSettings: {
                 ...editingMarketArea.style_settings,
                 noBorder:
-                  editingMarketArea.style_settings?.borderWidth === -1,
+                  editingMarketArea.style_settings?.borderWidth === 0,
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
               },
             }));
@@ -497,21 +496,37 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
         if (type === "noBorder") {
           newStyleSettings.noBorder = value;
-          newStyleSettings.borderWidth = value ? -1 : 2;
+          if (value) {
+            newStyleSettings.borderWidth = 0;
+          } else {
+            if (newStyleSettings.borderWidth === 0) {
+              newStyleSettings.borderWidth = 1; // Default to 1 if previously 0
+            }
+          }
         } else if (type === "noFill") {
           newStyleSettings.noFill = value;
           if (value) {
             newStyleSettings.fillOpacity = 0;
-            // Optionally, reset fillColor or keep as is
           } else {
-            newStyleSettings.fillOpacity = 0.3;
+            if (newStyleSettings.fillOpacity === 0) {
+              newStyleSettings.fillOpacity = 1; // Default to fully opaque if previously 0
+            }
           }
         } else if (type === "fillOpacity") {
           // Ensure value is between 0 and 1
           newStyleSettings.fillOpacity = Math.max(0, Math.min(1, value));
           // If opacity is being set, ensure noFill is false
-          if (value > 0) {
+          if (newStyleSettings.fillOpacity === 0) {
+            newStyleSettings.noFill = true;
+          } else {
             newStyleSettings.noFill = false;
+          }
+        } else if (type === "borderWidth") {
+          newStyleSettings.borderWidth = Math.max(0, Number(value));
+          if (newStyleSettings.borderWidth === 0) {
+            newStyleSettings.noBorder = true;
+          } else {
+            newStyleSettings.noBorder = false;
           }
         } else {
           newStyleSettings[type] = value;
@@ -534,13 +549,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     try {
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
-        fillOpacity: formState.styleSettings.noFill
-          ? 0
-          : formState.styleSettings.fillOpacity,
+        fillOpacity: formState.styleSettings.fillOpacity,
         borderColor: formState.styleSettings.borderColor,
-        borderWidth: formState.styleSettings.noBorder
-          ? -1
-          : formState.styleSettings.borderWidth,
+        borderWidth: formState.styleSettings.borderWidth,
       };
 
       const marketAreaData = {
@@ -696,10 +707,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             >
               <option value="">Select type...</option>
               {maTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
             </select>
           </div>
 
@@ -752,11 +763,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             </div>
           </div>
 
+          {/* Style Settings */}
           <div className="space-y-4 p-4 border rounded-md">
             <h3 className="font-medium text-gray-900 dark:text-gray-100">
               Style Settings
             </h3>
             <div className="grid grid-cols-2 gap-4">
+              {/* Fill Color */}
               <div>
                 <label className="block text-sm text-gray-700 dark:text-gray-300">
                   Fill Color
@@ -769,20 +782,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       handleStyleChange("fillColor", e.target.value)
                     }
                     className="h-8 w-8 rounded cursor-pointer"
-                    disabled={formState.styleSettings.noFill}
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={formState.styleSettings.fillOpacity * 100}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        "fillOpacity",
-                        Number(e.target.value) / 100
-                      )
-                    }
-                    className="ml-2 flex-1"
                     disabled={formState.styleSettings.noFill}
                   />
                 </div>
@@ -806,6 +805,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 </div>
               </div>
 
+              {/* Border Color */}
               <div>
                 <label className="block text-sm text-gray-700 dark:text-gray-300">
                   Border Color
@@ -818,17 +818,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       handleStyleChange("borderColor", e.target.value)
                     }
                     className="h-8 w-8 rounded cursor-pointer"
-                    disabled={formState.styleSettings.noBorder}
-                  />
-                  <input
-                    type="range"
-                    min="-1"
-                    max="5"
-                    value={formState.styleSettings.borderWidth}
-                    onChange={(e) =>
-                      handleStyleChange("borderWidth", Number(e.target.value))
-                    }
-                    className="ml-2 flex-1"
                     disabled={formState.styleSettings.noBorder}
                   />
                 </div>
@@ -849,6 +838,88 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   >
                     No border
                   </label>
+                </div>
+              </div>
+            </div>
+
+            {/* New Fields for Transparency and Border Weight */}
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              {/* Transparency Percentage */}
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Transparency %
+                </label>
+                <div className="flex items-center mt-1">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={(1 - formState.styleSettings.fillOpacity) * 100}
+                    onChange={(e) =>
+                      handleStyleChange(
+                        "fillOpacity",
+                        1 - Number(e.target.value) / 100
+                      )
+                    }
+                    className="flex-1"
+                    disabled={formState.styleSettings.noFill}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={Math.round(
+                      (1 - formState.styleSettings.fillOpacity) * 100
+                    )}
+                    onChange={(e) =>
+                      handleStyleChange(
+                        "fillOpacity",
+                        1 - Number(e.target.value) / 100
+                      )
+                    }
+                    className="ml-2 w-16 rounded-md border border-gray-300 dark:border-gray-600
+                      bg-white dark:bg-gray-700 py-1 px-2 shadow-sm focus:border-green-500
+                      focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                    disabled={formState.styleSettings.noFill}
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    %
+                  </span>
+                </div>
+              </div>
+
+              {/* Border Weight */}
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300">
+                  Border Weight
+                </label>
+                <div className="flex items-center mt-1">
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={formState.styleSettings.borderWidth}
+                    onChange={(e) =>
+                      handleStyleChange("borderWidth", Number(e.target.value))
+                    }
+                    className="flex-1"
+                    disabled={formState.styleSettings.noBorder}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={formState.styleSettings.borderWidth}
+                    onChange={(e) =>
+                      handleStyleChange("borderWidth", Number(e.target.value))
+                    }
+                    className="ml-2 w-16 rounded-md border border-gray-300 dark:border-gray-600
+                      bg-white dark:bg-gray-700 py-1 px-2 shadow-sm focus:border-green-500
+                      focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                    disabled={formState.styleSettings.noBorder}
+                  />
                 </div>
               </div>
             </div>
@@ -928,16 +999,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       </span>
                     </div>
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
-                      {formState.availableLocations.map((location) => (
-                        <div
-                          key={location.id}
-                          onClick={() => handleLocationSelect(location)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                   text-sm text-gray-900 dark:text-gray-100"
-                        >
-                          {location.name}
-                        </div>
-                      ))}
+                    {formState.availableLocations.map((location) => (
+  <div
+    key={location.id || location.someUniqueIdentifier}
+    onClick={() => handleLocationSelect(location)}
+    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+             text-sm text-gray-900 dark:text-gray-100"
+  >
+    {location.name}
+  </div>
+))}
                       {formState.availableLocations.length === 0 &&
                         !formState.isSearching && (
                           <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
@@ -965,16 +1036,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       </span>
                     </div>
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
-                      {formState.selectedLocations.map((location) => (
-                        <div
-                          key={location.id}
-                          onClick={() => handleLocationDeselect(location)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                   text-sm text-gray-900 dark:text-gray-100"
-                        >
-                          {location.name}
-                        </div>
-                      ))}
+                    {formState.selectedLocations.map((location) => (
+  <div
+    key={location.id || location.someUniqueIdentifier}
+    onClick={() => handleLocationDeselect(location)}
+    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+             text-sm text-gray-900 dark:text-gray-100"
+  >
+    {location.name}
+  </div>
+))}
                       {formState.selectedLocations.length === 0 && (
                         <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
                           No locations selected

@@ -667,9 +667,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       try {
         console.log(
-          `Displaying ${features.length} features for layers: ${activeLayers.join(
-            ", "
-          )}`
+          `Displaying ${
+            features.length
+          } features for layers: ${activeLayers.join(", ")}`
         );
         selectionGraphicsLayerRef.current.removeAll();
 
@@ -718,6 +718,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [activeLayers, mapView]
   );
 
+  // Updated updateFeatureStyles function
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
@@ -814,21 +815,39 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               sections.push(currentSection);
             }
 
+            // Define fillRgb and outlineRgb outside the sections loop
+            const fillRgb = styles.fill ? hexToRgb(styles.fill) : [0, 123, 255];
+            const outlineRgb = styles.outline
+              ? hexToRgb(styles.outline)
+              : [0, 123, 255];
+
             // Create graphics for each section with z-index based on order
             sections.forEach((section, index) => {
               const order = maFeatures[0]?.attributes?.order ?? 0;
 
-              // Create the fill graphic (no border)
-              const fillGraphic = new Graphic({
+              // Determine fill and outline properties
+              const fillOpacity =
+                styles.fillOpacity !== undefined ? styles.fillOpacity : 1;
+              const outlineWidth =
+                styles.outlineWidth !== undefined ? styles.outlineWidth : 1;
+
+              // Create the symbol with conditional fill and outline
+              const symbol = {
+                type: "simple-fill",
+                color:
+                  fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0], // Fully transparent if opacity is 0
+                outline:
+                  outlineWidth > 0
+                    ? {
+                        color: outlineRgb,
+                        width: outlineWidth,
+                      }
+                    : null, // No outline if width is 0
+              };
+
+              const graphic = new Graphic({
                 geometry: section,
-                symbol: {
-                  type: "simple-fill",
-                  color: [...hexToRgb(styles.fill), styles.fillOpacity],
-                  outline: {
-                    color: [0, 0, 0, 0],
-                    width: 0,
-                  },
-                },
+                symbol: symbol,
                 attributes: {
                   marketAreaId,
                   FEATURE_TYPE: featureType,
@@ -836,31 +855,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   order, // Include order in attributes
                 },
               });
-
-              // Create the border graphic (no fill)
-              if (styles.outlineWidth !== -1) {
-                const borderGraphic = new Graphic({
-                  geometry: section,
-                  symbol: {
-                    type: "simple-line",
-                    color: styles.outline,
-                    width: styles.outlineWidth,
-                    style: "solid",
-                  },
-                  attributes: {
-                    marketAreaId,
-                    FEATURE_TYPE: featureType,
-                    sectionIndex: index,
-                    order, // Include order in attributes
-                    isBorder: true,
-                  },
-                });
-
-                // Add graphics with higher order (top of list) appearing on top
-                selectionGraphicsLayerRef.current.add(borderGraphic);
-              }
-
-              selectionGraphicsLayerRef.current.add(fillGraphic);
+              selectionGraphicsLayerRef.current.add(graphic);
             });
           } catch (error) {
             console.error(
@@ -892,7 +887,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-  // Updated drawRadius function to handle multiple radii per point
   const drawRadius = useCallback(
     async (point, style = null) => {
       if (
@@ -919,12 +913,18 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           import("@arcgis/core/Graphic"),
         ]);
 
+        // Define fillRgb and outlineRgb
         const fillRgb = style?.fillColor
           ? hexToRgb(style.fillColor)
           : [0, 123, 255];
         const outlineRgb = style?.borderColor
           ? hexToRgb(style.borderColor)
           : [0, 123, 255];
+
+        const fillOpacity =
+          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+        const borderWidth =
+          style?.borderWidth !== undefined ? style.borderWidth : 2;
 
         // Draw each radius
         for (const radiusMiles of point.radii) {
@@ -937,19 +937,24 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             "meters"
           );
 
+          const symbol = {
+            type: "simple-fill",
+            color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0], // Fully transparent if opacity is 0
+            outline:
+              borderWidth > 0
+                ? {
+                    color: outlineRgb,
+                    width: borderWidth,
+                  }
+                : null, // No outline if width is 0
+          };
+
           const circleGraphic = new Graphic({
             geometry: polygon,
             attributes: {
               FEATURE_TYPE: "radius",
             },
-            symbol: {
-              type: "simple-fill",
-              color: [...fillRgb, style?.fillOpacity || 0.3],
-              outline: {
-                color: [...outlineRgb, 1],
-                width: style?.borderWidth || 2,
-              },
-            },
+            symbol: symbol,
           });
 
           radiusGraphicsLayerRef.current.add(circleGraphic);
