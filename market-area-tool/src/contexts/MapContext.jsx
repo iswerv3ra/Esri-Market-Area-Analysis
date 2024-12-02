@@ -544,38 +544,25 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   // Add feature to selection
   const addToSelection = useCallback(
     async (feature, layerType) => {
-      console.log(
-        "[MapContext] addToSelection called with feature:",
-        feature.attributes
-      );
+      console.log(`[MapContext] addToSelection called with feature:`, feature.attributes);
 
       if (!selectionGraphicsLayerRef.current || !mapView) {
-        console.warn(
-          "[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized"
-        );
+        console.warn(`[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`);
         return;
       }
 
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
-          console.error(
-            `[MapContext] Layer configuration not found for layer type: ${layerType}`
-          );
+          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
 
         // Ensure valid geometry
-        const geometry = ensureValidGeometry(
-          feature.geometry,
-          mapView.spatialReference
-        );
+        const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
         if (!geometry) {
-          console.warn(
-            "[MapContext] Invalid geometry for feature:",
-            feature.attributes
-          );
+          console.warn(`[MapContext] Invalid geometry for feature:`, feature.attributes);
           return;
         }
 
@@ -595,23 +582,17 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             symbol = SYMBOLS.selectedPolygon;
             break;
           default:
-            console.warn(
-              `[MapContext] Unsupported geometry type for selection: ${geometry.type}`
-            );
+            console.warn(`[MapContext] Unsupported geometry type for selection: ${geometry.type}`);
             return;
         }
 
         // Check if feature is already selected
         const isAlreadySelected = selectedFeatures.some(
-          (f) =>
-            f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+          (f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
         );
 
         if (isAlreadySelected) {
-          console.log(
-            "[MapContext] Feature already selected:",
-            feature.attributes
-          );
+          console.log(`[MapContext] Feature already selected:`, feature.attributes);
           // Remove the feature from selection
           await removeFromSelection(feature, layerType);
         } else {
@@ -626,17 +607,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           });
 
           selectionGraphicsLayerRef.current.add(selectionGraphic);
-          console.log(
-            "[MapContext] Graphic added to selectionGraphicsLayer for feature:",
-            feature.attributes
-          );
+          console.log(`[MapContext] Graphic added to selectionGraphicsLayer for feature:`, feature.attributes);
 
           // Update selectedFeatures state
           setSelectedFeatures((prev) => {
-            console.log(
-              "[MapContext] Feature added to selection:",
-              feature.attributes
-            );
+            console.log(`[MapContext] Feature added to selection:`, feature.attributes);
             return [...prev, feature];
           });
         }
@@ -718,154 +693,67 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [activeLayers, mapView]
   );
 
-  // Updated updateFeatureStyles function
+
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
-      if (!selectionGraphicsLayerRef.current || !mapView) {
-        console.log("Selection layer or map view not initialized");
-        return;
-      }
-
+      if (!selectionGraphicsLayerRef.current || !mapView) return;
+  
       try {
-        const [{ default: Graphic }, { default: Polygon }, geometryEngine] =
-          await Promise.all([
-            import("@arcgis/core/Graphic"),
-            import("@arcgis/core/geometry/Polygon"),
-            import("@arcgis/core/geometry/geometryEngine"),
-          ]);
-
+        const [{ default: Graphic }, geometryEngine] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/geometryEngine"),
+        ]);
+  
+        // Clear all existing graphics for the specific feature type
+        const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes.FEATURE_TYPE !== featureType
+        );
+  
+        selectionGraphicsLayerRef.current.removeAll();
+        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+  
         // Group features by market area ID
         const featuresByMarketArea = features.reduce((acc, feature) => {
-          const marketAreaId = feature.attributes?.marketAreaId || "default";
+          const marketAreaId = feature.attributes.marketAreaId;
           if (!acc[marketAreaId]) acc[marketAreaId] = [];
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
-
-        // Clear existing graphics only for the market areas we're updating
-        const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
-        const graphicsToKeep =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
-          );
-
-        selectionGraphicsLayerRef.current.removeAll();
-        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-
-        // Sort market areas by order (if available)
-        const sortedMarketAreaIds = Object.keys(featuresByMarketArea).sort(
-          (a, b) => {
-            const orderA = featuresByMarketArea[a][0]?.attributes?.order ?? 0;
-            const orderB = featuresByMarketArea[b][0]?.attributes?.order ?? 0;
-            return orderA - orderB;
-          }
-        );
-
-        // Process each market area in order
-        for (const marketAreaId of sortedMarketAreaIds) {
-          const maFeatures = featuresByMarketArea[marketAreaId];
-
-          try {
-            // Create polygons for all features in this market area
-            const polygons = maFeatures
-              .map((feature) => {
-                const rings =
-                  feature.geometry?.rings ||
-                  feature.geometry?.toJSON?.()?.rings ||
-                  (feature.geometry?.type === "polygon"
-                    ? feature.geometry.coordinates
-                    : null);
-
-                if (rings) {
-                  return new Polygon({
-                    rings: rings,
-                    spatialReference: mapView.spatialReference,
-                  });
-                }
-                return null;
-              })
-              .filter((p) => p !== null);
-
-            if (polygons.length === 0) continue;
-
-            // Find separate, non-contiguous sections using geometryEngine
-            let sections = [];
-            let remainingPolygons = [...polygons];
-
-            while (remainingPolygons.length > 0) {
-              let currentSection = remainingPolygons[0];
-              remainingPolygons = remainingPolygons.slice(1);
-
-              let foundIntersection;
-              do {
-                foundIntersection = false;
-                for (let i = remainingPolygons.length - 1; i >= 0; i--) {
-                  const testPolygon = remainingPolygons[i];
-                  if (geometryEngine.intersects(currentSection, testPolygon)) {
-                    currentSection = geometryEngine.union([
-                      currentSection,
-                      testPolygon,
-                    ]);
-                    remainingPolygons.splice(i, 1);
-                    foundIntersection = true;
-                  }
-                }
-              } while (foundIntersection);
-
-              sections.push(currentSection);
-            }
-
-            // Define fillRgb and outlineRgb outside the sections loop
-            const fillRgb = styles.fill ? hexToRgb(styles.fill) : [0, 123, 255];
-            const outlineRgb = styles.outline
-              ? hexToRgb(styles.outline)
-              : [0, 123, 255];
-
-            // Create graphics for each section with z-index based on order
-            sections.forEach((section, index) => {
-              const order = maFeatures[0]?.attributes?.order ?? 0;
-
-              // Determine fill and outline properties
-              const fillOpacity =
-                styles.fillOpacity !== undefined ? styles.fillOpacity : 1;
-              const outlineWidth =
-                styles.outlineWidth !== undefined ? styles.outlineWidth : 1;
-
-              // Create the symbol with conditional fill and outline
-              const symbol = {
-                type: "simple-fill",
-                color:
-                  fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0], // Fully transparent if opacity is 0
-                outline:
-                  outlineWidth > 0
-                    ? {
-                        color: outlineRgb,
-                        width: outlineWidth,
-                      }
-                    : null, // No outline if width is 0
-              };
-
-              const graphic = new Graphic({
-                geometry: section,
-                symbol: symbol,
-                attributes: {
-                  marketAreaId,
-                  FEATURE_TYPE: featureType,
-                  sectionIndex: index,
-                  order, // Include order in attributes
-                },
-              });
-              selectionGraphicsLayerRef.current.add(graphic);
+  
+        // Process each market area's features
+        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          const geometries = maFeatures.map((f) => f.geometry);
+  
+          // Ensure all geometries are valid before union
+          const validGeometries = geometries.filter((g) => g != null);
+          if (validGeometries.length === 0) continue;
+  
+          const unionGeometry = geometryEngine.union(validGeometries);
+  
+          if (unionGeometry) {
+            const symbol = {
+              type: "simple-fill",
+              color: [...hexToRgb(styles.fill), styles.fillOpacity],
+              outline: {
+                color: styles.outline,
+                width: styles.outlineWidth,
+              },
+            };
+  
+            const unionGraphic = new Graphic({
+              geometry: unionGeometry,
+              symbol: symbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+              },
             });
-          } catch (error) {
-            console.error(
-              `Error processing market area ${marketAreaId}:`,
-              error
-            );
+  
+            selectionGraphicsLayerRef.current.add(unionGraphic);
           }
         }
       } catch (error) {
-        console.error("Error in updateFeatureStyles:", error);
+        console.error("Error updating feature styles:", error);
       }
     },
     [mapView]
