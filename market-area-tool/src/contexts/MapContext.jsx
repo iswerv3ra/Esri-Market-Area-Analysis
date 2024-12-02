@@ -316,11 +316,27 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         } else {
           return "";
         }
-      // Handle other layer types as needed
+      case "county":
+        return `${attrs.NAME || ""}, ${attrs.STATE_NAME || ""}`;
+      case "tract":
+        return `Tract ${attrs.TRACT_FIPS || attrs.TRACT || ""}`;
+      case "block":
+        return `Block ${attrs.BLOCK || ""}`;
+      case "blockgroup":
+        return `Block Group ${attrs.BLOCKGROUP_FIPS || ""}`;
+      case "place":
+        return attrs.NAME || attrs.BASENAME || "";
+      case "state":
+        return attrs.STATE_NAME || "";
+      case "cbsa":
+        return attrs.NAME || attrs.BASENAME || "";
+      case "usa":
+        return "United States";
       default:
         return attrs.NAME || "";
     }
   }, []);
+  
 
   // Initialize graphics layers
   const initializeGraphicsLayers = useCallback(async () => {
@@ -489,68 +505,73 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView, initializeFeatureLayer]
   );
 
-  // Remove feature from selection
-  const removeFromSelection = useCallback(async (feature, layerType) => {
-    console.log(
-      "[MapContext] removeFromSelection called with feature:",
-      feature.attributes
-    );
-
-    if (!selectionGraphicsLayerRef.current) {
-      console.warn(
-        "[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized"
+  const removeFromSelection = useCallback(
+    async (feature, layerType) => {
+      console.log(
+        "[MapContext] removeFromSelection called with feature:",
+        feature.attributes
       );
-      return;
-    }
-
-    try {
-      const currentLayerConfig = FEATURE_LAYERS[layerType];
-      if (!currentLayerConfig) {
-        console.error(
-          `[MapContext] Layer configuration not found for layer type: ${layerType}`
+  
+      if (!selectionGraphicsLayerRef.current) {
+        console.warn(
+          "[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized"
         );
         return;
       }
-      const uniqueIdField = currentLayerConfig.uniqueIdField;
-
-      // Remove the graphic from selectionGraphicsLayer
-      selectionGraphicsLayerRef.current.graphics.forEach((g) => {
-        if (g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]) {
+  
+      try {
+        const currentLayerConfig = FEATURE_LAYERS[layerType];
+        if (!currentLayerConfig) {
+          console.error(
+            `[MapContext] Layer configuration not found for layer type: ${layerType}`
+          );
+          return;
+        }
+        const uniqueIdField = currentLayerConfig.uniqueIdField;
+  
+        // Find and remove the graphic from selectionGraphicsLayer
+        const graphicsToRemove = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) =>
+            g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+        );
+  
+        graphicsToRemove.forEach((g) => {
           selectionGraphicsLayerRef.current.remove(g);
           console.log(
             "[MapContext] Graphic removed from selectionGraphicsLayer for feature:",
+            g.attributes
+          );
+        });
+  
+        // Update selectedFeatures state
+        setSelectedFeatures((prev) => {
+          const newSelectedFeatures = prev.filter(
+            (f) =>
+              f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
+          );
+          console.log(
+            "[MapContext] Feature removed from selection:",
             feature.attributes
           );
-        }
-      });
+          return newSelectedFeatures;
+        });
+      } catch (error) {
+        console.error("[MapContext] Error in removeFromSelection:", error);
+      }
+    },
+    [selectedFeatures]
+  );
+  
 
-      // Update selectedFeatures state
-      setSelectedFeatures((prev) => {
-        const newSelectedFeatures = prev.filter(
-          (f) =>
-            f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
-        );
-        console.log(
-          "[MapContext] Feature removed from selection:",
-          feature.attributes
-        );
-        return newSelectedFeatures;
-      });
-    } catch (error) {
-      console.error("[MapContext] Error in removeFromSelection:", error);
-    }
-  }, []);
-
-  // Add feature to selection
   const addToSelection = useCallback(
     async (feature, layerType) => {
       console.log(`[MapContext] addToSelection called with feature:`, feature.attributes);
-
-      if (!selectionGraphicsLayerRef.current || !mapView) {
-        console.warn(`[MapContext] Cannot add to selection: selectionGraphicsLayer or mapView not initialized`);
+  
+      if (!mapView) {
+        console.warn(`[MapContext] Cannot add to selection: mapView not initialized`);
         return;
       }
-
+  
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
@@ -558,58 +579,18 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
-
-        // Ensure valid geometry
-        const geometry = ensureValidGeometry(feature.geometry, mapView.spatialReference);
-        if (!geometry) {
-          console.warn(`[MapContext] Invalid geometry for feature:`, feature.attributes);
-          return;
-        }
-
-        // Dynamically import Graphic
-        const { default: Graphic } = await import("@arcgis/core/Graphic");
-
-        // Determine symbol based on geometry type
-        let symbol;
-        switch (geometry.type.toLowerCase()) {
-          case "point":
-            symbol = SYMBOLS.selectedPoint;
-            break;
-          case "polyline":
-            symbol = SYMBOLS.selectedPolyline;
-            break;
-          case "polygon":
-            symbol = SYMBOLS.selectedPolygon;
-            break;
-          default:
-            console.warn(`[MapContext] Unsupported geometry type for selection: ${geometry.type}`);
-            return;
-        }
-
+  
         // Check if feature is already selected
         const isAlreadySelected = selectedFeatures.some(
           (f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
         );
-
+  
         if (isAlreadySelected) {
           console.log(`[MapContext] Feature already selected:`, feature.attributes);
           // Remove the feature from selection
           await removeFromSelection(feature, layerType);
         } else {
-          // Add the feature to selection
-          const selectionGraphic = new Graphic({
-            geometry,
-            attributes: {
-              ...feature.attributes,
-              FEATURE_TYPE: layerType,
-            },
-            symbol: symbol,
-          });
-
-          selectionGraphicsLayerRef.current.add(selectionGraphic);
-          console.log(`[MapContext] Graphic added to selectionGraphicsLayer for feature:`, feature.attributes);
-
-          // Update selectedFeatures state
+          // Update selectedFeatures state only
           setSelectedFeatures((prev) => {
             console.log(`[MapContext] Feature added to selection:`, feature.attributes);
             return [...prev, feature];
@@ -694,70 +675,114 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   );
 
 
-  const updateFeatureStyles = useCallback(
-    async (features, styles, featureType) => {
-      if (!selectionGraphicsLayerRef.current || !mapView) return;
-  
-      try {
-        const [{ default: Graphic }, geometryEngine] = await Promise.all([
-          import("@arcgis/core/Graphic"),
-          import("@arcgis/core/geometry/geometryEngine"),
-        ]);
-  
-        // Clear all existing graphics for the specific feature type
-        const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
-          (g) => g.attributes.FEATURE_TYPE !== featureType
+  // MapContext.jsx
+// MapContext.jsx
+
+const updateFeatureStyles = useCallback(
+  async (features, styles, featureType) => {
+    if (!selectionGraphicsLayerRef.current || !mapView) return;
+
+    try {
+      const [{ default: Graphic }, geometryEngineAsync] = await Promise.all([
+        import("@arcgis/core/Graphic"),
+        import("@arcgis/core/geometry/geometryEngineAsync"),
+      ]);
+
+      // Get the market area IDs being updated
+      const marketAreaIds = new Set(features.map(f => f.attributes.marketAreaId));
+
+      // Keep existing graphics from other market areas
+      const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+        (g) => !marketAreaIds.has(g.attributes.marketAreaId)
+      );
+
+      // Clear existing graphics
+      selectionGraphicsLayerRef.current.removeAll();
+
+      // Add back existing graphics from other market areas
+      existingGraphics.forEach(g => selectionGraphicsLayerRef.current.add(g));
+
+      // Process features by market area
+      const newFeaturesByMarketArea = features.reduce((acc, feature) => {
+        const marketAreaId = feature.attributes.marketAreaId;
+        if (!acc[marketAreaId]) acc[marketAreaId] = [];
+        acc[marketAreaId].push(feature);
+        return acc;
+      }, {});
+
+      for (const [marketAreaId, maFeatures] of Object.entries(newFeaturesByMarketArea)) {
+        let geometries = maFeatures
+          .map((f) => f.geometry)
+          .filter((g) => g != null);
+
+        if (geometries.length === 0) continue;
+
+        // Simplify and repair geometries before union
+        geometries = await Promise.all(
+          geometries.map(async (geometry) => {
+            let simplified = await geometryEngineAsync.simplify(geometry);
+            // Repair geometry using buffer(0)
+            let repaired = await geometryEngineAsync.buffer(simplified, 0);
+            return repaired || simplified;
+          })
         );
-  
-        selectionGraphicsLayerRef.current.removeAll();
-        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-  
-        // Group features by market area ID
-        const featuresByMarketArea = features.reduce((acc, feature) => {
-          const marketAreaId = feature.attributes.marketAreaId;
-          if (!acc[marketAreaId]) acc[marketAreaId] = [];
-          acc[marketAreaId].push(feature);
-          return acc;
-        }, {});
-  
-        // Process each market area's features
-        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
-          const geometries = maFeatures.map((f) => f.geometry);
-  
-          // Ensure all geometries are valid before union
-          const validGeometries = geometries.filter((g) => g != null);
-          if (validGeometries.length === 0) continue;
-  
-          const unionGeometry = geometryEngine.union(validGeometries);
-  
-          if (unionGeometry) {
-            const symbol = {
-              type: "simple-fill",
-              color: [...hexToRgb(styles.fill), styles.fillOpacity],
-              outline: {
-                color: styles.outline,
-                width: styles.outlineWidth,
-              },
-            };
-  
-            const unionGraphic = new Graphic({
-              geometry: unionGeometry,
-              symbol: symbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-              },
-            });
-  
-            selectionGraphicsLayerRef.current.add(unionGraphic);
+
+        // Union geometries asynchronously
+        let unionGeometry;
+        try {
+          unionGeometry = await geometryEngineAsync.union(geometries);
+        } catch (e) {
+          console.error("Error during union operation:", e);
+          // Fallback to iterative union if union fails
+          unionGeometry = geometries[0];
+          for (let i = 1; i < geometries.length; i++) {
+            try {
+              unionGeometry = await geometryEngineAsync.union([unionGeometry, geometries[i]]);
+            } catch (err) {
+              console.error(`Error unioning geometry at index ${i}:`, err);
+              // Continue with the next geometry
+            }
           }
         }
-      } catch (error) {
-        console.error("Error updating feature styles:", error);
+
+        // Simplify the unioned geometry
+        unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
+
+        if (unionGeometry) {
+          const symbol = {
+            type: "simple-fill",
+            color: [...hexToRgb(styles.fill), styles.fillOpacity],
+            outline: {
+              color: styles.outline,
+              width: styles.outlineWidth,
+            },
+          };
+
+          const unionGraphic = new Graphic({
+            geometry: unionGeometry,
+            symbol: symbol,
+            attributes: {
+              marketAreaId,
+              FEATURE_TYPE: featureType,
+              order: maFeatures[0].attributes.order,
+            },
+          });
+
+          // Add the new graphic
+          selectionGraphicsLayerRef.current.add(unionGraphic);
+        }
       }
-    },
-    [mapView]
-  );
+
+    } catch (error) {
+      console.error("Error updating feature styles:", error);
+    }
+  },
+  [mapView]
+);
+
+  
+
+  
 
   // Helper function to handle geometry validation
   const ensureValidGeometry = (geometry, spatialReference) => {
@@ -776,83 +801,76 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   };
 
   const drawRadius = useCallback(
-    async (point, style = null) => {
-      if (
-        !radiusGraphicsLayerRef.current ||
-        !point?.center ||
-        !point?.radii ||
-        !mapView
-      )
-        return;
-
+    async (point, style = null, marketAreaId = null, order = 0) => {
+      if (!radiusGraphicsLayerRef.current || !point?.center || !point?.radii || !mapView) return;
+  
       try {
-        // Remove existing graphics for this point
-        radiusGraphicsLayerRef.current.removeAll();
-
-        const center = ensureValidGeometry(
-          point.center,
-          mapView.spatialReference
+        // Remove only the graphics for this specific market area for real-time updates
+        const existingGraphics = radiusGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes.marketAreaId !== marketAreaId
         );
+        radiusGraphicsLayerRef.current.removeAll();
+  
+        // First add back all existing graphics from other market areas
+        existingGraphics.forEach(g => radiusGraphicsLayerRef.current.add(g));
+  
+        const center = ensureValidGeometry(point.center, mapView.spatialReference);
         if (!center) return;
         const centerPoint = webMercatorToGeographic(center);
-
+  
         const [geometryEngine, { default: Graphic }] = await Promise.all([
           import("@arcgis/core/geometry/geometryEngine"),
           import("@arcgis/core/Graphic"),
         ]);
-
-        // Define fillRgb and outlineRgb
-        const fillRgb = style?.fillColor
-          ? hexToRgb(style.fillColor)
-          : [0, 123, 255];
-        const outlineRgb = style?.borderColor
-          ? hexToRgb(style.borderColor)
-          : [0, 123, 255];
-
-        const fillOpacity =
-          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
-        const borderWidth =
-          style?.borderWidth !== undefined ? style.borderWidth : 2;
-
-        // Draw each radius
+  
+        const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [0, 123, 255];
+        const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 123, 255];
+        const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+        const borderWidth = style?.borderWidth !== undefined ? style.borderWidth : 2;
+  
+        // Create new graphics for this market area
+        const newGraphics = [];
         for (const radiusMiles of point.radii) {
-          const radiusMeters = radiusMiles * 1609.34; // Convert miles to meters
-
-          // Create a buffer polygon around the center point
-          const polygon = geometryEngine.geodesicBuffer(
-            centerPoint,
-            radiusMeters,
-            "meters"
-          );
-
+          const radiusMeters = radiusMiles * 1609.34;
+          const polygon = geometryEngine.geodesicBuffer(centerPoint, radiusMeters, "meters");
+  
           const symbol = {
             type: "simple-fill",
-            color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0], // Fully transparent if opacity is 0
-            outline:
-              borderWidth > 0
-                ? {
-                    color: outlineRgb,
-                    width: borderWidth,
-                  }
-                : null, // No outline if width is 0
+            color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0],
+            outline: borderWidth > 0 ? {
+              color: outlineRgb,
+              width: borderWidth,
+            } : null,
           };
-
+  
           const circleGraphic = new Graphic({
             geometry: polygon,
             attributes: {
               FEATURE_TYPE: "radius",
+              marketAreaId,
+              order,
             },
             symbol: symbol,
           });
-
-          radiusGraphicsLayerRef.current.add(circleGraphic);
+  
+          newGraphics.push(circleGraphic);
         }
+  
+        // Add new graphics in correct order based on their order value
+        if (newGraphics.length > 0) {
+          const allGraphics = [...existingGraphics, ...newGraphics];
+          allGraphics.sort((a, b) => (b.attributes.order || 0) - (a.attributes.order || 0));
+          radiusGraphicsLayerRef.current.removeAll();
+          allGraphics.forEach(graphic => radiusGraphicsLayerRef.current.add(graphic));
+        }
+  
       } catch (error) {
         console.error("Error drawing radius:", error);
       }
     },
     [mapView]
   );
+
 
   // Remove an active layer
   const removeActiveLayer = useCallback(
@@ -1190,3 +1208,4 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 };
 
 export default MapContext;
+export { FEATURE_LAYERS };

@@ -11,9 +11,10 @@ import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import { toast } from "react-hot-toast";
 import Radius from "./Radius";
+import { FEATURE_LAYERS } from "../../contexts/MapContext";
 
 export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
-  const { projectId } = useParams();
+  console.log("FEATURE_LAYERS:", FEATURE_LAYERS);  const { projectId } = useParams();
   const {
     isLayerLoading,
     queryFeatures,
@@ -29,10 +30,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     isMapSelectionActive,
     setIsMapSelectionActive,
     formatLocationName,
+    radiusGraphicsLayer,
   } = useMap();
 
   const { addMarketArea, updateMarketArea } = useMarketAreas();
-
   const initializationDone = useRef(false);
   const locationsInitialized = useRef(false);
 
@@ -77,20 +78,23 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "usa", label: "USA" },
   ];
 
-  // Function to append new locations without duplicates
-  const appendLocations = useCallback((newLocations) => {
-    setFormState((prev) => {
-      const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
-      const locationsToAdd = newLocations.filter(
-        (loc) => !existingIds.has(loc.id)
-      );
-
-      return {
-        ...prev,
-        selectedLocations: [...prev.selectedLocations, ...locationsToAdd],
-      };
-    });
-  }, []);
+  const appendLocations = useCallback(
+    (newLocations) => {
+      setFormState((prev) => {
+        const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
+        const locationsToAdd = newLocations.filter(
+          (loc) => !existingIds.has(loc.id)
+        );
+  
+        return {
+          ...prev,
+          selectedLocations: [...prev.selectedLocations, ...locationsToAdd],
+        };
+      });
+    },
+    []
+  );
+  
 
   // Toggle map selection mode
   const handleToggleMapSelection = useCallback(() => {
@@ -102,26 +106,36 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }
   }, [isMapSelectionActive, setIsMapSelectionActive]);
 
-  // Watch for selected features from map clicks
   useEffect(() => {
+    console.log("formState:", formState);
+    console.log("formState.maType:", formState?.maType);
     if (!selectedFeatures.length || formState.maType === "radius") return;
-
+  
+    console.log("Selected features:", selectedFeatures);
+  
+    selectedFeatures.forEach((feature) => {
+      console.log("Feature attributes:", feature.attributes);
+    });
+  
+    const uniqueIdField =
+      FEATURE_LAYERS[formState.maType]?.uniqueIdField || "FID";
+  
     setFormState((prev) => {
       const newSelectedLocations = selectedFeatures
         .map((feature) => ({
-          id: feature.attributes.FID,
+          id: feature.attributes[uniqueIdField],
           name: formatLocationName(feature, formState.maType),
           feature: feature,
           geometry: feature.geometry,
         }))
         .filter((loc) => loc.name && loc.name.trim() !== "");
-
+  
       // Filter out any duplicates
       const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
       const uniqueNewLocations = newSelectedLocations.filter(
         (loc) => !existingIds.has(loc.id)
       );
-
+  
       return {
         ...prev,
         selectedLocations: [...prev.selectedLocations, ...uniqueNewLocations],
@@ -143,6 +157,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.maType,
     formatLocationName,
   ]);
+  
 
   // Enhanced initialization effect for editing
   useEffect(() => {
@@ -294,26 +309,27 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     setIsMapSelectionActive,
   ]);
 
-  // Style update handler with better error handling
   const updateStyles = useCallback(() => {
     try {
-      const { fillColor, fillOpacity, borderColor, borderWidth } =
-        formState.styleSettings;
-
+      const { fillColor, fillOpacity, borderColor, borderWidth } = formState.styleSettings;
+  
       if (formState.maType === "radius") {
         clearSelection();
         radiusPoints.forEach((point) => {
           drawRadius(point, formState.styleSettings);
         });
       } else if (formState.selectedLocations.length > 0) {
+        const marketAreaId = editingMarketArea?.id || 'current';
         const features = formState.selectedLocations.map((loc) => ({
           geometry: loc.geometry || loc.feature?.geometry,
           attributes: {
-            FID: loc.id, // Use "FID" as unique identifier
+            FID: loc.id,
             name: loc.name,
+            marketAreaId: marketAreaId,
+            order: editingMarketArea?.order || 0,
           },
         }));
-
+  
         updateFeatureStyles(
           features,
           {
@@ -337,6 +353,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateFeatureStyles,
     drawRadius,
     clearSelection,
+    editingMarketArea,
   ]);
 
   // Apply style changes when they are updated
@@ -537,7 +554,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     []
   );
 
-  // Form submission handler
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -546,9 +563,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     try {
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
-        fillOpacity: formState.styleSettings.fillOpacity,
+        fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
         borderColor: formState.styleSettings.borderColor,
-        borderWidth: formState.styleSettings.borderWidth,
+        borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
       };
 
       const marketAreaData = {
@@ -556,51 +573,56 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         name: formState.maName,
         short_name: formState.shortName,
         style_settings: styleSettings,
-        locations: formState.selectedLocations.map((loc) => ({
+        locations: formState.maType !== "radius" ? formState.selectedLocations.map((loc) => ({
           id: loc.id,
           name: loc.name,
-          geometry: loc.geometry,
-        })),
-        radius_points:
-          formState.maType === "radius"
-            ? radiusPoints.map((point) => ({
-                center: point.center,
-                radii: point.radii,
-              }))
-            : null,
-        geometry:
-          formState.maType === "radius"
-            ? {
-                type: "MultiPolygon",
-                coordinates: radiusPoints.map((point) =>
-                  point.geometry?.rings ? point.geometry.rings : []
-                ),
-              }
-            : {
-                type: "MultiPolygon",
-                coordinates: formState.selectedLocations.map((loc) =>
-                  loc.geometry?.rings || []
-                ),
-              },
+          geometry: loc.geometry || loc.feature?.geometry,
+        })) : [],
+        radius_points: formState.maType === "radius" ? radiusPoints.map((point) => ({
+          center: point.center,
+          radii: point.radii,
+        })) : [],
       };
 
-      if (
-        (formState.maType === "radius" &&
-          (!marketAreaData.radius_points ||
-            marketAreaData.radius_points.length === 0)) ||
-        (formState.maType !== "radius" &&
-          (!marketAreaData.locations ||
-            marketAreaData.locations.length === 0))
-      ) {
-        throw new Error("No valid locations to save");
+      // Validate required data before sending
+      if (formState.maType === "radius") {
+        if (!marketAreaData.radius_points || marketAreaData.radius_points.length === 0) {
+          throw new Error("Please add at least one radius point");
+        }
+
+        // Get the existing buffer geometries from the radiusGraphicsLayer
+        const bufferGraphics = radiusGraphicsLayer?.graphics?.toArray() || [];
+        if (bufferGraphics.length === 0) {
+          throw new Error("Invalid radius geometry data");
+        }
+
+        // Use the existing geometries for the MultiPolygon
+        marketAreaData.geometry = {
+          type: "MultiPolygon",
+          coordinates: bufferGraphics.map(graphic => graphic.geometry.rings),
+        };
+      } else {
+        // For non-radius types, collect geometry from selected locations
+        const locationRings = formState.selectedLocations
+          .map(loc => {
+            const rings = loc.geometry?.rings || loc.feature?.geometry?.rings;
+            return rings ? [rings] : null;
+          })
+          .filter(rings => rings !== null)
+          .flat();
+
+        if (locationRings.length === 0) {
+          throw new Error("Invalid location geometry data");
+        }
+
+        marketAreaData.geometry = {
+          type: "MultiPolygon",
+          coordinates: locationRings,
+        };
       }
 
       if (editingMarketArea) {
-        await updateMarketArea(
-          projectId,
-          editingMarketArea.id,
-          marketAreaData
-        );
+        await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
         toast.success("Market area updated successfully");
       } else {
         await addMarketArea(projectId, marketAreaData);
@@ -617,12 +639,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       }, 100);
     } catch (error) {
       console.error("Error saving market area:", error);
+      if (error.response) {
+        console.error("Server response data:", error.response.data);
+      }
       setError(error.message || "Error saving market area");
       toast.error(error.message || "Error saving market area");
     } finally {
       setIsSaving(false);
     }
   };
+
 
   // Enhanced cancel handler with form state reset
   const handleCancel = useCallback(() => {
@@ -986,25 +1012,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                         {formState.availableLocations.length} found
                       </span>
                     </div>
+                    {/* Available Locations */}
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
                       {formState.availableLocations.map((location) => (
                         <div
-                          key={location.id || location.someUniqueIdentifier}
+                          key={`available-${location.id}-${location.feature?.attributes?.FID || ''}`}
                           onClick={() => handleLocationSelect(location)}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                   text-sm text-gray-900 dark:text-gray-100"
+                                  text-sm text-gray-900 dark:text-gray-100"
                         >
                           {location.name}
                         </div>
                       ))}
-                      {formState.availableLocations.length === 0 &&
-                        !formState.isSearching && (
-                          <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                            {formState.locationSearch.length >= 3
-                              ? "No locations found"
-                              : "Enter at least 3 characters to search"}
-                          </div>
-                        )}
+                      {formState.availableLocations.length === 0 && !formState.isSearching && (
+                        <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                          {formState.locationSearch.length >= 3
+                            ? "No locations found"
+                            : "Enter at least 3 characters to search"}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1023,13 +1049,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                         {formState.selectedLocations.length} selected
                       </span>
                     </div>
+                    {/* Selected Locations */}
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
                       {formState.selectedLocations.map((location) => (
                         <div
-                          key={location.id || location.someUniqueIdentifier}
+                          key={`selected-${location.id}-${location.feature?.attributes?.FID || ''}`}
                           onClick={() => handleLocationDeselect(location)}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                   text-sm text-gray-900 dark:text-gray-100"
+                                  text-sm text-gray-900 dark:text-gray-100"
                         >
                           {location.name}
                         </div>
