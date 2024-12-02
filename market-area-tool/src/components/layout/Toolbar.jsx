@@ -26,6 +26,20 @@ import ExportDialog from "./ExportDialog";
 import { usePresets } from "../../contexts/PresetsContext";
 import ScaleBar from "@arcgis/core/widgets/ScaleBar";
 
+// Market area type mapping for consistent formatting
+const MA_TYPE_MAPPING = {
+  'radius': 'RADIUS',
+  'place': 'PLACE',
+  'block': 'BLOCK',
+  'blockgroup': 'BLOCKGROUP',
+  'cbsa': 'CBSA',
+  'state': 'STATE',
+  'zip': 'ZIP',
+  'tract': 'TRACT',
+  'county': 'COUNTY',
+};
+
+
 // Main Toolbar Component
 export default function Toolbar({ onCreateMA, onToggleList }) {
   const { variablePresets } = usePresets();
