@@ -127,6 +127,23 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return stored ? JSON.parse(stored) : [];
   });
 
+  // Computed property to determine if all areas are visible
+  const areAllAreasVisible = marketAreas.length > 0 && 
+    marketAreas.every(ma => visibleMarketAreaIds.includes(ma.id));
+
+  // Handle toggling all areas visibility
+  const handleToggleAll = useCallback(() => {
+    if (areAllAreasVisible) {
+      // Hide all areas
+      setVisibleMarketAreaIds([]);
+      clearSelection();
+    } else {
+      // Show all areas
+      const allIds = marketAreas.map(ma => ma.id);
+      setVisibleMarketAreaIds(allIds);
+    }
+  }, [areAllAreasVisible, marketAreas, clearSelection]);
+
   // Fetch market areas when projectId changes
   useEffect(() => {
     const loadMarketAreas = async () => {
@@ -287,6 +304,21 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
+      {marketAreas.length > 0 && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={handleToggleAll}
+            className="flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+          >
+            {areAllAreasVisible ? (
+              <EyeIcon className="h-5 w-5" />
+            ) : (
+              <EyeSlashIcon className="h-5 w-5" />
+            )}
+            <span>{areAllAreasVisible ? "Hide all areas" : "Show all areas"}</span>
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto p-4">
         <DndContext
           sensors={sensors}
