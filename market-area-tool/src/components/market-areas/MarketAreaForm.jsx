@@ -77,6 +77,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "usa", label: "USA" },
   ];
 
+  // Function to append new locations without duplicates
   const appendLocations = useCallback((newLocations) => {
     setFormState((prev) => {
       const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
@@ -106,42 +107,34 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     if (!selectedFeatures.length || formState.maType === "radius") return;
 
     setFormState((prev) => {
-      const deselectedLocations = [];
-      const remainingSelectedLocations = [];
-
-      prev.selectedLocations.forEach((loc) => {
-        const isDeselected = !selectedFeatures.some(
-          (feature) => feature.attributes.FID === loc.id
-        );
-
-        if (isDeselected) {
-          deselectedLocations.push(loc);
-        } else {
-          remainingSelectedLocations.push(loc);
-        }
-      });
-
       const newSelectedLocations = selectedFeatures
-        .filter(
-          (feature) =>
-            !prev.selectedLocations.some((loc) => loc.id === feature.attributes.FID)
-        )
         .map((feature) => ({
           id: feature.attributes.FID,
           name: formatLocationName(feature, formState.maType),
           feature: feature,
           geometry: feature.geometry,
-        }));
+        }))
+        .filter((loc) => loc.name && loc.name.trim() !== "");
+
+      // Filter out any duplicates
+      const existingIds = new Set(prev.selectedLocations.map((loc) => loc.id));
+      const uniqueNewLocations = newSelectedLocations.filter(
+        (loc) => !existingIds.has(loc.id)
+      );
 
       return {
         ...prev,
-        selectedLocations: [...remainingSelectedLocations, ...newSelectedLocations],
+        selectedLocations: [...prev.selectedLocations, ...uniqueNewLocations],
         availableLocations: prev.availableLocations
           .filter(
             (loc) =>
-              !deselectedLocations.some((deselected) => deselected.id === loc.id)
+              !newSelectedLocations.some((selected) => selected.id === loc.id)
           )
-          .concat(deselectedLocations)
+          .concat(
+            prev.selectedLocations.filter(
+              (loc) => !newSelectedLocations.some((sel) => sel.id === loc.id)
+            )
+          )
           .sort((a, b) => a.name.localeCompare(b.name)),
       };
     });
@@ -367,7 +360,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           maType: newType,
           locationSearch: "",
           availableLocations: [],
-          selectedLocations: [],
+          selectedLocations: [], // Clear selected locations
         }));
 
         setRadiusPoints([]);
@@ -442,11 +435,12 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.selectedLocations,
   ]);
 
-  // Enhanced location handling
+  // Location selection handler to append selected locations
   const handleLocationSelect = useCallback(
     (location) => {
       console.log("[MarketAreaForm] Selecting location:", location);
       try {
+        appendLocations([location]); // Append the new location
         addToSelection(location.feature, formState.maType); // Pass layerType
         toast.success(`Selected: ${location.name}`);
       } catch (error) {
@@ -454,9 +448,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         toast.error("Failed to select location");
       }
     },
-    [addToSelection, formState.maType]
+    [addToSelection, appendLocations, formState.maType]
   );
 
+  // Location deselection handler
   const handleLocationDeselect = useCallback(
     (location) => {
       console.log("[MarketAreaForm] Deselecting location:", location);
@@ -489,6 +484,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     [removeFromSelection, formState.maType]
   );
 
+  // Style change handler
   const handleStyleChange = useCallback(
     (type, value) => {
       setFormState((prev) => {
@@ -541,6 +537,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     []
   );
 
+  // Form submission handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -627,12 +624,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }
   };
 
+  // Enhanced cancel handler with form state reset
   const handleCancel = useCallback(() => {
     try {
-      setIsMapSelectionActive(false);
-      clearSelection();
+      // Remove the feature layer and hide everything
       hideAllFeatureLayers();
       removeActiveLayer();
+
+      // Reset form state
       setFormState((prev) => ({
         ...prev,
         maType: "",
@@ -640,8 +639,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         availableLocations: [],
         selectedLocations: [],
       }));
+
+      // Reset radius points if any
       setRadiusPoints([]);
+
+      // Clear any errors
       setError(null);
+
+      // Wait for cleanup to complete before closing
       setTimeout(() => {
         onClose?.();
       }, 100);
@@ -650,26 +655,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       toast.error("Error cleaning up. Please try again.");
     }
   }, [
-    clearSelection,
     hideAllFeatureLayers,
     removeActiveLayer,
-    setIsMapSelectionActive,
-  ]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    // Cleanup when component unmounts
-    return () => {
-      setIsMapSelectionActive(false);
-      clearSelection();
-      hideAllFeatureLayers();
-      removeActiveLayer();
-    };
-  }, [
-    clearSelection,
-    hideAllFeatureLayers,
-    removeActiveLayer,
-    setIsMapSelectionActive,
+    onClose,
   ]);
 
   // Render JSX
@@ -707,10 +695,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             >
               <option value="">Select type...</option>
               {maTypes.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -842,7 +830,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               </div>
             </div>
 
-            {/* New Fields for Transparency and Border Weight */}
+            {/* Additional Fields for Transparency and Border Weight */}
             <div className="grid grid-cols-2 gap-4 mt-4">
               {/* Transparency Percentage */}
               <div>
@@ -999,16 +987,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       </span>
                     </div>
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
-                    {formState.availableLocations.map((location) => (
-  <div
-    key={location.id || location.someUniqueIdentifier}
-    onClick={() => handleLocationSelect(location)}
-    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-             text-sm text-gray-900 dark:text-gray-100"
-  >
-    {location.name}
-  </div>
-))}
+                      {formState.availableLocations.map((location) => (
+                        <div
+                          key={location.id || location.someUniqueIdentifier}
+                          onClick={() => handleLocationSelect(location)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+                                   text-sm text-gray-900 dark:text-gray-100"
+                        >
+                          {location.name}
+                        </div>
+                      ))}
                       {formState.availableLocations.length === 0 &&
                         !formState.isSearching && (
                           <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
@@ -1036,16 +1024,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                       </span>
                     </div>
                     <div className="border rounded-md h-72 overflow-y-auto bg-white dark:bg-gray-700">
-                    {formState.selectedLocations.map((location) => (
-  <div
-    key={location.id || location.someUniqueIdentifier}
-    onClick={() => handleLocationDeselect(location)}
-    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-             text-sm text-gray-900 dark:text-gray-100"
-  >
-    {location.name}
-  </div>
-))}
+                      {formState.selectedLocations.map((location) => (
+                        <div
+                          key={location.id || location.someUniqueIdentifier}
+                          onClick={() => handleLocationDeselect(location)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+                                   text-sm text-gray-900 dark:text-gray-100"
+                        >
+                          {location.name}
+                        </div>
+                      ))}
                       {formState.selectedLocations.length === 0 && (
                         <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
                           No locations selected
