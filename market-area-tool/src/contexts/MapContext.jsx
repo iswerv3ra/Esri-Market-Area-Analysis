@@ -14,6 +14,34 @@ import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercat
 const MapContext = createContext();
 
 const FEATURE_LAYERS = {
+  md: {
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Census2020/MapServer/74",
+    outFields: ["OBJECTID", "GEOID", "NAME", "BASENAME", "CSA", "CBSA", "LSADC", "POP100", "HU100"],
+    uniqueIdField: "OBJECTID",
+    title: "Metropolitan Divisions",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "{BASENAME}",
+      content: [
+        {
+          type: "fields",
+          fieldInfos: [
+            { fieldName: "BASENAME", label: "Division Name" },
+            { fieldName: "NAME", label: "Full Name" },
+            { fieldName: "POP100", label: "Population" },
+            { fieldName: "HU100", label: "Housing Units" },
+            { fieldName: "CBSA", label: "CBSA Code" },
+            { fieldName: "CSA", label: "CSA Code" },
+            { fieldName: "LSADC", label: "Statistical Area Type" },
+          ],
+        },
+      ],
+    },
+    returnGeometry: true,
+    mode: "ondemand",
+    minScale: 6000000,
+    maxScale: 100,
+  },
   zip: {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_ZIP_Codes/FeatureServer/0",
     outFields: ["ZIP", "PO_NAME"],
@@ -172,7 +200,10 @@ const FEATURE_LAYERS = {
     },
   },
   cbsa: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/97",
+    urls: [
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/91",
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/93"
+    ],
     outFields: [
       "OBJECTID",
       "GEOID",
@@ -380,19 +411,17 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [mapView]);
 
-  // Initialize a feature layer
   const initializeFeatureLayer = useCallback(async (type) => {
     if (!type || !FEATURE_LAYERS[type]) {
       console.error(`Invalid or undefined layer type: ${type}`);
       return null;
     }
-
+  
     const layerConfig = FEATURE_LAYERS[type];
     try {
-      const { default: FeatureLayer } = await import(
-        "@arcgis/core/layers/FeatureLayer"
-      );
-
+      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer");
+      const { default: GroupLayer } = await import("@arcgis/core/layers/GroupLayer");
+  
       let symbol;
       switch (layerConfig.geometryType.toLowerCase()) {
         case "point":
@@ -408,36 +437,62 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           symbol = SYMBOLS.defaultPolygon;
           break;
       }
-
-      const layer = new FeatureLayer({
-        url: layerConfig.url,
-        outFields: layerConfig.outFields,
-        title: layerConfig.title,
-        visible: false,
-        opacity: 1,
-        popupEnabled: true,
-        popupTemplate: layerConfig.popupTemplate,
-        renderer: {
-          type: "simple",
-          symbol: symbol,
-        },
-      });
-
-      layer.when(
-        () => {
-          console.log(`Layer ${type} loaded successfully`);
-        },
-        (error) => {
-          console.error(`Error loading layer ${type}:`, error);
-        }
-      );
-
-      return layer;
+  
+      if (layerConfig.urls) {
+        // Create a group layer to hold all the feature layers
+        const groupLayer = new GroupLayer({
+          title: layerConfig.title,
+          visible: false,
+          listMode: "hide"
+        });
+  
+        // Create a feature layer for each URL
+        const featureLayers = layerConfig.urls.map(url => new FeatureLayer({
+          url: url,
+          outFields: layerConfig.outFields,
+          visible: true,
+          opacity: 1,
+          popupEnabled: true,
+          popupTemplate: layerConfig.popupTemplate,
+          renderer: {
+            type: "simple",
+            symbol: symbol,
+          },
+          // Set the title to match the one in FEATURE_LAYERS
+          title: layerConfig.title
+        }));
+  
+        // Add all feature layers to the group layer
+        groupLayer.addMany(featureLayers);
+  
+        // Store feature layers for reference
+        groupLayer.featureLayers = featureLayers;
+  
+        return groupLayer;
+      } else {
+        // Single URL case
+        const layer = new FeatureLayer({
+          url: layerConfig.url,
+          outFields: layerConfig.outFields,
+          title: layerConfig.title,
+          visible: false,
+          opacity: 1,
+          popupEnabled: true,
+          popupTemplate: layerConfig.popupTemplate,
+          renderer: {
+            type: "simple",
+            symbol: symbol,
+          },
+        });
+  
+        return layer;
+      }
     } catch (error) {
       console.error(`Error initializing FeatureLayer for type ${type}:`, error);
       return null;
     }
   }, []);
+  
 
   // Function to add a layer to activeLayers
   const addActiveLayer = useCallback(
@@ -950,19 +1005,19 @@ const updateFeatureStyles = useCallback(
     }
   }, []);
 
-  // Query features
   const queryFeatures = useCallback(
     async (searchText) => {
       if (!activeLayers.length || !mapView) return [];
-
+  
       const allFeatures = [];
-
+  
       for (const type of activeLayers) {
         const layer = featureLayersRef.current[type];
         const layerConfig = FEATURE_LAYERS[type];
-
+  
         if (!layer || !layerConfig) continue;
-
+  
+        // Build layer-specific where clause
         let whereClause;
         switch (type) {
           case "zip":
@@ -976,41 +1031,91 @@ const updateFeatureStyles = useCallback(
           default:
             whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
         }
-
+  
         try {
-          const { default: Query } = await import(
-            "@arcgis/core/rest/support/Query"
-          );
-
+          const { default: Query } = await import("@arcgis/core/rest/support/Query");
+  
           const query = new Query({
             where: whereClause,
             outFields: ["*"],
             returnGeometry: true,
-            geometry: mapView.extent,
-            spatialRelationship: "intersects",
+            // Remove spatial constraints
+            // geometry: mapView.extent,
+            // spatialRelationship: "intersects",
+            num: 100, // Limit results per layer for performance
+            distance: 0,
+            units: "meters",
+            spatialRel: "esriSpatialRelIntersects"
           });
-
-          const results = await layer.queryFeatures(query);
-          if (results.features.length > 0) {
-            allFeatures.push(...results.features);
-            console.log(
-              `[MapContext] Query returned ${results.features.length} features for layer ${type}`
-            );
+  
+          let layersToQuery = [];
+          if (layer.featureLayers) {
+            // If it's a group layer with multiple feature layers
+            layersToQuery = layer.featureLayers;
+          } else {
+            // If it's a single feature layer
+            layersToQuery = [layer];
           }
+  
+          // Query all relevant layers with progress tracking
+          const queryPromises = layersToQuery.map(async (l) => {
+            try {
+              console.log(`[MapContext] Querying layer ${type} with where clause:`, whereClause);
+              const result = await l.queryFeatures(query);
+              console.log(`[MapContext] Query completed for layer ${type}, found ${result.features.length} features`);
+              return result;
+            } catch (error) {
+              console.error(`[MapContext] Error querying individual layer in ${type}:`, error);
+              return { features: [] };
+            }
+          });
+  
+          const results = await Promise.all(queryPromises);
+  
+          // Combine all results and filter out duplicates
+          results.forEach(result => {
+            if (result.features.length > 0) {
+              // Add unique features based on ObjectID or similar identifier
+              const uniqueFeatures = result.features.filter(feature => {
+                const featureId = feature.attributes.OBJECTID || feature.attributes.FID;
+                return !allFeatures.some(existingFeature => 
+                  (existingFeature.attributes.OBJECTID || existingFeature.attributes.FID) === featureId
+                );
+              });
+              
+              allFeatures.push(...uniqueFeatures);
+              console.log(
+                `[MapContext] Added ${uniqueFeatures.length} unique features for layer ${type}`
+              );
+            }
+          });
         } catch (error) {
-          console.error(`Error querying features for layer ${type}:`, error);
+          console.error(`[MapContext] Error querying features for layer ${type}:`, error);
+          toast.error(`Error searching in ${type} layer`);
         }
       }
-
+  
       if (allFeatures.length > 0) {
-        await displayFeatures(allFeatures);
-        console.log(
-          `[MapContext] Displayed ${allFeatures.length} features on the map.`
-        );
+        try {
+          await displayFeatures(allFeatures);
+          console.log(
+            `[MapContext] Successfully displayed ${allFeatures.length} total features on the map`
+          );
+        } catch (error) {
+          console.error('[MapContext] Error displaying features:', error);
+          toast.error('Error displaying search results');
+        }
       } else {
-        console.log("[MapContext] No features found for the query.");
+        console.log("[MapContext] No features found for the query");
       }
-
+  
+      // Sort features by name if possible
+      allFeatures.sort((a, b) => {
+        const nameA = (a.attributes.NAME || a.attributes.PO_NAME || '').toUpperCase();
+        const nameB = (b.attributes.NAME || b.attributes.PO_NAME || '').toUpperCase();
+        return nameA.localeCompare(nameB);
+      });
+  
       return allFeatures;
     },
     [activeLayers, mapView, displayFeatures]

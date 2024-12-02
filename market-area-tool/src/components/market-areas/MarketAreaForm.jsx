@@ -76,6 +76,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "cbsa", label: "CBSA" },
     { value: "state", label: "State" },
     { value: "usa", label: "USA" },
+    { value: "md", label: "Metro Division" },
   ];
 
   const appendLocations = useCallback(
@@ -406,7 +407,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     ]
   );
 
-  // Enhanced search handler
+  // Enhanced search handler with debouncing and extended search
   useEffect(() => {
     const searchTimer = setTimeout(async () => {
       if (
@@ -416,40 +417,61 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       ) {
         setFormState((prev) => ({ ...prev, isSearching: true }));
         try {
-          const results = await queryFeatures(formState.locationSearch);
+          // Query features without map extent restriction
+          const results = await queryFeatures(
+            formState.locationSearch,
+            formState.maType,
+            { 
+              returnGeometry: true,
+              outFields: ["*"],
+              // Remove any spatial constraints here
+              spatialRel: "esriSpatialRelIntersects",
+              num: 100 // Increase the number of results returned
+            }
+          );
+
           const mappedResults = results
             .map((feature) => ({
-              id: feature.attributes.FID, // Use "FID"
+              id: feature.attributes.FID,
               name: formatLocationName(feature, formState.maType),
               feature: feature,
               geometry: feature.geometry,
             }))
-            .filter((loc) => loc.name && loc.name.trim() !== ""); // Filter out invalid names
+            .filter((loc) => 
+              loc.name && 
+              loc.name.trim() !== "" && 
+              !formState.selectedLocations.some(sel => sel.id === loc.id)
+            );
 
           setFormState((prev) => ({
             ...prev,
-            availableLocations: mappedResults.filter(
-              (loc) => !prev.selectedLocations.some((sel) => sel.id === loc.id)
-            ),
+            availableLocations: mappedResults,
             isSearching: false,
           }));
-          console.log("[MarketAreaForm] Search results updated:", mappedResults);
+          
         } catch (error) {
           console.error("Search error:", error);
           toast.error("Error searching locations");
           setError("Error searching locations");
           setFormState((prev) => ({ ...prev, isSearching: false }));
         }
+      } else if (formState.locationSearch.length < 3) {
+        // Clear available locations if search string is too short
+        setFormState((prev) => ({
+          ...prev,
+          availableLocations: [],
+          isSearching: false,
+        }));
       }
-    }, 300);
+    }, 300); // Debounce delay
 
     return () => clearTimeout(searchTimer);
   }, [
     formState.locationSearch,
     formState.maType,
+    formState.selectedLocations,
     queryFeatures,
     formatLocationName,
-    formState.selectedLocations,
   ]);
 
   // Location selection handler to append selected locations
@@ -559,7 +581,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-
+  
     try {
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
@@ -567,9 +589,12 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         borderColor: formState.styleSettings.borderColor,
         borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
       };
-
+  
+      // Map 'md' type to 'place' for backend compatibility
+      const mappedType = formState.maType === 'md' ? 'place' : formState.maType;
+  
       const marketAreaData = {
-        ma_type: formState.maType,
+        ma_type: mappedType, // Use mapped type here
         name: formState.maName,
         short_name: formState.shortName,
         style_settings: styleSettings,
@@ -582,20 +607,21 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           center: point.center,
           radii: point.radii,
         })) : [],
+        original_type: formState.maType, // Store the original type for frontend reference
       };
-
+  
       // Validate required data before sending
       if (formState.maType === "radius") {
         if (!marketAreaData.radius_points || marketAreaData.radius_points.length === 0) {
           throw new Error("Please add at least one radius point");
         }
-
+  
         // Get the existing buffer geometries from the radiusGraphicsLayer
         const bufferGraphics = radiusGraphicsLayer?.graphics?.toArray() || [];
         if (bufferGraphics.length === 0) {
           throw new Error("Invalid radius geometry data");
         }
-
+  
         // Use the existing geometries for the MultiPolygon
         marketAreaData.geometry = {
           type: "MultiPolygon",
@@ -610,17 +636,17 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           })
           .filter(rings => rings !== null)
           .flat();
-
+  
         if (locationRings.length === 0) {
           throw new Error("Invalid location geometry data");
         }
-
+  
         marketAreaData.geometry = {
           type: "MultiPolygon",
           coordinates: locationRings,
         };
       }
-
+  
       if (editingMarketArea) {
         await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
         toast.success("Market area updated successfully");
@@ -628,18 +654,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         await addMarketArea(projectId, marketAreaData);
         toast.success("Market area created successfully");
       }
-
+  
       setIsMapSelectionActive(false);
       clearSelection();
       hideAllFeatureLayers();
       removeActiveLayer();
-
+  
       setTimeout(() => {
         onClose?.();
       }, 100);
     } catch (error) {
       console.error("Error saving market area:", error);
-      if (error.response) {
+      if (error.response?.data) {
         console.error("Server response data:", error.response.data);
       }
       setError(error.message || "Error saving market area");

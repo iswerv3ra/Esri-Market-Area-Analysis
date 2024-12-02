@@ -53,6 +53,7 @@ export const MarketAreaProvider = ({ children }) => {
     if (!projectId) throw new Error('Project ID is required');
     setIsLoading(true);
     try {
+      console.log('Sending market area data:', JSON.stringify(marketAreaData, null, 2));
       const response = await api.post(
         `/api/projects/${projectId}/market-areas/`,
         marketAreaData
@@ -67,7 +68,18 @@ export const MarketAreaProvider = ({ children }) => {
       return newMarketArea;
     } catch (err) {
       console.error('Error creating market area:', err);
-      setError('Failed to create market area');
+      if (err.response) {
+        console.error('Server response:', err.response);
+        console.error('Response data:', err.response.data);
+        console.error('Response status:', err.response.status);
+        if (err.response.data.detail) {
+          setError(`Server error: ${err.response.data.detail}`);
+        } else {
+          setError('Failed to create market area: ' + (err.response.data.message || 'Unknown error'));
+        }
+      } else {
+        setError('Failed to create market area: Network error');
+      }
       throw err;
     } finally {
       setIsLoading(false);

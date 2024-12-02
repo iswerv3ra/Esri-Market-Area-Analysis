@@ -20,6 +20,7 @@ const MA_TYPE_MAPPING = {
   'zip': 'ZIP',
   'tract': 'TRACT',
   'county': 'COUNTY',
+  'md':"METRO DIVISION",
 };
 
 // Organized analysis categories and variables
