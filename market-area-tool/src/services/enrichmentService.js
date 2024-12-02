@@ -6,7 +6,7 @@ import Polygon from "@arcgis/core/geometry/Polygon";
 
 // Initialize ArcGIS API Key
 const ARCGIS_API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
-const CHUNK_SIZE = 3;
+const CHUNK_SIZE = 1;
 
 esriConfig.apiKey = ARCGIS_API_KEY;
 
