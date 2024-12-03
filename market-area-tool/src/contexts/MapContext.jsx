@@ -16,7 +16,17 @@ const MapContext = createContext();
 const FEATURE_LAYERS = {
   md: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Census2020/MapServer/74",
-    outFields: ["OBJECTID", "GEOID", "NAME", "BASENAME", "CSA", "CBSA", "LSADC", "POP100", "HU100"],
+    outFields: [
+      "OBJECTID",
+      "GEOID",
+      "NAME",
+      "BASENAME",
+      "CSA",
+      "CBSA",
+      "LSADC",
+      "POP100",
+      "HU100",
+    ],
     uniqueIdField: "OBJECTID",
     title: "Metropolitan Divisions",
     geometryType: "polygon",
@@ -202,7 +212,7 @@ const FEATURE_LAYERS = {
   cbsa: {
     urls: [
       "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/91",
-      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/93"
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/93",
     ],
     outFields: [
       "OBJECTID",
@@ -336,11 +346,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const hideAllFeatureLayers = useCallback(() => {
     if (!mapView) return;
 
-    Object.values(featureLayersRef.current).forEach(layer => {
+    Object.values(featureLayersRef.current).forEach((layer) => {
       if (layer && !layer.destroyed) {
         if (Array.isArray(layer.featureLayers)) {
           // Handle GroupLayer case
-          layer.featureLayers.forEach(subLayer => {
+          layer.featureLayers.forEach((subLayer) => {
             if (subLayer && !subLayer.destroyed) {
               subLayer.visible = false;
             }
@@ -391,7 +401,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         return attrs.NAME || "";
     }
   }, []);
-  
 
   // Initialize graphics layers
   const initializeGraphicsLayers = useCallback(async () => {
@@ -440,12 +449,16 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       console.error(`Invalid or undefined layer type: ${type}`);
       return null;
     }
-  
+
     const layerConfig = FEATURE_LAYERS[type];
     try {
-      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer");
-      const { default: GroupLayer } = await import("@arcgis/core/layers/GroupLayer");
-  
+      const { default: FeatureLayer } = await import(
+        "@arcgis/core/layers/FeatureLayer"
+      );
+      const { default: GroupLayer } = await import(
+        "@arcgis/core/layers/GroupLayer"
+      );
+
       let symbol;
       switch (layerConfig.geometryType.toLowerCase()) {
         case "point":
@@ -461,37 +474,40 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           symbol = SYMBOLS.defaultPolygon;
           break;
       }
-  
+
       if (layerConfig.urls) {
         // Create a group layer to hold all the feature layers
         const groupLayer = new GroupLayer({
           title: layerConfig.title,
           visible: false,
-          listMode: "hide"
+          listMode: "hide",
         });
-  
+
         // Create a feature layer for each URL
-        const featureLayers = layerConfig.urls.map(url => new FeatureLayer({
-          url: url,
-          outFields: layerConfig.outFields,
-          visible: true,
-          opacity: 1,
-          popupEnabled: true,
-          popupTemplate: layerConfig.popupTemplate,
-          renderer: {
-            type: "simple",
-            symbol: symbol,
-          },
-          // Set the title to match the one in FEATURE_LAYERS
-          title: layerConfig.title
-        }));
-  
+        const featureLayers = layerConfig.urls.map(
+          (url) =>
+            new FeatureLayer({
+              url: url,
+              outFields: layerConfig.outFields,
+              visible: true,
+              opacity: 1,
+              popupEnabled: true,
+              popupTemplate: layerConfig.popupTemplate,
+              renderer: {
+                type: "simple",
+                symbol: symbol,
+              },
+              // Set the title to match the one in FEATURE_LAYERS
+              title: layerConfig.title,
+            })
+        );
+
         // Add all feature layers to the group layer
         groupLayer.addMany(featureLayers);
-  
+
         // Store feature layers for reference
         groupLayer.featureLayers = featureLayers;
-  
+
         return groupLayer;
       } else {
         // Single URL case
@@ -508,7 +524,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             symbol: symbol,
           },
         });
-  
+
         return layer;
       }
     } catch (error) {
@@ -516,7 +532,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       return null;
     }
   }, []);
-  
 
   // Function to add a layer to activeLayers
   const addActiveLayer = useCallback(
@@ -590,14 +605,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         "[MapContext] removeFromSelection called with feature:",
         feature.attributes
       );
-  
+
       if (!selectionGraphicsLayerRef.current) {
         console.warn(
           "[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized"
         );
         return;
       }
-  
+
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
@@ -607,13 +622,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
-  
+
         // Find and remove the graphic from selectionGraphicsLayer
-        const graphicsToRemove = selectionGraphicsLayerRef.current.graphics.filter(
-          (g) =>
-            g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
-        );
-  
+        const graphicsToRemove =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (g) =>
+              g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+          );
+
         graphicsToRemove.forEach((g) => {
           selectionGraphicsLayerRef.current.remove(g);
           console.log(
@@ -621,7 +637,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             g.attributes
           );
         });
-  
+
         // Update selectedFeatures state
         setSelectedFeatures((prev) => {
           const newSelectedFeatures = prev.filter(
@@ -640,38 +656,51 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [selectedFeatures]
   );
-  
 
   const addToSelection = useCallback(
     async (feature, layerType) => {
-      console.log(`[MapContext] addToSelection called with feature:`, feature.attributes);
-  
+      console.log(
+        `[MapContext] addToSelection called with feature:`,
+        feature.attributes
+      );
+
       if (!mapView) {
-        console.warn(`[MapContext] Cannot add to selection: mapView not initialized`);
+        console.warn(
+          `[MapContext] Cannot add to selection: mapView not initialized`
+        );
         return;
       }
-  
+
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
-          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
+          console.error(
+            `[MapContext] Layer configuration not found for layer type: ${layerType}`
+          );
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
-  
+
         // Check if feature is already selected
         const isAlreadySelected = selectedFeatures.some(
-          (f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+          (f) =>
+            f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
         );
-  
+
         if (isAlreadySelected) {
-          console.log(`[MapContext] Feature already selected:`, feature.attributes);
+          console.log(
+            `[MapContext] Feature already selected:`,
+            feature.attributes
+          );
           // Remove the feature from selection
           await removeFromSelection(feature, layerType);
         } else {
           // Update selectedFeatures state only
           setSelectedFeatures((prev) => {
-            console.log(`[MapContext] Feature added to selection:`, feature.attributes);
+            console.log(
+              `[MapContext] Feature added to selection:`,
+              feature.attributes
+            );
             return [...prev, feature];
           });
         }
@@ -681,41 +710,105 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [mapView, selectedFeatures, removeFromSelection]
   );
-
-  // Clear selection
-  const clearSelection = useCallback((preserveEditingId = null) => {
+  
+// Modified clearSelection function for MapContext.jsx
+const clearSelection = useCallback(
+  (preserveEditingId = null) => {
     if (!selectionGraphicsLayerRef.current) return;
     try {
-      // Keep graphics that are either:
-      // 1. Part of market areas (have marketAreaId)
-      // 2. Part of the currently editing market area (if preserveEditingId is provided)
-      const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
-        (graphic) => {
-          const isMarketArea = graphic.attributes?.marketAreaId;
-          const isCurrentlyEditing = preserveEditingId && 
-            (graphic.attributes?.FEATURE_TYPE === activeLayers[0] || 
-            graphic.attributes?.marketAreaId === preserveEditingId);
-          return isMarketArea || isCurrentlyEditing;
+      // Keep:
+      // 1. Graphics that are part of any market area (have marketAreaId)
+      // 2. Graphics that are part of the currently editing market area
+      // 3. Graphics from the radius layer if they belong to a market area
+      const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
+        const isMarketArea = graphic.attributes?.marketAreaId;
+        const isCurrentlyEditing = preserveEditingId && 
+          (graphic.attributes?.marketAreaId === preserveEditingId || 
+           (graphic.attributes?.FEATURE_TYPE === activeLayers[0] && !graphic.attributes?.marketAreaId));
+        
+        // If we're not in editing mode (preserveEditingId is null), keep all market area graphics
+        if (!preserveEditingId) {
+          return isMarketArea;
         }
+        
+        return isMarketArea || isCurrentlyEditing;
+      });
+
+      // Preserve the existing graphics layer order
+      const orderedGraphics = [...graphicsToKeep].sort((a, b) => 
+        (b.attributes?.order || 0) - (a.attributes?.order || 0)
       );
 
       selectionGraphicsLayerRef.current.removeAll();
-      graphicsToKeep.forEach(g => selectionGraphicsLayerRef.current.add(g));
+      orderedGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
 
-      // Only clear selectedFeatures if they're not part of the editing market area
-      if (preserveEditingId) {
-        setSelectedFeatures(prev => 
-          prev.filter(f => f.attributes?.marketAreaId === preserveEditingId)
-        );
-      } else {
-        setSelectedFeatures([]);
-      }
+      // Update selectedFeatures state while preserving market areas
+      setSelectedFeatures((prev) =>
+        prev.filter((f) => {
+          const isMarketArea = f.attributes?.marketAreaId;
+          const isCurrentlyEditing = preserveEditingId && 
+            (f.attributes?.marketAreaId === preserveEditingId ||
+             (f.attributes?.FEATURE_TYPE === activeLayers[0] && !f.attributes?.marketAreaId));
+          
+          // If we're not in editing mode, keep all market area features
+          if (!preserveEditingId) {
+            return isMarketArea;
+          }
+          
+          return isMarketArea || isCurrentlyEditing;
+        })
+      );
 
-      console.log("[MapContext] Selection cleared while preserving market areas and editing state");
+      console.log(
+        "[MapContext] Selection cleared while preserving market areas and editing state",
+        { 
+          preserveEditingId, 
+          keptGraphicsCount: orderedGraphics.length,
+          mode: preserveEditingId ? 'editing' : 'normal'
+        }
+      );
     } catch (error) {
       console.error("Error clearing selection:", error);
     }
-  }, [activeLayers]);
+  },
+  [activeLayers]
+);
+
+// Additional helper function to manage market area visibility during editing
+const toggleMarketAreaEditMode = useCallback((marketAreaId) => {
+  if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
+
+  try {
+    // When entering edit mode for a specific market area:
+    // 1. Keep all existing market area graphics visible
+    // 2. Allow selection/editing only for the target market area
+    const currentGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
+    
+    // Update the visibility/interaction state without removing other graphics
+    currentGraphics.forEach((graphic) => {
+      const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
+      const isMarketArea = graphic.attributes?.marketAreaId;
+      
+      // Keep all market areas visible but adjust interaction state
+      if (isMarketArea) {
+        graphic.visible = true;
+        graphic.interactive = isEditingArea; // Only the editing area should be interactive
+      }
+    });
+
+    console.log(
+      "[MapContext] Market area edit mode toggled",
+      { 
+        marketAreaId,
+        totalGraphics: currentGraphics.length,
+        editableGraphics: currentGraphics.filter(g => g.attributes?.marketAreaId === marketAreaId).length
+      }
+    );
+  } catch (error) {
+    console.error("Error toggling market area edit mode:", error);
+  }
+}, []);
+
 
   // Display features
   const displayFeatures = useCallback(
@@ -775,115 +868,119 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [activeLayers, mapView]
   );
 
-
   // MapContext.jsx
-// MapContext.jsx
+  // MapContext.jsx
 
-const updateFeatureStyles = useCallback(
-  async (features, styles, featureType) => {
-    if (!selectionGraphicsLayerRef.current || !mapView) return;
+  const updateFeatureStyles = useCallback(
+    async (features, styles, featureType) => {
+      if (!selectionGraphicsLayerRef.current || !mapView) return;
 
-    try {
-      const [{ default: Graphic }, geometryEngineAsync] = await Promise.all([
-        import("@arcgis/core/Graphic"),
-        import("@arcgis/core/geometry/geometryEngineAsync"),
-      ]);
+      try {
+        const [{ default: Graphic }, geometryEngineAsync] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/geometryEngineAsync"),
+        ]);
 
-      // Get the market area IDs being updated
-      const marketAreaIds = new Set(features.map(f => f.attributes.marketAreaId));
-
-      // Keep existing graphics from other market areas
-      const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-        (g) => !marketAreaIds.has(g.attributes.marketAreaId)
-      );
-
-      // Clear existing graphics
-      selectionGraphicsLayerRef.current.removeAll();
-
-      // Add back existing graphics from other market areas
-      existingGraphics.forEach(g => selectionGraphicsLayerRef.current.add(g));
-
-      // Process features by market area
-      const newFeaturesByMarketArea = features.reduce((acc, feature) => {
-        const marketAreaId = feature.attributes.marketAreaId;
-        if (!acc[marketAreaId]) acc[marketAreaId] = [];
-        acc[marketAreaId].push(feature);
-        return acc;
-      }, {});
-
-      for (const [marketAreaId, maFeatures] of Object.entries(newFeaturesByMarketArea)) {
-        let geometries = maFeatures
-          .map((f) => f.geometry)
-          .filter((g) => g != null);
-
-        if (geometries.length === 0) continue;
-
-        // Simplify and repair geometries before union
-        geometries = await Promise.all(
-          geometries.map(async (geometry) => {
-            let simplified = await geometryEngineAsync.simplify(geometry);
-            // Repair geometry using buffer(0)
-            let repaired = await geometryEngineAsync.buffer(simplified, 0);
-            return repaired || simplified;
-          })
+        // Get the market area IDs being updated
+        const marketAreaIds = new Set(
+          features.map((f) => f.attributes.marketAreaId)
         );
 
-        // Union geometries asynchronously
-        let unionGeometry;
-        try {
-          unionGeometry = await geometryEngineAsync.union(geometries);
-        } catch (e) {
-          console.error("Error during union operation:", e);
-          // Fallback to iterative union if union fails
-          unionGeometry = geometries[0];
-          for (let i = 1; i < geometries.length; i++) {
-            try {
-              unionGeometry = await geometryEngineAsync.union([unionGeometry, geometries[i]]);
-            } catch (err) {
-              console.error(`Error unioning geometry at index ${i}:`, err);
-              // Continue with the next geometry
+        // Keep existing graphics from other market areas
+        const existingGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (g) => !marketAreaIds.has(g.attributes.marketAreaId)
+          );
+
+        // Clear existing graphics
+        selectionGraphicsLayerRef.current.removeAll();
+
+        // Add back existing graphics from other market areas
+        existingGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+
+        // Process features by market area
+        const newFeaturesByMarketArea = features.reduce((acc, feature) => {
+          const marketAreaId = feature.attributes.marketAreaId;
+          if (!acc[marketAreaId]) acc[marketAreaId] = [];
+          acc[marketAreaId].push(feature);
+          return acc;
+        }, {});
+
+        for (const [marketAreaId, maFeatures] of Object.entries(
+          newFeaturesByMarketArea
+        )) {
+          let geometries = maFeatures
+            .map((f) => f.geometry)
+            .filter((g) => g != null);
+
+          if (geometries.length === 0) continue;
+
+          // Simplify and repair geometries before union
+          geometries = await Promise.all(
+            geometries.map(async (geometry) => {
+              let simplified = await geometryEngineAsync.simplify(geometry);
+              // Repair geometry using buffer(0)
+              let repaired = await geometryEngineAsync.buffer(simplified, 0);
+              return repaired || simplified;
+            })
+          );
+
+          // Union geometries asynchronously
+          let unionGeometry;
+          try {
+            unionGeometry = await geometryEngineAsync.union(geometries);
+          } catch (e) {
+            console.error("Error during union operation:", e);
+            // Fallback to iterative union if union fails
+            unionGeometry = geometries[0];
+            for (let i = 1; i < geometries.length; i++) {
+              try {
+                unionGeometry = await geometryEngineAsync.union([
+                  unionGeometry,
+                  geometries[i],
+                ]);
+              } catch (err) {
+                console.error(`Error unioning geometry at index ${i}:`, err);
+                // Continue with the next geometry
+              }
             }
           }
+
+          // Simplify the unioned geometry
+          unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
+
+          if (unionGeometry) {
+            const symbol = {
+              type: "simple-fill",
+              color: [...hexToRgb(styles.fill), styles.fillOpacity],
+              outline: {
+                color: styles.outline,
+                width: styles.outlineWidth,
+              },
+            };
+
+            const unionGraphic = new Graphic({
+              geometry: unionGeometry,
+              symbol: symbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+                order: maFeatures[0].attributes.order,
+              },
+            });
+
+            // Add the new graphic
+            selectionGraphicsLayerRef.current.add(unionGraphic);
+          }
         }
-
-        // Simplify the unioned geometry
-        unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
-
-        if (unionGeometry) {
-          const symbol = {
-            type: "simple-fill",
-            color: [...hexToRgb(styles.fill), styles.fillOpacity],
-            outline: {
-              color: styles.outline,
-              width: styles.outlineWidth,
-            },
-          };
-
-          const unionGraphic = new Graphic({
-            geometry: unionGeometry,
-            symbol: symbol,
-            attributes: {
-              marketAreaId,
-              FEATURE_TYPE: featureType,
-              order: maFeatures[0].attributes.order,
-            },
-          });
-
-          // Add the new graphic
-          selectionGraphicsLayerRef.current.add(unionGraphic);
-        }
+      } catch (error) {
+        console.error("Error updating feature styles:", error);
       }
-
-    } catch (error) {
-      console.error("Error updating feature styles:", error);
-    }
-  },
-  [mapView]
-);
-
-  
-
-  
+    },
+    [mapView]
+  );
 
   // Helper function to handle geometry validation
   const ensureValidGeometry = (geometry, spatialReference) => {
@@ -903,47 +1000,69 @@ const updateFeatureStyles = useCallback(
 
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
-      if (!radiusGraphicsLayerRef.current || !point?.center || !point?.radii || !mapView) return;
-  
+      if (
+        !radiusGraphicsLayerRef.current ||
+        !point?.center ||
+        !point?.radii ||
+        !mapView
+      )
+        return;
+
       try {
         // Remove only the graphics for this specific market area for real-time updates
         const existingGraphics = radiusGraphicsLayerRef.current.graphics.filter(
           (g) => g.attributes.marketAreaId !== marketAreaId
         );
         radiusGraphicsLayerRef.current.removeAll();
-  
+
         // First add back all existing graphics from other market areas
-        existingGraphics.forEach(g => radiusGraphicsLayerRef.current.add(g));
-  
-        const center = ensureValidGeometry(point.center, mapView.spatialReference);
+        existingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
+
+        const center = ensureValidGeometry(
+          point.center,
+          mapView.spatialReference
+        );
         if (!center) return;
         const centerPoint = webMercatorToGeographic(center);
-  
+
         const [geometryEngine, { default: Graphic }] = await Promise.all([
           import("@arcgis/core/geometry/geometryEngine"),
           import("@arcgis/core/Graphic"),
         ]);
-  
-        const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [0, 123, 255];
-        const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 123, 255];
-        const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
-        const borderWidth = style?.borderWidth !== undefined ? style.borderWidth : 2;
-  
+
+        const fillRgb = style?.fillColor
+          ? hexToRgb(style.fillColor)
+          : [0, 123, 255];
+        const outlineRgb = style?.borderColor
+          ? hexToRgb(style.borderColor)
+          : [0, 123, 255];
+        const fillOpacity =
+          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+        const borderWidth =
+          style?.borderWidth !== undefined ? style.borderWidth : 2;
+
         // Create new graphics for this market area
         const newGraphics = [];
         for (const radiusMiles of point.radii) {
           const radiusMeters = radiusMiles * 1609.34;
-          const polygon = geometryEngine.geodesicBuffer(centerPoint, radiusMeters, "meters");
-  
+          const polygon = geometryEngine.geodesicBuffer(
+            centerPoint,
+            radiusMeters,
+            "meters"
+          );
+
           const symbol = {
             type: "simple-fill",
             color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0],
-            outline: borderWidth > 0 ? {
-              color: outlineRgb,
-              width: borderWidth,
-            } : null,
+            outline:
+              borderWidth > 0
+                ? {
+                    color: outlineRgb,
+                    width: borderWidth,
+                  }
+                : null,
           };
-  
+
           const circleGraphic = new Graphic({
             geometry: polygon,
             attributes: {
@@ -953,25 +1072,27 @@ const updateFeatureStyles = useCallback(
             },
             symbol: symbol,
           });
-  
+
           newGraphics.push(circleGraphic);
         }
-  
+
         // Add new graphics in correct order based on their order value
         if (newGraphics.length > 0) {
           const allGraphics = [...existingGraphics, ...newGraphics];
-          allGraphics.sort((a, b) => (b.attributes.order || 0) - (a.attributes.order || 0));
+          allGraphics.sort(
+            (a, b) => (b.attributes.order || 0) - (a.attributes.order || 0)
+          );
           radiusGraphicsLayerRef.current.removeAll();
-          allGraphics.forEach(graphic => radiusGraphicsLayerRef.current.add(graphic));
+          allGraphics.forEach((graphic) =>
+            radiusGraphicsLayerRef.current.add(graphic)
+          );
         }
-  
       } catch (error) {
         console.error("Error drawing radius:", error);
       }
     },
     [mapView]
   );
-
 
   // Remove an active layer
   const removeActiveLayer = useCallback(
@@ -983,7 +1104,9 @@ const updateFeatureStyles = useCallback(
 
       // If no type is provided, do nothing and return
       if (!type) {
-        console.warn("[MapContext] No layer type provided to removeActiveLayer");
+        console.warn(
+          "[MapContext] No layer type provided to removeActiveLayer"
+        );
         return;
       }
 
@@ -1029,20 +1152,44 @@ const updateFeatureStyles = useCallback(
     [mapView]
   );
 
+// MapContext.jsx - Add these helper functions
+const clearMarketAreaGraphics = useCallback((marketAreaId) => {
+  if (!marketAreaId) return;
+
+  try {
+    if (radiusGraphicsLayerRef.current) {
+      const remainingGraphics = radiusGraphicsLayerRef.current.graphics.filter(
+        (g) => g.attributes?.marketAreaId !== marketAreaId
+      );
+      radiusGraphicsLayerRef.current.removeAll();
+      remainingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
+    }
+
+    if (selectionGraphicsLayerRef.current) {
+      const remainingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+        (g) => g.attributes?.marketAreaId !== marketAreaId
+      );
+      selectionGraphicsLayerRef.current.removeAll();
+      remainingGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+    }
+  } catch (error) {
+    console.error("Error clearing market area graphics:", error);
+  }
+}, []);
 
 
   const queryFeatures = useCallback(
     async (searchText) => {
       if (!activeLayers.length || !mapView) return [];
-  
+
       const allFeatures = [];
-  
+
       for (const type of activeLayers) {
         const layer = featureLayersRef.current[type];
         const layerConfig = FEATURE_LAYERS[type];
-  
+
         if (!layer || !layerConfig) continue;
-  
+
         // Build layer-specific where clause
         let whereClause;
         switch (type) {
@@ -1057,10 +1204,12 @@ const updateFeatureStyles = useCallback(
           default:
             whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
         }
-  
+
         try {
-          const { default: Query } = await import("@arcgis/core/rest/support/Query");
-  
+          const { default: Query } = await import(
+            "@arcgis/core/rest/support/Query"
+          );
+
           const query = new Query({
             where: whereClause,
             outFields: ["*"],
@@ -1071,9 +1220,9 @@ const updateFeatureStyles = useCallback(
             num: 100, // Limit results per layer for performance
             distance: 0,
             units: "meters",
-            spatialRel: "esriSpatialRelIntersects"
+            spatialRel: "esriSpatialRelIntersects",
           });
-  
+
           let layersToQuery = [];
           if (layer.featureLayers) {
             // If it's a group layer with multiple feature layers
@@ -1082,33 +1231,44 @@ const updateFeatureStyles = useCallback(
             // If it's a single feature layer
             layersToQuery = [layer];
           }
-  
+
           // Query all relevant layers with progress tracking
           const queryPromises = layersToQuery.map(async (l) => {
             try {
-              console.log(`[MapContext] Querying layer ${type} with where clause:`, whereClause);
+              console.log(
+                `[MapContext] Querying layer ${type} with where clause:`,
+                whereClause
+              );
               const result = await l.queryFeatures(query);
-              console.log(`[MapContext] Query completed for layer ${type}, found ${result.features.length} features`);
+              console.log(
+                `[MapContext] Query completed for layer ${type}, found ${result.features.length} features`
+              );
               return result;
             } catch (error) {
-              console.error(`[MapContext] Error querying individual layer in ${type}:`, error);
+              console.error(
+                `[MapContext] Error querying individual layer in ${type}:`,
+                error
+              );
               return { features: [] };
             }
           });
-  
+
           const results = await Promise.all(queryPromises);
-  
+
           // Combine all results and filter out duplicates
-          results.forEach(result => {
+          results.forEach((result) => {
             if (result.features.length > 0) {
               // Add unique features based on ObjectID or similar identifier
-              const uniqueFeatures = result.features.filter(feature => {
-                const featureId = feature.attributes.OBJECTID || feature.attributes.FID;
-                return !allFeatures.some(existingFeature => 
-                  (existingFeature.attributes.OBJECTID || existingFeature.attributes.FID) === featureId
+              const uniqueFeatures = result.features.filter((feature) => {
+                const featureId =
+                  feature.attributes.OBJECTID || feature.attributes.FID;
+                return !allFeatures.some(
+                  (existingFeature) =>
+                    (existingFeature.attributes.OBJECTID ||
+                      existingFeature.attributes.FID) === featureId
                 );
               });
-              
+
               allFeatures.push(...uniqueFeatures);
               console.log(
                 `[MapContext] Added ${uniqueFeatures.length} unique features for layer ${type}`
@@ -1116,11 +1276,14 @@ const updateFeatureStyles = useCallback(
             }
           });
         } catch (error) {
-          console.error(`[MapContext] Error querying features for layer ${type}:`, error);
+          console.error(
+            `[MapContext] Error querying features for layer ${type}:`,
+            error
+          );
           toast.error(`Error searching in ${type} layer`);
         }
       }
-  
+
       if (allFeatures.length > 0) {
         try {
           await displayFeatures(allFeatures);
@@ -1128,20 +1291,28 @@ const updateFeatureStyles = useCallback(
             `[MapContext] Successfully displayed ${allFeatures.length} total features on the map`
           );
         } catch (error) {
-          console.error('[MapContext] Error displaying features:', error);
-          toast.error('Error displaying search results');
+          console.error("[MapContext] Error displaying features:", error);
+          toast.error("Error displaying search results");
         }
       } else {
         console.log("[MapContext] No features found for the query");
       }
-  
+
       // Sort features by name if possible
       allFeatures.sort((a, b) => {
-        const nameA = (a.attributes.NAME || a.attributes.PO_NAME || '').toUpperCase();
-        const nameB = (b.attributes.NAME || b.attributes.PO_NAME || '').toUpperCase();
+        const nameA = (
+          a.attributes.NAME ||
+          a.attributes.PO_NAME ||
+          ""
+        ).toUpperCase();
+        const nameB = (
+          b.attributes.NAME ||
+          b.attributes.PO_NAME ||
+          ""
+        ).toUpperCase();
         return nameA.localeCompare(nameB);
       });
-  
+
       return allFeatures;
     },
     [activeLayers, mapView, displayFeatures]
@@ -1228,47 +1399,35 @@ const updateFeatureStyles = useCallback(
     };
   }, [mapView, isMapSelectionActive, activeLayers, addToSelection]);
 
+// Also update the showVisibleMarketAreas effect to ensure proper rendering order
   useEffect(() => {
     const showVisibleMarketAreas = async () => {
       if (!marketAreas.length) return;
-  
+
       try {
-        // Instead of clearing all graphics, only clear graphics that aren't in the current marketAreas
-        const currentMarketAreaIds = new Set(marketAreas.map(ma => ma.id));
-        
-        if (radiusGraphicsLayerRef.current) {
-          const radiusGraphicsToKeep = radiusGraphicsLayerRef.current.graphics.filter(
-            g => g.attributes?.marketAreaId && currentMarketAreaIds.has(g.attributes.marketAreaId)
-          );
-          radiusGraphicsLayerRef.current.removeAll();
-          radiusGraphicsToKeep.forEach(g => radiusGraphicsLayerRef.current.add(g));
-        }
-  
-        if (selectionGraphicsLayerRef.current) {
-          const selectionGraphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
-            g => g.attributes?.marketAreaId && currentMarketAreaIds.has(g.attributes.marketAreaId)
-          );
-          selectionGraphicsLayerRef.current.removeAll();
-          selectionGraphicsToKeep.forEach(g => selectionGraphicsLayerRef.current.add(g));
-        }
-  
+        // Don't clear all market areas, instead preserve existing ones
         // Sort market areas by order field to control rendering order
         const sortedAreas = [...marketAreas].sort((a, b) => a.order - b.order);
-  
-        // Now render each market area
+
+        // Render each market area
         for (const marketArea of sortedAreas) {
           if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
-  
+
           // Check if graphics for this market area already exist
           const existingGraphics = selectionGraphicsLayerRef.current?.graphics.filter(
-            g => g.attributes?.marketAreaId === marketArea.id
+            (g) => g.attributes?.marketAreaId === marketArea.id
           );
-  
+
           // Only redraw if no graphics exist for this market area
           if (!existingGraphics?.length) {
             if (marketArea.ma_type === "radius" && marketArea.radius_points) {
               for (const point of marketArea.radius_points) {
-                await drawRadius(point, marketArea.style_settings, marketArea.id, marketArea.order);
+                await drawRadius(
+                  point,
+                  marketArea.style_settings,
+                  marketArea.id,
+                  marketArea.order
+                );
               }
             } else if (marketArea.locations) {
               const features = marketArea.locations.map((loc) => ({
@@ -1279,7 +1438,7 @@ const updateFeatureStyles = useCallback(
                   order: marketArea.order,
                 },
               }));
-  
+
               await updateFeatureStyles(
                 features,
                 {
@@ -1297,7 +1456,7 @@ const updateFeatureStyles = useCallback(
         console.error("Error in showVisibleMarketAreas:", error);
       }
     };
-  
+
     showVisibleMarketAreas();
   }, [marketAreas, visibleMarketAreaIds, drawRadius, updateFeatureStyles]);
 
@@ -1327,12 +1486,15 @@ const updateFeatureStyles = useCallback(
       featureLayers: featureLayersRef.current,
       updateFeatureStyles,
       drawRadius,
+      clearMarketAreaGraphics,
+      toggleMarketAreaEditMode,      // Add to dependencies
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
       radiusGraphicsLayer: radiusGraphicsLayerRef.current,
       visibleMarketAreaIds,
       setVisibleMarketAreaIds,
+      clearMarketAreaGraphics,  // Make sure this is included
     }),
     [
       mapView,
@@ -1344,15 +1506,18 @@ const updateFeatureStyles = useCallback(
       queryFeatures,
       selectedFeatures,
       addToSelection,
-      hideAllFeatureLayers, // Add to dependencies
+      hideAllFeatureLayers,
+      toggleMarketAreaEditMode,      // Add to dependencies
       removeFromSelection,
       clearSelection,
+      clearMarketAreaGraphics,
       updateFeatureStyles,
       drawRadius,
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
       visibleMarketAreaIds,
+      clearMarketAreaGraphics,  // Make sure this is included
     ]
   );
 

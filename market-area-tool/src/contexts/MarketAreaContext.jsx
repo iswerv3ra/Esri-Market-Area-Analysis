@@ -1,5 +1,5 @@
 // src/contexts/MarketAreaContext.jsx
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 
 const MarketAreaContext = createContext();
@@ -17,11 +17,27 @@ export const MarketAreaProvider = ({ children }) => {
   const [order, setOrder] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const fetchInProgress = useRef(false);
+  const initialFetchDone = useRef(false);
 
   const fetchMarketAreas = useCallback(async (projectId) => {
     if (!projectId) return;
+    if (fetchInProgress.current) {
+      console.log('Fetch already in progress, skipping');
+      return;
+    }
+
+    // If we've already done the initial fetch, only proceed if explicitly requested
+    if (initialFetchDone.current && marketAreas.length > 0) {
+      console.log('Initial fetch already done and we have market areas');
+      return marketAreas;
+    }
+
+    fetchInProgress.current = true;
     setIsLoading(true);
+    
     try {
+      console.log('Fetching market areas for project:', projectId);
       const response = await api.get(`/api/projects/${projectId}/market-areas/`);
       const areas = Array.isArray(response.data) ? response.data : [];
       
@@ -39,13 +55,17 @@ export const MarketAreaProvider = ({ children }) => {
       
       setMarketAreas(areas);
       setError(null);
+      initialFetchDone.current = true;
+      return areas;
     } catch (err) {
       console.error('Error fetching market areas:', err);
       setError('Failed to fetch market areas');
       setMarketAreas([]); 
       setOrder([]);
+      throw err;
     } finally {
       setIsLoading(false);
+      fetchInProgress.current = false;
     }
   }, [order]);
 
@@ -131,7 +151,6 @@ export const MarketAreaProvider = ({ children }) => {
     }
   }, []);
 
-  
   const reorderMarketAreas = useCallback(async (projectId, newOrder) => {
     if (!projectId) throw new Error('Project ID is required');
     
@@ -177,6 +196,13 @@ export const MarketAreaProvider = ({ children }) => {
     }
   }, [marketAreas, order]);
 
+  // Force refresh market areas (used when needed)
+  const refreshMarketAreas = useCallback(async (projectId) => {
+    initialFetchDone.current = false; // Reset the initial fetch flag
+    fetchInProgress.current = false;   // Reset the fetch in progress flag
+    return fetchMarketAreas(projectId);
+  }, [fetchMarketAreas]);
+
   // Memoize the context value to prevent unnecessary re-renders
   const value = {
     marketAreas: marketAreas || [], // Ensure we always have an array
@@ -184,6 +210,7 @@ export const MarketAreaProvider = ({ children }) => {
     isLoading,
     error,
     fetchMarketAreas,
+    refreshMarketAreas,
     addMarketArea,
     updateMarketArea,
     deleteMarketArea,

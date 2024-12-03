@@ -1,32 +1,61 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Toolbar from '../components/layout/Toolbar';
 import Sidebar from '../components/layout/Sidebar';
 import MapComponent from '../components/map/Map';
 import { MapProvider, useMap } from '../contexts/MapContext';
+import { useMarketAreas } from '../contexts/MarketAreaContext';
 
 function InnerLayout() {
+  const { projectId } = useParams();
   const { mapView } = useMap();
+  const { marketAreas, fetchMarketAreas } = useMarketAreas();
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const [sidebarContent, setSidebarContent] = React.useState('');
-  const [editingMarketArea, setEditingMarketArea] = React.useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarContent, setSidebarContent] = useState('');
+  const [editingMarketArea, setEditingMarketArea] = useState(null);
+  const initialLoadDone = useRef(false);
+
+  // Initial fetch and auto-open list
+  useEffect(() => {
+    const initializeMarketAreas = async () => {
+      if (!projectId || !mapView || initialLoadDone.current) return;
+
+      try {
+        console.log('[MarketAreasLayout] Starting initial market areas fetch');
+        const areas = await fetchMarketAreas(projectId);
+        console.log('[MarketAreasLayout] Fetch complete, got areas:', areas?.length);
+        
+        // Add a slight delay before opening the list
+        setTimeout(() => {
+          console.log('[MarketAreasLayout] Opening MA list after delay');
+          openMAList();
+          initialLoadDone.current = true;
+        }, 500); // 500ms delay
+      } catch (error) {
+        console.error('[MarketAreasLayout] Error fetching market areas:', error);
+      }
+    };
+
+    initializeMarketAreas();
+  }, [projectId, mapView, fetchMarketAreas]);
 
   const openCreateMA = () => {
-    setEditingMarketArea(null); // Reset editing state
+    setEditingMarketArea(null);
     setSidebarContent('create');
     setIsSidebarOpen(true);
   };
 
   const openMAList = () => {
-    setEditingMarketArea(null); // Reset editing state
+    console.log('[MarketAreasLayout] Opening MA list with areas:', marketAreas?.length);
+    setEditingMarketArea(null);
     setSidebarContent('list');
     setIsSidebarOpen(true);
   };
 
   const handleEdit = (marketArea) => {
     setEditingMarketArea(marketArea);
-    setSidebarContent('create'); // Reuse create form for editing
+    setSidebarContent('create');
     setIsSidebarOpen(true);
   };
 
@@ -35,6 +64,7 @@ function InnerLayout() {
     setSidebarContent('');
     setEditingMarketArea(null);
   };
+
   // Handle map resizing
   useEffect(() => {
     if (!mapView) return;

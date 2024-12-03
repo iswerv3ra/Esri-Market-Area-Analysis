@@ -1,21 +1,21 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-  DndContext, 
+  DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import { useMap } from "../../contexts/MapContext";
 import {
@@ -26,14 +26,15 @@ import {
   Bars3Icon,
 } from "@heroicons/react/24/outline";
 
-const SortableItem = ({ marketArea, isVisible, onToggleVisibility, onEdit, onDelete }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: marketArea.id });
+const SortableItem = ({
+  marketArea,
+  isVisible,
+  onToggleVisibility,
+  onEdit,
+  onDelete,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: marketArea.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -48,11 +49,7 @@ const SortableItem = ({ marketArea, isVisible, onToggleVisibility, onEdit, onDel
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center flex-1">
-          <div
-            {...attributes}
-            {...listeners}
-            className="mr-3 cursor-grab"
-          >
+          <div {...attributes} {...listeners} className="mr-3 cursor-grab">
             <Bars3Icon className="h-5 w-5 text-gray-400" />
           </div>
           <div>
@@ -104,7 +101,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     error,
     fetchMarketAreas,
     deleteMarketArea,
-    reorderMarketAreas
+    reorderMarketAreas,
   } = useMarketAreas();
 
   const {
@@ -112,6 +109,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers,
+    clearMarketAreaGraphics, // Add this
   } = useMap();
 
   const sensors = useSensors(
@@ -128,8 +126,9 @@ export default function MarketAreaList({ onClose, onEdit }) {
   });
 
   // Computed property to determine if all areas are visible
-  const areAllAreasVisible = marketAreas.length > 0 && 
-    marketAreas.every(ma => visibleMarketAreaIds.includes(ma.id));
+  const areAllAreasVisible =
+    marketAreas.length > 0 &&
+    marketAreas.every((ma) => visibleMarketAreaIds.includes(ma.id));
 
   // Handle toggling all areas visibility
   const handleToggleAll = useCallback(() => {
@@ -139,7 +138,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
       clearSelection();
     } else {
       // Show all areas
-      const allIds = marketAreas.map(ma => ma.id);
+      const allIds = marketAreas.map((ma) => ma.id);
       setVisibleMarketAreaIds(allIds);
     }
   }, [areAllAreasVisible, marketAreas, clearSelection]);
@@ -147,19 +146,79 @@ export default function MarketAreaList({ onClose, onEdit }) {
   // Fetch market areas when projectId changes
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
-  useEffect(() => {
-    const loadMarketAreas = async () => {
-      if (!projectId || hasAttemptedFetch) return;
+// Also update the useEffect that handles initial visibility
+useEffect(() => {
+  const loadMarketAreas = async () => {
+    if (!projectId || hasAttemptedFetch) return;
+
+    try {
+      await fetchMarketAreas(projectId);
       
-      try {
-        await fetchMarketAreas(projectId);
-      } finally {
-        setHasAttemptedFetch(true);
+      // After fetching, check localStorage for visibility state
+      const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
+      if (storedVisibleIds) {
+        const visibleIds = JSON.parse(storedVisibleIds);
+        setVisibleMarketAreaIds(visibleIds);
+        
+        // Render all visible market areas
+        for (const marketArea of marketAreas) {
+          if (visibleIds.includes(marketArea.id)) {
+            if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+              for (const point of marketArea.radius_points) {
+                await drawRadius(
+                  point, 
+                  marketArea.style_settings, 
+                  marketArea.id,
+                  marketArea.order
+                );
+              }
+            } else if (marketArea.locations) {
+              const features = marketArea.locations.map((loc) => ({
+                geometry: loc.geometry,
+                attributes: {
+                  id: loc.id,
+                  marketAreaId: marketArea.id,
+                  order: marketArea.order,
+                },
+              }));
+
+              await updateFeatureStyles(
+                features,
+                {
+                  fill: marketArea.style_settings?.fillColor,
+                  fillOpacity: marketArea.style_settings?.fillOpacity,
+                  outline: marketArea.style_settings?.borderColor,
+                  outlineWidth: marketArea.style_settings?.borderWidth,
+                },
+                marketArea.ma_type
+              );
+            }
+          }
+        }
+      } else {
+        // If no stored visibility state, show all market areas by default
+        const allIds = marketAreas.map((ma) => ma.id);
+        setVisibleMarketAreaIds(allIds);
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`,
+          JSON.stringify(allIds)
+        );
       }
-    };
-    
-    loadMarketAreas();
-  }, [projectId, fetchMarketAreas, hasAttemptedFetch]);
+    } finally {
+      setHasAttemptedFetch(true);
+    }
+  };
+
+  loadMarketAreas();
+}, [
+  projectId, 
+  hasAttemptedFetch, 
+  fetchMarketAreas, 
+  marketAreas, 
+  drawRadius, 
+  updateFeatureStyles
+]);
+
 
   // Set initial visibility state when market areas first load
   useEffect(() => {
@@ -217,7 +276,13 @@ export default function MarketAreaList({ onClose, onEdit }) {
     };
 
     showVisibleMarketAreas();
-  }, [marketAreas, visibleMarketAreaIds, hideAllFeatureLayers, drawRadius, updateFeatureStyles]);
+  }, [
+    marketAreas,
+    visibleMarketAreaIds,
+    hideAllFeatureLayers,
+    drawRadius,
+    updateFeatureStyles,
+  ]);
 
   // Update localStorage when visibility changes
   useEffect(() => {
@@ -229,66 +294,129 @@ export default function MarketAreaList({ onClose, onEdit }) {
     }
   }, [visibleMarketAreaIds, projectId]);
 
-  // Handle toggle visibility
-  const handleToggleVisibility = useCallback((marketArea) => {
-    if (!marketArea) return;
-
-    const { id } = marketArea;
-    const isVisible = visibleMarketAreaIds.includes(id);
-
-    try {
-      if (isVisible) {
-        setVisibleMarketAreaIds((prev) =>
-          prev.filter((currentId) => currentId !== id)
+  const handleToggleVisibility = useCallback(
+    async (marketArea) => {
+      if (!marketArea) return;
+  
+      const { id } = marketArea;
+      const isVisible = visibleMarketAreaIds.includes(id);
+  
+      try {
+        // Update visibility state first
+        const newVisibleIds = isVisible
+          ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
+          : [...visibleMarketAreaIds, id];
+        
+        // Update local state
+        setVisibleMarketAreaIds(newVisibleIds);
+        
+        // Update localStorage
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`,
+          JSON.stringify(newVisibleIds)
         );
-        clearSelection();
-      } else {
-        setVisibleMarketAreaIds((prev) => [...prev, id]);
+  
+        if (isVisible) {
+          // If hiding, clear this specific market area's graphics
+          clearMarketAreaGraphics(id);
+        } else {
+          // If showing, redraw this specific market area
+          if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+            for (const point of marketArea.radius_points) {
+              await drawRadius(
+                point, 
+                marketArea.style_settings, 
+                marketArea.id,
+                marketArea.order
+              );
+            }
+          } else if (marketArea.locations) {
+            const features = marketArea.locations.map((loc) => ({
+              geometry: loc.geometry,
+              attributes: {
+                id: loc.id,
+                marketAreaId: marketArea.id,
+                order: marketArea.order,
+              },
+            }));
+  
+            await updateFeatureStyles(
+              features,
+              {
+                fill: marketArea.style_settings?.fillColor,
+                fillOpacity: marketArea.style_settings?.fillOpacity,
+                outline: marketArea.style_settings?.borderColor,
+                outlineWidth: marketArea.style_settings?.borderWidth,
+              },
+              marketArea.ma_type
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error toggling market area visibility:", error);
+        toast.error("Failed to toggle market area visibility");
       }
-    } catch (error) {
-      console.error("Error toggling market area visibility:", error);
-    }
-  }, [visibleMarketAreaIds, clearSelection]);
+    },
+    [
+      visibleMarketAreaIds, 
+      projectId, 
+      clearMarketAreaGraphics, 
+      drawRadius, 
+      updateFeatureStyles
+    ]
+  );
+  
 
-  const handleEdit = useCallback((marketArea) => {
-    onEdit?.(marketArea);
-  }, [onEdit]);
+  const handleEdit = useCallback(
+    async (marketArea) => {
+      if (!marketArea) return;
+      
+      // Don't clear selection or hide layers when transitioning to edit mode
+      // Instead, just pass the market area to edit
+      onEdit?.(marketArea);
+    },
+    [onEdit]
+  );
 
   const handleDelete = async (marketArea) => {
     if (!marketArea || !projectId) return;
 
     if (window.confirm("Are you sure you want to delete this market area?")) {
       try {
+        // Clear all graphics associated with this market area
+        clearMarketAreaGraphics(marketArea.id);
+
+        // Delete the market area from the backend
         await deleteMarketArea(projectId, marketArea.id);
-        if (visibleMarketAreaIds.includes(marketArea.id)) {
-          setVisibleMarketAreaIds((prev) =>
-            prev.filter((id) => id !== marketArea.id)
-          );
-          clearSelection();
-        }
+
+        // Update visible market areas state and localStorage
         const updatedVisible = visibleMarketAreaIds.filter(
           (id) => id !== marketArea.id
         );
+        setVisibleMarketAreaIds(updatedVisible);
         localStorage.setItem(
           `marketAreas.${projectId}.visible`,
           JSON.stringify(updatedVisible)
         );
       } catch (error) {
         console.error("Failed to delete market area:", error);
+        toast.error("Failed to delete market area");
       }
     }
   };
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
-      
+
     if (!over || active.id === over.id) return;
-  
-    const oldIndex = marketAreas.findIndex(ma => ma.id === active.id);
-    const newIndex = marketAreas.findIndex(ma => ma.id === over.id);
-  
-    const newOrder = arrayMove(marketAreas, oldIndex, newIndex).map(ma => ma.id);
-  
+
+    const oldIndex = marketAreas.findIndex((ma) => ma.id === active.id);
+    const newIndex = marketAreas.findIndex((ma) => ma.id === over.id);
+
+    const newOrder = arrayMove(marketAreas, oldIndex, newIndex).map(
+      (ma) => ma.id
+    );
+
     try {
       await reorderMarketAreas(projectId, newOrder);
     } catch (error) {
@@ -321,7 +449,9 @@ export default function MarketAreaList({ onClose, onEdit }) {
             ) : (
               <EyeSlashIcon className="h-5 w-5" />
             )}
-            <span>{areAllAreasVisible ? "Hide all areas" : "Show all areas"}</span>
+            <span>
+              {areAllAreasVisible ? "Hide all areas" : "Show all areas"}
+            </span>
           </button>
         </div>
       )}
@@ -332,7 +462,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={marketAreas.map(ma => ma.id)}
+            items={marketAreas.map((ma) => ma.id)}
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-4">

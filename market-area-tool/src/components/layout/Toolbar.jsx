@@ -39,7 +39,6 @@ const MA_TYPE_MAPPING = {
   'county': 'COUNTY',
 };
 
-
 // Main Toolbar Component
 export default function Toolbar({ onCreateMA, onToggleList }) {
   const { variablePresets } = usePresets();
@@ -52,12 +51,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const { marketAreas } = useMarketAreas();
   const [isMapReady, setIsMapReady] = useState(false);
   
-  // Separate state to track if initial toggle has occurred
-  const [hasInitialToggleOccurred, setHasInitialToggleOccurred] = useState(false);
-  
   // Flag to prevent toggle during MA creation
   const isCreatingMARef = useRef(false);
-
 
   const handleBack = () => {
     navigate("/");
@@ -101,63 +96,36 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(false);
     }
   };
-  // Add a ref to track if we've toggled
-  const hasToggledRef = useRef(false);
 
-  // Update map initialization check
+  // Simplified map initialization
   useEffect(() => {
-    if (mapView) {
-      mapView.when(() => {
-        console.log("Map view is fully initialized");
-
-        const allLayers = mapView.map.allLayers;
-        Promise.all(allLayers.map((layer) => layer.load()))
-          .then(() => {
-            console.log("All map layers are loaded");
-            setTimeout(() => {
-              setIsMapReady(true);
-            }, 500);
-          })
-          .catch((error) => {
-            console.error("Error loading layers:", error);
-            setIsMapReady(true);
-          });
-      });
-    }
+    if (!mapView) return;
+    
+    mapView.when(() => {
+      const allLayers = mapView.map.allLayers;
+      Promise.all(allLayers.map((layer) => layer.load()))
+        .then(() => setIsMapReady(true))
+        .catch((error) => {
+          console.error("Error loading layers:", error);
+          setIsMapReady(true);
+        });
+    });
   }, [mapView]);
-  // Separate effect for initial toggle only
-  useEffect(() => {
-    if (isMapReady && marketAreas && !hasInitialToggleOccurred && !isCreatingMARef.current) {
-      console.log("Triggering initial MA list toggle");
-      onToggleList();
-      setHasInitialToggleOccurred(true);
-    }
-  }, [isMapReady, marketAreas, onToggleList, hasInitialToggleOccurred]);
 
-
-
-  // Reset the toggle ref when the component unmounts or when creating new MA
-  useEffect(() => {
-    return () => {
-      hasToggledRef.current = false;
-    };
-  }, []);
+  const handleCreateMA = () => {
+    isCreatingMARef.current = true;
+    onCreateMA();
+    setTimeout(() => {
+      isCreatingMARef.current = false;
+    }, 100);
+  };
   const handleExportJPEG = async () => {
     if (!mapView) {
       console.log("No mapView available");
       toast.error("Map not ready for export");
       return;
     }
-  const handleCreateMA = () => {
-    isCreatingMARef.current = true;
-    onCreateMA();
-    // Reset the flag after a short delay
-    setTimeout(() => {
-      isCreatingMARef.current = false;
-    }, 100);
-  };
 
-  
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting map as JPEG...");
@@ -357,7 +325,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         `market_areas_webmap_${new Date().toISOString().split("T")[0]}.json`
       );
 
-      toast.dismiss();
+      toast.dismiss(loadingToast);
       toast.success("Web map exported successfully");
     } catch (error) {
       console.error("Web map export failed:", error);
@@ -365,19 +333,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const handleCreateMA = () => {
-    // Set the flag to prevent automatic toggle
-    isCreatingMARef.current = true;
-    
-    // Call onCreateMA without clearing existing MAs
-    onCreateMA();
-    
-    // Reset the flag after a delay
-    setTimeout(() => {
-      isCreatingMARef.current = false;
-    }, 100);
   };
 
   useEffect(() => {
@@ -475,9 +430,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${
-                             isExporting ? "opacity-50 cursor-not-allowed" : ""
-                           }`}
+                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export JPEG
@@ -492,9 +445,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${
-                             isExporting ? "opacity-50 cursor-not-allowed" : ""
-                           }`}
+                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <MapIcon className="mr-3 h-5 w-5" />
                         Export MXD
@@ -513,20 +464,14 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         ></div>
 
         <div className="flex items-center space-x-2">
-        <button
-          onClick={() => {
-            isCreatingMARef.current = true;
-            // Only reset the toggle ref, don't call onCreateMA directly
-            hasToggledRef.current = false;
-            // Use the proper handler
-            handleCreateMA();
-          }}
-          disabled={isExporting}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <PlusIcon className="h-5 w-5" />
-          Create New MA
-        </button>
+          <button
+            onClick={handleCreateMA}
+            disabled={isExporting}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Create New MA
+          </button>
           <button
             onClick={onToggleList}
             disabled={isExporting}
