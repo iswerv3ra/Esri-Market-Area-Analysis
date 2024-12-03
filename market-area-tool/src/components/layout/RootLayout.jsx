@@ -1,5 +1,3 @@
-// src/components/layout/RootLayout.jsx
-
 import { useState, useEffect } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -11,9 +9,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 import { logout } from "../../utils/auth";
+import { useProjectCleanup } from '../../hooks/useProjectCleanup';
 
 export default function RootLayout() {
   const navigate = useNavigate();
+  const cleanupProject = useProjectCleanup();
   const [isDarkMode, setIsDarkMode] = useState(
     localStorage.getItem("theme") === "dark"
   );
@@ -35,6 +35,7 @@ export default function RootLayout() {
   const handleLogoutConfirm = async () => {
     try {
       setShowLogoutConfirm(false);
+      cleanupProject(); // Clean up before logout
       await logout(navigate);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -43,12 +44,16 @@ export default function RootLayout() {
     }
   };
 
+  const handleHomeClick = (e) => {
+    e.preventDefault(); // Prevent default Link behavior
+    cleanupProject();
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
-      {/* Main Header - Fixed height */}
       <header className="h-14 flex-none bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="h-full px-4 flex items-center justify-between">
-          {/* Left Section: Dark Mode Toggle */}
           <div className="flex items-center">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -63,14 +68,12 @@ export default function RootLayout() {
             </button>
           </div>
 
-          {/* Center Section: Title */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-teal-400 px-4 py-1 rounded-lg">
               Market Area Definition Tool
             </h1>
           </div>
 
-          {/* Right Section: Navigation and Logout */}
           <div className="flex items-center space-x-4">
             <Link
               to="/presets"
@@ -79,13 +82,14 @@ export default function RootLayout() {
               <AdjustmentsHorizontalIcon className="h-5 w-5" />
               <span className="hidden sm:inline">Manage Presets</span>
             </Link>
-            <Link
-              to="/"
+            {/* Changed from Link to button */}
+            <button
+              onClick={handleHomeClick}
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
             >
               <HomeIcon className="h-5 w-5" />
               <span className="hidden sm:inline">Home</span>
-            </Link>
+            </button>
             <button
               onClick={handleLogoutClick}
               className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200"
@@ -97,22 +101,17 @@ export default function RootLayout() {
         </div>
       </header>
 
-      {/* Main Content Area - Fills remaining height */}
       <main className="flex-1 overflow-hidden">
-        {/* Outlet renders the matched child route */}
         <Outlet />
       </main>
 
-      {/* Logout Confirmation Dialog */}
       <Dialog
         open={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
         className="relative z-50"
       >
-        {/* Backdrop */}
         <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-        {/* Dialog Panel */}
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-lg max-w-sm w-full p-6 shadow-xl">
             <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white">

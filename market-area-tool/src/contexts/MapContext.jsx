@@ -341,6 +341,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [isMapSelectionActive, setIsMapSelectionActive] = useState(false);
   const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
+  const [selectedMarketArea, setSelectedMarketArea] = useState(null);
 
   // Move hideAllFeatureLayers here, at component body level
   const hideAllFeatureLayers = useCallback(() => {
@@ -1460,6 +1461,50 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     showVisibleMarketAreas();
   }, [marketAreas, visibleMarketAreaIds, drawRadius, updateFeatureStyles]);
 
+  const resetMapState = useCallback(() => {
+    // Reset all state
+    setMapView(null);
+    setActiveLayers([]);
+    setIsLayerLoading(false);
+    setSelectedFeatures([]);
+    setIsMapSelectionActive(false);
+    setVisibleMarketAreaIds([]);
+
+    // Clear graphics layers
+    if (selectionGraphicsLayerRef.current) {
+      selectionGraphicsLayerRef.current.removeAll();
+    }
+    if (radiusGraphicsLayerRef.current) {
+      radiusGraphicsLayerRef.current.removeAll();
+    }
+
+    // Clear feature layers
+    Object.values(featureLayersRef.current).forEach(layer => {
+      if (layer && !layer.destroyed) {
+        try {
+          // Handle both single layers and group layers
+          if (Array.isArray(layer.featureLayers)) {
+            layer.featureLayers.forEach(subLayer => {
+              if (subLayer && !subLayer.destroyed) {
+                subLayer.visible = false;
+              }
+            });
+          } else {
+            layer.visible = false;
+          }
+        } catch (error) {
+          console.error("Error clearing layer:", error);
+        }
+      }
+    });
+
+    // Clear storage
+    localStorage.removeItem('mapState');
+    localStorage.removeItem('lastMapExtent');
+    
+    console.log('[MapContext] Map state reset successfully');
+  }, []);
+
   // Update visibleMarketAreaIds when marketAreas changes
   useEffect(() => {
     if (marketAreas.length > 0) {
@@ -1472,6 +1517,7 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       mapView,
       setMapView,
       activeLayers,
+      resetMapState, // Replace resetMarketAreas with resetMapState
       toggleActiveLayerType,
       addActiveLayer,
       removeActiveLayer,
@@ -1503,6 +1549,7 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       addActiveLayer,
       removeActiveLayer,
       isLayerLoading,
+      resetMapState, 
       queryFeatures,
       selectedFeatures,
       addToSelection,

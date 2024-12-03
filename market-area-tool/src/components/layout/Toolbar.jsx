@@ -25,6 +25,7 @@ import jsPDF from "jspdf";
 import ExportDialog from "./ExportDialog";
 import { usePresets } from "../../contexts/PresetsContext";
 import ScaleBar from "@arcgis/core/widgets/ScaleBar";
+import { useProjectCleanup } from '../../hooks/useProjectCleanup';
 
 // Market area type mapping for consistent formatting
 const MA_TYPE_MAPPING = {
@@ -53,8 +54,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   
   // Flag to prevent toggle during MA creation
   const isCreatingMARef = useRef(false);
+  const cleanupProject = useProjectCleanup();
 
   const handleBack = () => {
+    cleanupProject();
     navigate("/");
   };
 
