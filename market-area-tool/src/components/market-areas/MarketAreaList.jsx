@@ -145,13 +145,21 @@ export default function MarketAreaList({ onClose, onEdit }) {
   }, [areAllAreasVisible, marketAreas, clearSelection]);
 
   // Fetch market areas when projectId changes
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+
   useEffect(() => {
     const loadMarketAreas = async () => {
-      if (!projectId) return;
-      await fetchMarketAreas(projectId);
+      if (!projectId || hasAttemptedFetch) return;
+      
+      try {
+        await fetchMarketAreas(projectId);
+      } finally {
+        setHasAttemptedFetch(true);
+      }
     };
+    
     loadMarketAreas();
-  }, [projectId, fetchMarketAreas]);
+  }, [projectId, fetchMarketAreas, hasAttemptedFetch]);
 
   // Set initial visibility state when market areas first load
   useEffect(() => {
@@ -285,12 +293,10 @@ export default function MarketAreaList({ onClose, onEdit }) {
       await reorderMarketAreas(projectId, newOrder);
     } catch (error) {
       console.error("Failed to reorder market areas:", error);
-      // You could add a toast notification here to inform the user
-      // toast.error("Failed to save the new order. The list will revert to its previous state.");
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !hasAttemptedFetch) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
