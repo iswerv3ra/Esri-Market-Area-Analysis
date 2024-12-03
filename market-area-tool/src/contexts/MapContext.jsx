@@ -332,6 +332,30 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [isMapSelectionActive, setIsMapSelectionActive] = useState(false);
   const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
 
+  // Move hideAllFeatureLayers here, at component body level
+  const hideAllFeatureLayers = useCallback(() => {
+    if (!mapView) return;
+
+    Object.values(featureLayersRef.current).forEach(layer => {
+      if (layer && !layer.destroyed) {
+        if (Array.isArray(layer.featureLayers)) {
+          // Handle GroupLayer case
+          layer.featureLayers.forEach(subLayer => {
+            if (subLayer && !subLayer.destroyed) {
+              subLayer.visible = false;
+            }
+          });
+        } else {
+          // Handle single FeatureLayer case
+          layer.visible = false;
+        }
+        console.log(`[MapContext] Hiding layer ${layer.title}`);
+      }
+    });
+
+    setActiveLayers([]);
+  }, [mapView]);
+
   const formatLocationName = useCallback((feature, layerType) => {
     const attrs = feature.attributes;
     switch (layerType) {
@@ -659,17 +683,39 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   );
 
   // Clear selection
-  const clearSelection = useCallback(() => {
+  const clearSelection = useCallback((preserveEditingId = null) => {
     if (!selectionGraphicsLayerRef.current) return;
     try {
+      // Keep graphics that are either:
+      // 1. Part of market areas (have marketAreaId)
+      // 2. Part of the currently editing market area (if preserveEditingId is provided)
+      const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+        (graphic) => {
+          const isMarketArea = graphic.attributes?.marketAreaId;
+          const isCurrentlyEditing = preserveEditingId && 
+            (graphic.attributes?.FEATURE_TYPE === activeLayers[0] || 
+            graphic.attributes?.marketAreaId === preserveEditingId);
+          return isMarketArea || isCurrentlyEditing;
+        }
+      );
+
       selectionGraphicsLayerRef.current.removeAll();
-      radiusGraphicsLayerRef.current?.removeAll(); // Clear radius graphics as well
-      setSelectedFeatures([]);
-      console.log("[MapContext] Selection cleared");
+      graphicsToKeep.forEach(g => selectionGraphicsLayerRef.current.add(g));
+
+      // Only clear selectedFeatures if they're not part of the editing market area
+      if (preserveEditingId) {
+        setSelectedFeatures(prev => 
+          prev.filter(f => f.attributes?.marketAreaId === preserveEditingId)
+        );
+      } else {
+        setSelectedFeatures([]);
+      }
+
+      console.log("[MapContext] Selection cleared while preserving market areas and editing state");
     } catch (error) {
       console.error("Error clearing selection:", error);
     }
-  }, []);
+  }, [activeLayers]);
 
   // Display features
   const displayFeatures = useCallback(
@@ -935,15 +981,9 @@ const updateFeatureStyles = useCallback(
         return;
       }
 
+      // If no type is provided, do nothing and return
       if (!type) {
-        Object.values(featureLayersRef.current).forEach((layer) => {
-          if (layer && !layer.destroyed) {
-            layer.visible = false;
-            console.log(`[MapContext] FeatureLayer hidden: ${layer.title}`);
-          }
-        });
-        setActiveLayers([]);
-        console.log("[MapContext] activeLayers cleared.");
+        console.warn("[MapContext] No layer type provided to removeActiveLayer");
         return;
       }
 
@@ -966,6 +1006,7 @@ const updateFeatureStyles = useCallback(
           return prev.filter((l) => l !== type);
         });
 
+        // Only remove graphics for this specific type
         if (selectionGraphicsLayerRef.current && type) {
           const remainingGraphics =
             selectionGraphicsLayerRef.current.graphics.filter(
@@ -988,22 +1029,7 @@ const updateFeatureStyles = useCallback(
     [mapView]
   );
 
-  // Hide all feature layers
-  const hideAllFeatureLayers = useCallback(() => {
-    console.log("[MapContext] Hiding all feature layers.");
-    try {
-      Object.entries(featureLayersRef.current).forEach(([type, layer]) => {
-        if (layer && !layer.destroyed) {
-          layer.visible = false;
-          console.log(`[MapContext] FeatureLayer hidden: ${layer.title}`);
-        }
-      });
-      setActiveLayers([]);
-      console.log("[MapContext] activeLayers cleared after hiding all layers.");
-    } catch (error) {
-      console.error("[MapContext] Error hiding feature layers:", error);
-    }
-  }, []);
+
 
   const queryFeatures = useCallback(
     async (searchText) => {
@@ -1205,55 +1231,75 @@ const updateFeatureStyles = useCallback(
   useEffect(() => {
     const showVisibleMarketAreas = async () => {
       if (!marketAreas.length) return;
-
-      // Clear all market areas first
-      hideAllFeatureLayers();
-      radiusGraphicsLayerRef.current?.removeAll();
-      selectionGraphicsLayerRef.current?.removeAll();
-
-      // Sort market areas by order field to control rendering order
-      const sortedAreas = [...marketAreas].sort((a, b) => a.order - b.order);
-
-      // Now render each market area
-      for (const marketArea of sortedAreas) {
-        if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
-
-        if (marketArea.ma_type === "radius" && marketArea.radius_points) {
-          for (const point of marketArea.radius_points) {
-            await drawRadius(point, marketArea.style_settings);
-          }
-        } else if (marketArea.locations) {
-          const features = marketArea.locations.map((loc) => ({
-            geometry: loc.geometry,
-            attributes: {
-              id: loc.id,
-              marketAreaId: marketArea.id,
-              order: marketArea.order,
-            },
-          }));
-
-          await updateFeatureStyles(
-            features,
-            {
-              fill: marketArea.style_settings?.fillColor,
-              fillOpacity: marketArea.style_settings?.fillOpacity,
-              outline: marketArea.style_settings?.borderColor,
-              outlineWidth: marketArea.style_settings?.borderWidth,
-            },
-            marketArea.ma_type
+  
+      try {
+        // Instead of clearing all graphics, only clear graphics that aren't in the current marketAreas
+        const currentMarketAreaIds = new Set(marketAreas.map(ma => ma.id));
+        
+        if (radiusGraphicsLayerRef.current) {
+          const radiusGraphicsToKeep = radiusGraphicsLayerRef.current.graphics.filter(
+            g => g.attributes?.marketAreaId && currentMarketAreaIds.has(g.attributes.marketAreaId)
           );
+          radiusGraphicsLayerRef.current.removeAll();
+          radiusGraphicsToKeep.forEach(g => radiusGraphicsLayerRef.current.add(g));
         }
+  
+        if (selectionGraphicsLayerRef.current) {
+          const selectionGraphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+            g => g.attributes?.marketAreaId && currentMarketAreaIds.has(g.attributes.marketAreaId)
+          );
+          selectionGraphicsLayerRef.current.removeAll();
+          selectionGraphicsToKeep.forEach(g => selectionGraphicsLayerRef.current.add(g));
+        }
+  
+        // Sort market areas by order field to control rendering order
+        const sortedAreas = [...marketAreas].sort((a, b) => a.order - b.order);
+  
+        // Now render each market area
+        for (const marketArea of sortedAreas) {
+          if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
+  
+          // Check if graphics for this market area already exist
+          const existingGraphics = selectionGraphicsLayerRef.current?.graphics.filter(
+            g => g.attributes?.marketAreaId === marketArea.id
+          );
+  
+          // Only redraw if no graphics exist for this market area
+          if (!existingGraphics?.length) {
+            if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+              for (const point of marketArea.radius_points) {
+                await drawRadius(point, marketArea.style_settings, marketArea.id, marketArea.order);
+              }
+            } else if (marketArea.locations) {
+              const features = marketArea.locations.map((loc) => ({
+                geometry: loc.geometry,
+                attributes: {
+                  id: loc.id,
+                  marketAreaId: marketArea.id,
+                  order: marketArea.order,
+                },
+              }));
+  
+              await updateFeatureStyles(
+                features,
+                {
+                  fill: marketArea.style_settings?.fillColor,
+                  fillOpacity: marketArea.style_settings?.fillOpacity,
+                  outline: marketArea.style_settings?.borderColor,
+                  outlineWidth: marketArea.style_settings?.borderWidth,
+                },
+                marketArea.ma_type
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error in showVisibleMarketAreas:", error);
       }
     };
-
+  
     showVisibleMarketAreas();
-  }, [
-    marketAreas,
-    visibleMarketAreaIds,
-    hideAllFeatureLayers,
-    drawRadius,
-    updateFeatureStyles,
-  ]);
+  }, [marketAreas, visibleMarketAreaIds, drawRadius, updateFeatureStyles]);
 
   // Update visibleMarketAreaIds when marketAreas changes
   useEffect(() => {
@@ -1273,6 +1319,7 @@ const updateFeatureStyles = useCallback(
       hideAllFeatureLayers,
       isLayerLoading,
       queryFeatures,
+      hideAllFeatureLayers, // Add this
       selectedFeatures,
       addToSelection,
       removeFromSelection,
@@ -1293,11 +1340,11 @@ const updateFeatureStyles = useCallback(
       toggleActiveLayerType,
       addActiveLayer,
       removeActiveLayer,
-      hideAllFeatureLayers,
       isLayerLoading,
       queryFeatures,
       selectedFeatures,
       addToSelection,
+      hideAllFeatureLayers, // Add to dependencies
       removeFromSelection,
       clearSelection,
       updateFeatureStyles,

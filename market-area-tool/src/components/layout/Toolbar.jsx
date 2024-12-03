@@ -367,6 +367,19 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     }
   };
 
+  const handleCreateMA = () => {
+    // Set the flag to prevent automatic toggle
+    isCreatingMARef.current = true;
+    
+    // Call onCreateMA without clearing existing MAs
+    onCreateMA();
+    
+    // Reset the flag after a delay
+    setTimeout(() => {
+      isCreatingMARef.current = false;
+    }, 100);
+  };
+
   useEffect(() => {
     let searchWidget;
 
@@ -500,17 +513,20 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         ></div>
 
         <div className="flex items-center space-x-2">
-          <button
-            onClick={() => {
-              hasToggledRef.current = false;
-              onCreateMA();
-            }}
-            disabled={isExporting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <PlusIcon className="h-5 w-5" />
-            Create New MA
-          </button>
+        <button
+          onClick={() => {
+            isCreatingMARef.current = true;
+            // Only reset the toggle ref, don't call onCreateMA directly
+            hasToggledRef.current = false;
+            // Use the proper handler
+            handleCreateMA();
+          }}
+          disabled={isExporting}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Create New MA
+        </button>
           <button
             onClick={onToggleList}
             disabled={isExporting}

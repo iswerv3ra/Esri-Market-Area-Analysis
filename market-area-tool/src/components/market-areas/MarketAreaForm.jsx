@@ -21,7 +21,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     addToSelection,
     removeFromSelection,
     clearSelection,
-    hideAllFeatureLayers,
     updateFeatureStyles,
     drawRadius,
     addActiveLayer,
@@ -37,6 +36,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const initializationDone = useRef(false);
   const locationsInitialized = useRef(false);
 
+  // At the top of your component where state is initialized
   const [formState, setFormState] = useState({
     maType: editingMarketArea?.ma_type || "",
     maName: editingMarketArea?.name || "",
@@ -48,16 +48,29 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     styleSettings: {
       ...(editingMarketArea?.style_settings || {
         fillColor: "#0078D4",
-        fillOpacity: 1, // Default to fully opaque
+        fillOpacity: 1,
         borderColor: "#0078D4",
-        borderWidth: 1, // Default border width
+        borderWidth: 1,
       }),
-      noBorder:
-        editingMarketArea?.style_settings?.borderWidth === 0 || false,
-      noFill:
-        editingMarketArea?.style_settings?.fillOpacity === 0 || false,
+      noBorder: editingMarketArea?.style_settings?.borderWidth === 0 || false,
+      noFill: editingMarketArea?.style_settings?.fillOpacity === 0 || false,
     },
   });
+
+  // Add this useEffect to properly handle visuals during initialization
+  useEffect(() => {
+    // Skip if we're editing (handled by editingMarketArea effect)
+    if (editingMarketArea) return;
+
+    // When opening fresh form, don't clear existing market areas
+    const init = async () => {
+      // Only clear selection, not layers
+      clearSelection();
+    };
+
+    init();
+  }, []); // Empty dependency array since this should only run once on mountaaaaaaa
+
 
   const [radiusPoints, setRadiusPoints] = useState(
     editingMarketArea?.radius_points || []
@@ -172,142 +185,143 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         // Mark as initialized immediately
         initializationDone.current = true;
 
-        // Clear existing selections and hide all layers
+        // Only clear selection, don't hide layers
         clearSelection();
-        hideAllFeatureLayers();
 
         if (editingMarketArea.ma_type !== "radius") {
+          // Remove existing layer of same type if it exists
+          if (formState.maType) {
+            await removeActiveLayer(formState.maType);
+          }
+          
+          // Add the new layer without hiding others
           await addActiveLayer(editingMarketArea.ma_type);
 
-          if (
-            editingMarketArea.locations?.length > 0 &&
-            !locationsInitialized.current
-          ) {
-            locationsInitialized.current = true;
+            if (
+              editingMarketArea.locations?.length > 0 &&
+              !locationsInitialized.current
+            ) {
+              locationsInitialized.current = true;
 
-            // Create proper feature objects from saved locations
-            const features = editingMarketArea.locations
-              .map((loc) => ({
-                geometry: loc.geometry,
-                attributes: {
-                  FID: loc.id,
-                  NAME: loc.name,
-                },
-              }))
-              .filter(
-                (feature) =>
-                  formatLocationName(feature, editingMarketArea.ma_type).trim() !== ""
-              ); // Filter out invalid features
-
-            // Update form state first
-            setFormState((prev) => ({
-              ...prev,
-              maType: editingMarketArea.ma_type,
-              maName: editingMarketArea.name,
-              shortName: editingMarketArea.short_name,
-              styleSettings: {
-                ...editingMarketArea.style_settings,
-                noBorder:
-                  editingMarketArea.style_settings?.borderWidth === 0,
-                noFill: editingMarketArea.style_settings?.fillOpacity === 0,
-              },
-              selectedLocations: editingMarketArea.locations
-                .filter((loc) => loc.name && loc.name.trim() !== "")
+              // Create proper feature objects from saved locations
+              const features = editingMarketArea.locations
                 .map((loc) => ({
-                  id: loc.id,
-                  name: loc.name,
                   geometry: loc.geometry,
-                  feature: {
-                    geometry: loc.geometry,
-                    attributes: {
-                      FID: loc.id,
-                      NAME: loc.name,
-                    },
+                  attributes: {
+                    FID: loc.id,
+                    NAME: loc.name,
                   },
-                })),
-            }));
+                }))
+                .filter(
+                  (feature) =>
+                    formatLocationName(feature, editingMarketArea.ma_type).trim() !== ""
+                ); // Filter out invalid features
 
-            // Then update visuals in a single batch
-            await updateFeatureStyles(
-              features,
-              editingMarketArea.style_settings,
-              editingMarketArea.ma_type
-            );
+              // Update form state first
+              setFormState((prev) => ({
+                ...prev,
+                maType: editingMarketArea.ma_type,
+                maName: editingMarketArea.name,
+                shortName: editingMarketArea.short_name,
+                styleSettings: {
+                  ...editingMarketArea.style_settings,
+                  noBorder:
+                    editingMarketArea.style_settings?.borderWidth === 0,
+                  noFill: editingMarketArea.style_settings?.fillOpacity === 0,
+                },
+                selectedLocations: editingMarketArea.locations
+                  .filter((loc) => loc.name && loc.name.trim() !== "")
+                  .map((loc) => ({
+                    id: loc.id,
+                    name: loc.name,
+                    geometry: loc.geometry,
+                    feature: {
+                      geometry: loc.geometry,
+                      attributes: {
+                        FID: loc.id,
+                        NAME: loc.name,
+                      },
+                    },
+                  })),
+              }));
 
-            // Finally add to selection only valid features
-            features.forEach((feature) => {
-              const name = formatLocationName(
-                feature,
+              // Then update visuals in a single batch
+              await updateFeatureStyles(
+                features,
+                editingMarketArea.style_settings,
                 editingMarketArea.ma_type
               );
-              if (name && name.trim() !== "") {
-                addToSelection(feature, editingMarketArea.ma_type);
-              }
-            });
-          }
-        }
-        // Handle "radius" type if necessary
-        else if (editingMarketArea.ma_type === "radius") {
-          if (
-            editingMarketArea.radius_points &&
-            editingMarketArea.radius_points.length > 0
-          ) {
-            // Update form state
-            setFormState((prev) => ({
-              ...prev,
-              maType: editingMarketArea.ma_type,
-              maName: editingMarketArea.name,
-              shortName: editingMarketArea.short_name,
-              styleSettings: {
-                ...editingMarketArea.style_settings,
-                noBorder:
-                  editingMarketArea.style_settings?.borderWidth === 0,
-                noFill: editingMarketArea.style_settings?.fillOpacity === 0,
-              },
-            }));
 
-            // Set radius points
-            setRadiusPoints(editingMarketArea.radius_points);
-
-            // Draw the radii on the map
-            for (const point of editingMarketArea.radius_points) {
-              await drawRadius(point, editingMarketArea.style_settings);
+              // Finally add to selection only valid features
+              features.forEach((feature) => {
+                const name = formatLocationName(
+                  feature,
+                  editingMarketArea.ma_type
+                );
+                if (name && name.trim() !== "") {
+                  addToSelection(feature, editingMarketArea.ma_type);
+                }
+              });
             }
           }
+          // Handle "radius" type if necessary
+          else if (editingMarketArea.ma_type === "radius") {
+            if (
+              editingMarketArea.radius_points &&
+              editingMarketArea.radius_points.length > 0
+            ) {
+              // Update form state
+              setFormState((prev) => ({
+                ...prev,
+                maType: editingMarketArea.ma_type,
+                maName: editingMarketArea.name,
+                shortName: editingMarketArea.short_name,
+                styleSettings: {
+                  ...editingMarketArea.style_settings,
+                  noBorder:
+                    editingMarketArea.style_settings?.borderWidth === 0,
+                  noFill: editingMarketArea.style_settings?.fillOpacity === 0,
+                },
+              }));
+
+              // Set radius points
+              setRadiusPoints(editingMarketArea.radius_points);
+
+              // Draw the radii on the map
+              for (const point of editingMarketArea.radius_points) {
+                await drawRadius(point, editingMarketArea.style_settings);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error initializing form for editing:", error);
+          toast.error("Failed to load market area for editing");
         }
-      } catch (error) {
-        console.error("Error initializing form for editing:", error);
-        toast.error("Failed to load market area for editing");
-      }
-    };
+      };
 
-    initializeForm();
+      initializeForm();
 
-    // No cleanup function needed
-  }, [
-    editingMarketArea,
-    addActiveLayer,
-    clearSelection,
-    hideAllFeatureLayers,
-    updateFeatureStyles,
-    addToSelection,
-    formatLocationName,
-    drawRadius,
-  ]);
+      // No cleanup function needed
+    }, [
+      editingMarketArea,
+      addActiveLayer,
+      clearSelection,
+      updateFeatureStyles,
+      addToSelection,
+      formatLocationName,
+      drawRadius,
+    ]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       setIsMapSelectionActive(false);
       clearSelection();
-      hideAllFeatureLayers();
-      removeActiveLayer();
+      // Don't remove any layers on unmount to maintain visibility
     };
   }, [
     clearSelection,
-    hideAllFeatureLayers,
-    removeActiveLayer,
-    setIsMapSelectionActive,
+    setIsMapSelectionActive
   ]);
 
   const updateStyles = useCallback(() => {
@@ -362,30 +376,33 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateStyles();
   }, [formState.styleSettings, updateStyles]);
 
-  // Enhanced MA Type change handler
   const handleMATypeChange = useCallback(
     async (e) => {
       const newType = e.target.value;
-
+  
       try {
-        setIsMapSelectionActive(false); // Disable map selection first
+        setIsMapSelectionActive(false);
         clearSelection();
-        hideAllFeatureLayers();
-        removeActiveLayer();
-
+  
+        // Only remove the active feature layer type that's currently being used for selection
+        if (formState.maType) {
+          await removeActiveLayer(formState.maType);
+        }
+  
         setFormState((prev) => ({
           ...prev,
           maType: newType,
           locationSearch: "",
           availableLocations: [],
-          selectedLocations: [], // Clear selected locations
+          selectedLocations: [],
         }));
-
+  
         setRadiusPoints([]);
         setError(null);
-
+  
         if (newType && newType !== "radius") {
           try {
+            // Add the new feature layer without affecting existing market areas
             await addActiveLayer(newType);
           } catch (error) {
             console.error(`Error initializing layer ${newType}:`, error);
@@ -398,13 +415,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setError(`Failed to switch to ${newType}. Please try again.`);
       }
     },
-    [
-      addActiveLayer,
-      clearSelection,
-      hideAllFeatureLayers,
-      removeActiveLayer,
-      setIsMapSelectionActive,
-    ]
+    [addActiveLayer, clearSelection, removeActiveLayer, setIsMapSelectionActive, formState.maType]
   );
 
   // Enhanced search handler with debouncing and extended search
@@ -576,7 +587,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     []
   );
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -657,8 +667,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   
       setIsMapSelectionActive(false);
       clearSelection();
-      hideAllFeatureLayers();
-      removeActiveLayer();
+      // Only remove the active layer if it exists
+      if (formState.maType) {
+        removeActiveLayer(formState.maType);
+      }
   
       setTimeout(() => {
         onClose?.();
@@ -676,29 +688,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   };
 
 
-  // Enhanced cancel handler with form state reset
   const handleCancel = useCallback(() => {
     try {
-      // Remove the feature layer and hide everything
-      hideAllFeatureLayers();
-      removeActiveLayer();
-
-      // Reset form state
-      setFormState((prev) => ({
-        ...prev,
-        maType: "",
-        locationSearch: "",
-        availableLocations: [],
-        selectedLocations: [],
-      }));
-
-      // Reset radius points if any
-      setRadiusPoints([]);
-
-      // Clear any errors
-      setError(null);
-
-      // Wait for cleanup to complete before closing
+      setIsMapSelectionActive(false);
+      clearSelection();
+  
+      // Only remove the active layer if it exists
+      if (formState.maType) {
+        removeActiveLayer(formState.maType);
+      }
+  
       setTimeout(() => {
         onClose?.();
       }, 100);
@@ -706,12 +705,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       console.error("Error during cancel:", error);
       toast.error("Error cleaning up. Please try again.");
     }
-  }, [
-    hideAllFeatureLayers,
-    removeActiveLayer,
-    onClose,
-  ]);
-
+  }, [clearSelection, removeActiveLayer, onClose, formState.maType, setIsMapSelectionActive]);
   // Render JSX
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
