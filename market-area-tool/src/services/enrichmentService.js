@@ -445,6 +445,83 @@ export const analysisCategories = {
       },
     ],
   },
+  Additional: {
+    label: "Additional Variables",
+    variables: [
+      {
+        id: "KeyUsFacts.TOTHH_FY",
+        label: "2029 Total Households",
+      },
+      {
+        id: "KeyUsFacts.TOTHU_CY",
+        label: "2024 Total Housing Units",
+      },
+      {
+        id: "KeyUsFacts.OWNER_CY",
+        label: "2024 Owner Occupied HUs",
+      },
+      {
+        id: "KeyUsFacts.RENTER_CY",
+        label: "2024 Renter Occupied HUs",
+      },
+      {
+        id: "KeyUsFacts.VACANT_CY",
+        label: "2024 Vacant Housing Units",
+      },
+      {
+        id: "KeyUsFacts.TOTHU_FY",
+        label: "2029 Total Housing Units",
+      },
+      {
+        id: "KeyUsFacts.OWNER_FY",
+        label: "2029 Owner Occupied HUs",
+      },
+      {
+        id: "KeyUsFacts.RENTER_FY",
+        label: "2029 Renter Occupied HUs",
+      },
+      {
+        id: "KeyUsFacts.VACANT_FY",
+        label: "2029 Vacant Housing Units",
+      },
+      {
+        id: "EducationalAttainment.HSGRAD_CY",
+        label: "2024 Pop Age 25+: High School Diploma",
+      },
+      {
+        id: "EducationalAttainment.GED_CY",
+        label: "2024 Pop Age 25+: GED",
+      },
+      {
+        id: "EducationalAttainment.SMCOLL_CY",
+        label: "2024 Pop Age 25+: Some College/No Degree",
+      },
+      {
+        id: "EducationalAttainment.ASSCDEG_CY",
+        label: "2024 Pop Age 25+: Associate's Degree",
+      },
+      {
+        id: "EducationalAttainment.BACHDEG_CY",
+        label: "2024 Pop Age 25+: Bachelor's Degree",
+      },
+      {
+        id: "EducationalAttainment.GRADDEG_CY",
+        label: "2024 Pop Age 25+: Grad/Professional Degree",
+      },
+      {
+        id: "EducationalAttainment.EDUCBASECY",
+        label: "2024 Educational Attainment Base",
+      },      
+      {
+        id: "KeyUsFacts.AGEBASE_FY",
+        label: "2029 Base Age",
+      },
+      {
+        id: "KeyUsFacts.TOTPOP_FY",
+        label: "2029 Total Population",
+      },
+    ],
+  },
   tapestryHouseholds: {
     label: "Tapestry Households",
     variables: [
