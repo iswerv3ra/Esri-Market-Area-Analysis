@@ -446,6 +446,124 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [mapView]);
 
+// Helper function to get label configuration based on layer type
+const getLabelingInfo = (type) => {
+  let label;
+  switch (type) {
+    case 'zip':
+      label = {
+        field: "ZIP",
+        expressionInfo: {
+          expression: "$feature.ZIP" // Direct reference to ZIP field
+        }
+      };
+      break;
+    case 'county':
+      label = {
+        field: "NAME",
+        expressionInfo: {
+          expression: "$feature.NAME + ' County'"
+        }
+      };
+      break;
+    case 'tract':
+      label = {
+        field: "TRACT_FIPS",
+        expressionInfo: {
+          expression: "$feature.TRACT_FIPS"
+        }
+      };
+      break;
+    case 'block':
+      label = {
+        field: "BLOCK",
+        expressionInfo: {
+          expression: "$feature.BLOCK"
+        }
+      };
+      break;
+    case 'blockgroup':
+      label = {
+        field: "BLOCKGROUP_FIPS",
+        expressionInfo: {
+          expression: "'Block Group ' + $feature.BLOCKGROUP_FIPS"
+        }
+      };
+      break;
+    case 'place':
+      label = {
+        field: "NAME",
+        expressionInfo: {
+          expression: "$feature.NAME"
+        }
+      };
+      break;
+    case 'state':
+      label = {
+        field: "STATE_NAME",
+        expressionInfo: {
+          expression: "$feature.STATE_NAME"
+        }
+      };
+      break;
+    case 'cbsa':
+      label = {
+        field: "NAME",
+        expressionInfo: {
+          expression: "$feature.NAME"
+        }
+      };
+      break;
+    case 'md':
+      label = {
+        field: "BASENAME",
+        expressionInfo: {
+          expression: "$feature.BASENAME"
+        }
+      };
+      break;
+    case 'usa':
+      label = {
+        field: "STATE_NAME",
+        expressionInfo: {
+          expression: "'United States'"
+        }
+      };
+      break;
+    default:
+      return undefined;
+  }
+
+  return [{
+    labelPlacement: "always-horizontal",
+    symbol: {
+      type: "text",
+      color: [0, 0, 0, 1], // Pure black
+      haloColor: [255, 255, 255, 1],
+      haloSize: 2,
+      font: {
+        size: 14, // Increased font size
+        family: "Noto Sans",
+        weight: "bold" // Made text bold
+      }
+    },
+    minScale: type === 'state' || type === 'usa' ? 20000000 :
+              type === 'cbsa' || type === 'md' ? 5000000 :
+              type === 'county' ? 2000000 :
+              type === 'place' ? 1000000 :
+              type === 'zip' ? 300000 :
+              type === 'tract' ? 100000 :
+              type === 'blockgroup' ? 50000 :
+              type === 'block' ? 25000 : 300000,
+    maxScale: 0,
+    where: null,
+    labelExpressionInfo: label.expressionInfo,
+    labelOverplap: false,
+    deconflictionStrategy: "static",
+    labelSpacing: type === 'zip' ? 8 : 4
+  }];
+};
+
   const initializeFeatureLayer = useCallback(async (type) => {
     if (!type || !FEATURE_LAYERS[type]) {
       console.error(`Invalid or undefined layer type: ${type}`);
@@ -512,7 +630,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
         return groupLayer;
       } else {
-        // Single URL case
+        // In the initializeFeatureLayer function
         const layer = new FeatureLayer({
           url: layerConfig.url,
           outFields: layerConfig.outFields,
@@ -525,6 +643,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             type: "simple",
             symbol: symbol,
           },
+          labelingInfo: getLabelingInfo(type),
+          // Add label optimization settings
+          labelsVisible: true,
+          labelsOptimizationThreshold: 1000000,
+          minScale: layerConfig.minScale,
+          maxScale: layerConfig.maxScale,
         });
 
         return layer;
@@ -601,6 +725,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView, initializeFeatureLayer]
   );
 
+  // In MapContext.jsx
   const removeFromSelection = useCallback(
     async (feature, layerType) => {
       console.log(
@@ -629,7 +754,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         const graphicsToRemove =
           selectionGraphicsLayerRef.current.graphics.filter(
             (g) =>
-              g.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+              g.attributes[uniqueIdField] ===
+                feature.attributes[uniqueIdField] &&
+              (!g.attributes?.marketAreaId ||
+                (editingMarketArea &&
+                  g.attributes.marketAreaId === editingMarketArea.id))
           );
 
         graphicsToRemove.forEach((g) => {
@@ -644,21 +773,42 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         setSelectedFeatures((prev) => {
           const newSelectedFeatures = prev.filter(
             (f) =>
-              f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField]
+              f.attributes[uniqueIdField] !==
+                feature.attributes[uniqueIdField] ||
+              (f.attributes?.marketAreaId &&
+                (!editingMarketArea ||
+                  f.attributes.marketAreaId !== editingMarketArea.id))
           );
           console.log(
             "[MapContext] Feature removed from selection:",
             feature.attributes
           );
+
+          // If this was the last non-market-area feature, clear all temporary selection graphics
+          if (
+            newSelectedFeatures.length === 0 ||
+            newSelectedFeatures.every((f) => f.attributes?.marketAreaId)
+          ) {
+            const graphicsToKeep =
+              selectionGraphicsLayerRef.current.graphics.filter(
+                (g) => g.attributes?.marketAreaId
+              );
+            selectionGraphicsLayerRef.current.removeAll();
+            graphicsToKeep.forEach((g) =>
+              selectionGraphicsLayerRef.current.add(g)
+            );
+          }
+
           return newSelectedFeatures;
         });
       } catch (error) {
         console.error("[MapContext] Error in removeFromSelection:", error);
       }
     },
-    [selectedFeatures]
+    [editingMarketArea]
   );
 
+  // In MapContext.jsx
   const addToSelection = useCallback(
     async (feature, layerType) => {
       console.log(
@@ -694,168 +844,200 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             `[MapContext] Feature already selected:`,
             feature.attributes
           );
-          // Remove the feature from selection
           await removeFromSelection(feature, layerType);
         } else {
-          // Update selectedFeatures state only
-          setSelectedFeatures((prev) => {
-            console.log(
-              `[MapContext] Feature added to selection:`,
-              feature.attributes
-            );
-            return [...prev, feature];
-          });
+          // Only add if not already selected and not part of another market area
+          if (
+            !feature.attributes?.marketAreaId ||
+            (editingMarketArea &&
+              feature.attributes.marketAreaId === editingMarketArea.id)
+          ) {
+            setSelectedFeatures((prev) => {
+              // Double-check we're not duplicating
+              if (
+                !prev.some(
+                  (f) =>
+                    f.attributes[uniqueIdField] ===
+                    feature.attributes[uniqueIdField]
+                )
+              ) {
+                console.log(
+                  `[MapContext] Feature added to selection:`,
+                  feature.attributes
+                );
+                return [...prev, feature];
+              }
+              return prev;
+            });
+          }
         }
       } catch (error) {
         console.error("[MapContext] Error in addToSelection:", error);
       }
     },
-    [mapView, selectedFeatures, removeFromSelection]
+    [mapView, selectedFeatures, removeFromSelection, editingMarketArea]
   );
-  
-// Modified clearSelection function for MapContext.jsx
-const clearSelection = useCallback(
-  (preserveEditingId = null) => {
+
+  // In MapContext.jsx
+  const clearSelection = useCallback((preserveEditingId = null) => {
     if (!selectionGraphicsLayerRef.current) return;
+
     try {
-      // Keep:
-      // 1. Graphics that are part of any market area (have marketAreaId)
-      // 2. Graphics that are part of the currently editing market area
-      // 3. Graphics from the radius layer if they belong to a market area
-      const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
-        const isMarketArea = graphic.attributes?.marketAreaId;
-        const isCurrentlyEditing = preserveEditingId && 
-          (graphic.attributes?.marketAreaId === preserveEditingId || 
-           (graphic.attributes?.FEATURE_TYPE === activeLayers[0] && !graphic.attributes?.marketAreaId));
-        
-        // If we're not in editing mode (preserveEditingId is null), keep all market area graphics
-        if (!preserveEditingId) {
-          return isMarketArea;
-        }
-        
-        return isMarketArea || isCurrentlyEditing;
-      });
+      // If we're editing, only keep graphics for existing market areas and current editing session
+      if (preserveEditingId) {
+        const graphicsToKeep =
+          selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
+            const isMarketArea =
+              graphic.attributes?.marketAreaId &&
+              graphic.attributes.marketAreaId !== preserveEditingId;
+            const isCurrentlyEditing =
+              graphic.attributes?.marketAreaId === preserveEditingId;
+            return isMarketArea || isCurrentlyEditing;
+          });
 
-      // Preserve the existing graphics layer order
-      const orderedGraphics = [...graphicsToKeep].sort((a, b) => 
-        (b.attributes?.order || 0) - (a.attributes?.order || 0)
-      );
+        selectionGraphicsLayerRef.current.removeAll();
+        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+      } else {
+        // If not editing, only keep existing market area graphics
+        const existingMarketAreas =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (graphic) => graphic.attributes?.marketAreaId
+          );
 
-      selectionGraphicsLayerRef.current.removeAll();
-      orderedGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+        selectionGraphicsLayerRef.current.removeAll();
+        existingMarketAreas.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+      }
 
-      // Update selectedFeatures state while preserving market areas
+      // Update selectedFeatures state to match
       setSelectedFeatures((prev) =>
         prev.filter((f) => {
-          const isMarketArea = f.attributes?.marketAreaId;
-          const isCurrentlyEditing = preserveEditingId && 
-            (f.attributes?.marketAreaId === preserveEditingId ||
-             (f.attributes?.FEATURE_TYPE === activeLayers[0] && !f.attributes?.marketAreaId));
-          
-          // If we're not in editing mode, keep all market area features
-          if (!preserveEditingId) {
-            return isMarketArea;
+          if (preserveEditingId) {
+            return (
+              f.attributes?.marketAreaId === preserveEditingId ||
+              (f.attributes?.marketAreaId &&
+                f.attributes.marketAreaId !== preserveEditingId)
+            );
           }
-          
-          return isMarketArea || isCurrentlyEditing;
+          return f.attributes?.marketAreaId;
         })
-      );
-
-      console.log(
-        "[MapContext] Selection cleared while preserving market areas and editing state",
-        { 
-          preserveEditingId, 
-          keptGraphicsCount: orderedGraphics.length,
-          mode: preserveEditingId ? 'editing' : 'normal'
-        }
       );
     } catch (error) {
       console.error("Error clearing selection:", error);
     }
-  },
-  [activeLayers]
-);
+  }, []);
 
   // Update toggleMarketAreaEditMode to manage editing state
-  const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
-    if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
+  const toggleMarketAreaEditMode = useCallback(
+    async (marketAreaId) => {
+      if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
 
-    try {
-      // Set the editing state
-      const marketArea = marketAreas.find(ma => ma.id === marketAreaId);
-      setEditingMarketArea(marketArea || null);
+      try {
+        // Set the editing state
+        const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
+        setEditingMarketArea(marketArea || null);
 
-      const graphics = selectionGraphicsLayerRef.current.graphics.toArray();
-      const radiusGraphics = radiusGraphicsLayerRef.current?.graphics.toArray() || [];
+        const graphics = selectionGraphicsLayerRef.current.graphics.toArray();
+        const radiusGraphics =
+          radiusGraphicsLayerRef.current?.graphics.toArray() || [];
 
-      // Update interaction state for both selection and radius graphics
-      [...graphics, ...radiusGraphics].forEach(graphic => {
-        const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
-        const isMarketArea = graphic.attributes?.marketAreaId;
-        
-        if (isMarketArea) {
-          graphic.visible = true;
-          graphic.interactive = isEditingArea;
-          
-          if (isEditingArea) {
-            graphic.symbol = {
-              ...graphic.symbol,
-              opacity: 1,
-            };
-          } else {
-            graphic.symbol = {
-              ...graphic.symbol,
-              opacity: 0.5,
-            };
+        // Update interaction state for both selection and radius graphics
+        [...graphics, ...radiusGraphics].forEach((graphic) => {
+          const isEditingArea =
+            graphic.attributes?.marketAreaId === marketAreaId;
+          const isMarketArea = graphic.attributes?.marketAreaId;
+
+          if (isMarketArea) {
+            graphic.visible = true;
+            graphic.interactive = isEditingArea;
+
+            if (isEditingArea) {
+              graphic.symbol = {
+                ...graphic.symbol,
+                opacity: 1,
+              };
+            } else {
+              graphic.symbol = {
+                ...graphic.symbol,
+                opacity: 0.5,
+              };
+            }
           }
-        }
-      });
+        });
 
-      // Update feature layer interactivity
-      Object.values(featureLayersRef.current).forEach(layer => {
-        if (layer && !layer.destroyed) {
-          if (Array.isArray(layer.featureLayers)) {
-            layer.featureLayers.forEach(subLayer => {
-              if (subLayer && !subLayer.destroyed) {
-                subLayer.interactive = true;
-              }
-            });
-          } else {
-            layer.interactive = true;
+        // Update feature layer interactivity
+        Object.values(featureLayersRef.current).forEach((layer) => {
+          if (layer && !layer.destroyed) {
+            if (Array.isArray(layer.featureLayers)) {
+              layer.featureLayers.forEach((subLayer) => {
+                if (subLayer && !subLayer.destroyed) {
+                  subLayer.interactive = true;
+                }
+              });
+            } else {
+              layer.interactive = true;
+            }
           }
-        }
-      });
+        });
 
-      console.log(
-        "[MapContext] Market area edit mode toggled",
-        { 
+        console.log("[MapContext] Market area edit mode toggled", {
           marketAreaId,
           totalGraphics: graphics.length + radiusGraphics.length,
-          editableGraphics: graphics.filter(g => g.attributes?.marketAreaId === marketAreaId).length,
-          editingMarketArea: marketArea
-        }
-      );
-    } catch (error) {
-      console.error("Error toggling market area edit mode:", error);
-    }
-  }, [marketAreas]);
+          editableGraphics: graphics.filter(
+            (g) => g.attributes?.marketAreaId === marketAreaId
+          ).length,
+          editingMarketArea: marketArea,
+        });
+      } catch (error) {
+        console.error("Error toggling market area edit mode:", error);
+      }
+    },
+    [marketAreas]
+  );
 
-
-  // Display features
+  // In MapContext.jsx
   const displayFeatures = useCallback(
     async (features) => {
       if (!selectionGraphicsLayerRef.current || !mapView) return;
 
       try {
         console.log(
-          `Displaying ${
+          `[MapContext] Displaying ${
             features.length
           } features for layers: ${activeLayers.join(", ")}`
         );
+
+        // Preserve market area graphics
+        const existingMarketAreaGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (graphic) => graphic.attributes?.marketAreaId
+          );
+
+        // Get existing selection graphics that we want to keep (ones not being toggled)
+        const existingSelectionGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (graphic) =>
+              !graphic.attributes?.marketAreaId &&
+              !features.some((f) => f.attributes.FID === graphic.attributes.FID)
+          );
+
+        // Clear the graphics layer
         selectionGraphicsLayerRef.current.removeAll();
+
+        // Add back existing market area graphics
+        existingMarketAreaGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+
+        // Add back existing selection graphics we're keeping
+        existingSelectionGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
 
         const { default: Graphic } = await import("@arcgis/core/Graphic");
 
+        // Add new or updated features
         for (const feature of features) {
           const geometry = ensureValidGeometry(
             feature.geometry,
@@ -867,13 +1049,13 @@ const clearSelection = useCallback(
           let symbol;
           switch (geometry.type.toLowerCase()) {
             case "point":
-              symbol = SYMBOLS.defaultPoint;
+              symbol = SYMBOLS.selectedPoint;
               break;
             case "polyline":
-              symbol = SYMBOLS.defaultPolyline;
+              symbol = SYMBOLS.selectedPolyline;
               break;
             case "polygon":
-              symbol = SYMBOLS.defaultPolygon;
+              symbol = SYMBOLS.selectedPolygon;
               break;
             default:
               console.warn(
@@ -882,18 +1064,25 @@ const clearSelection = useCallback(
               continue;
           }
 
-          const graphic = new Graphic({
-            geometry,
-            attributes: {
-              ...feature.attributes,
-              FEATURE_TYPE: activeLayers[activeLayers.length - 1],
-            },
-            symbol,
-          });
-          selectionGraphicsLayerRef.current.add(graphic);
+          // Only add if it's not already selected (preventing duplicate visuals)
+          const isAlreadySelected = existingSelectionGraphics.some(
+            (g) => g.attributes.FID === feature.attributes.FID
+          );
+
+          if (!isAlreadySelected) {
+            const graphic = new Graphic({
+              geometry,
+              attributes: {
+                ...feature.attributes,
+                FEATURE_TYPE: activeLayers[activeLayers.length - 1],
+              },
+              symbol,
+            });
+            selectionGraphicsLayerRef.current.add(graphic);
+          }
         }
       } catch (error) {
-        console.error("Error displaying features:", error);
+        console.error("[MapContext] Error displaying features:", error);
       }
     },
     [activeLayers, mapView]
@@ -1183,31 +1372,34 @@ const clearSelection = useCallback(
     [mapView]
   );
 
-// MapContext.jsx - Add these helper functions
-const clearMarketAreaGraphics = useCallback((marketAreaId) => {
-  if (!marketAreaId) return;
+  // MapContext.jsx - Add these helper functions
+  const clearMarketAreaGraphics = useCallback((marketAreaId) => {
+    if (!marketAreaId) return;
 
-  try {
-    if (radiusGraphicsLayerRef.current) {
-      const remainingGraphics = radiusGraphicsLayerRef.current.graphics.filter(
-        (g) => g.attributes?.marketAreaId !== marketAreaId
-      );
-      radiusGraphicsLayerRef.current.removeAll();
-      remainingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
+    try {
+      if (radiusGraphicsLayerRef.current) {
+        const remainingGraphics =
+          radiusGraphicsLayerRef.current.graphics.filter(
+            (g) => g.attributes?.marketAreaId !== marketAreaId
+          );
+        radiusGraphicsLayerRef.current.removeAll();
+        remainingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
+      }
+
+      if (selectionGraphicsLayerRef.current) {
+        const remainingGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (g) => g.attributes?.marketAreaId !== marketAreaId
+          );
+        selectionGraphicsLayerRef.current.removeAll();
+        remainingGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+      }
+    } catch (error) {
+      console.error("Error clearing market area graphics:", error);
     }
-
-    if (selectionGraphicsLayerRef.current) {
-      const remainingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-        (g) => g.attributes?.marketAreaId !== marketAreaId
-      );
-      selectionGraphicsLayerRef.current.removeAll();
-      remainingGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-    }
-  } catch (error) {
-    console.error("Error clearing market area graphics:", error);
-  }
-}, []);
-
+  }, []);
 
   const queryFeatures = useCallback(
     async (searchText) => {
@@ -1372,39 +1564,63 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     }
   }, [mapView, initializeGraphicsLayers]);
 
-  // Update map click handler with editing state
+  // In MapContext.jsx - Updated map click handler effect
   useEffect(() => {
     if (!mapView) return;
-  
+
     const handleMapClick = async (event) => {
       if (!isMapSelectionActive || !activeLayers.length) {
         return;
       }
-  
+
       try {
         const hitResult = await mapView.hitTest(event);
-  
+
         if (hitResult && hitResult.results.length > 0) {
-          const validResults = hitResult.results.filter(result => {
+          const validResults = hitResult.results.filter((result) => {
             const graphic = result.graphic;
-            // Allow interaction with features that either:
-            // 1. Don't belong to any market area (new selections)
-            // 2. Belong to the currently editing market area
-            return !graphic.attributes?.marketAreaId || 
-                   (editingMarketArea && graphic.attributes?.marketAreaId === editingMarketArea.id);
-          });
-  
-          if (validResults.length > 0) {
-            const graphicResult = validResults.find(r =>
-              activeLayers.some(type => FEATURE_LAYERS[type].title === r.layer.title)
+            const graphicMarketAreaId = graphic.attributes?.marketAreaId;
+
+            // Allow interaction only if:
+            // 1. The feature doesn't belong to any market area OR
+            // 2. We're editing and it belongs to our current market area
+            return (
+              !graphicMarketAreaId ||
+              (editingMarketArea &&
+                graphicMarketAreaId === editingMarketArea.id)
             );
-  
+          });
+
+          if (validResults.length > 0) {
+            const graphicResult = validResults.find((r) =>
+              activeLayers.some(
+                (type) => FEATURE_LAYERS[type].title === r.layer.title
+              )
+            );
+
             if (graphicResult && graphicResult.graphic) {
               const graphic = graphicResult.graphic;
+
+              // Check if the feature is already part of another market area
+              const existingMarketAreaId = graphic.attributes?.marketAreaId;
+              if (
+                existingMarketAreaId &&
+                (!editingMarketArea ||
+                  existingMarketAreaId !== editingMarketArea.id)
+              ) {
+                // Don't allow selection of features that belong to other market areas
+                console.log(
+                  "Cannot select feature - belongs to another market area:",
+                  existingMarketAreaId
+                );
+                return;
+              }
+
               const matchedLayerType = activeLayers.find(
-                type => FEATURE_LAYERS[type].title === graphicResult.layer.title
+                (type) =>
+                  FEATURE_LAYERS[type].title === graphicResult.layer.title
               );
-              
+
               await addToSelection(graphic, matchedLayerType);
             }
           }
@@ -1413,15 +1629,18 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
         console.error("[MapContext] Error handling map click:", error);
       }
     };
-  
+
     const handler = mapView.on("click", handleMapClick);
     return () => handler.remove();
-  }, [mapView, isMapSelectionActive, activeLayers, addToSelection, editingMarketArea]);
+  }, [
+    mapView,
+    isMapSelectionActive,
+    activeLayers,
+    addToSelection,
+    editingMarketArea,
+  ]);
 
-
-
-
-// Also update the showVisibleMarketAreas effect to ensure proper rendering order
+  // Also update the showVisibleMarketAreas effect to ensure proper rendering order
   useEffect(() => {
     const showVisibleMarketAreas = async () => {
       if (!marketAreas.length) return;
@@ -1436,9 +1655,10 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
           if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
 
           // Check if graphics for this market area already exist
-          const existingGraphics = selectionGraphicsLayerRef.current?.graphics.filter(
-            (g) => g.attributes?.marketAreaId === marketArea.id
-          );
+          const existingGraphics =
+            selectionGraphicsLayerRef.current?.graphics.filter(
+              (g) => g.attributes?.marketAreaId === marketArea.id
+            );
 
           // Only redraw if no graphics exist for this market area
           if (!existingGraphics?.length) {
@@ -1500,12 +1720,12 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     }
 
     // Clear feature layers
-    Object.values(featureLayersRef.current).forEach(layer => {
+    Object.values(featureLayersRef.current).forEach((layer) => {
       if (layer && !layer.destroyed) {
         try {
           // Handle both single layers and group layers
           if (Array.isArray(layer.featureLayers)) {
-            layer.featureLayers.forEach(subLayer => {
+            layer.featureLayers.forEach((subLayer) => {
               if (subLayer && !subLayer.destroyed) {
                 subLayer.visible = false;
               }
@@ -1520,10 +1740,10 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     });
 
     // Clear storage
-    localStorage.removeItem('mapState');
-    localStorage.removeItem('lastMapExtent');
-    
-    console.log('[MapContext] Map state reset successfully');
+    localStorage.removeItem("mapState");
+    localStorage.removeItem("lastMapExtent");
+
+    console.log("[MapContext] Map state reset successfully");
   }, []);
 
   // Update visibleMarketAreaIds when marketAreas changes
@@ -1562,7 +1782,7 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       visibleMarketAreaIds,
       setVisibleMarketAreaIds,
       editingMarketArea,
-      setEditingMarketArea
+      setEditingMarketArea,
     }),
     [
       mapView,
@@ -1587,12 +1807,12 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       formatLocationName,
       visibleMarketAreaIds,
       editingMarketArea,
-      setEditingMarketArea
+      setEditingMarketArea,
     ]
   );
-  
+
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;
-  };
-  
-  export default MapContext;
-  export { FEATURE_LAYERS };
+};
+
+export default MapContext;
+export { FEATURE_LAYERS };
