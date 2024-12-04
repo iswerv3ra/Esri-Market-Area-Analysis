@@ -60,6 +60,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     cleanupProject();
     navigate("/");
   };
+  
 
   const handleExportData = async ({
     variables,

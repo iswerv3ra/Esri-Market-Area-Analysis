@@ -342,6 +342,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [isMapSelectionActive, setIsMapSelectionActive] = useState(false);
   const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
   const [selectedMarketArea, setSelectedMarketArea] = useState(null);
+  const [editingMarketArea, setEditingMarketArea] = useState(null);
 
   // Move hideAllFeatureLayers here, at component body level
   const hideAllFeatureLayers = useCallback(() => {
@@ -775,40 +776,69 @@ const clearSelection = useCallback(
   [activeLayers]
 );
 
-// Additional helper function to manage market area visibility during editing
-const toggleMarketAreaEditMode = useCallback((marketAreaId) => {
-  if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
+  // Update toggleMarketAreaEditMode to manage editing state
+  const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
+    if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
 
-  try {
-    // When entering edit mode for a specific market area:
-    // 1. Keep all existing market area graphics visible
-    // 2. Allow selection/editing only for the target market area
-    const currentGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-    
-    // Update the visibility/interaction state without removing other graphics
-    currentGraphics.forEach((graphic) => {
-      const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
-      const isMarketArea = graphic.attributes?.marketAreaId;
-      
-      // Keep all market areas visible but adjust interaction state
-      if (isMarketArea) {
-        graphic.visible = true;
-        graphic.interactive = isEditingArea; // Only the editing area should be interactive
-      }
-    });
+    try {
+      // Set the editing state
+      const marketArea = marketAreas.find(ma => ma.id === marketAreaId);
+      setEditingMarketArea(marketArea || null);
 
-    console.log(
-      "[MapContext] Market area edit mode toggled",
-      { 
-        marketAreaId,
-        totalGraphics: currentGraphics.length,
-        editableGraphics: currentGraphics.filter(g => g.attributes?.marketAreaId === marketAreaId).length
-      }
-    );
-  } catch (error) {
-    console.error("Error toggling market area edit mode:", error);
-  }
-}, []);
+      const graphics = selectionGraphicsLayerRef.current.graphics.toArray();
+      const radiusGraphics = radiusGraphicsLayerRef.current?.graphics.toArray() || [];
+
+      // Update interaction state for both selection and radius graphics
+      [...graphics, ...radiusGraphics].forEach(graphic => {
+        const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
+        const isMarketArea = graphic.attributes?.marketAreaId;
+        
+        if (isMarketArea) {
+          graphic.visible = true;
+          graphic.interactive = isEditingArea;
+          
+          if (isEditingArea) {
+            graphic.symbol = {
+              ...graphic.symbol,
+              opacity: 1,
+            };
+          } else {
+            graphic.symbol = {
+              ...graphic.symbol,
+              opacity: 0.5,
+            };
+          }
+        }
+      });
+
+      // Update feature layer interactivity
+      Object.values(featureLayersRef.current).forEach(layer => {
+        if (layer && !layer.destroyed) {
+          if (Array.isArray(layer.featureLayers)) {
+            layer.featureLayers.forEach(subLayer => {
+              if (subLayer && !subLayer.destroyed) {
+                subLayer.interactive = true;
+              }
+            });
+          } else {
+            layer.interactive = true;
+          }
+        }
+      });
+
+      console.log(
+        "[MapContext] Market area edit mode toggled",
+        { 
+          marketAreaId,
+          totalGraphics: graphics.length + radiusGraphics.length,
+          editableGraphics: graphics.filter(g => g.attributes?.marketAreaId === marketAreaId).length,
+          editingMarketArea: marketArea
+        }
+      );
+    } catch (error) {
+      console.error("Error toggling market area edit mode:", error);
+    }
+  }, [marketAreas]);
 
 
   // Display features
@@ -1342,63 +1372,54 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     }
   }, [mapView, initializeGraphicsLayers]);
 
-  // Handle map clicks for selection
+  // Update map click handler with editing state
   useEffect(() => {
     if (!mapView) return;
-
+  
     const handleMapClick = async (event) => {
-      console.log("[MapContext] Map clicked at:", event.mapPoint);
       if (!isMapSelectionActive || !activeLayers.length) {
-        console.log(
-          "[MapContext] Map selection is not active or no active layers."
-        );
         return;
       }
-
+  
       try {
         const hitResult = await mapView.hitTest(event);
-        console.log("[MapContext] hitTest result:", hitResult);
-
+  
         if (hitResult && hitResult.results.length > 0) {
-          hitResult.results.forEach((r) => {
-            console.log("[MapContext] hitTest Layer Title:", r.layer.title);
+          const validResults = hitResult.results.filter(result => {
+            const graphic = result.graphic;
+            // Allow interaction with features that either:
+            // 1. Don't belong to any market area (new selections)
+            // 2. Belong to the currently editing market area
+            return !graphic.attributes?.marketAreaId || 
+                   (editingMarketArea && graphic.attributes?.marketAreaId === editingMarketArea.id);
           });
-
-          const graphicResult = hitResult.results.find((r) =>
-            activeLayers.some(
-              (type) => FEATURE_LAYERS[type].title === r.layer.title
-            )
-          );
-
-          if (graphicResult && graphicResult.graphic) {
-            const graphic = graphicResult.graphic;
-            const matchedLayerType = activeLayers.find(
-              (type) => FEATURE_LAYERS[type].title === graphicResult.layer.title
+  
+          if (validResults.length > 0) {
+            const graphicResult = validResults.find(r =>
+              activeLayers.some(type => FEATURE_LAYERS[type].title === r.layer.title)
             );
-            console.log(
-              `[MapContext] Graphic found on layer ${matchedLayerType}:`,
-              graphic.attributes
-            );
-            await addToSelection(graphic, matchedLayerType);
-          } else {
-            console.log(
-              "[MapContext] No matching graphic found in active layers."
-            );
+  
+            if (graphicResult && graphicResult.graphic) {
+              const graphic = graphicResult.graphic;
+              const matchedLayerType = activeLayers.find(
+                type => FEATURE_LAYERS[type].title === graphicResult.layer.title
+              );
+              
+              await addToSelection(graphic, matchedLayerType);
+            }
           }
-        } else {
-          console.log("[MapContext] No results from hitTest.");
         }
       } catch (error) {
         console.error("[MapContext] Error handling map click:", error);
       }
     };
-
+  
     const handler = mapView.on("click", handleMapClick);
+    return () => handler.remove();
+  }, [mapView, isMapSelectionActive, activeLayers, addToSelection, editingMarketArea]);
 
-    return () => {
-      handler.remove();
-    };
-  }, [mapView, isMapSelectionActive, activeLayers, addToSelection]);
+
+
 
 // Also update the showVisibleMarketAreas effect to ensure proper rendering order
   useEffect(() => {
@@ -1517,14 +1538,13 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       mapView,
       setMapView,
       activeLayers,
-      resetMapState, // Replace resetMarketAreas with resetMapState
+      resetMapState,
       toggleActiveLayerType,
       addActiveLayer,
       removeActiveLayer,
       hideAllFeatureLayers,
       isLayerLoading,
       queryFeatures,
-      hideAllFeatureLayers, // Add this
       selectedFeatures,
       addToSelection,
       removeFromSelection,
@@ -1533,14 +1553,16 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       updateFeatureStyles,
       drawRadius,
       clearMarketAreaGraphics,
-      toggleMarketAreaEditMode,      // Add to dependencies
+      toggleMarketAreaEditMode,
       isMapSelectionActive,
       setIsMapSelectionActive,
       formatLocationName,
       radiusGraphicsLayer: radiusGraphicsLayerRef.current,
+      selectionGraphicsLayer: selectionGraphicsLayerRef.current,
       visibleMarketAreaIds,
       setVisibleMarketAreaIds,
-      clearMarketAreaGraphics,  // Make sure this is included
+      editingMarketArea,
+      setEditingMarketArea
     }),
     [
       mapView,
@@ -1549,12 +1571,12 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       addActiveLayer,
       removeActiveLayer,
       isLayerLoading,
-      resetMapState, 
+      resetMapState,
       queryFeatures,
       selectedFeatures,
       addToSelection,
       hideAllFeatureLayers,
-      toggleMarketAreaEditMode,      // Add to dependencies
+      toggleMarketAreaEditMode,
       removeFromSelection,
       clearSelection,
       clearMarketAreaGraphics,
@@ -1564,12 +1586,13 @@ const clearMarketAreaGraphics = useCallback((marketAreaId) => {
       setIsMapSelectionActive,
       formatLocationName,
       visibleMarketAreaIds,
-      clearMarketAreaGraphics,  // Make sure this is included
+      editingMarketArea,
+      setEditingMarketArea
     ]
   );
-
+  
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;
-};
-
-export default MapContext;
-export { FEATURE_LAYERS };
+  };
+  
+  export default MapContext;
+  export { FEATURE_LAYERS };
