@@ -588,103 +588,140 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }
   }, [formState.maType, removeActiveLayer, clearSelection]);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setIsSaving(true);
-  setError(null);
-
-  try {
-    const styleSettings = {
-      fillColor: formState.styleSettings.fillColor,
-      fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
-      borderColor: formState.styleSettings.borderColor,
-      borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
-    };
-
-    const mappedType = formState.maType === "md" ? "place" : formState.maType;
-
-    const marketAreaData = {
-      ma_type: mappedType,
-      name: formState.maName,
-      short_name: formState.shortName,
-      style_settings: styleSettings,
-      locations: formState.maType !== "radius"
-        ? formState.selectedLocations.map((loc) => ({
-            id: loc.id,
-            name: loc.name,
-            geometry: loc.geometry || loc.feature?.geometry,
-          }))
-        : [],
-      radius_points: formState.maType === "radius"
-        ? radiusPoints.map((point) => ({
-            center: point.center,
-            radii: point.radii,
-          }))
-        : [],
-      original_type: formState.maType,
-    };
-
-    let savedMarketArea;
-    if (editingMarketArea) {
-      savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
-      toast.success("Market area updated successfully");
-    } else {
-      savedMarketArea = await addMarketArea(projectId, marketAreaData);
-      toast.success("Market area created successfully");
-    }
-
-    // Disable map selection mode
-    setIsMapSelectionActive(false);
-
-    // Store current selections before clearing
-    const currentSelections = selectedFeatures.map(feature => ({
-      ...feature,
-      attributes: {
-        ...feature.attributes,
-        marketAreaId: editingMarketArea?.id || savedMarketArea.id
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setError(null);
+  
+    try {
+      const styleSettings = {
+        fillColor: formState.styleSettings.fillColor,
+        fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+        borderColor: formState.styleSettings.borderColor,
+        borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
+      };
+  
+      const mappedType = formState.maType === "md" ? "place" : formState.maType;
+  
+      const marketAreaData = {
+        ma_type: mappedType,
+        name: formState.maName,
+        short_name: formState.shortName,
+        style_settings: styleSettings,
+        locations: formState.maType !== "radius"
+          ? formState.selectedLocations.map((loc) => ({
+              id: loc.id,
+              name: loc.name,
+              geometry: loc.geometry || loc.feature?.geometry,
+            }))
+          : [],
+        radius_points: formState.maType === "radius"
+          ? radiusPoints.map((point) => ({
+              center: point.center,
+              radii: point.radii,
+            }))
+          : [],
+        original_type: formState.maType,
+      };
+  
+      // Store ALL existing market area graphics, including the one being edited
+      const existingGraphics = selectionGraphicsLayer.graphics
+        .filter(g => g.attributes?.marketAreaId)
+        .toArray()
+        .map(g => ({
+          geometry: g.geometry,
+          attributes: g.attributes,
+          symbol: g.symbol
+        }));
+  
+      let savedMarketArea;
+      if (editingMarketArea) {
+        savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+        toast.success("Market area updated successfully");
+      } else {
+        savedMarketArea = await addMarketArea(projectId, marketAreaData);
+        toast.success("Market area created successfully");
       }
-    }));
-
-    // Remove the temporary editing layer but don't clear graphics
-    if (formState.maType) {
-      await removeActiveLayer(formState.maType);
+  
+      // Disable map selection mode
+      setIsMapSelectionActive(false);
+  
+      // Store current selections with the saved market area ID
+      const currentSelections = selectedFeatures.map(feature => ({
+        ...feature,
+        attributes: {
+          ...feature.attributes,
+          marketAreaId: editingMarketArea?.id || savedMarketArea.id,
+          FEATURE_TYPE: formState.maType
+        }
+      }));
+  
+      // Remove just the feature layer but keep the graphics layer intact
+      if (formState.maType) {
+        await removeActiveLayer(formState.maType);
+      }
+  
+      // Clear the graphics layer
+      selectionGraphicsLayer.removeAll();
+  
+      // First, restore all existing market area graphics
+      const { default: Graphic } = await import("@arcgis/core/Graphic");
+      existingGraphics.forEach(g => {
+        const graphic = new Graphic({
+          geometry: g.geometry,
+          attributes: g.attributes,
+          symbol: g.symbol
+        });
+        selectionGraphicsLayer.add(graphic);
+      });
+  
+      // If we're editing, make sure to update the existing market area's style
+      if (editingMarketArea) {
+        const editedAreaGraphics = currentSelections.map(feature => {
+          return {
+            geometry: feature.geometry,
+            attributes: {
+              ...feature.attributes,
+              marketAreaId: editingMarketArea.id
+            }
+          };
+        });
+  
+        await updateFeatureStyles(
+          editedAreaGraphics,
+          styleSettings,
+          formState.maType
+        );
+      }
+  
+      // Update visibility status
+      const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
+      let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+      const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
+      
+      if (!currentVisibleIds.includes(marketAreaId)) {
+        currentVisibleIds.push(marketAreaId);
+      }
+  
+      localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+      setVisibleMarketAreaIds(currentVisibleIds);
+  
+      // Clear editing state
+      setEditingMarketArea(null);
+  
+      // Close the form after a brief delay to ensure state updates
+      setTimeout(() => {
+        onClose?.();
+      }, 100);
+  
+    } catch (error) {
+      console.error("Error saving market area:", error);
+      setError(error.message || "Error saving market area");
+      toast.error(error.message || "Error saving market area");
+    } finally {
+      setIsSaving(false);
     }
-
-    // Update the graphics with the saved market area ID
-    await updateFeatureStyles(
-      currentSelections,
-      styleSettings,
-      formState.maType
-    );
-
-    // Update visibility status
-    const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-    let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
-    const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-    
-    if (!currentVisibleIds.includes(marketAreaId)) {
-      currentVisibleIds.push(marketAreaId);
-    }
-
-    localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
-    setVisibleMarketAreaIds(currentVisibleIds);
-
-    // Clear editing state
-    setEditingMarketArea(null);
-
-    // Close the form after a brief delay to ensure state updates
-    setTimeout(() => {
-      onClose?.();
-    }, 100);
-
-  } catch (error) {
-    console.error("Error saving market area:", error);
-    setError(error.message || "Error saving market area");
-    toast.error(error.message || "Error saving market area");
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
 const handleCancel = useCallback(async () => {
   try {
