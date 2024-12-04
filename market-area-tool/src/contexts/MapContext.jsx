@@ -878,123 +878,131 @@ const getLabelingInfo = (type) => {
     [mapView, selectedFeatures, removeFromSelection, editingMarketArea]
   );
 
-  // In MapContext.jsx
-  const clearSelection = useCallback((preserveEditingId = null) => {
-    if (!selectionGraphicsLayerRef.current) return;
+// Update the clearSelection function to better handle existing selections
+const clearSelection = useCallback((preserveEditingId = null) => {
+  if (!selectionGraphicsLayerRef.current) return;
 
-    try {
-      // If we're editing, only keep graphics for existing market areas and current editing session
-      if (preserveEditingId) {
-        const graphicsToKeep =
-          selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
-            const isMarketArea =
-              graphic.attributes?.marketAreaId &&
-              graphic.attributes.marketAreaId !== preserveEditingId;
-            const isCurrentlyEditing =
-              graphic.attributes?.marketAreaId === preserveEditingId;
-            return isMarketArea || isCurrentlyEditing;
-          });
+  try {
+    // If we're editing, preserve both existing market areas and current editing session
+    if (preserveEditingId) {
+      const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
+        // Keep graphics that either:
+        // 1. Belong to any market area (including current editing session)
+        // 2. Are part of the current editing session
+        return graphic.attributes?.marketAreaId;
+      });
 
-        selectionGraphicsLayerRef.current.removeAll();
-        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-      } else {
-        // If not editing, only keep existing market area graphics
-        const existingMarketAreas =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (graphic) => graphic.attributes?.marketAreaId
-          );
+      selectionGraphicsLayerRef.current.removeAll();
+      graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
 
-        selectionGraphicsLayerRef.current.removeAll();
-        existingMarketAreas.forEach((g) =>
-          selectionGraphicsLayerRef.current.add(g)
-        );
-      }
-
-      // Update selectedFeatures state to match
-      setSelectedFeatures((prev) =>
-        prev.filter((f) => {
-          if (preserveEditingId) {
-            return (
-              f.attributes?.marketAreaId === preserveEditingId ||
-              (f.attributes?.marketAreaId &&
-                f.attributes.marketAreaId !== preserveEditingId)
-            );
-          }
-          return f.attributes?.marketAreaId;
-        })
+      // Update selectedFeatures to match
+      setSelectedFeatures((prev) => 
+        prev.filter((f) => f.attributes?.marketAreaId)
       );
-    } catch (error) {
-      console.error("Error clearing selection:", error);
+    } else {
+      // If not editing, only keep existing market area graphics
+      const existingMarketAreas = selectionGraphicsLayerRef.current.graphics.filter(
+        (graphic) => graphic.attributes?.marketAreaId
+      );
+
+      selectionGraphicsLayerRef.current.removeAll();
+      existingMarketAreas.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+
+      // Update selectedFeatures to match
+      setSelectedFeatures((prev) => 
+        prev.filter((f) => f.attributes?.marketAreaId)
+      );
     }
-  }, []);
+  } catch (error) {
+    console.error("Error clearing selection:", error);
+  }
+}, []);
 
-  // Update toggleMarketAreaEditMode to manage editing state
-  const toggleMarketAreaEditMode = useCallback(
-    async (marketAreaId) => {
-      if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
+// Update toggleMarketAreaEditMode to properly handle selections
+const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
+  if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
 
-      try {
-        // Set the editing state
-        const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
-        setEditingMarketArea(marketArea || null);
+  try {
+    // Find the market area being edited
+    const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
+    
+    // Set the editing state
+    setEditingMarketArea(marketArea || null);
 
-        const graphics = selectionGraphicsLayerRef.current.graphics.toArray();
-        const radiusGraphics =
-          radiusGraphicsLayerRef.current?.graphics.toArray() || [];
+    // Get all graphics
+    const graphics = selectionGraphicsLayerRef.current.graphics.toArray();
+    const radiusGraphics = radiusGraphicsLayerRef.current?.graphics.toArray() || [];
 
-        // Update interaction state for both selection and radius graphics
-        [...graphics, ...radiusGraphics].forEach((graphic) => {
-          const isEditingArea =
-            graphic.attributes?.marketAreaId === marketAreaId;
-          const isMarketArea = graphic.attributes?.marketAreaId;
-
-          if (isMarketArea) {
-            graphic.visible = true;
-            graphic.interactive = isEditingArea;
-
-            if (isEditingArea) {
-              graphic.symbol = {
-                ...graphic.symbol,
-                opacity: 1,
-              };
-            } else {
-              graphic.symbol = {
-                ...graphic.symbol,
-                opacity: 0.5,
-              };
-            }
+    // Update the selectedFeatures state to include the locations from the market area
+    if (marketArea && marketArea.locations) {
+      setSelectedFeatures((prev) => {
+        // Remove any existing selections for this market area
+        const filtered = prev.filter(f => 
+          f.attributes?.marketAreaId !== marketAreaId
+        );
+        
+        // Add all locations from the market area
+        return [...filtered, ...marketArea.locations.map(loc => ({
+          geometry: loc.geometry,
+          attributes: {
+            ...loc,
+            marketAreaId: marketAreaId,
+            FEATURE_TYPE: marketArea.ma_type
           }
-        });
+        }))];
+      });
+    }
 
-        // Update feature layer interactivity
-        Object.values(featureLayersRef.current).forEach((layer) => {
-          if (layer && !layer.destroyed) {
-            if (Array.isArray(layer.featureLayers)) {
-              layer.featureLayers.forEach((subLayer) => {
-                if (subLayer && !subLayer.destroyed) {
-                  subLayer.interactive = true;
-                }
-              });
-            } else {
-              layer.interactive = true;
-            }
-          }
-        });
+    // Update interaction state for both selection and radius graphics
+    [...graphics, ...radiusGraphics].forEach((graphic) => {
+      const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
+      const isMarketArea = graphic.attributes?.marketAreaId;
 
-        console.log("[MapContext] Market area edit mode toggled", {
-          marketAreaId,
-          totalGraphics: graphics.length + radiusGraphics.length,
-          editableGraphics: graphics.filter(
-            (g) => g.attributes?.marketAreaId === marketAreaId
-          ).length,
-          editingMarketArea: marketArea,
-        });
-      } catch (error) {
-        console.error("Error toggling market area edit mode:", error);
+      if (isMarketArea) {
+        graphic.visible = true;
+        graphic.interactive = isEditingArea;
+
+        if (isEditingArea) {
+          graphic.symbol = {
+            ...graphic.symbol,
+            opacity: 1,
+          };
+        } else {
+          graphic.symbol = {
+            ...graphic.symbol,
+            opacity: 0.5,
+          };
+        }
       }
-    },
-    [marketAreas]
-  );
+    });
+
+    // Update feature layer interactivity
+    Object.values(featureLayersRef.current).forEach((layer) => {
+      if (layer && !layer.destroyed) {
+        if (Array.isArray(layer.featureLayers)) {
+          layer.featureLayers.forEach((subLayer) => {
+            if (subLayer && !subLayer.destroyed) {
+              subLayer.interactive = true;
+            }
+          });
+        } else {
+          layer.interactive = true;
+        }
+      }
+    });
+
+    console.log("[MapContext] Market area edit mode toggled", {
+      marketAreaId,
+      totalGraphics: graphics.length + radiusGraphics.length,
+      editableGraphics: graphics.filter(
+        (g) => g.attributes?.marketAreaId === marketAreaId
+      ).length,
+      editingMarketArea: marketArea,
+    });
+  } catch (error) {
+    console.error("Error toggling market area edit mode:", error);
+  }
+}, [marketAreas]);
 
   // In MapContext.jsx
   const displayFeatures = useCallback(
@@ -1564,81 +1572,138 @@ const getLabelingInfo = (type) => {
     }
   }, [mapView, initializeGraphicsLayers]);
 
-  // In MapContext.jsx - Updated map click handler effect
-  useEffect(() => {
-    if (!mapView) return;
 
-    const handleMapClick = async (event) => {
-      if (!isMapSelectionActive || !activeLayers.length) {
-        return;
-      }
+// In MapContext.jsx - Updated map click handler effect with safer popup handling
+useEffect(() => {
+  if (!mapView) return;
 
-      try {
-        const hitResult = await mapView.hitTest(event);
+  // Safely disable popup behaviors
+  if (mapView.popup) {
+    mapView.popup.autoOpenEnabled = false;
+    mapView.popup.dockEnabled = false;
+    mapView.popup.defaultPopupTemplateEnabled = false;
+  }
 
-        if (hitResult && hitResult.results.length > 0) {
-          const validResults = hitResult.results.filter((result) => {
-            const graphic = result.graphic;
-            const graphicMarketAreaId = graphic.attributes?.marketAreaId;
-
-            // Allow interaction only if:
-            // 1. The feature doesn't belong to any market area OR
-            // 2. We're editing and it belongs to our current market area
-            return (
-              !graphicMarketAreaId ||
-              (editingMarketArea &&
-                graphicMarketAreaId === editingMarketArea.id)
-            );
-          });
-
-          if (validResults.length > 0) {
-            const graphicResult = validResults.find((r) =>
-              activeLayers.some(
-                (type) => FEATURE_LAYERS[type].title === r.layer.title
-              )
-            );
-
-            if (graphicResult && graphicResult.graphic) {
-              const graphic = graphicResult.graphic;
-
-              // Check if the feature is already part of another market area
-              const existingMarketAreaId = graphic.attributes?.marketAreaId;
-              if (
-                existingMarketAreaId &&
-                (!editingMarketArea ||
-                  existingMarketAreaId !== editingMarketArea.id)
-              ) {
-                // Don't allow selection of features that belong to other market areas
-                console.log(
-                  "Cannot select feature - belongs to another market area:",
-                  existingMarketAreaId
-                );
-                return;
-              }
-
-              const matchedLayerType = activeLayers.find(
-                (type) =>
-                  FEATURE_LAYERS[type].title === graphicResult.layer.title
-              );
-
-              await addToSelection(graphic, matchedLayerType);
+  // Also disable popups on all feature layers
+  Object.values(featureLayersRef.current).forEach(layer => {
+    if (layer) {
+      if (Array.isArray(layer.featureLayers)) {
+        // Handle group layers
+        layer.featureLayers.forEach(subLayer => {
+          if (subLayer && !subLayer.destroyed) {
+            subLayer.popupEnabled = false;
+            if (subLayer.popupTemplate) {
+              subLayer.popupTemplate = null;
             }
           }
+        });
+      } else if (!layer.destroyed) {
+        // Handle single layers
+        layer.popupEnabled = false;
+        if (layer.popupTemplate) {
+          layer.popupTemplate = null;
         }
-      } catch (error) {
-        console.error("[MapContext] Error handling map click:", error);
       }
-    };
+    }
+  });
+  
+  const handleMapClick = async (event) => {
+    // Prevent default event behavior
+    event.stopPropagation();
+    
+    if (!isMapSelectionActive || !activeLayers.length) {
+      return;
+    }
 
-    const handler = mapView.on("click", handleMapClick);
-    return () => handler.remove();
-  }, [
-    mapView,
-    isMapSelectionActive,
-    activeLayers,
-    addToSelection,
-    editingMarketArea,
-  ]);
+    try {
+      const hitResult = await mapView.hitTest(event);
+
+      if (hitResult && hitResult.results.length > 0) {
+        const validResults = hitResult.results.filter((result) => {
+          const graphic = result.graphic;
+          const graphicMarketAreaId = graphic.attributes?.marketAreaId;
+
+          // Allow interaction only if:
+          // 1. The feature doesn't belong to any market area OR
+          // 2. We're editing and it belongs to our current market area
+          return (
+            !graphicMarketAreaId ||
+            (editingMarketArea &&
+              graphicMarketAreaId === editingMarketArea.id)
+          );
+        });
+
+        if (validResults.length > 0) {
+          const graphicResult = validResults.find((r) =>
+            activeLayers.some(
+              (type) => FEATURE_LAYERS[type].title === r.layer.title
+            )
+          );
+
+          if (graphicResult && graphicResult.graphic) {
+            const graphic = graphicResult.graphic;
+
+            // Check if the feature is already part of another market area
+            const existingMarketAreaId = graphic.attributes?.marketAreaId;
+            if (
+              existingMarketAreaId &&
+              (!editingMarketArea ||
+                existingMarketAreaId !== editingMarketArea.id)
+            ) {
+              // Don't allow selection of features that belong to other market areas
+              console.log(
+                "Cannot select feature - belongs to another market area:",
+                existingMarketAreaId
+              );
+              return;
+            }
+
+            const matchedLayerType = activeLayers.find(
+              (type) => FEATURE_LAYERS[type].title === graphicResult.layer.title
+            );
+
+            await addToSelection(graphic, matchedLayerType);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[MapContext] Error handling map click:", error);
+    }
+  };
+
+  const handler = mapView.on("click", handleMapClick);
+  return () => {
+    handler.remove();
+    // Cleanup
+    if (mapView && mapView.popup) {
+      mapView.popup.defaultPopupTemplateEnabled = true;
+      mapView.popup.autoOpenEnabled = true;
+      mapView.popup.dockEnabled = true;
+      
+      // Re-enable popups on feature layers
+      Object.values(featureLayersRef.current).forEach(layer => {
+        if (layer) {
+          if (Array.isArray(layer.featureLayers)) {
+            layer.featureLayers.forEach(subLayer => {
+              if (subLayer && !subLayer.destroyed) {
+                subLayer.popupEnabled = true;
+              }
+            });
+          } else if (!layer.destroyed) {
+            layer.popupEnabled = true;
+          }
+        }
+      });
+    }
+  };
+}, [
+  mapView,
+  isMapSelectionActive,
+  activeLayers,
+  addToSelection,
+  editingMarketArea,
+]);
+
 
   // Also update the showVisibleMarketAreas effect to ensure proper rendering order
   useEffect(() => {
