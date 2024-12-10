@@ -1,5 +1,4 @@
 // src/components/MarketAreaForm.jsx
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -586,6 +585,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       });
     }
   }, [formState.maType, removeActiveLayer, clearSelection]);
+
+  // Add this effect after the other useEffects, before the return statement
+  useEffect(() => {
+    // If we are dealing with a radius type market area and have radius points defined,
+    // redraw them immediately whenever radiusPoints or style settings change.
+    if (formState.maType === "radius" && radiusPoints.length > 0) {
+      // Optionally, clear selection if it conflicts, but only if needed.
+      // clearSelection(); // Uncomment if you need a clear map before redrawing.
+
+      radiusPoints.forEach((point) => {
+        drawRadius(
+          point,
+          formState.styleSettings,
+          editingMarketArea?.id || "current",
+          editingMarketArea?.order || 0
+        );
+      });
+    }
+  }, [formState.maType, radiusPoints, formState.styleSettings, drawRadius, editingMarketArea]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
