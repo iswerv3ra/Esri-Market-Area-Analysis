@@ -1,4 +1,4 @@
-// src/contexts/MapContext.jsx
+import { geodesicBuffer, simplify, union } from "@arcgis/core/geometry/geometryEngine";
 
 import React, {
   createContext,
@@ -672,51 +672,47 @@ const getLabelingInfo = (type) => {
   // Function to add a layer to activeLayers
   const addActiveLayer = useCallback(
     async (type) => {
+      if (type === "radius") {
+        // Radius is not a server-based layer, just skip
+        return;
+      }
+      
       if (!type || !FEATURE_LAYERS[type] || !mapView) {
         console.error(`Invalid layer type or map not initialized: ${type}`);
         return;
       }
-
+  
       setIsLayerLoading(true);
 
       try {
         // Hide other layers
-        Object.entries(featureLayersRef.current).forEach(
-          ([layerType, layer]) => {
-            if (layer && !layer.destroyed && layerType !== type) {
-              layer.visible = false;
-              console.log(`[MapContext] Hiding layer ${layerType}`);
-            }
+        Object.entries(featureLayersRef.current).forEach(([layerType, layer]) => {
+          if (layer && !layer.destroyed && layerType !== type) {
+            layer.visible = false;
+            console.log(`[MapContext] Hiding layer ${layerType}`);
           }
-        );
-
+        });
+  
         let layer = featureLayersRef.current[type];
-
-        // Initialize the layer if it doesn't exist
+  
         if (!layer) {
           layer = await initializeFeatureLayer(type);
           if (layer) {
             await mapView.map.add(layer);
             featureLayersRef.current[type] = layer;
-            console.log(
-              `[MapContext] New FeatureLayer for type ${type} added to the map.`
-            );
+            console.log(`[MapContext] New FeatureLayer for type ${type} added to the map.`);
           }
         }
-
-        // Ensure the layer is visible and added to active layers
+  
         if (layer && !layer.destroyed) {
           try {
             await layer.when();
             layer.visible = true;
             console.log(`[MapContext] FeatureLayer ${type} set to visible.`);
           } catch (error) {
-            console.error(
-              `[MapContext] Error setting layer visibility for ${type}:`,
-              error
-            );
+            console.error(`[MapContext] Error setting layer visibility for ${type}:`, error);
           }
-
+  
           setActiveLayers((prev) => {
             if (!prev.includes(type)) {
               console.log(`[MapContext] Adding layer ${type} to activeLayers.`);
@@ -1242,65 +1238,44 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
         !radiusGraphicsLayerRef.current ||
         !point?.center ||
         !point?.radii ||
-        !mapView
-      )
+        !mapView ||
+        !marketAreaId
+      ) {
         return;
-
+      }
+  
       try {
-        // Remove only the graphics for this specific market area for real-time updates
-        const existingGraphics = radiusGraphicsLayerRef.current.graphics.filter(
-          (g) => g.attributes.marketAreaId !== marketAreaId
-        );
-        radiusGraphicsLayerRef.current.removeAll();
-
-        // First add back all existing graphics from other market areas
-        existingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
-
-        const center = ensureValidGeometry(
-          point.center,
-          mapView.spatialReference
-        );
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+  
+        const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [0, 123, 255];
+        const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 123, 255];
+        const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+        const borderWidth = style?.borderWidth !== undefined ? style.borderWidth : 2;
+  
+        const center = ensureValidGeometry(point.center, mapView.spatialReference);
         if (!center) return;
         const centerPoint = webMercatorToGeographic(center);
-
-        const [geometryEngine, { default: Graphic }] = await Promise.all([
-          import("@arcgis/core/geometry/geometryEngine"),
-          import("@arcgis/core/Graphic"),
-        ]);
-
-        const fillRgb = style?.fillColor
-          ? hexToRgb(style.fillColor)
-          : [0, 123, 255];
-        const outlineRgb = style?.borderColor
-          ? hexToRgb(style.borderColor)
-          : [0, 123, 255];
-        const fillOpacity =
-          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
-        const borderWidth =
-          style?.borderWidth !== undefined ? style.borderWidth : 2;
-
-        // Create new graphics for this market area
+  
+        // Keep other market areas' radius graphics
+        const otherAreaGraphics = radiusGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes.marketAreaId !== marketAreaId
+        );
+  
+        radiusGraphicsLayerRef.current.removeAll();
+        otherAreaGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
+  
         const newGraphics = [];
         for (const radiusMiles of point.radii) {
           const radiusMeters = radiusMiles * 1609.34;
-          const polygon = geometryEngine.geodesicBuffer(
-            centerPoint,
-            radiusMeters,
-            "meters"
-          );
-
+          // Use the named import 'geodesicBuffer'
+          const polygon = geodesicBuffer(centerPoint, radiusMeters, "meters");
+  
           const symbol = {
             type: "simple-fill",
             color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0],
-            outline:
-              borderWidth > 0
-                ? {
-                    color: outlineRgb,
-                    width: borderWidth,
-                  }
-                : null,
+            outline: borderWidth > 0 ? { color: outlineRgb, width: borderWidth } : null,
           };
-
+  
           const circleGraphic = new Graphic({
             geometry: polygon,
             attributes: {
@@ -1308,43 +1283,35 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
               marketAreaId,
               order,
             },
-            symbol: symbol,
+            symbol,
           });
-
           newGraphics.push(circleGraphic);
         }
-
-        // Add new graphics in correct order based on their order value
-        if (newGraphics.length > 0) {
-          const allGraphics = [...existingGraphics, ...newGraphics];
-          allGraphics.sort(
-            (a, b) => (b.attributes.order || 0) - (a.attributes.order || 0)
-          );
-          radiusGraphicsLayerRef.current.removeAll();
-          allGraphics.forEach((graphic) =>
-            radiusGraphicsLayerRef.current.add(graphic)
-          );
-        }
+  
+        const allGraphics = [...radiusGraphicsLayerRef.current.graphics.toArray(), ...newGraphics];
+        allGraphics.sort((a, b) => (b.attributes.order || 0) - (a.attributes.order || 0));
+  
+        radiusGraphicsLayerRef.current.removeAll();
+        allGraphics.forEach((graphic) => radiusGraphicsLayerRef.current.add(graphic));
       } catch (error) {
         console.error("Error drawing radius:", error);
       }
     },
     [mapView]
   );
+  
+  
 
-  // Remove an active layer
+  // Updated removeActiveLayer to skip 'radius'
   const removeActiveLayer = useCallback(
     async (type) => {
-      if (!mapView) {
-        console.warn("Map view not initialized");
+      if (type === 'radius') {
+        // Radius is not a layer, skip
         return;
       }
 
-      // If no type is provided, do nothing and return
-      if (!type) {
-        console.warn(
-          "[MapContext] No layer type provided to removeActiveLayer"
-        );
+      if (!mapView) {
+        console.warn("Map view not initialized");
         return;
       }
 
@@ -1367,7 +1334,6 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
           return prev.filter((l) => l !== type);
         });
 
-        // Only remove graphics for this specific type
         if (selectionGraphicsLayerRef.current && type) {
           const remainingGraphics =
             selectionGraphicsLayerRef.current.graphics.filter(
@@ -1390,30 +1356,29 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
     [mapView]
   );
 
-  // MapContext.jsx - Add these helper functions
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     if (!marketAreaId) return;
-
+  
     try {
+      // Remove radius graphics for this marketAreaId
       if (radiusGraphicsLayerRef.current) {
-        const remainingGraphics =
-          radiusGraphicsLayerRef.current.graphics.filter(
-            (g) => g.attributes?.marketAreaId !== marketAreaId
-          );
-        radiusGraphicsLayerRef.current.removeAll();
-        remainingGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
-      }
-
-      if (selectionGraphicsLayerRef.current) {
-        const remainingGraphics =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (g) => g.attributes?.marketAreaId !== marketAreaId
-          );
-        selectionGraphicsLayerRef.current.removeAll();
-        remainingGraphics.forEach((g) =>
-          selectionGraphicsLayerRef.current.add(g)
+        const remainingRadiusGraphics = radiusGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes?.marketAreaId !== marketAreaId
         );
+        radiusGraphicsLayerRef.current.removeAll();
+        remainingRadiusGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
       }
+  
+      // Remove selection graphics for this marketAreaId (if any)
+      if (selectionGraphicsLayerRef.current) {
+        const remainingSelectionGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes?.marketAreaId !== marketAreaId
+        );
+        selectionGraphicsLayerRef.current.removeAll();
+        remainingSelectionGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+      }
+  
+      console.log(`[MapContext] Cleared graphics for market area ${marketAreaId}`);
     } catch (error) {
       console.error("Error clearing market area graphics:", error);
     }
@@ -1559,9 +1524,14 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
     [activeLayers, mapView, displayFeatures]
   );
 
-  // Toggle active layer type
+  // Updated toggleActiveLayerType to skip 'radius'
   const toggleActiveLayerType = useCallback(
     async (type) => {
+      if (type === "radius") {
+        // Radius doesn't correspond to a server-based layer, do nothing
+        return;
+      }
+
       if (activeLayers.includes(type)) {
         await removeActiveLayer(type);
       } else {

@@ -192,28 +192,30 @@ export const setupAxiosInterceptors = (navigate) => {
       return response;
     },
     async (error) => {
+      // This is where you handle 401 errors and attempt token refresh
       const originalRequest = error.config;
-
+  
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
-
+  
         if (isDevelopment()) {
           console.log('Attempting token refresh...');
         }
-
+  
         try {
-          const refreshToken = localStorage.getItem('refreshToken');
-          if (!refreshToken) {
+          const storedRefreshToken = localStorage.getItem('refreshToken');
+          if (!storedRefreshToken) {
             throw new Error('No refresh token available');
           }
-
-          const newToken = await refreshToken();
+  
+          // Call the refreshToken function (not the variable)
+          const newToken = await refreshToken(); 
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          
+  
           if (isDevelopment()) {
             console.log('Token refresh successful, retrying request');
           }
-
+  
           return axios(originalRequest);
         } catch (refreshError) {
           if (isDevelopment()) {
@@ -224,7 +226,7 @@ export const setupAxiosInterceptors = (navigate) => {
           return Promise.reject(refreshError);
         }
       }
-
+  
       if (isDevelopment()) {
         console.error('Response error:', {
           status: error.response?.status,
@@ -232,7 +234,7 @@ export const setupAxiosInterceptors = (navigate) => {
           url: error.config?.url
         });
       }
-
+  
       return Promise.reject(error);
     }
   );

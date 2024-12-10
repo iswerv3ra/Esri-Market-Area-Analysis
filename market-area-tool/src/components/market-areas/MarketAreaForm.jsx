@@ -343,10 +343,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     editingMarketArea,
   ]);
 
-  // Apply style changes when they are updated
   useEffect(() => {
     updateStyles();
-  }, [formState.styleSettings, updateStyles]);
+  }, [formState.styleSettings, radiusPoints, updateStyles]);
 
   const handleMATypeChange = useCallback(
     async (e) => {

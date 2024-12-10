@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { geodesicBuffer, simplify, union } from "@arcgis/core/geometry/geometryEngine";
 import {
   DndContext,
   closestCenter,
@@ -302,30 +303,23 @@ useEffect(() => {
       const isVisible = visibleMarketAreaIds.includes(id);
   
       try {
-        // Update visibility state first
         const newVisibleIds = isVisible
           ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
           : [...visibleMarketAreaIds, id];
-        
-        // Update local state
+  
         setVisibleMarketAreaIds(newVisibleIds);
-        
-        // Update localStorage
-        localStorage.setItem(
-          `marketAreas.${projectId}.visible`,
-          JSON.stringify(newVisibleIds)
-        );
+        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(newVisibleIds));
   
         if (isVisible) {
-          // If hiding, clear this specific market area's graphics
+          // Hiding: clear all graphics from both layers
           clearMarketAreaGraphics(id);
         } else {
-          // If showing, redraw this specific market area
+          // Showing: redraw the area
           if (marketArea.ma_type === "radius" && marketArea.radius_points) {
             for (const point of marketArea.radius_points) {
               await drawRadius(
-                point, 
-                marketArea.style_settings, 
+                point,
+                marketArea.style_settings,
                 marketArea.id,
                 marketArea.order
               );
@@ -357,13 +351,7 @@ useEffect(() => {
         toast.error("Failed to toggle market area visibility");
       }
     },
-    [
-      visibleMarketAreaIds, 
-      projectId, 
-      clearMarketAreaGraphics, 
-      drawRadius, 
-      updateFeatureStyles
-    ]
+    [visibleMarketAreaIds, projectId, clearMarketAreaGraphics, drawRadius, updateFeatureStyles]
   );
   
 
