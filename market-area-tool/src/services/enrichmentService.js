@@ -1,26 +1,30 @@
-// src/services/enrichmentService.js
-
 import esriConfig from "@arcgis/core/config";
 import * as projection from "@arcgis/core/geometry/projection";
 import Polygon from "@arcgis/core/geometry/Polygon";
 
-// Initialize ArcGIS API Key
-const ARCGIS_API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
+const ARCGIS_CLIENT_ID = import.meta.env.VITE_ARCGIS_CLIENT_ID;
+const ARCGIS_CLIENT_SECRET = import.meta.env.VITE_ARCGIS_CLIENT_SECRET;
+
+if (!ARCGIS_CLIENT_ID || !ARCGIS_CLIENT_SECRET) {
+  console.error("ArcGIS credentials not found in environment variables");
+}
+
+// Set the API key for ArcGIS configuration
+esriConfig.apiKey = ARCGIS_CLIENT_ID;
+
+// Constants
 const CHUNK_SIZE = 1;
 
-esriConfig.apiKey = ARCGIS_API_KEY;
-
 const MA_TYPE_MAPPING = {
-  'radius': 'RADIUS',
-  'place': 'PLACE',
-  'block': 'BLOCK',
-  'blockgroup': 'BLOCKGROUP',
-  'cbsa': 'CBSA',
-  'state': 'STATE',
-  'zip': 'ZIP',
-  'tract': 'TRACT',
-  'county': 'COUNTY',
-  'md':"METRO DIVISION",
+  radius: "RADIUS",
+  place: "PLACE",
+  block: "BLOCK",
+  blockgroup: "BLOCKGROUP",
+  cbsa: "CBSA",
+  state: "STATE",
+  zip: "ZIP",
+  tract: "TRACT",
+  county: "COUNTY",
 };
 
 // Organized analysis categories and variables
@@ -511,7 +515,7 @@ export const analysisCategories = {
       {
         id: "EducationalAttainment.EDUCBASECY",
         label: "2024 Educational Attainment Base",
-      },      
+      },
       {
         id: "KeyUsFacts.AGEBASE_FY",
         label: "2029 Base Age",
@@ -612,24 +616,94 @@ export const analysisCategories = {
     ],
   },
 };
-// Helper function to get all variables as a flat array
+
+// Helper functions
 export const getAllVariables = () => {
   return Object.values(analysisCategories)
     .flatMap((category) => category.variables)
     .map((v) => v.id);
 };
 
-// Create a mapping from short attribute keys to labels
 const shortKeyToLabelMap = {};
 Object.values(analysisCategories).forEach((category) => {
   category.variables.forEach((variable) => {
-    const shortKey = variable.id.split(".").pop(); // e.g., "A35I0_CY"
+    const shortKey = variable.id.split(".").pop();
     shortKeyToLabelMap[shortKey] = variable.label;
   });
 });
 
 export default class EnrichmentService {
-  // Method to split array into chunks
+  constructor() {
+    this.clientId = ARCGIS_CLIENT_ID;
+    this.clientSecret = ARCGIS_CLIENT_SECRET;
+    this.token = null;
+    this.tokenExpiration = null;
+  }
+
+  async getToken() {
+    if (this.token && this.tokenExpiration && Date.now() < this.tokenExpiration) {
+      return this.token;
+    }
+
+    try {
+      const tokenUrl = "https://www.arcgis.com/sharing/rest/oauth2/token";
+
+      const params = new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        grant_type: "client_credentials",
+        f: "json",
+      });
+
+      console.log("Requesting new token...");
+
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Token response not OK:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new Error(
+          `Token request failed: ${response.status} - ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log("Token response received");
+
+      if (data.error) {
+        throw new Error(`Token service error: ${JSON.stringify(data.error)}`);
+      }
+
+      if (!data.access_token) {
+        throw new Error("No access_token received in response");
+      }
+
+      this.token = data.access_token;
+      // Set expiration 60 seconds before actual expiration for safety
+      this.tokenExpiration = Date.now() + (data.expires_in - 60) * 1000;
+
+      return this.token;
+    } catch (error) {
+      console.error("Token generation failed:", error);
+      const maskedId = this.clientId
+        ? `${this.clientId.slice(0, 6)}...`
+        : "not set";
+      throw new Error(
+        `Token generation failed. Client ID: ${maskedId}. Error: ${error.message}`
+      );
+    }
+  }
+
   chunkArray(array, size) {
     const chunks = [];
     for (let i = 0; i < array.length; i += size) {
@@ -639,275 +713,352 @@ export default class EnrichmentService {
   }
 
   formatNumberValue(value) {
-    if (typeof value !== 'number') return value;
-    return value.toLocaleString('en-US', {
-      maximumFractionDigits: 2
+    if (typeof value !== "number") return value;
+    return value.toLocaleString("en-US", {
+      maximumFractionDigits: 2,
     });
   }
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
-  
-    return marketAreas.flatMap((area, index) => {
-      console.log('Processing area for enrichment:', {
-        name: area.name,
-        type: area.ma_type,
-        hasRadiusPoints: Boolean(area.radius_points?.length),
-        hasLocations: Boolean(area.locations?.length)
-      });
-  
-      let rings = [];
-      
-      if (area.ma_type === "radius") {
-        rings = area.radius_points?.flatMap(point => {
-          console.log('Processing radius point:', point);
-          
-          if (!point.center || !point.radii) {
-            console.warn('Invalid radius point format:', point);
-            return [];
-          }
-  
-          // Create a buffer polygon for each radius
-          return point.radii.map(radius => {
-            return this.createCirclePolygon(
-              point.center.x,
-              point.center.y,
-              radius,
-              point.center.spatialReference?.wkid || 102100
-            );
-          });
-        }) || [];
-      } else {
-        rings = area.locations?.flatMap(loc => {
-          if (!loc.geometry?.rings?.length) {
-            console.warn(`No rings found in location geometry for area: ${area.name}`);
-            return [];
-          }
-          return loc.geometry.rings;
-        }) || [];
-      }
-  
-      if (!rings.length) {
-        console.warn(`No valid geometry rings found for market area: ${area.name}`);
-        return [];
-      }
-  
-      console.log(`Found ${rings.length} geometry rings for area: ${area.name}`);
-  
-      return rings.map((ring, ringIndex) => {
-        try {
-          const polygon = new Polygon({
-            rings: ring,
-            spatialReference: { wkid: 3857 }
-          });
-  
-          const projectedPolygon = projection.project(polygon, { wkid: 4326 });
-          if (!projectedPolygon) {
-            throw new Error(`Projection failed for ${area.name}, ring ${ringIndex}`);
-          }
-  
-          return {
-            geometry: {
-              rings: projectedPolygon.rings,
-              spatialReference: { wkid: 4326 }
-            },
-            attributes: { 
-              ObjectID: `${index}-${ringIndex}`,
-              name: area.name
-            }
-          };
-        } catch (error) {
-          console.error(`Error processing geometry for ${area.name}, ring ${ringIndex}:`, error);
+
+    return marketAreas
+      .map((area, index) => {
+        console.log("Processing market area for enrichment:", {
+          name: area.name,
+          type: area.ma_type,
+          hasRadiusPoints: Boolean(area.radius_points?.length),
+          hasLocations: Boolean(area.locations?.length),
+        });
+
+        let allRings = [];
+
+        if (area.ma_type === "radius") {
+          allRings =
+            area.radius_points
+              ?.map((point) => {
+                if (!point.center || !point.radii?.length) {
+                  console.warn("Invalid radius point format:", point);
+                  return null;
+                }
+
+                const radius = point.radii[0];
+                return this.createCirclePolygon(
+                  point.center.x,
+                  point.center.y,
+                  radius,
+                  point.center.spatialReference?.wkid || 102100
+                );
+              })
+              .filter(Boolean)
+              .flat() || [];
+        } else {
+          allRings =
+            area.locations?.flatMap((loc) => {
+              if (!loc.geometry?.rings?.length) {
+                console.warn(
+                  `No rings found in location geometry for area: ${area.name}`
+                );
+                return [];
+              }
+              return loc.geometry.rings;
+            }) || [];
+        }
+
+        if (!allRings.length) {
+          console.warn(`No valid rings found for market area: ${area.name}`);
           return null;
         }
-      }).filter(Boolean);
-    }).filter(Boolean);
+
+        try {
+          const combinedPolygon = new Polygon({
+            rings: allRings,
+            spatialReference: { wkid: 3857 },
+          });
+
+          const projectedGeometry = projection.project(combinedPolygon, {
+            wkid: 4326,
+          });
+          if (!projectedGeometry) {
+            throw new Error(`Projection failed for ${area.name}`);
+          }
+
+          return {
+            geometry: {
+              rings: projectedGeometry.rings,
+              spatialReference: { wkid: 4326 },
+            },
+            attributes: {
+              ObjectID: String(index),
+              name: area.name,
+            },
+          };
+        } catch (error) {
+          console.error(`Error processing geometry for ${area.name}:`, error);
+          return null;
+        }
+      })
+      .filter(Boolean);
   }
-  
-  // Helper method to create a circle polygon
+
   createCirclePolygon(centerX, centerY, radiusMiles, fromWkid = 102100) {
-    // Convert miles to meters
     const radiusMeters = radiusMiles * 1609.34;
-    
-    // Create points for the circle (32 points gives a good approximation)
     const numPoints = 32;
     const points = [];
-    
+
     for (let i = 0; i <= numPoints; i++) {
       const angle = (i * 2 * Math.PI) / numPoints;
       const dx = Math.cos(angle) * radiusMeters;
       const dy = Math.sin(angle) * radiusMeters;
-      
       points.push([centerX + dx, centerY + dy]);
     }
-    
-    // Close the polygon
+
     points.push(points[0]);
-  
-    // Return the rings array directly
     return [points];
   }
-  
-  // Update the enrichChunk method to better handle response data
+
   async enrichChunk(studyAreas, selectedVariables = null) {
-    const enrichmentUrl = "https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich";
-    const analysisVariables = selectedVariables || getAllVariables();
+    try {
+      const token = await this.getToken();
+      const enrichmentUrl =
+        "https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich";
+      const analysisVariables = selectedVariables || getAllVariables();
   
-    console.log("Enriching chunk with variables:", analysisVariables);
-    console.log("Study areas for enrichment:", studyAreas);
+      console.log("Enriching chunk with variables:", analysisVariables);
+      console.log("Study areas for enrichment:", studyAreas);
   
-    const payload = new URLSearchParams();
-    payload.append("f", "json");
-    payload.append("returnGeometry", "false");
-    payload.append("studyAreas", JSON.stringify(studyAreas));
-    payload.append("analysisVariables", JSON.stringify(analysisVariables));
-    payload.append("token", ARCGIS_API_KEY);
-  
-    const response = await fetch(enrichmentUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: payload.toString(),
-    });
-  
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Enrichment Error Response:", errorText);
-      throw new Error(`Error fetching enrichment data: ${response.statusText} - ${errorText}`);
-    }
-  
-    const data = await response.json();
-    console.log("Enrichment response:", data);
-    
-    return data;
-  }
-  
-
-  // Method to enrich all market areas by processing in chunks
-  async enrichAreas(marketAreas, selectedVariables = null) {
-    const studyAreas = await this.prepareGeometryForEnrichment(marketAreas);
-    const chunks = this.chunkArray(studyAreas, CHUNK_SIZE);
-
-    const results = [];
-    for (const chunk of chunks) {
-      try {
-        const response = await this.enrichChunk(chunk, selectedVariables);
-        results.push(...(response.results || []));
-      } catch (error) {
-        console.error("Error enriching chunk:", error);
-        // Decide whether to continue or halt; here we halt on error
-        throw error;
+      if (!studyAreas?.[0]?.geometry) {
+        throw new Error("Invalid study area geometry");
       }
+  
+      // Prepare the study areas payload for the enrich request
+      const studyAreasPayload = studyAreas.map((s) => ({
+        geometry: s.geometry,
+        attributes: s.attributes,
+      }));
+  
+      // Set the parameters
+      const params = new URLSearchParams();
+      params.append("f", "json");
+      params.append("token", token);
+      params.append("studyAreas", JSON.stringify(studyAreasPayload));
+      params.append("analysisVariables", JSON.stringify(analysisVariables));
+      params.append("returnGeometry", "false");
+  
+      // Only include studyAreasOptions if you are using point geometry and want buffers.
+      // If studyAreas are polygons, remove or comment out the following lines:
+      // params.append(
+      //   "studyAreasOptions",
+      //   JSON.stringify({
+      //     areaType: "RingBuffer",
+      //     bufferUnits: "esriMiles",
+      //     bufferRadii: [0],
+      //   })
+      // );
+  
+      const response = await fetch(enrichmentUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Enrichment Error Response:", errorText);
+        throw new Error(
+          `Enrichment request failed: ${response.status} - ${errorText}`
+        );
+      }
+  
+      const data = await response.json();
+  
+      if (data.error) {
+        console.error("Enrichment API Error:", data.error);
+        throw new Error(
+          `Enrichment API Error: ${data.error.message || JSON.stringify(data.error)}`
+        );
+      }
+  
+      // Validate response data
+      if (!data.results || !Array.isArray(data.results)) {
+        console.error("Invalid response format:", data);
+        throw new Error("Invalid response format from enrichment service");
+      }
+  
+      return data;
+    } catch (error) {
+      console.error("Error in enrichChunk:", error);
+      throw error;
     }
-
-    return { results };
   }
 
-  // Method to aggregate results for each market area
+  async enrichAreas(marketAreas, selectedVariables = null) {
+    if (!marketAreas?.length) {
+      throw new Error("No market areas provided for enrichment");
+    }
+
+    console.log("Starting enrichment for market areas:", marketAreas);
+
+    try {
+      const studyAreas = await this.prepareGeometryForEnrichment(marketAreas);
+      console.log("Prepared study areas:", studyAreas);
+
+      if (!studyAreas?.length) {
+        throw new Error("No valid study areas generated from market areas");
+      }
+
+      const chunks = this.chunkArray(studyAreas, CHUNK_SIZE);
+      console.log(`Split into ${chunks.length} chunks`);
+
+      const results = [];
+      for (const chunk of chunks) {
+        try {
+          const response = await this.enrichChunk(chunk, selectedVariables);
+          if (response?.results) {
+            results.push(...response.results);
+          }
+        } catch (error) {
+          console.error("Error enriching chunk:", error);
+          throw error;
+        }
+      }
+
+      if (!results.length) {
+        throw new Error("No enrichment results returned");
+      }
+
+      return { results };
+    } catch (error) {
+      console.error("Error in enrichAreas:", error);
+      throw new Error(`Enrichment failed: ${error.message}`);
+    }
+  }
+
   aggregateResults(groupedResults, area) {
     const aggregated = {};
-
     groupedResults.forEach((attributes) => {
       Object.keys(attributes).forEach((key) => {
         if (typeof attributes[key] === "number") {
           aggregated[key] = (aggregated[key] || 0) + attributes[key];
         } else {
-          aggregated[key] = attributes[key]; // For non-numeric fields, keep the last value
+          aggregated[key] = attributes[key];
         }
       });
     });
-
     return aggregated;
   }
 
-  // Method to get the label for a short attribute key
   getVariableLabel(shortKey) {
-    return shortKeyToLabelMap[shortKey] || shortKey; // Return the label or the shortKey if not found
+    return shortKeyToLabelMap[shortKey] || shortKey;
   }
 
   exportToCSV(enrichmentData, marketAreas, selectedVariables = null) {
     console.log("Starting export with data:", {
       enrichmentData,
       marketAreas,
-      selectedVariables
+      selectedVariables,
     });
 
     const csvRows = [];
 
-    // Header section for market area information remains the same
-    csvRows.push(['Market Area Name', ...marketAreas.map(ma => ma.name || '')]);
-    csvRows.push(['Short Name', ...marketAreas.map(ma => ma.short_name || '')]);
+    // Header information
     csvRows.push([
-      'Definition Type', 
-      ...marketAreas.map(ma => {
+      "Market Area Name",
+      ...marketAreas.map((ma) => ma.name || ""),
+    ]);
+    csvRows.push([
+      "Short Name",
+      ...marketAreas.map((ma) => ma.short_name || ""),
+    ]);
+    csvRows.push([
+      "Definition Type",
+      ...marketAreas.map((ma) => {
         const maType = ma.ma_type?.toLowerCase();
-        return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || '';
-      })
+        return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
+      }),
     ]);
 
-    // Areas Included row with type-specific handling
+    // Areas Included
     csvRows.push([
-      'Areas Included',
-      ...marketAreas.map(ma => {
+      "Areas Included",
+      ...marketAreas.map((ma) => {
         switch (ma.ma_type?.toLowerCase()) {
-          case 'zip':
-            return ma.locations
-              ?.map(loc => loc.name?.split(' - ')?.[0])
-              .filter(Boolean)
-              .join(', ') || '';
-          case 'radius':
-            if (ma.radius_points && ma.radius_points.length > 0) {
-              return ma.radius_points.map(point => {
-                const radius = point.radius || point.attributes?.radius;
-                return radius ? `${radius} miles` : '';
-              }).filter(Boolean).join(', ');
+          case "zip":
+            return (
+              ma.locations
+                ?.map((loc) => loc.name?.split(" - ")?.[0])
+                .filter(Boolean)
+                .join(", ") || ""
+            );
+          case "radius":
+            if (ma.radius_points?.length > 0) {
+              return ma.radius_points
+                .map((point) => {
+                  const radius = point.radius || point.attributes?.radius;
+                  return radius ? `${radius} miles` : "";
+                })
+                .filter(Boolean)
+                .join(", ");
             }
-            return '';
+            return "";
           default:
-            return ma.locations
-              ?.map(loc => loc.name)
-              .filter(Boolean)
-              .join(', ') || '';
+            return (
+              ma.locations
+                ?.map((loc) => loc.name)
+                .filter(Boolean)
+                .join(", ") || ""
+            );
         }
-      })
+      }),
     ]);
 
-    // State row
+    // State information
     csvRows.push([
-      'State',
-      ...marketAreas.map(ma => ma.ma_type?.toLowerCase() === 'zip' ? 'CA' : '')
+      "State",
+      ...marketAreas.map((ma) =>
+        ma.ma_type?.toLowerCase() === "zip" ? "CA" : ""
+      ),
     ]);
 
-    // Add blank row for separation
-    csvRows.push(['']);
+    // Separator
+    csvRows.push([""]);
 
-    // Process enrichment data if available
+    // Enrichment data
     if (enrichmentData?.results?.length > 0) {
-      csvRows.push(['Enrichment Variables']);
+      csvRows.push(["Enrichment Variables"]);
 
-      selectedVariables.forEach(variableId => {
-        const shortKey = variableId.split('.').pop();
+      selectedVariables.forEach((variableId) => {
+        const shortKey = variableId.split(".").pop();
         const label = this.getVariableLabel(shortKey);
 
-        // Get values for each market area with better error handling
         const values = marketAreas.map((_, index) => {
           try {
-            const result = enrichmentData.results.find(r => {
-              const maIndex = r.value?.FeatureSet?.[0]?.features?.[0]?.attributes?.ObjectID.split('-')[0];
+            const result = enrichmentData.results.find((r) => {
+              const maIndex =
+                r.value?.FeatureSet?.[0]?.features?.[0]?.attributes?.ObjectID.split(
+                  "-"
+                )[0];
               return maIndex === String(index);
             });
 
             if (!result?.value?.FeatureSet?.[0]?.features?.[0]?.attributes) {
-              console.warn(`No enrichment data found for market area ${index} and variable ${shortKey}`);
-              return '';
+              console.warn(
+                `No enrichment data found for market area ${index} and variable ${shortKey}`
+              );
+              return "";
             }
 
-            const value = result.value.FeatureSet[0].features[0].attributes[shortKey];
-            return this.formatNumberValue(value);  // Use class method with 'this'
+            const value =
+              result.value.FeatureSet[0].features[0].attributes[shortKey];
+            return this.formatNumberValue(value);
           } catch (error) {
-            console.error(`Error processing enrichment data for market area ${index}:`, error);
-            return '';
+            console.error(
+              `Error processing enrichment data for market area ${index}:`,
+              error
+            );
+            return "";
           }
         });
 
@@ -915,22 +1066,23 @@ export default class EnrichmentService {
       });
     }
 
-    // Convert to CSV string with proper escaping
+    // Convert to CSV string with escaping
     const processField = (field) => {
-      if (field === null || field === undefined) return '';
+      if (field === null || field === undefined) return "";
       const stringField = String(field);
-      if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+      if (
+        stringField.includes(",") ||
+        stringField.includes('"') ||
+        stringField.includes("\n")
+      ) {
         return `"${stringField.replace(/"/g, '""')}"`;
       }
       return stringField;
     };
 
-    return csvRows
-      .map(row => row.map(processField).join(','))
-      .join('\n');
+    return csvRows.map((row) => row.map(processField).join(",")).join("\n");
   }
 
-  // Helper method for state names
   getStateFullName(stateAbbr) {
     if (!stateAbbr) return "";
 
@@ -991,7 +1143,6 @@ export default class EnrichmentService {
     return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
   }
 
-  // Optional: Helper method to get variable categories for UI
   getCategories() {
     return Object.entries(analysisCategories).map(([key, category]) => ({
       id: key,
@@ -1000,12 +1151,10 @@ export default class EnrichmentService {
     }));
   }
 
-  // Optional: Helper method to get variables by category
   getVariablesByCategory(categoryId) {
     return analysisCategories[categoryId]?.variables || [];
   }
 
-  // Optional: Helper method to validate variable IDs
   validateVariables(variableIds) {
     const allVariables = new Set(getAllVariables());
     return variableIds.filter((id) => allVariables.has(id));

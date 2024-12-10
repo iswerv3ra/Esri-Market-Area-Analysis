@@ -1,7 +1,8 @@
-// src/api.js
+// src/services/api.js
 
 import axios from 'axios';
-import { getApiUrl, setAuthToken } from '../utils/auth';
+import { getApiUrl, getStoredToken, setAuthToken, refreshToken } from '../utils/auth';
+import { withRetry } from '../utils/retry';
 
 const baseURL = getApiUrl();
 
@@ -14,7 +15,7 @@ if (import.meta.env.DEV) {
   });
 }
 
-// Create separate axios instances to prevent interceptor loops
+// Create axios instances
 const authAxios = axios.create({
   baseURL,
   headers: {
@@ -29,42 +30,24 @@ const api = axios.create({
   },
 });
 
-// Track refresh token promise to prevent multiple refresh attempts
+// Set up initial token if it exists
+const token = getStoredToken();
+if (token) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  authAxios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+}
+
+// Track refresh token promise
 let isRefreshing = false;
 let refreshSubscribers = [];
 
-// Helper function to add new request to subscribers
 const subscribeTokenRefresh = (callback) => {
   refreshSubscribers.push(callback);
 };
 
-// Helper function to execute all subscribers
 const onRefreshed = (token) => {
   refreshSubscribers.map(callback => callback(token));
   refreshSubscribers = [];
-};
-
-// Handle token refresh
-const refreshAuthToken = async () => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-
-  try {
-    const response = await authAxios.post('/api/token/refresh/', {
-      refresh: refreshToken
-    });
-    const { access } = response.data;
-    localStorage.setItem('accessToken', access);
-    setAuthToken(access);
-    return access;
-  } catch (error) {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    window.location.href = '/login';
-    throw error;
-  }
 };
 
 // Request interceptor
@@ -82,10 +65,9 @@ api.interceptors.request.use(
     }
 
     if (!config.url.endsWith('/')) {
-      config.url = `${config.url}/`;
+      config.url += '/';
     }
 
-    // Debug logging in development
     if (import.meta.env.DEV) {
       console.log('Making request:', {
         url: `${config.baseURL}${config.url}`,
@@ -116,25 +98,19 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Wait for token refresh
-        try {
-          const token = await new Promise(resolve => {
-            subscribeTokenRefresh(token => {
-              resolve(token);
-            });
+        return new Promise(resolve => {
+          subscribeTokenRefresh(token => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
           });
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        } catch (err) {
-          return Promise.reject(err);
-        }
+        });
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        const token = await refreshAuthToken();
+        const token = await refreshToken();
         onRefreshed(token);
         originalRequest.headers.Authorization = `Bearer ${token}`;
         isRefreshing = false;
@@ -152,20 +128,35 @@ api.interceptors.response.use(
 // Auth API endpoints
 export const authAPI = {
   login: async (credentials) => {
-    const response = await authAxios.post('/api/token/', credentials);
-    const { access, refresh } = response.data;
-    localStorage.setItem('accessToken', access);
-    localStorage.setItem('refreshToken', refresh);
-    setAuthToken(access);
-    return response;
+    try {
+      const response = await authAxios.post('/api/token/', credentials);
+      const { access, refresh } = response.data;
+      localStorage.setItem('accessToken', access);
+      localStorage.setItem('refreshToken', refresh);
+      setAuthToken(access);
+      return response;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
   },
   
   register: async (userData) => {
-    return authAxios.post('/api/user/register/', userData);
+    try {
+      return await authAxios.post('/api/user/register/', userData);
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
   },
 
   refreshToken: async (refreshToken) => {
-    return authAxios.post('/api/token/refresh/', { refresh: refreshToken });
+    try {
+      return await authAxios.post('/api/token/refresh/', { refresh: refreshToken });
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
   },
 
   verifyToken: async (token) => {
@@ -173,6 +164,7 @@ export const authAPI = {
       await authAxios.post('/api/token/verify/', { token });
       return true;
     } catch (error) {
+      console.error('Token verification failed:', error);
       return false;
     }
   }
@@ -181,166 +173,277 @@ export const authAPI = {
 // Projects API endpoints
 export const projectsAPI = {
   getAll: async () => {
-    try {
-      const response = await api.get('/api/projects/');
-      return response;
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.get('/api/projects/');
+        return response;
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        throw error;
+      }
+    });
   },
 
   create: async (projectData) => {
-    try {
-      const response = await api.post('/api/projects/', projectData);
-      return response;
-    } catch (error) {
-      console.error('Error creating project:', error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.post('/api/projects/', projectData);
+        return response;
+      } catch (error) {
+        console.error('Error creating project:', error);
+        throw error;
+      }
+    });
   },
 
   getById: async (id) => {
-    try {
-      const response = await api.get(`/api/projects/${id}/`);
-      return response;
-    } catch (error) {
-      console.error(`Error fetching project ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.get(`/api/projects/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`Error fetching project ${id}:`, error);
+        throw error;
+      }
+    });
   },
 
   update: async (id, projectData) => {
-    try {
-      const response = await api.put(`/api/projects/${id}/`, projectData);
-      return response;
-    } catch (error) {
-      console.error(`Error updating project ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.put(`/api/projects/${id}/`, projectData);
+        return response;
+      } catch (error) {
+        console.error(`Error updating project ${id}:`, error);
+        throw error;
+      }
+    });
   },
 
   delete: async (id) => {
-    try {
-      const response = await api.delete(`/api/projects/${id}/`);
-      return response;
-    } catch (error) {
-      console.error(`Error deleting project ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.delete(`/api/projects/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`Error deleting project ${id}:`, error);
+        throw error;
+      }
+    });
   }
 };
 
 // Style Presets API endpoints
 export const stylePresetsAPI = {
   getAll: async () => {
-    try {
-      const response = await api.get('/api/style-presets/');
-      return response;
-    } catch (error) {
-      console.error('Error fetching style presets:', error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.get('/api/style-presets/');
+        if (!response.data) {
+          console.warn('Style presets response is empty');
+          return { data: [] };
+        }
+        return response;
+      } catch (error) {
+        console.error('Error fetching style presets:', error);
+        if (error.response?.status === 500) {
+          return { data: [] };
+        }
+        throw error;
+      }
+    });
   },
 
   create: async (presetData) => {
-    try {
-      const response = await api.post('/api/style-presets/', presetData);
-      return response;
-    } catch (error) {
-      console.error('Error creating style preset:', error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.post('/api/style-presets/', presetData);
+        return response;
+      } catch (error) {
+        console.error('Error creating style preset:', error);
+        throw error;
+      }
+    });
   },
 
   update: async (id, presetData) => {
-    try {
-      const response = await api.put(`/api/style-presets/${id}/`, presetData);
-      return response;
-    } catch (error) {
-      console.error(`Error updating style preset ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.put(`/api/style-presets/${id}/`, presetData);
+        return response;
+      } catch (error) {
+        console.error(`Error updating style preset ${id}:`, error);
+        throw error;
+      }
+    });
   },
 
   delete: async (id) => {
-    try {
-      const response = await api.delete(`/api/style-presets/${id}/`);
-      return response;
-    } catch (error) {
-      console.error(`Error deleting style preset ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.delete(`/api/style-presets/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`Error deleting style preset ${id}:`, error);
+        throw error;
+      }
+    });
   },
 
   makeGlobal: async (id) => {
-    try {
-      const response = await api.post(`/api/style-presets/${id}/make_global/`);
-      return response;
-    } catch (error) {
-      console.error(`Error making style preset ${id} global:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.post(`/api/style-presets/${id}/make_global/`);
+        return response;
+      } catch (error) {
+        console.error(`Error making style preset ${id} global:`, error);
+        throw error;
+      }
+    });
   }
 };
 
 // Variable Presets API endpoints
 export const variablePresetsAPI = {
   getAll: async () => {
-    try {
-      const response = await api.get('/api/variable-presets/');
-      return response;
-    } catch (error) {
-      console.error('Error fetching variable presets:', error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.get('/api/variable-presets/');
+        if (!response.data) {
+          console.warn('Variable presets response is empty');
+          return { data: [] };
+        }
+        return response;
+      } catch (error) {
+        console.error('Error fetching variable presets:', error);
+        if (error.response?.status === 500) {
+          return { data: [] };
+        }
+        throw error;
+      }
+    });
   },
 
   create: async (presetData) => {
-    try {
-      console.log('Variable Preset API - Creating preset with data:', presetData);
-      const response = await api.post('/api/variable-presets/', presetData);
-      console.log('Variable Preset API - Response:', response);
-      return response;
-    } catch (error) {
-      console.error('Error creating variable preset:', error);
-      console.error('Error response:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        console.log('Creating variable preset:', presetData);
+        const response = await api.post('/api/variable-presets/', presetData);
+        console.log('Variable preset created:', response.data);
+        return response;
+      } catch (error) {
+        console.error('Error creating variable preset:', error);
+        throw error;
+      }
+    });
   },
 
   update: async (id, presetData) => {
-    try {
-      const response = await api.put(`/api/variable-presets/${id}/`, presetData);
-      return response;
-    } catch (error) {
-      console.error(`Error updating variable preset ${id}:`, error);
-      throw error;
-    }
+    return withRetry(async () => {
+      try {
+        const response = await api.put(`/api/variable-presets/${id}/`, presetData);
+        return response;
+      } catch (error) {
+        console.error(`Error updating variable preset ${id}:`, error);
+        throw error;
+      }
+    });
   },
 
   delete: async (id) => {
+    return withRetry(async () => {
+      try {
+        const response = await api.delete(`/api/variable-presets/${id}/`);
+        return response;
+      } catch (error) {
+        console.error(`Error deleting variable preset ${id}:`, error);
+        throw error;
+      }
+    });
+  },
+
+  makeGlobal: async (id) => {
+    return withRetry(async () => {
+      try {
+        const response = await api.post(`/api/variable-presets/${id}/make_global/`);
+        return response;
+      } catch (error) {
+        console.error(`Error making variable preset ${id} global:`, error);
+        throw error;
+      }
+    });
+  }
+};
+
+// ArcGIS enrichment service
+export const enrichmentAPI = {
+  getToken: async () => {
     try {
-      const response = await api.delete(`/api/variable-presets/${id}/`);
-      return response;
+      const params = new URLSearchParams({
+        client_id: import.meta.env.VITE_ARCGIS_CLIENT_ID,
+        client_secret: import.meta.env.VITE_ARCGIS_CLIENT_SECRET,
+        grant_type: 'client_credentials',
+        f: 'json'
+      });
+
+      const response = await axios.post(
+        'https://www.arcgis.com/sharing/rest/oauth2/token',
+        params,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+
+      if (response.data.error) {
+        throw new Error(`ArcGIS token error: ${response.data.error.message}`);
+      }
+
+      return response.data.access_token;
     } catch (error) {
-      console.error(`Error deleting variable preset ${id}:`, error);
+      console.error('ArcGIS token generation failed:', error);
       throw error;
     }
   },
 
-  makeGlobal: async (id) => {
-    try {
-      const response = await api.post(`/api/variable-presets/${id}/make_global/`);
-      return response;
-    } catch (error) {
-      console.error(`Error making variable preset ${id} global:`, error);
-      throw error;
-    }
+  enrichArea: async (geometry, variables) => {
+    return withRetry(async () => {
+      try {
+        const token = await enrichmentAPI.getToken();
+        
+        const params = new URLSearchParams({
+          f: 'json',
+          token: token,
+          studyAreas: JSON.stringify([{
+            geometry,
+            areaType: "RingBuffer",
+            bufferUnits: "esriMiles",
+            bufferRadii: [0]
+          }]),
+          analysisVariables: JSON.stringify(variables)
+        });
+
+        const response = await axios.post(
+          'https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich',
+          params,
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }
+        );
+
+        if (response.data.error) {
+          throw new Error(`Enrichment error: ${response.data.error.message}`);
+        }
+
+        return response.data;
+      } catch (error) {
+        console.error('Enrichment request failed:', error);
+        throw error;
+      }
+    });
   }
 };
 

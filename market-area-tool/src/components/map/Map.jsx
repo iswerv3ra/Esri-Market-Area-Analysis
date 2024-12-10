@@ -10,7 +10,7 @@ import ScaleBar from '@arcgis/core/widgets/ScaleBar';
 import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
-const API_KEY = "AAPKaa7d8fe6258a4473ac0cfc276d4827fbLlKs8QW26nYdgEbty7iT9YqSgy4sCe66u74mNS8ZoCJfZe2e5AtQUyAZGO7vK0em";
+const API_KEY = "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
 // Create ZoomAlert component inline since it's specific to the map
 const ZoomAlert = () => {

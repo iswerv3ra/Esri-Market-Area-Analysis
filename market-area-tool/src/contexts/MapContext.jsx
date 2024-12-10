@@ -72,23 +72,27 @@ const FEATURE_LAYERS = {
     },
   },
   county: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Counties/FeatureServer/0",
-    outFields: ["NAME", "STATE_NAME"],
-    uniqueIdField: "FID",
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/82",
+    outFields: ["OBJECTID", "GEOID", "STATE", "COUNTY", "NAME", "BASENAME"],
+    uniqueIdField: "OBJECTID",
     title: "Counties",
     geometryType: "polygon",
     popupTemplate: {
-      title: "{NAME} County",
+      title: "{NAME}",
       content: [
         {
           type: "fields",
           fieldInfos: [
             { fieldName: "NAME", label: "County Name" },
-            { fieldName: "STATE_NAME", label: "State" },
+            { fieldName: "BASENAME", label: "Base Name" },
+            { fieldName: "STATE", label: "State" },
+            { fieldName: "GEOID", label: "GEOID" },
           ],
         },
       ],
     },
+    minScale: 12000000,
+    maxScale: 100,
   },
   tract: {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts/FeatureServer/0",
@@ -191,23 +195,28 @@ const FEATURE_LAYERS = {
     },
   },
   state: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized/FeatureServer/0",
-    outFields: ["STATE_NAME", "STATE_ABBR"],
-    uniqueIdField: "FID",
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/80",
+    outFields: ["OBJECTID", "GEOID", "STATE", "NAME", "BASENAME", "STUSAB", "REGION", "DIVISION"],
+    uniqueIdField: "OBJECTID",
     title: "States",
     geometryType: "polygon",
     popupTemplate: {
-      title: "{STATE_NAME}",
+      title: "{NAME}",
       content: [
         {
           type: "fields",
           fieldInfos: [
-            { fieldName: "STATE_NAME", label: "State" },
-            { fieldName: "STATE_ABBR", label: "Abbreviation" },
+            { fieldName: "NAME", label: "State Name" },
+            { fieldName: "STUSAB", label: "State Abbreviation" },
+            { fieldName: "REGION", label: "Region" },
+            { fieldName: "DIVISION", label: "Division" },
+            { fieldName: "GEOID", label: "GEOID" },
           ],
         },
       ],
     },
+    minScale: 591657527.591555,
+    maxScale: 100,
   },
   cbsa: {
     urls: [
@@ -393,8 +402,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         return `Block Group ${attrs.BLOCKGROUP_FIPS || ""}`;
       case "place":
         return attrs.NAME || attrs.BASENAME || "";
-      case "state":
-        return attrs.STATE_NAME || "";
+        case "state":
+          // Use attrs.NAME instead of attrs.STATE_NAME
+          return attrs.NAME || "";
       case "cbsa":
         return attrs.NAME || attrs.BASENAME || "";
       case "usa":
