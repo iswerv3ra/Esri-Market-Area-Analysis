@@ -1258,16 +1258,21 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
   
         // Keep other market areas' radius graphics
         const otherAreaGraphics = radiusGraphicsLayerRef.current.graphics.filter(
-          (g) => g.attributes.marketAreaId !== marketAreaId
+          (g) => g.attributes.marketAreaId && !g.attributes.marketAreaId.startsWith(marketAreaId)
         );
   
         radiusGraphicsLayerRef.current.removeAll();
         otherAreaGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
   
         const newGraphics = [];
-        for (const radiusMiles of point.radii) {
+        // Use a standard for loop to get the index (i)
+        for (let i = 0; i < point.radii.length; i++) {
+          const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
-          // Use the named import 'geodesicBuffer'
+  
+          // Each radius ring is considered its own 'market area'
+          const uniqueMarketAreaId = `${marketAreaId}-radius-${i}`;
+  
           const polygon = geodesicBuffer(centerPoint, radiusMeters, "meters");
   
           const symbol = {
@@ -1280,7 +1285,9 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
             geometry: polygon,
             attributes: {
               FEATURE_TYPE: "radius",
-              marketAreaId,
+              marketAreaId: uniqueMarketAreaId, // Unique ID per radius ring
+              originalMarketAreaId: marketAreaId, // Store original if needed
+              radiusMiles: radiusMiles,
               order,
             },
             symbol,
@@ -1299,6 +1306,7 @@ const toggleMarketAreaEditMode = useCallback(async (marketAreaId) => {
     },
     [mapView]
   );
+  
   
   
 
