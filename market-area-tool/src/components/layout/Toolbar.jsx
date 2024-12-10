@@ -26,7 +26,6 @@ import ExportDialog from "./ExportDialog";
 import { usePresets } from "../../contexts/PresetsContext";
 import ScaleBar from "@arcgis/core/widgets/ScaleBar";
 import { useProjectCleanup } from '../../hooks/useProjectCleanup';
-
 // Market area type mapping for consistent formatting
 const MA_TYPE_MAPPING = {
   'radius': 'RADIUS',
@@ -338,49 +337,104 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(false);
     }
   };
+  
+  
+// Updated Search widget initialization
+useEffect(() => {
+  let searchWidget;
 
-  useEffect(() => {
-    let searchWidget;
+  const initializeSearchWidget = async () => {
+    if (!mapView) return;
 
-    const initializeSearchWidget = async () => {
-      if (!mapView) return;
+    try {
+      // Import all required modules
+      const [Search, esriConfig] = await Promise.all([
+        import("@arcgis/core/widgets/Search").then(module => module.default),
+        import("@arcgis/core/config").then(module => module.default)
+      ]);
 
-      try {
-        const [Search] = await Promise.all([
-          import("@arcgis/core/widgets/Search").then(
-            (module) => module.default
-          ),
-        ]);
+      // Configure API Key authentication instead of OAuth
+      esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+
+      // Configure the locator source with API key
+      const locatorSource = {
+        url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer",
+        name: "ArcGIS World Geocoding Service",
+        placeholder: "Search for address or place",
+        singleLineFieldName: "SingleLine",
+        maxResults: 5,
+        maxSuggestions: 5,
+        minSuggestCharacters: 3,
+        suggestionsEnabled: true,
+        outFields: ["*"],
+        locationEnabled: true
+      };
+
+      // Create search container
+      const searchContainer = searchWidgetRef.current;
+      if (!searchContainer.querySelector(".esri-search")) {
+        const searchDiv = document.createElement("div");
+        searchDiv.style.width = "100%";
+        searchDiv.style.height = "100%";
+        searchContainer.appendChild(searchDiv);
 
         searchWidget = new Search({
           view: mapView,
-          container: searchWidgetRef.current,
+          container: searchDiv,
+          includeDefaultSources: false,
+          sources: [locatorSource],
+          popupEnabled: false,
+          resultGraphicEnabled: false,
+          searchAllEnabled: false,
+          goToOverride: (view, params) => {
+            params.target.scale = 50000;
+            return view.goTo(params.target);
+          }
         });
+
+        // Apply styles to search input
+        const searchInput = searchContainer.querySelector("input");
+        if (searchInput) {
+          searchInput.style.backgroundColor = "transparent";
+          searchInput.style.height = "100%";
+          searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
+        }
+
+        // Apply dark mode styles to suggestions
+        const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
+        if (suggestionContainer) {
+          suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
+        }
 
         searchWidget.on("select-result", (event) => {
           if (event.result && event.result.extent) {
             mapView.goTo({
               target: event.result.extent.center,
-              zoom: 14,
+              zoom: 14
             });
           }
         });
 
-        console.log("Search widget initialized");
-      } catch (error) {
-        console.error("Error initializing Search widget:", error);
+        console.log("Search widget initialized successfully");
       }
-    };
+    } catch (error) {
+      console.error("Error initializing Search widget:", error);
+      toast.error("Failed to initialize search functionality");
+    }
+  };
 
-    initializeSearchWidget();
+  initializeSearchWidget();
 
-    return () => {
-      if (searchWidget) {
+  return () => {
+    if (searchWidget) {
+      try {
         searchWidget.destroy();
-        console.log("Search widget destroyed");
+      } catch (error) {
+        console.error("Error destroying search widget:", error);
       }
-    };
-  }, [mapView]);
+    }
+  };
+}, [mapView]);
 
   return (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">

@@ -9,17 +9,22 @@ const isDevelopment = () => {
   return mode === 'development' || devMode;
 };
 
-// Get API URL with proper environment handling
+// Restore split-path logic for local vs Choreo
 export const getApiUrl = () => {
   // Development environment - use local URL
   if (isDevelopment()) {
     const devUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    console.log('Using development API URL:', devUrl);
+    if (isDevelopment()) {
+      console.log('Using development API URL:', devUrl);
+    }
     return devUrl;
   }
+
   // Production environment - use Choreo config
   const prodUrl = import.meta.env.VITE_API_BASE_URL || '/choreo-apis/market-area-analysis/backend/v1';
-  console.log('Using production API URL:', prodUrl);
+  if (isDevelopment()) {
+    console.log('Using production API URL:', prodUrl);
+  }
   return prodUrl;
 };
 
@@ -62,7 +67,6 @@ export const verifyToken = async (token) => {
     if (isDevelopment()) {
       console.log('Token verification successful');
     }
-    
     return true;
   } catch (error) {
     if (isDevelopment()) {
@@ -157,7 +161,7 @@ export const setupAxiosInterceptors = (navigate) => {
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      // Ensure trailing slash for Django
+      // Ensure trailing slash for Django endpoints
       if (!config.url.endsWith('/')) {
         config.url += '/';
       }
@@ -192,7 +196,6 @@ export const setupAxiosInterceptors = (navigate) => {
       return response;
     },
     async (error) => {
-      // This is where you handle 401 errors and attempt token refresh
       const originalRequest = error.config;
   
       if (error.response?.status === 401 && !originalRequest._retry) {
@@ -208,7 +211,6 @@ export const setupAxiosInterceptors = (navigate) => {
             throw new Error('No refresh token available');
           }
   
-          // Call the refreshToken function (not the variable)
           const newToken = await refreshToken(); 
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
   

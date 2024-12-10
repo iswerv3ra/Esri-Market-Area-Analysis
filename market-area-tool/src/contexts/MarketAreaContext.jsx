@@ -27,20 +27,39 @@ export const MarketAreaProvider = ({ children }) => {
       console.log('Fetch already in progress, skipping');
       return;
     }
-
+  
     if (initialFetchDone.current && marketAreas.length > 0) {
       console.log('Initial fetch already done and we have market areas');
       return marketAreas;
     }
-
+  
     fetchInProgress.current = true;
     setIsLoading(true);
-    
+   
     try {
       console.log('Fetching market areas for project:', projectId);
       const response = await api.get(`/api/projects/${projectId}/market-areas/`);
-      const areas = Array.isArray(response.data) ? response.data : [];
-      
+      let areas = Array.isArray(response.data) ? response.data : [];
+  
+      // Add the type property to geometry objects if they exist
+      areas = areas.map(area => {
+        if (area.locations && area.locations.length > 0) {
+          area.locations = area.locations.map(loc => {
+            if (loc.geometry && !loc.geometry.type && loc.geometry.rings) {
+              loc.geometry.type = "polygon";
+            }
+            return loc;
+          });
+        }
+  
+        // If you have radius_points, check and set type as needed
+        // if (area.radius_points && area.radius_points.length > 0) {
+        //   // Here you would set type for point geometries if needed
+        // }
+  
+        return area;
+      });
+  
       if (order.length > 0) {
         areas.sort((a, b) => {
           const aIndex = order.indexOf(a.id);
@@ -50,7 +69,7 @@ export const MarketAreaProvider = ({ children }) => {
       } else {
         setOrder(areas.map(area => area.id));
       }
-      
+  
       setMarketAreas(areas);
       setError(null);
       initialFetchDone.current = true;
@@ -94,30 +113,45 @@ export const MarketAreaProvider = ({ children }) => {
     if (!projectId) throw new Error('Project ID is required');
     setIsLoading(true);
     try {
-      console.log('Sending market area data:', JSON.stringify(marketAreaData, null, 2));
-      const response = await api.post(
-        `/api/projects/${projectId}/market-areas/`,
-        marketAreaData
-      );
-      const newMarketArea = response.data;
-      
-      setMarketAreas(prev => [...prev, newMarketArea]);
-      setOrder(prev => [...prev, newMarketArea.id]);
-      
+      let newMarketArea;
+      if (marketAreaData.id) {
+        // Existing market area: update it
+        const response = await api.patch(
+          `/api/projects/${projectId}/market-areas/${marketAreaData.id}/`,
+          marketAreaData
+        );
+        newMarketArea = response.data;
+        
+        setMarketAreas(prev => prev.map(ma => ma.id === newMarketArea.id ? newMarketArea : ma));
+        // Note: the order array likely doesn't change since we're updating an existing item.
+        
+      } else {
+        // New market area: add it
+        const response = await api.post(
+          `/api/projects/${projectId}/market-areas/`,
+          marketAreaData
+        );
+        newMarketArea = response.data;
+        
+        setMarketAreas(prev => [...prev, newMarketArea]);
+        setOrder(prev => [...prev, newMarketArea.id]);
+      }
+  
       setError(null);
       return newMarketArea;
     } catch (err) {
-      console.error('Error creating market area:', err);
+      console.error('Error creating/updating market area:', err);
       if (err.response?.data?.detail) {
         setError(`Server error: ${err.response.data.detail}`);
       } else {
-        setError('Failed to create market area: ' + (err.response?.data?.message || 'Network error'));
+        setError('Failed to create/update market area: ' + (err.response?.data?.message || 'Network error'));
       }
       throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
+  
 
   const updateMarketArea = useCallback(async (projectId, marketAreaId, updateData) => {
     if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');

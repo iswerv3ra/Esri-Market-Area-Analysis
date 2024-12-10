@@ -25,7 +25,8 @@ function InnerLayout() {
         console.log('[MarketAreasLayout] Starting initial market areas fetch');
         const areas = await fetchMarketAreas(projectId);
         console.log('[MarketAreasLayout] Fetch complete, got areas:', areas?.length);
-        
+        console.log("Fetched marketAreas:", marketAreas);
+
         // Add a slight delay before opening the list
         setTimeout(() => {
           console.log('[MarketAreasLayout] Opening MA list after delay');

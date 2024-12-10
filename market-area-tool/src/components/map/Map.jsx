@@ -12,7 +12,6 @@ import { useMap } from '../../contexts/MapContext';
 // Initialize the API key
 const API_KEY = "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-// Create ZoomAlert component inline since it's specific to the map
 const ZoomAlert = () => {
   const { isOutsideZoomRange, zoomMessage } = useMap();
 
@@ -51,6 +50,7 @@ export default function MapComponent({ onToggleList }) {
       }
 
       const serversToAdd = [
+        "geocode-api.arcgis.com",  // Added geocoding server
         "route-api.arcgis.com",
         "services.arcgis.com",
         "basemaps.arcgis.com",
@@ -107,7 +107,7 @@ export default function MapComponent({ onToggleList }) {
           container: mapRef.current,
           map: map,
           zoom: 13,
-          center: [-118.2437, 34.0522],
+          center: [-117.8311, 33.7175],
           padding: {
             top: 10,
             right: 10,
@@ -164,15 +164,11 @@ export default function MapComponent({ onToggleList }) {
 
         const widgets = [
           {
-            widget: new Zoom({
-              view: view
-            }),
+            widget: new Zoom({ view: view }),
             position: "top-left"
           },
           {
-            widget: new Home({
-              view: view
-            }),
+            widget: new Home({ view: view }),
             position: "top-left"
           },
           {
@@ -220,21 +216,8 @@ export default function MapComponent({ onToggleList }) {
           }, 1000);
         }
 
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const { longitude, latitude } = position.coords;
-              goToLocation(view, longitude, latitude);
-            },
-            (error) => {
-              console.warn('[Map] Geolocation error:', error.message);
-              goToLocation(view, -118.2437, 34.0522);
-            }
-          );
-        } else {
-          console.warn('[Map] Geolocation not supported');
-          goToLocation(view, -118.2437, 34.0522);
-        }
+        // No initial geolocation fallback here.
+        // The MapContext will handle zooming to market areas or fallback to Orange County if none exist.
 
       } catch (error) {
         console.error('[Map] Error initializing map:', error);
