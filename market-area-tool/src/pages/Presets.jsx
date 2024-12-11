@@ -17,10 +17,8 @@ import {
 import { stylePresetsAPI, variablePresetsAPI } from '../services/api';
 import { analysisCategories, getAllVariables } from '../services/enrichmentService';
 
-// 1. **Create Presets Context**
 const PresetsContext = createContext(null);
 
-// 2. **Context Hook**
 const usePresets = () => {
   const context = useContext(PresetsContext);
   if (!context) {
@@ -29,35 +27,11 @@ const usePresets = () => {
   return context;
 };
 
-// 3. **Market Area Types Definition**
-const marketAreaTypes = [
-  { value: 'radius', label: 'Radius' },
-  { value: 'zip', label: 'Zip Code' },
-  { value: 'county', label: 'County' },
-  { value: 'place', label: 'Place' },
-  { value: 'tract', label: 'Census Tract' },
-  { value: 'block', label: 'Census Block' },
-  { value: 'blockgroup', label: 'Census Block Group' },
-  { value: 'cbsa', label: 'CBSA' },
-  { value: 'state', label: 'State' },
-  { value: 'usa', label: 'USA' },
-];
-
-// 4. **Default Style Configuration**
-const DEFAULT_STYLE = {
-  fillColor: '#0078D4',
-  fillOpacity: 0.3,
-  borderColor: '#0078D4',
-  borderWidth: 2,
-};
-
-// 5. **PresetsProvider Component**
 const PresetsProvider = ({ children }) => {
   const [stylePresets, setStylePresets] = useState([]);
   const [variablePresets, setVariablePresets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch presets on mount
   useEffect(() => {
     const fetchPresets = async () => {
       setIsLoading(true);
@@ -79,37 +53,15 @@ const PresetsProvider = ({ children }) => {
     fetchPresets();
   }, []);
 
-  // Preset CRUD operations
-  const saveStylePreset = async (name, styles, isGlobal = false) => {
-    try {
-      const response = await stylePresetsAPI.create({
-        name,
-        styles,
-        is_global: isGlobal,
-      });
-      setStylePresets((prev) => [...prev, response.data]);
-      toast.success('Style preset saved');
-      return response.data;
-    } catch (error) {
-      console.error('Error saving style preset:', error);
-      toast.error('Failed to save style preset');
-      throw error;
-    }
-  };
-
   const saveVariablePreset = async (name, variables, isGlobal = false) => {
     try {
       const presetData = {
         name,
         variables,
         is_global: isGlobal,
-        project: null  // Add this line
+        project: null
       };
-      console.log('Saving variable preset with data:', presetData);
-      
       const response = await variablePresetsAPI.create(presetData);
-      console.log('Response from variable preset creation:', response);
-      
       setVariablePresets((prev) => [...prev, response.data]);
       toast.success('Variable preset saved');
       return response.data;
@@ -117,36 +69,6 @@ const PresetsProvider = ({ children }) => {
       console.error('Error saving variable preset:', error);
       console.error('Error response data:', error.response?.data);
       toast.error('Failed to save variable preset');
-      throw error;
-    }
-  };
-
-  const updateStylePreset = async (id, styles) => {
-    try {
-      const response = await stylePresetsAPI.update(id, { styles });
-      setStylePresets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, styles } : p))
-      );
-      toast.success('Style preset updated');
-      return response.data;
-    } catch (error) {
-      console.error('Error updating style preset:', error);
-      toast.error('Failed to update style preset');
-      throw error;
-    }
-  };
-
-  const updateVariablePreset = async (id, variables) => {
-    try {
-      const response = await variablePresetsAPI.update(id, { variables });
-      setVariablePresets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, variables } : p))
-      );
-      toast.success('Variable preset updated');
-      return response.data;
-    } catch (error) {
-      console.error('Error updating variable preset:', error);
-      toast.error('Failed to update variable preset');
       throw error;
     }
   };
@@ -205,19 +127,31 @@ const PresetsProvider = ({ children }) => {
     }
   };
 
-  // Context value
+  const updateVariablePreset = async (id, variables) => {
+    try {
+      const response = await variablePresetsAPI.update(id, { variables });
+      setVariablePresets((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, variables } : p))
+      );
+      toast.success('Variable preset updated');
+      return response.data;
+    } catch (error) {
+      console.error('Error updating variable preset:', error);
+      toast.error('Failed to update variable preset');
+      throw error;
+    }
+  };
+
   const value = {
     stylePresets,
     variablePresets,
     isLoading,
-    saveStylePreset,
     saveVariablePreset,
-    updateStylePreset,
-    updateVariablePreset,
     deleteStylePreset,
     deleteVariablePreset,
     makeStylePresetGlobal,
     makeVariablePresetGlobal,
+    updateVariablePreset,
   };
 
   return (
@@ -227,7 +161,6 @@ const PresetsProvider = ({ children }) => {
   );
 };
 
-// 6. **Modal Component**
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     const handleEsc = (event) => {
@@ -274,246 +207,6 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// 7. **StylePresetModalContent Component**
-const StylePresetModalContent = ({ preset, closeModal }) => {
-  const {
-    updateStylePreset,
-    makeStylePresetGlobal,
-    deleteStylePreset,
-  } = usePresets();
-  const [editableStyles, setEditableStyles] = useState(() =>
-    JSON.parse(JSON.stringify(preset.styles))
-  );
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleEdit = (type, property, value) => {
-    setEditableStyles((prev) => ({
-      ...prev,
-      [type]: {
-        ...prev[type],
-        [property]: value,
-      },
-    }));
-  };
-
-  const saveChanges = async () => {
-    setIsLoading(true);
-    try {
-      await updateStylePreset(preset.id, editableStyles);
-      toast.success('Style preset updated');
-      closeModal();
-    } catch (error) {
-      console.error('Error updating preset:', error);
-      toast.error('Failed to update preset');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMakeGlobal = async () => {
-    setIsLoading(true);
-    try {
-      await makeStylePresetGlobal(preset.id);
-      toast.success('Style preset is now global');
-      closeModal();
-    } catch (error) {
-      console.error('Error making preset global:', error);
-      toast.error('Failed to make preset global');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeletePreset = async () => {
-    if (window.confirm('Are you sure you want to delete this style preset?')) {
-      setIsLoading(true);
-      try {
-        await deleteStylePreset(preset.id);
-        toast.success('Style preset deleted');
-        closeModal();
-      } catch (error) {
-        console.error('Error deleting preset:', error);
-        toast.error('Failed to delete preset');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <p>
-          <strong>Name:</strong> {preset.name}
-          {preset.is_global && (
-            <span className="ml-2 inline-flex items-center text-blue-600">
-              <GlobeAltIcon className="h-4 w-4 mr-1" />
-              Global
-            </span>
-          )}
-        </p>
-        {!preset.is_global && (
-          <button
-            onClick={handleMakeGlobal}
-            disabled={isLoading}
-            className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
-          >
-            <GlobeAltIcon className="h-4 w-4 mr-1" />
-            Make Global
-          </button>
-        )}
-      </div>
-
-      <h4 className="mt-4 mb-2 font-medium">Styles:</h4>
-      <div className="space-y-4">
-        {marketAreaTypes.map((typeItem) => (
-          <div key={typeItem.value} className="mb-3">
-            <p className="font-semibold">{typeItem.label}</p>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Fill Color */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Fill Color:
-                </span>
-                <input
-                  type="color"
-                  value={editableStyles[typeItem.value].fillColor}
-                  onChange={(e) =>
-                    handleEdit(typeItem.value, 'fillColor', e.target.value)
-                  }
-                  className="h-8 w-8 rounded cursor-pointer"
-                />
-                <span
-                  className="h-8 w-8 rounded"
-                  style={{
-                    backgroundColor: editableStyles[typeItem.value].fillColor,
-                  }}
-                ></span>
-              </div>
-
-              {/* Fill Opacity */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Fill Opacity:
-                </span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={editableStyles[typeItem.value].fillOpacity * 100}
-                  onChange={(e) =>
-                    handleEdit(
-                      typeItem.value,
-                      'fillOpacity',
-                      Number(e.target.value) / 100
-                    )
-                  }
-                  className="flex-1"
-                />
-                <span className="text-sm text-gray-500 dark:text-gray-400 w-12">
-                  {Math.round(editableStyles[typeItem.value].fillOpacity * 100)}%
-                </span>
-              </div>
-
-              {/* Border Color */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Border Color:
-                </span>
-                <input
-                  type="color"
-                  value={editableStyles[typeItem.value].borderColor}
-                  onChange={(e) =>
-                    handleEdit(
-                      typeItem.value,
-                      'borderColor',
-                      e.target.value
-                    )
-                  }
-                  className="h-8 w-8 rounded cursor-pointer"
-                />
-                <span
-                  className="h-8 w-8 rounded"
-                  style={{
-                    backgroundColor: editableStyles[typeItem.value].borderColor,
-                  }}
-                ></span>
-              </div>
-
-              {/* Border Width */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Border Width:
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  max="5"
-                  value={editableStyles[typeItem.value].borderWidth}
-                  onChange={(e) =>
-                    handleEdit(
-                      typeItem.value,
-                      'borderWidth',
-                      Number(e.target.value)
-                    )
-                  }
-                  className="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-                />
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  px
-                </span>
-              </div>
-
-              {/* Preview */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Preview:
-                </span>
-                <div
-                  className="h-8 w-16 rounded border-2 relative overflow-hidden"
-                  style={{
-                    backgroundColor: editableStyles[typeItem.value].fillColor,
-                    opacity: editableStyles[typeItem.value].fillOpacity,
-                    borderColor: editableStyles[typeItem.value].borderColor,
-                    borderWidth: `${editableStyles[typeItem.value].borderWidth}px`,
-                  }}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-                    Preview
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Save Changes Button */}
-      <button
-        onClick={saveChanges}
-        disabled={isLoading}
-        className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
-                 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isLoading ? 'Saving...' : 'Save Changes'}
-      </button>
-
-      {/* Delete Preset Button */}
-      {!preset.is_global && (
-        <button
-          onClick={handleDeletePreset}
-          disabled={isLoading}
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 
-                   disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? 'Deleting...' : 'Delete Preset'}
-        </button>
-      )}
-    </div>
-  );
-};
-
-// 8. **VariablePresetModalContent Component**
 const VariablePresetModalContent = ({ preset, closeModal }) => {
   const {
     updateVariablePreset,
@@ -617,7 +310,6 @@ const VariablePresetModalContent = ({ preset, closeModal }) => {
         ))}
       </ul>
 
-      {/* Delete Preset Button */}
       {!preset.is_global && (
         <button
           onClick={handleDeletePreset}
@@ -632,7 +324,6 @@ const VariablePresetModalContent = ({ preset, closeModal }) => {
   );
 };
 
-// 9. **VariablesPanel Component**
 const VariablesPanel = ({
   selectedVariables,
   setSelectedVariables,
@@ -807,168 +498,24 @@ const VariablesPanel = ({
   );
 };
 
-// 10. **StyleEditor Component**
-const StyleEditor = ({ currentStyle, setCurrentStyle }) => {
-  const handleStyleChange = (type, property, value) => {
-    setCurrentStyle((prev) => ({
-      ...prev,
-      [type]: {
-        ...prev[type],
-        [property]: value,
-      },
-    }));
-  };
-
-  return (
-    <div className="flex-1 overflow-auto p-4">
-      <div className="grid gap-4">
-        {marketAreaTypes.map((type) => (
-          <div
-            key={type.value}
-            className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg"
-          >
-            <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3">
-              {type.label}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Fill Color
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={currentStyle[type.value].fillColor}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        type.value,
-                        'fillColor',
-                        e.target.value
-                      )
-                    }
-                    className="h-8 w-8 rounded cursor-pointer"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={currentStyle[type.value].fillOpacity * 100}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        type.value,
-                        'fillOpacity',
-                        Number(e.target.value) / 100
-                      )
-                    }
-                    className="flex-1"
-                  />
-                  <span className="text-sm text-gray-500 dark:text-gray-400 w-12">
-                    {Math.round(currentStyle[type.value].fillOpacity * 100)}%
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Border
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={currentStyle[type.value].borderColor}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        type.value,
-                        'borderColor',
-                        e.target.value
-                      )
-                    }
-                    className="h-8 w-8 rounded cursor-pointer"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    max="5"
-                    value={currentStyle[type.value].borderWidth}
-                    onChange={(e) =>
-                      handleStyleChange(
-                        type.value,
-                        'borderWidth',
-                        Number(e.target.value)
-                      )
-                    }
-                    className="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-                  />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    px
-                  </span>
-                </div>
-              </div>
-
-              <div
-                className="h-16 w-full rounded-lg border-2 relative overflow-hidden"
-                style={{
-                  backgroundColor: currentStyle[type.value].fillColor,
-                  opacity: currentStyle[type.value].fillOpacity,
-                  borderColor: currentStyle[type.value].borderColor,
-                  borderWidth: `${currentStyle[type.value].borderWidth}px`,
-                }}
-              >
-                <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-                  Preview
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// 11. **PresetsContent Component**
 const PresetsContent = () => {
   const {
     stylePresets,
     variablePresets,
     isLoading,
-    saveStylePreset,
     saveVariablePreset,
     deleteStylePreset,
     deleteVariablePreset,
   } = usePresets();
-
-  const [currentStyle, setCurrentStyle] = useState(() => {
-    return marketAreaTypes.reduce((acc, type) => {
-      acc[type.value] = { ...DEFAULT_STYLE };
-      return acc;
-    }, {});
-  });
 
   const [selectedVariables, setSelectedVariables] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [newPresetName, setNewPresetName] = useState('');
   const [isGlobal, setIsGlobal] = useState(false);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState(null);
-
-  const handleSaveStylePreset = async () => {
-    if (!newPresetName.trim()) {
-      toast.error('Please enter a preset name');
-      return;
-    }
-
-    try {
-      await saveStylePreset(newPresetName.trim(), currentStyle, isGlobal);
-      setNewPresetName('');
-      setIsGlobal(false);
-    } catch (error) {
-      // Error is already handled in the context
-    }
-  };
 
   const handleSaveVariablePreset = async () => {
     if (!newPresetName.trim()) {
@@ -995,12 +542,8 @@ const PresetsContent = () => {
   };
 
   const openPresetModal = (preset, type) => {
-    setModalTitle(`${type === 'style' ? 'Style' : 'Variable'} Preset Details`);
-    if (type === 'style') {
-      setModalContent(
-        <StylePresetModalContent preset={preset} closeModal={closeModal} />
-      );
-    } else if (type === 'variable') {
+    setModalTitle(`${type === 'variable' ? 'Variable' : 'Preset'} Details`);
+    if (type === 'variable') {
       setModalContent(
         <VariablePresetModalContent preset={preset} closeModal={closeModal} />
       );
@@ -1035,21 +578,8 @@ const PresetsContent = () => {
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 p-4 sm:p-6 lg:p-8">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left Panel - Style Editor */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                Style Editor
-              </h2>
-            </div>
-            <StyleEditor
-              currentStyle={currentStyle}
-              setCurrentStyle={setCurrentStyle}
-            />
-          </div>
-
-          {/* Middle Panel - Variables Selector */}
+        <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Middle Panel - Analysis Variables */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -1095,17 +625,8 @@ const PresetsContent = () => {
                   </label>
                 </div>
 
-                {/* Save Buttons */}
+                {/* Save Variable Preset Button */}
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveStylePreset}
-                    className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
-                             flex items-center justify-center"
-                    title="Save Style Preset"
-                  >
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    Save Style
-                  </button>
                   <button
                     onClick={handleSaveVariablePreset}
                     className="flex-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
@@ -1142,23 +663,7 @@ const PresetsContent = () => {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setCurrentStyle(preset.styles);
-                            toast.success('Style preset applied');
-                          }}
-                          className="text-blue-600 hover:text-blue-700"
-                          title="Apply Preset"
-                        >
-                          <CheckIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openPresetModal(preset, 'style')}
-                          className="text-gray-600 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                          title="View Preset Details"
-                        >
-                          <MagnifyingGlassIcon className="h-4 w-4" />
-                        </button>
+                        {/* No apply button needed since style editing removed */}
                         <button
                           onClick={() => deleteStylePreset(preset.id)}
                           className="text-red-600 hover:text-red-700"
@@ -1250,7 +755,6 @@ const PresetsContent = () => {
   );
 };
 
-// 12. **Main Presets Component**
 export default function Presets() {
   return (
     <PresetsProvider>

@@ -114,6 +114,7 @@ export const MarketAreaProvider = ({ children }) => {
     setIsLoading(true);
     try {
       let newMarketArea;
+  
       if (marketAreaData.id) {
         // Existing market area: update it
         const response = await api.patch(
@@ -123,18 +124,27 @@ export const MarketAreaProvider = ({ children }) => {
         newMarketArea = response.data;
         
         setMarketAreas(prev => prev.map(ma => ma.id === newMarketArea.id ? newMarketArea : ma));
-        // Note: the order array likely doesn't change since we're updating an existing item.
-        
+        // The order array probably doesn't need to change for an update.
+  
       } else {
         // New market area: add it
+        // Determine the current maximum order among existing market areas
+        const maxOrder = marketAreas.length > 0 
+          ? Math.max(...marketAreas.map(ma => ma.order)) 
+          : 0;
+  
+        // Assign the new market area an order number higher than the current maximum
+        marketAreaData.order = maxOrder + 1;
+  
         const response = await api.post(
           `/api/projects/${projectId}/market-areas/`,
           marketAreaData
         );
         newMarketArea = response.data;
-        
-        setMarketAreas(prev => [...prev, newMarketArea]);
-        setOrder(prev => [...prev, newMarketArea.id]);
+  
+        // Prepend the new market area to the start of the arrays so it appears at the top
+        setMarketAreas(prev => [newMarketArea, ...prev]);
+        setOrder(prev => [newMarketArea.id, ...prev]);
       }
   
       setError(null);
@@ -150,7 +160,8 @@ export const MarketAreaProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [marketAreas]);
+  
   
 
   const updateMarketArea = useCallback(async (projectId, marketAreaId, updateData) => {

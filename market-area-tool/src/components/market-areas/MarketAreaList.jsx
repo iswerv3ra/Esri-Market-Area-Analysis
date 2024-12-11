@@ -42,6 +42,11 @@ const SortableItem = ({
     transition,
   };
 
+  // Determine count of features that define this market area
+  const count = marketArea.ma_type === "radius"
+    ? (marketArea.radius_points?.length || 0)
+    : (marketArea.locations?.length || 0);
+
   return (
     <div
       ref={setNodeRef}
@@ -57,8 +62,15 @@ const SortableItem = ({
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               {marketArea.name}
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {marketArea.ma_type} • {marketArea.short_name}
+            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center space-x-2">
+              <span className="flex items-center space-x-1">
+                <span>{marketArea.ma_type}</span>
+                <span className="bg-gray-200 rounded-full px-2 py-0.5 text-xs font-semibold text-gray-800">
+                  {count}
+                </span>
+              </span>
+              <span>•</span>
+              <span>{marketArea.short_name}</span>
             </p>
           </div>
         </div>
@@ -110,7 +122,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers,
-    clearMarketAreaGraphics, // Add this
+    clearMarketAreaGraphics,
   } = useMap();
 
   const sensors = useSensors(
@@ -126,102 +138,93 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Computed property to determine if all areas are visible
   const areAllAreasVisible =
     marketAreas.length > 0 &&
     marketAreas.every((ma) => visibleMarketAreaIds.includes(ma.id));
 
-  // Handle toggling all areas visibility
   const handleToggleAll = useCallback(() => {
     if (areAllAreasVisible) {
-      // Hide all areas
       setVisibleMarketAreaIds([]);
       clearSelection();
     } else {
-      // Show all areas
       const allIds = marketAreas.map((ma) => ma.id);
       setVisibleMarketAreaIds(allIds);
     }
   }, [areAllAreasVisible, marketAreas, clearSelection]);
 
-  // Fetch market areas when projectId changes
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
-// Also update the useEffect that handles initial visibility
-useEffect(() => {
-  const loadMarketAreas = async () => {
-    if (!projectId || hasAttemptedFetch) return;
+  useEffect(() => {
+    const loadMarketAreas = async () => {
+      if (!projectId || hasAttemptedFetch) return;
 
-    try {
-      await fetchMarketAreas(projectId);
-      
-      // After fetching, check localStorage for visibility state
-      const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-      if (storedVisibleIds) {
-        const visibleIds = JSON.parse(storedVisibleIds);
-        setVisibleMarketAreaIds(visibleIds);
-        
-        // Render all visible market areas
-        for (const marketArea of marketAreas) {
-          if (visibleIds.includes(marketArea.id)) {
-            if (marketArea.ma_type === "radius" && marketArea.radius_points) {
-              for (const point of marketArea.radius_points) {
-                await drawRadius(
-                  point, 
-                  marketArea.style_settings, 
-                  marketArea.id,
-                  marketArea.order
+      try {
+        await fetchMarketAreas(projectId);
+
+        const storedVisibleIds = localStorage.getItem(
+          `marketAreas.${projectId}.visible`
+        );
+        if (storedVisibleIds) {
+          const visibleIds = JSON.parse(storedVisibleIds);
+          setVisibleMarketAreaIds(visibleIds);
+
+          for (const marketArea of marketAreas) {
+            if (visibleIds.includes(marketArea.id)) {
+              if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+                for (const point of marketArea.radius_points) {
+                  await drawRadius(
+                    point,
+                    marketArea.style_settings,
+                    marketArea.id,
+                    marketArea.order
+                  );
+                }
+              } else if (marketArea.locations) {
+                const features = marketArea.locations.map((loc) => ({
+                  geometry: loc.geometry,
+                  attributes: {
+                    id: loc.id,
+                    marketAreaId: marketArea.id,
+                    order: marketArea.order,
+                  },
+                }));
+
+                await updateFeatureStyles(
+                  features,
+                  {
+                    fill: marketArea.style_settings?.fillColor,
+                    fillOpacity: marketArea.style_settings?.fillOpacity,
+                    outline: marketArea.style_settings?.borderColor,
+                    outlineWidth: marketArea.style_settings?.borderWidth,
+                  },
+                  marketArea.ma_type
                 );
               }
-            } else if (marketArea.locations) {
-              const features = marketArea.locations.map((loc) => ({
-                geometry: loc.geometry,
-                attributes: {
-                  id: loc.id,
-                  marketAreaId: marketArea.id,
-                  order: marketArea.order,
-                },
-              }));
-
-              await updateFeatureStyles(
-                features,
-                {
-                  fill: marketArea.style_settings?.fillColor,
-                  fillOpacity: marketArea.style_settings?.fillOpacity,
-                  outline: marketArea.style_settings?.borderColor,
-                  outlineWidth: marketArea.style_settings?.borderWidth,
-                },
-                marketArea.ma_type
-              );
             }
           }
+        } else {
+          const allIds = marketAreas.map((ma) => ma.id);
+          setVisibleMarketAreaIds(allIds);
+          localStorage.setItem(
+            `marketAreas.${projectId}.visible`,
+            JSON.stringify(allIds)
+          );
         }
-      } else {
-        // If no stored visibility state, show all market areas by default
-        const allIds = marketAreas.map((ma) => ma.id);
-        setVisibleMarketAreaIds(allIds);
-        localStorage.setItem(
-          `marketAreas.${projectId}.visible`,
-          JSON.stringify(allIds)
-        );
+      } finally {
+        setHasAttemptedFetch(true);
       }
-    } finally {
-      setHasAttemptedFetch(true);
-    }
-  };
+    };
 
-  loadMarketAreas();
-}, [
-  projectId, 
-  hasAttemptedFetch, 
-  fetchMarketAreas, 
-  marketAreas, 
-  drawRadius, 
-  updateFeatureStyles
-]);
+    loadMarketAreas();
+  }, [
+    projectId,
+    hasAttemptedFetch,
+    fetchMarketAreas,
+    marketAreas,
+    drawRadius,
+    updateFeatureStyles,
+  ]);
 
-
-  // Set initial visibility state when market areas first load
   useEffect(() => {
     if (marketAreas.length > 0) {
       const stored = localStorage.getItem(`marketAreas.${projectId}.visible`);
@@ -236,33 +239,40 @@ useEffect(() => {
     }
   }, [marketAreas, projectId]);
 
-  // Handle map display of market areas
   useEffect(() => {
     const showVisibleMarketAreas = async () => {
       if (!marketAreas.length) return;
 
-      // Clear all market areas first
       hideAllFeatureLayers();
+      clearMarketAreaGraphics();
 
-      // Show visible market areas in reverse order (so first items appear on top)
-      for (let i = marketAreas.length - 1; i >= 0; i--) {
-        const marketArea = marketAreas[i];
+      const sortedMarketAreas = [...marketAreas].sort((a, b) => a.order - b.order);
+
+      for (let i = sortedMarketAreas.length - 1; i >= 0; i--) {
+        const marketArea = sortedMarketAreas[i];
+
         if (!visibleMarketAreaIds.includes(marketArea.id)) continue;
 
-        if (marketArea.ma_type === "radius" && marketArea.radius_points) {
-          marketArea.radius_points.forEach((point) => {
-            drawRadius(point, marketArea.style_settings);
-          });
-        } else if (marketArea.locations) {
+        if (marketArea.ma_type === "radius" && Array.isArray(marketArea.radius_points)) {
+          for (const point of marketArea.radius_points) {
+            await drawRadius(
+              point,
+              marketArea.style_settings,
+              marketArea.id,
+              marketArea.order
+            );
+          }
+        } else if (marketArea.locations && Array.isArray(marketArea.locations)) {
           const features = marketArea.locations.map((loc) => ({
             geometry: loc.geometry,
             attributes: {
               id: loc.id,
               marketAreaId: marketArea.id,
+              order: marketArea.order
             },
           }));
 
-          updateFeatureStyles(
+          await updateFeatureStyles(
             features,
             {
               fill: marketArea.style_settings?.fillColor,
@@ -272,6 +282,8 @@ useEffect(() => {
             },
             marketArea.ma_type
           );
+        } else {
+          console.warn(`Unsupported or unknown marketArea type: ${marketArea.ma_type}`);
         }
       }
     };
@@ -281,11 +293,11 @@ useEffect(() => {
     marketAreas,
     visibleMarketAreaIds,
     hideAllFeatureLayers,
+    clearMarketAreaGraphics,
     drawRadius,
     updateFeatureStyles,
   ]);
 
-  // Update localStorage when visibility changes
   useEffect(() => {
     if (projectId) {
       localStorage.setItem(
@@ -298,23 +310,21 @@ useEffect(() => {
   const handleToggleVisibility = useCallback(
     async (marketArea) => {
       if (!marketArea) return;
-  
+
       const { id } = marketArea;
       const isVisible = visibleMarketAreaIds.includes(id);
-  
+
       try {
         const newVisibleIds = isVisible
           ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
           : [...visibleMarketAreaIds, id];
-  
+
         setVisibleMarketAreaIds(newVisibleIds);
         localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(newVisibleIds));
-  
+
         if (isVisible) {
-          // Hiding: clear all graphics from both layers
           clearMarketAreaGraphics(id);
         } else {
-          // Showing: redraw the area
           if (marketArea.ma_type === "radius" && marketArea.radius_points) {
             for (const point of marketArea.radius_points) {
               await drawRadius(
@@ -333,7 +343,7 @@ useEffect(() => {
                 order: marketArea.order,
               },
             }));
-  
+
             await updateFeatureStyles(
               features,
               {
@@ -348,19 +358,14 @@ useEffect(() => {
         }
       } catch (error) {
         console.error("Error toggling market area visibility:", error);
-        toast.error("Failed to toggle market area visibility");
       }
     },
     [visibleMarketAreaIds, projectId, clearMarketAreaGraphics, drawRadius, updateFeatureStyles]
   );
-  
 
   const handleEdit = useCallback(
     async (marketArea) => {
       if (!marketArea) return;
-      
-      // Don't clear selection or hide layers when transitioning to edit mode
-      // Instead, just pass the market area to edit
       onEdit?.(marketArea);
     },
     [onEdit]
@@ -371,13 +376,10 @@ useEffect(() => {
 
     if (window.confirm("Are you sure you want to delete this market area?")) {
       try {
-        // Clear all graphics associated with this market area
         clearMarketAreaGraphics(marketArea.id);
 
-        // Delete the market area from the backend
         await deleteMarketArea(projectId, marketArea.id);
 
-        // Update visible market areas state and localStorage
         const updatedVisible = visibleMarketAreaIds.filter(
           (id) => id !== marketArea.id
         );
@@ -388,7 +390,6 @@ useEffect(() => {
         );
       } catch (error) {
         console.error("Failed to delete market area:", error);
-        toast.error("Failed to delete market area");
       }
     }
   };
