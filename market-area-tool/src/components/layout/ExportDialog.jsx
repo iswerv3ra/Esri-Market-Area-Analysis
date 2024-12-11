@@ -1,9 +1,8 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
-import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { TableCellsIcon, XMarkIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 
-// Market area type mapping for consistent formatting
 const MA_TYPE_MAPPING = {
   'radius': 'RADIUS',
   'place': 'PLACE',
@@ -14,13 +13,14 @@ const MA_TYPE_MAPPING = {
   'zip': 'ZIP',
   'tract': 'TRACT',
   'county': 'COUNTY',
-  // Add mappings for other types
   'cb': 'CENSUS BLOCK',
   'cbg': 'CENSUS BLOCK GROUP',
   'caa': 'CUSTOM ANALYSIS AREA',
   'project': 'PROJECT',
   'rt': 'RADIUS TARGET'
 };
+
+const COST_PER_VARIABLE = 0.001; // $0.001 per variable
 
 const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketAreas = [] }) => {
   const [selectedPresetId, setSelectedPresetId] = useState('');
@@ -34,116 +34,23 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
     setSelectedAreas(new Set(marketAreas.map(area => area.id)));
   }, [marketAreas]);
 
-  // Updated getStateFullName with error handling
-  const getStateFullName = (stateAbbr) => {
-    if (!stateAbbr) return '';
-    
-    const stateMap = {
-      'AL': 'Alabama', 'AK': 'Alaska', /* ... rest of state mappings ... */
-    };
-    
-    return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
-  };
-
-  const formatMarketAreasForExport = (selectedMarketAreas) => {
-    const marketAreaColumns = selectedMarketAreas.map(ma => {
-      // Basic data structure with defaults
-      let maData = {
-        name: ma?.name || '',
-        shortName: ma?.short_name || '',
-        definitionType: MA_TYPE_MAPPING[ma?.ma_type?.toLowerCase()] || ma?.ma_type?.toUpperCase() || '',
-        areasIncluded: '',
-        state: '',
-      };
-
-      try {
-        // Handle different market area types
-        switch (ma?.ma_type?.toLowerCase()) {
-          case 'zip':
-            maData.areasIncluded = ma.locations
-              ?.map(loc => loc.name?.split(' - ')?.[0])
-              .filter(Boolean)
-              .join(', ') || '';
-            maData.state = 'CA'; // Default state for ZIP types
-            break;
-
-          case 'radius':
-            maData.areasIncluded = ma.radius_points
-              ?.map(point => `${point.radius} miles`)
-              .filter(Boolean)
-              .join(', ') || '';
-            break;
-
-          case 'county':
-            maData.areasIncluded = ma.locations
-              ?.map(loc => loc.name)
-              .filter(Boolean)
-              .join(', ') || '';
-            break;
-
-          default:
-            // Handle other types of market areas
-            maData.areasIncluded = ma.locations
-              ?.map(loc => loc.name)
-              .filter(Boolean)
-              .join(', ') || '';
-        }
-      } catch (err) {
-        console.error('Error processing market area:', err);
-      }
-
-      return maData;
-    });
-
-    // Create the standardized rows structure
-    return {
-      headers: ['Market Area Name', 'Short Name', 'Definition Type', 'Areas Included', 'State'],
-      rows: marketAreaColumns.map(col => [
-        col.name,
-        col.shortName,
-        col.definitionType,
-        col.areasIncluded,
-        col.state
-      ])
-    };
-  };
-
-  const processEnrichmentData = (enrichmentResults, selectedMarketAreas) => {
-    if (!enrichmentResults?.results?.length) return [];
-
-    return enrichmentResults.results.map((result, index) => {
-      const attributes = result?.value?.FeatureSet?.[0]?.features?.[0]?.attributes || {};
-      const marketArea = selectedMarketAreas[index];
-
-      return {
-        marketAreaName: marketArea?.name || '',
-        ...attributes
-      };
-    });
-  };
-
-  const handleExport = () => {
-    const selectedMarketAreas = marketAreas.filter(area => selectedAreas.has(area.id));
-    let variables = [];
-    
-    if (exportOption === 'selected-preset' && selectedPresetId) {
-      const preset = variablePresets.find(p => p.id === selectedPresetId);
-      variables = preset ? preset.variables : [];
-    } else if (exportOption === 'all-variables') {
-      variables = getAllVariables();
+  // Calculate total variables based on export option
+  const totalVariables = useMemo(() => {
+    if (exportOption === 'selected-preset') {
+      const selectedPreset = variablePresets.find(p => p.id === selectedPresetId);
+      return selectedPreset ? selectedPreset.variables.length : 0;
+    } else {
+      // Assuming getAllVariables() for 'all-variables' option
+      return variablePresets.reduce((total, preset) => total + preset.variables.length, 0);
     }
+  }, [exportOption, selectedPresetId, variablePresets]);
 
-    const formattedData = formatMarketAreasForExport(selectedMarketAreas);
-    
-    onExport({
-      variables,
-      formattedMarketAreas: formattedData,
-      selectedMarketAreas,
-      fileName
-    });
-
-    onClose();
-  };
+  // Calculate total cost
+  const totalCost = useMemo(() => {
+    const numAreas = selectedAreas.size;
+    const cost = (totalVariables * numAreas * COST_PER_VARIABLE);
+    return cost.toFixed(2);
+  }, [selectedAreas.size, totalVariables]);
 
   const handleSelectAllAreas = (e) => {
     if (e.target.checked) {
@@ -163,6 +70,27 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
       }
       return next;
     });
+  };
+
+  const handleExport = () => {
+    const selectedMarketAreas = marketAreas.filter(area => selectedAreas.has(area.id));
+    let variables = [];
+    
+    if (exportOption === 'selected-preset' && selectedPresetId) {
+      const preset = variablePresets.find(p => p.id === selectedPresetId);
+      variables = preset ? preset.variables : [];
+    } else if (exportOption === 'all-variables') {
+      // Collect all variables from all presets
+      variables = variablePresets.reduce((all, preset) => [...all, ...preset.variables], []);
+    }
+
+    onExport({
+      variables,
+      selectedMarketAreas,
+      fileName
+    });
+
+    onClose();
   };
 
   return (
@@ -186,6 +114,21 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
 
           <div className="px-4 py-4">
             <div className="space-y-4">
+              {/* Cost Display */}
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CurrencyDollarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      Estimated Cost
+                    </span>
+                  </div>
+                  <span className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                    ${totalCost}
+                  </span>
+                </div>
+              </div>
+
               {/* File Name Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">

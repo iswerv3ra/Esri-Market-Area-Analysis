@@ -1,32 +1,26 @@
 import { useState, useEffect, Fragment, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Menu, Transition, Dialog } from "@headlessui/react";
+import { Menu, Transition } from "@headlessui/react";
 import {
   ChevronDownIcon,
   ArrowLeftIcon,
   PhotoIcon,
-  MapIcon,
   TableCellsIcon,
-  DocumentArrowDownIcon,
   PlusIcon,
   ListBulletIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import {
   enrichmentService,
-  getAllVariables,
 } from "../../services/enrichmentService";
 import { toast } from "react-hot-toast";
-import axios from "axios";
 import { saveAs } from "file-saver";
-import jsPDF from "jspdf";
 import ExportDialog from "./ExportDialog";
 import { usePresets } from "../../contexts/PresetsContext";
-import ScaleBar from "@arcgis/core/widgets/ScaleBar";
 import { useProjectCleanup } from '../../hooks/useProjectCleanup';
-// Market area type mapping for consistent formatting
+import * as projection from "@arcgis/core/geometry/projection"; // Changed here
+
 const MA_TYPE_MAPPING = {
   'radius': 'RADIUS',
   'place': 'PLACE',
@@ -39,7 +33,6 @@ const MA_TYPE_MAPPING = {
   'county': 'COUNTY',
 };
 
-// Main Toolbar Component
 export default function Toolbar({ onCreateMA, onToggleList }) {
   const { variablePresets } = usePresets();
   const { projectId } = useParams();
@@ -51,7 +44,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const { marketAreas } = useMarketAreas();
   const [isMapReady, setIsMapReady] = useState(false);
   
-  // Flag to prevent toggle during MA creation
   const isCreatingMARef = useRef(false);
   const cleanupProject = useProjectCleanup();
 
@@ -59,7 +51,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     cleanupProject();
     navigate("/");
   };
-  
 
   const handleExportData = async ({
     variables,
@@ -100,10 +91,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     }
   };
 
-  // Simplified map initialization
   useEffect(() => {
     if (!mapView) return;
-    
     mapView.when(() => {
       const allLayers = mapView.map.allLayers;
       Promise.all(allLayers.map((layer) => layer.load()))
@@ -122,6 +111,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       isCreatingMARef.current = false;
     }, 100);
   };
+
   const handleExportJPEG = async () => {
     if (!mapView) {
       console.log("No mapView available");
@@ -271,170 +261,206 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     };
   }
 
-  const handleExportMXD = async () => {
-    if (!mapView || !marketAreas.length) {
-      toast.error("No map content to export");
+  const handleExportKML = async () => {
+    if (!marketAreas || marketAreas.length === 0) {
+      toast.error("No market areas to export");
       return;
     }
 
     try {
       setIsExporting(true);
-      const loadingToast = toast.loading("Preparing web map export...");
+      const loadingToast = toast.loading("Exporting KML...");
 
-      const webMapJson = {
-        operationalLayers: marketAreas.map((area) => ({
-          id: area.id,
-          title: area.name,
-          visibility: true,
-          opacity: 1,
-          geometryType:
-            area.ma_type === "radius" ? "esriGeometryPolygon" : undefined,
-          features:
-            area.ma_type === "radius"
-              ? area.radius_points.map((point) => ({
-                  geometry: point.geometry,
-                  attributes: {
-                    name: area.name,
-                    radius: point.radius,
-                  },
-                }))
-              : area.locations.map((loc) => ({
-                  geometry: loc.geometry,
-                  attributes: {
-                    name: area.name,
-                    id: loc.id,
-                  },
-                })),
-          style: area.style_settings,
-        })),
-        baseMap: {
-          baseMapLayers: [
-            {
-              id: "defaultBasemap",
-              title: "Default Basemap",
-              url: "https://services.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
-              visibility: true,
-            },
-          ],
-        },
-        initialExtent: mapView.extent.toJSON(),
+      await projection.load();
+
+      // Helper to convert geometry to KML coordinates
+      const toKmlCoordinates = (rings) => {
+        // rings: Array of arrays of [x,y] in lon/lat
+        // KML expects "lon,lat,alt"
+        // We'll set alt = 0
+        return rings
+          .map((ring) =>
+            ring.map((coord) => `${coord[0]},${coord[1]},0`).join(" ")
+          )
+          .join(" ");
       };
 
-      const blob = new Blob([JSON.stringify(webMapJson, null, 2)], {
-        type: "application/json",
-      });
-      saveAs(
-        blob,
-        `market_areas_webmap_${new Date().toISOString().split("T")[0]}.json`
-      );
+      let kmlPlacemarks = "";
+
+      for (const area of marketAreas) {
+        if (area.ma_type === "radius" && Array.isArray(area.radius_points)) {
+          for (const pt of area.radius_points) {
+            if (!pt.geometry) continue;
+
+            const projectedGeom = projection.project(pt.geometry, { wkid: 4326 });
+            if (!projectedGeom || !projectedGeom.rings) continue;
+
+            const coords = toKmlCoordinates(projectedGeom.rings);
+            kmlPlacemarks += `
+<Placemark>
+  <name>${area.name}</name>
+  <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${
+              area.short_name || ""
+            }</description>
+  <styleUrl>#polygonStyle</styleUrl>
+  <Polygon>
+    <outerBoundaryIs>
+      <LinearRing>
+        <coordinates>${coords}</coordinates>
+      </LinearRing>
+    </outerBoundaryIs>
+  </Polygon>
+</Placemark>`;
+          }
+        } else if (area.locations && Array.isArray(area.locations)) {
+          for (const loc of area.locations) {
+            if (!loc.geometry) continue;
+
+            const projectedGeom = projection.project(loc.geometry, { wkid: 4326 });
+            if (!projectedGeom || !projectedGeom.rings) continue;
+
+            const coords = toKmlCoordinates(projectedGeom.rings);
+            kmlPlacemarks += `
+<Placemark>
+  <name>${area.name}</name>
+  <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${
+              area.short_name || ""
+            }</description>
+  <styleUrl>#polygonStyle</styleUrl>
+  <Polygon>
+    <outerBoundaryIs>
+      <LinearRing>
+        <coordinates>${coords}</coordinates>
+      </LinearRing>
+    </outerBoundaryIs>
+  </Polygon>
+</Placemark>`;
+          }
+        }
+      }
+
+      const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://earth.google.com/kml/2.2">
+<Document>
+  <name>Market Areas</name>
+  <description>Exported Market Areas</description>
+  <Style id="polygonStyle">
+    <LineStyle>
+      <color>ff0000ff</color>
+      <width>2</width>
+    </LineStyle>
+    <PolyStyle>
+      <color>7dff0000</color>
+    </PolyStyle>
+  </Style>
+  ${kmlPlacemarks}
+</Document>
+</kml>`;
+
+      const blob = new Blob([kmlContent], { type: "application/vnd.google-earth.kml+xml" });
+      const date = new Date().toISOString().split("T")[0];
+      const filename = `market_areas_${date}.kml`;
+      saveAs(blob, filename);
 
       toast.dismiss(loadingToast);
-      toast.success("Web map exported successfully");
+      toast.success("KML exported successfully");
     } catch (error) {
-      console.error("Web map export failed:", error);
-      toast.error("Failed to export web map: " + error.message);
+      console.error("KML export failed:", error);
+      toast.error("Failed to export KML: " + error.message);
     } finally {
       setIsExporting(false);
     }
   };
-  
-  
-// Updated Search widget initialization
-useEffect(() => {
-  let searchWidget;
 
-  const initializeSearchWidget = async () => {
-    if (!mapView) return;
+  useEffect(() => {
+    let searchWidget;
 
-    try {
-      // Import all required modules
-      const [Search, esriConfig] = await Promise.all([
-        import("@arcgis/core/widgets/Search").then(module => module.default),
-        import("@arcgis/core/config").then(module => module.default)
-      ]);
+    const initializeSearchWidget = async () => {
+      if (!mapView) return;
 
-      // Configure API Key authentication instead of OAuth
-      esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
-
-      // Configure the locator source with API key
-      const locatorSource = {
-        url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer",
-        name: "ArcGIS World Geocoding Service",
-        placeholder: "Search for address or place",
-        singleLineFieldName: "SingleLine",
-        maxResults: 5,
-        maxSuggestions: 5,
-        minSuggestCharacters: 3,
-        suggestionsEnabled: true,
-        outFields: ["*"],
-        locationEnabled: true
-      };
-
-      // Create search container
-      const searchContainer = searchWidgetRef.current;
-      if (!searchContainer.querySelector(".esri-search")) {
-        const searchDiv = document.createElement("div");
-        searchDiv.style.width = "100%";
-        searchDiv.style.height = "100%";
-        searchContainer.appendChild(searchDiv);
-
-        searchWidget = new Search({
-          view: mapView,
-          container: searchDiv,
-          includeDefaultSources: false,
-          sources: [locatorSource],
-          popupEnabled: false,
-          resultGraphicEnabled: false,
-          searchAllEnabled: false,
-          goToOverride: (view, params) => {
-            params.target.scale = 50000;
-            return view.goTo(params.target);
-          }
-        });
-
-        // Apply styles to search input
-        const searchInput = searchContainer.querySelector("input");
-        if (searchInput) {
-          searchInput.style.backgroundColor = "transparent";
-          searchInput.style.height = "100%";
-          searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
-        }
-
-        // Apply dark mode styles to suggestions
-        const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
-        if (suggestionContainer) {
-          suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
-        }
-
-        searchWidget.on("select-result", (event) => {
-          if (event.result && event.result.extent) {
-            mapView.goTo({
-              target: event.result.extent.center,
-              zoom: 14
-            });
-          }
-        });
-
-        console.log("Search widget initialized successfully");
-      }
-    } catch (error) {
-      console.error("Error initializing Search widget:", error);
-      toast.error("Failed to initialize search functionality");
-    }
-  };
-
-  initializeSearchWidget();
-
-  return () => {
-    if (searchWidget) {
       try {
-        searchWidget.destroy();
+        const [Search, esriConfig] = await Promise.all([
+          import("@arcgis/core/widgets/Search").then(module => module.default),
+          import("@arcgis/core/config").then(module => module.default)
+        ]);
+
+        esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+
+        const locatorSource = {
+          url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer",
+          name: "ArcGIS World Geocoding Service",
+          placeholder: "Search for address or place",
+          singleLineFieldName: "SingleLine",
+          maxResults: 5,
+          maxSuggestions: 5,
+          minSuggestCharacters: 3,
+          suggestionsEnabled: true,
+          outFields: ["*"],
+          locationEnabled: true
+        };
+
+        const searchContainer = searchWidgetRef.current;
+        if (!searchContainer.querySelector(".esri-search")) {
+          const searchDiv = document.createElement("div");
+          searchDiv.style.width = "100%";
+          searchDiv.style.height = "100%";
+          searchContainer.appendChild(searchDiv);
+
+          searchWidget = new Search({
+            view: mapView,
+            container: searchDiv,
+            includeDefaultSources: false,
+            sources: [locatorSource],
+            popupEnabled: false,
+            resultGraphicEnabled: false,
+            searchAllEnabled: false,
+            goToOverride: (view, params) => {
+              params.target.scale = 50000;
+              return view.goTo(params.target);
+            }
+          });
+
+          const searchInput = searchContainer.querySelector("input");
+          if (searchInput) {
+            searchInput.style.backgroundColor = "transparent";
+            searchInput.style.height = "100%";
+            searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
+          }
+
+          const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
+          if (suggestionContainer) {
+            suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
+          }
+
+          searchWidget.on("select-result", (event) => {
+            if (event.result && event.result.extent) {
+              mapView.goTo({
+                target: event.result.extent.center,
+                zoom: 14
+              });
+            }
+          });
+
+          console.log("Search widget initialized successfully");
+        }
       } catch (error) {
-        console.error("Error destroying search widget:", error);
+        console.error("Error initializing Search widget:", error);
+        toast.error("Failed to initialize search functionality");
       }
-    }
-  };
-}, [mapView]);
+    };
+
+    initializeSearchWidget();
+
+    return () => {
+      if (searchWidget) {
+        try {
+          searchWidget.destroy();
+        } catch (error) {
+          console.error("Error destroying search widget:", error);
+        }
+      }
+    };
+  }, [mapView]);
 
   return (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -498,15 +524,16 @@ useEffect(() => {
                   <Menu.Item>
                     {({ active }) => (
                       <button
-                        onClick={handleExportMXD}
+                        onClick={handleExportKML}
                         disabled={isExporting}
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
                            ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
-                        <MapIcon className="mr-3 h-5 w-5" />
-                        Export MXD
+                        {/* Using PhotoIcon just as a placeholder icon */}
+                        <PhotoIcon className="mr-3 h-5 w-5" />
+                        Export KML
                       </button>
                     )}
                   </Menu.Item>
