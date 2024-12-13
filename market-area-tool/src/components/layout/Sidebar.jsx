@@ -20,14 +20,6 @@ export default function Sidebar({ isOpen, onClose, sidebarContent, editingMarket
             ? (editingMarketArea ? 'Edit Market Area' : 'Create Market Area')
             : 'Saved Market Areas'}
         </h2>
-        <button
-          type="button"
-          className="rounded-md text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200 focus:outline-none"
-          onClick={onClose}
-        >
-          <span className="sr-only">Close panel</span>
-          <XMarkIcon className="h-6 w-6" aria-hidden="true" />
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
