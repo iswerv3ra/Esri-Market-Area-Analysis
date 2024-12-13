@@ -1,3 +1,4 @@
+// src/components/market-areas/Toolbar.jsx
 import { useState, useEffect, Fragment, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Menu, Transition } from "@headlessui/react";
@@ -11,26 +12,24 @@ import {
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
-import {
-  enrichmentService,
-} from "../../services/enrichmentService";
+import { enrichmentService } from "../../services/enrichmentService";
 import { toast } from "react-hot-toast";
 import { saveAs } from "file-saver";
 import ExportDialog from "./ExportDialog";
 import { usePresets } from "../../contexts/PresetsContext";
-import { useProjectCleanup } from '../../hooks/useProjectCleanup';
-import * as projection from "@arcgis/core/geometry/projection"; // Changed here
+import { useProjectCleanup } from "../../hooks/useProjectCleanup";
+import * as projection from "@arcgis/core/geometry/projection";
 
 const MA_TYPE_MAPPING = {
-  'radius': 'RADIUS',
-  'place': 'PLACE',
-  'block': 'BLOCK',
-  'blockgroup': 'BLOCKGROUP',
-  'cbsa': 'CBSA',
-  'state': 'STATE',
-  'zip': 'ZIP',
-  'tract': 'TRACT',
-  'county': 'COUNTY',
+  "radius": "RADIUS",
+  "place": "PLACE",
+  "block": "BLOCK",
+  "blockgroup": "BLOCKGROUP",
+  "cbsa": "CBSA",
+  "state": "STATE",
+  "zip": "ZIP",
+  "tract": "TRACT",
+  "county": "COUNTY",
 };
 
 export default function Toolbar({ onCreateMA, onToggleList }) {
@@ -43,7 +42,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const { mapView } = useMap();
   const { marketAreas } = useMarketAreas();
   const [isMapReady, setIsMapReady] = useState(false);
-  
+
   const isCreatingMARef = useRef(false);
   const cleanupProject = useProjectCleanup();
 
@@ -273,11 +272,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
       await projection.load();
 
-      // Helper to convert geometry to KML coordinates
       const toKmlCoordinates = (rings) => {
-        // rings: Array of arrays of [x,y] in lon/lat
-        // KML expects "lon,lat,alt"
-        // We'll set alt = 0
         return rings
           .map((ring) =>
             ring.map((coord) => `${coord[0]},${coord[1]},0`).join(" ")
@@ -380,8 +375,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
       try {
         const [Search, esriConfig] = await Promise.all([
-          import("@arcgis/core/widgets/Search").then(module => module.default),
-          import("@arcgis/core/config").then(module => module.default)
+          import("@arcgis/core/widgets/Search").then((module) => module.default),
+          import("@arcgis/core/config").then((module) => module.default),
         ]);
 
         esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
@@ -396,7 +391,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           minSuggestCharacters: 3,
           suggestionsEnabled: true,
           outFields: ["*"],
-          locationEnabled: true
+          locationEnabled: true,
         };
 
         const searchContainer = searchWidgetRef.current;
@@ -417,7 +412,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             goToOverride: (view, params) => {
               params.target.scale = 50000;
               return view.goTo(params.target);
-            }
+            },
           });
 
           const searchInput = searchContainer.querySelector("input");
@@ -436,7 +431,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             if (event.result && event.result.extent) {
               mapView.goTo({
                 target: event.result.extent.center,
-                zoom: 14
+                zoom: 14,
               });
             }
           });
@@ -502,7 +497,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                          ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <TableCellsIcon className="mr-3 h-5 w-5" />
-                        Export Enriched Data
+                        Export Data
                       </button>
                     )}
                   </Menu.Item>
@@ -531,7 +526,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
                            ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
-                        {/* Using PhotoIcon just as a placeholder icon */}
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export KML
                       </button>
@@ -557,13 +551,15 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             <PlusIcon className="h-5 w-5" />
             Create New MA
           </button>
+          {/* Added id="maListButton" here */}
           <button
+            id="maListButton"
             onClick={onToggleList}
             disabled={isExporting}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ListBulletIcon className="h-5 w-5" />
-            Toggle MA List
+            MA List
           </button>
         </div>
       </div>

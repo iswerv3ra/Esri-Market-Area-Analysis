@@ -759,7 +759,6 @@ export default class EnrichmentService {
     csvRows.push(["State", ...marketAreas.map(ma => ma.ma_type?.toLowerCase() === "zip" ? "CA" : "")]);
 
     csvRows.push([""]); // Blank separator row
-    csvRows.push(["Enrichment Variables"]);
 
     selectedVariables.forEach((variableId) => {
       const shortKey = variableId.split(".").pop();

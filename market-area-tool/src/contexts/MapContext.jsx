@@ -76,11 +76,13 @@ const FEATURE_LAYERS = {
     },
   },
   county: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/82",
-    outFields: ["OBJECTID", "GEOID", "STATE", "COUNTY", "NAME", "BASENAME"],
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/82",
+    layerId: 82,
+    outFields: ["OBJECTID", "GEOID", "STATE", "COUNTY", "NAME", "BASENAME", "COUNTYCC", "MTFCC"],
     uniqueIdField: "OBJECTID",
     title: "Counties",
     geometryType: "polygon",
+    definitionExpression: "MTFCC = 'G4020' AND COUNTYCC = 'H1'",
     popupTemplate: {
       title: "{NAME}",
       content: [
@@ -96,8 +98,9 @@ const FEATURE_LAYERS = {
       ],
     },
     minScale: 12000000,
-    maxScale: 100,
+    maxScale: 100
   },
+  
   tract: {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts/FeatureServer/0",
     outFields: ["OBJECTID", "TRACT_FIPS", "STATE_ABBR", "COUNTY_FIPS"],
@@ -390,10 +393,64 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     setActiveLayers([]);
   }, [mapView]);
 
+  const STATE_ABBR_BY_FIPS = {
+    "01": "AL",
+    "02": "AK",
+    "04": "AZ",
+    "05": "AR",
+    "06": "CA",
+    "08": "CO",
+    "09": "CT",
+    "10": "DE",
+    "11": "DC",
+    "12": "FL",
+    "13": "GA",
+    "15": "HI",
+    "16": "ID",
+    "17": "IL",
+    "18": "IN",
+    "19": "IA",
+    "20": "KS",
+    "21": "KY",
+    "22": "LA",
+    "23": "ME",
+    "24": "MD",
+    "25": "MA",
+    "26": "MI",
+    "27": "MN",
+    "28": "MS",
+    "29": "MO",
+    "30": "MT",
+    "31": "NE",
+    "32": "NV",
+    "33": "NH",
+    "34": "NJ",
+    "35": "NM",
+    "36": "NY",
+    "37": "NC",
+    "38": "ND",
+    "39": "OH",
+    "40": "OK",
+    "41": "OR",
+    "42": "PA",
+    "44": "RI",
+    "45": "SC",
+    "46": "SD",
+    "47": "TN",
+    "48": "TX",
+    "49": "UT",
+    "50": "VT",
+    "51": "VA",
+    "53": "WA",
+    "54": "WV",
+    "55": "WI",
+    "56": "WY"
+  };
+  
   const formatLocationName = useCallback((feature, layerType) => {
     const attrs = feature.attributes;
     switch (layerType) {
-      case "zip":
+      case "zip": {
         const zip = attrs.ZIP || "";
         const poName = attrs.PO_NAME || "";
         if (zip && poName) {
@@ -405,8 +462,17 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         } else {
           return "";
         }
-      case "county":
-        return `${attrs.NAME || ""}, ${attrs.STATE_NAME || ""}`;
+      }
+      case "county": {
+        let countyName = attrs.NAME || "";
+        const stateFips = attrs.STATE || "";
+        const stateAbbr = STATE_ABBR_BY_FIPS[stateFips] || "";
+  
+        // Remove any trailing ", number"
+        countyName = countyName.replace(/,\s*\d+$/, "").trim();
+  
+        return stateAbbr ? `${countyName}, ${stateAbbr}` : countyName;
+      }
       case "tract":
         return `Tract ${attrs.TRACT_FIPS || attrs.TRACT || ""}`;
       case "block":
@@ -416,7 +482,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       case "place":
         return attrs.NAME || attrs.BASENAME || "";
       case "state":
-        // Use attrs.NAME instead of attrs.STATE_NAME
         return attrs.NAME || "";
       case "cbsa":
         return attrs.NAME || attrs.BASENAME || "";
@@ -1508,9 +1573,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               ? `ZIP LIKE '${searchText}%'`
               : `PO_NAME LIKE '%${searchText}%'`;
             break;
-          case "county":
-            whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%') OR UPPER(STATE_NAME) LIKE UPPER('%${searchText}%')`;
-            break;
+            case "county":
+              whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
+              break;
           default:
             whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
         }
@@ -1595,15 +1660,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       }
 
       if (allFeatures.length > 0) {
-        try {
-          await displayFeatures(allFeatures);
-          console.log(
-            `[MapContext] Successfully displayed ${allFeatures.length} total features on the map`
-          );
-        } catch (error) {
-          console.error("[MapContext] Error displaying features:", error);
-          toast.error("Error displaying search results");
-        }
+        console.log(
+          `[MapContext] Found ${allFeatures.length} total features for the query`
+        );
       } else {
         console.log("[MapContext] No features found for the query");
       }
