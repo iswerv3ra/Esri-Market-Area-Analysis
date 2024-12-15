@@ -2,9 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
-  ArrowsRightLeftIcon,
   MagnifyingGlassIcon,
-  CursorArrowRaysIcon,
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
@@ -76,18 +74,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   ];
 
   useEffect(() => {
+    // Always have map selection active
+    setIsMapSelectionActive(true);
+  }, [setIsMapSelectionActive]);
+
+  useEffect(() => {
     if (editingMarketArea) return;
     clearSelection();
   }, [editingMarketArea, clearSelection]);
-
-  const handleToggleMapSelection = useCallback(() => {
-    setIsMapSelectionActive((prev) => !prev);
-    if (!isMapSelectionActive) {
-      toast.success("Click on the map to select areas");
-    } else {
-      toast.dismiss();
-    }
-  }, [isMapSelectionActive, setIsMapSelectionActive]);
 
   useEffect(() => {
     const initializeForm = async () => {
@@ -185,10 +179,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   useEffect(() => {
     return () => {
-      setIsMapSelectionActive(false);
-      clearSelection();
+      // Do not disable map selection on cleanup, we are keeping it always active.
     };
-  }, [clearSelection, setIsMapSelectionActive]);
+  }, []);
 
   const updateStyles = useCallback(() => {
     try {
@@ -245,7 +238,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     async (e) => {
       const newType = e.target.value;
       try {
-        setIsMapSelectionActive(false);
         clearSelection();
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
@@ -276,7 +268,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setError(`Failed to switch to ${newType}. Please try again.`);
       }
     },
-    [addActiveLayer, clearSelection, removeActiveLayer, setIsMapSelectionActive, formState.maType]
+    [addActiveLayer, clearSelection, removeActiveLayer, formState.maType]
   );
 
   useEffect(() => {
@@ -524,8 +516,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         toast.success("Market area created successfully");
       }
 
-      setIsMapSelectionActive(false);
-
       const currentSelections = selectedFeatures.map((feature) => ({
         ...feature,
         attributes: {
@@ -600,8 +590,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const handleCancel = useCallback(async () => {
     try {
-      setIsMapSelectionActive(false);
-
       const existingGraphics = selectionGraphicsLayer.graphics
         .filter((g) => g.attributes?.marketAreaId && g.attributes.marketAreaId !== editingMarketArea?.id)
         .toArray()
@@ -685,8 +673,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateFeatureStyles,
     setEditingMarketArea,
     onClose,
-    selectionGraphicsLayer,
-    setIsMapSelectionActive
+    selectionGraphicsLayer
   ]);
 
   return (
@@ -780,8 +767,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             <h3 className="font-medium text-gray-900 dark:text-gray-100">
               Style Settings
             </h3>
-            {/* Style settings UI code is unchanged */}
-            {/* ...existing UI elements for style settings... */}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -920,23 +905,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           ) : (
             formState.maType && (
               <>
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={handleToggleMapSelection}
-                    className={`flex items-center px-4 py-2 rounded-md border 
-                               ${
-                                 isMapSelectionActive
-                                   ? "bg-red-500 text-white border-red-500"
-                                   : "bg-green-500 text-white border-green-500"
-                               } 
-                               hover:bg-opacity-80 focus:outline-none`}
-                  >
-                    <CursorArrowRaysIcon className="h-5 w-5 mr-2" />
-                    {isMapSelectionActive ? "Deactivate Map Selection" : "Activate Map Selection"}
-                  </button>
-                </div>
-
                 <div>
                   <label
                     htmlFor="locationSearch"

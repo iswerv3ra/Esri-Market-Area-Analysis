@@ -1350,74 +1350,58 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
-      if (
-        !radiusGraphicsLayerRef.current ||
-        !point?.center ||
-        !point?.radii ||
-        !mapView ||
-        !marketAreaId
-      ) {
+      if (!radiusGraphicsLayerRef.current || !point?.center || !point?.radii || !mapView) {
         return;
       }
-
+  
       try {
         const { default: Graphic } = await import("@arcgis/core/Graphic");
-
-        const fillRgb = style?.fillColor
-          ? hexToRgb(style.fillColor)
-          : [0, 123, 255];
-        const outlineRgb = style?.borderColor
-          ? hexToRgb(style.borderColor)
-          : [0, 123, 255];
-        const fillOpacity =
-          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
-        const borderWidth =
-          style?.borderWidth !== undefined ? style.borderWidth : 2;
-
-        const center = ensureValidGeometry(
-          point.center,
-          mapView.spatialReference
-        );
+  
+        // Default to a visible style if none provided
+        const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [255, 255, 255];
+        const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 0, 0];
+        const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+        const borderWidth = style?.borderWidth !== undefined ? style.borderWidth : 2;
+  
+        const center = ensureValidGeometry(point.center, mapView.spatialReference);
         if (!center) return;
+  
         const centerPoint = webMercatorToGeographic(center);
-
-        // Keep other market areas' radius graphics
-        const otherAreaGraphics =
-          radiusGraphicsLayerRef.current.graphics.filter(
-            (g) =>
-              g.attributes.marketAreaId &&
-              !g.attributes.marketAreaId.startsWith(marketAreaId)
-          );
-
+  
+        // Keep other area graphics if any exist
+        const otherAreaGraphics = radiusGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes?.marketAreaId && marketAreaId && g.attributes.marketAreaId !== marketAreaId
+        );
+  
         radiusGraphicsLayerRef.current.removeAll();
         otherAreaGraphics.forEach((g) => radiusGraphicsLayerRef.current.add(g));
-
+  
+        const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
         const newGraphics = [];
-        // Use a standard for loop to get the index (i)
+  
+        // Use a temporary ID if no marketAreaId is given
+        const effectiveMarketAreaId = marketAreaId || "tempRadiusId";
+  
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
-
-          // Each radius ring is considered its own 'market area'
-          const uniqueMarketAreaId = `${marketAreaId}-radius-${i}`;
-
+  
+          // Each radius ring gets a unique ID
+          const uniqueMarketAreaId = `${effectiveMarketAreaId}-radius-${i}`;
+  
           const polygon = geodesicBuffer(centerPoint, radiusMeters, "meters");
-
           const symbol = {
             type: "simple-fill",
             color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0],
-            outline:
-              borderWidth > 0
-                ? { color: outlineRgb, width: borderWidth }
-                : null,
+            outline: borderWidth > 0 ? { color: outlineRgb, width: borderWidth } : null,
           };
-
+  
           const circleGraphic = new Graphic({
             geometry: polygon,
             attributes: {
               FEATURE_TYPE: "radius",
-              marketAreaId: uniqueMarketAreaId, // Unique ID per radius ring
-              originalMarketAreaId: marketAreaId, // Store original if needed
+              marketAreaId: uniqueMarketAreaId,
+              originalMarketAreaId: marketAreaId,
               radiusMiles: radiusMiles,
               order,
             },
@@ -1425,25 +1409,23 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           });
           newGraphics.push(circleGraphic);
         }
-
+  
         const allGraphics = [
           ...radiusGraphicsLayerRef.current.graphics.toArray(),
           ...newGraphics,
         ];
-        allGraphics.sort(
-          (a, b) => (b.attributes.order || 0) - (a.attributes.order || 0)
-        );
-
+        allGraphics.sort((a, b) => (b.attributes.order || 0) - (a.attributes.order || 0));
+  
         radiusGraphicsLayerRef.current.removeAll();
-        allGraphics.forEach((graphic) =>
-          radiusGraphicsLayerRef.current.add(graphic)
-        );
+        allGraphics.forEach((graphic) => radiusGraphicsLayerRef.current.add(graphic));
+  
       } catch (error) {
         console.error("Error drawing radius:", error);
       }
     },
     [mapView]
   );
+  
 
   const removeActiveLayer = useCallback(
     async (type) => {
