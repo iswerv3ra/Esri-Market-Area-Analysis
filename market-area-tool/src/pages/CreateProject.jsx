@@ -7,12 +7,12 @@ import {
   HashtagIcon,
   DocumentTextIcon 
 } from '@heroicons/react/24/outline';
-import { projectsAPI } from '../services/api'; // Update this import
+import { projectsAPI } from '../services/api';
 
-function generateProjectNumber() {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 9000) + 1000;
-  return `${year}-${random}`;
+function generateProjectId() {
+  // Simple unique ID generation. In practice, 
+  // you might want to generate a UUID.
+  return 'proj_' + Math.random().toString(36).substr(2, 9);
 }
 
 export default function CreateProject() {
@@ -20,7 +20,8 @@ export default function CreateProject() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    project_number: generateProjectNumber(),
+    project_id: generateProjectId(), // Internally generated unique ID
+    project_number: '', // Now empty by default, user must enter
     client: '',
     location: '',
     description: ''
@@ -40,7 +41,7 @@ export default function CreateProject() {
     setError('');
 
     try {
-      const response = await projectsAPI.create(formData); // Use the projectsAPI
+      const response = await projectsAPI.create(formData);
       navigate(`/projects/${response.data.id}/market-areas`);
     } catch (err) {
       console.error('Error creating project:', err);
@@ -52,7 +53,6 @@ export default function CreateProject() {
       setIsSubmitting(false);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -89,6 +89,13 @@ export default function CreateProject() {
               </div>
             )}
 
+            {/* Hidden Project ID */}
+            <input
+              type="hidden"
+              name="project_id"
+              value={formData.project_id}
+            />
+
             {/* Project Number */}
             <div>
               <label 
@@ -112,10 +119,11 @@ export default function CreateProject() {
                            shadow-sm py-2 px-3 focus:border-green-500 focus:ring-green-500 
                            bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white 
                            sm:text-sm"
+                  placeholder="Enter a project number (can be non-unique)"
                 />
               </div>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Auto-generated number that can be modified if needed.
+                Enter a project number for reference. Multiple projects can share the same number.
               </p>
             </div>
 
