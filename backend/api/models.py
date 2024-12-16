@@ -5,7 +5,7 @@ import uuid
 
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project_number = models.CharField(max_length=20)  # Remove unique=True
+    project_number = models.CharField(max_length=20)  
     client = models.CharField(max_length=100)
     location = models.CharField(max_length=100)
     description = models.TextField(blank=True)
