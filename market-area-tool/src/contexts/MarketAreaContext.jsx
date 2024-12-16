@@ -46,7 +46,7 @@ export const MarketAreaProvider = ({ children }) => {
         if (area.locations && area.locations.length > 0) {
           area.locations = area.locations.map(loc => {
             if (loc.geometry && !loc.geometry.type && loc.geometry.rings) {
-              loc.geometry.type = "polygon";
+              loc.geometry.type = "Polygon";
             }
             return loc;
           });

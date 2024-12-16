@@ -16,20 +16,23 @@ import { enrichmentService } from "../../services/enrichmentService";
 import { toast } from "react-hot-toast";
 import { saveAs } from "file-saver";
 import ExportDialog from "./ExportDialog";
+import ExportKMLDialog from "./ExportKMLDialog";
 import { usePresets } from "../../contexts/PresetsContext";
 import { useProjectCleanup } from "../../hooks/useProjectCleanup";
 import * as projection from "@arcgis/core/geometry/projection";
+import JSZip from "jszip";
+import shpwrite from "shp-write";
 
 const MA_TYPE_MAPPING = {
-  "radius": "RADIUS",
-  "place": "PLACE",
-  "block": "BLOCK",
-  "blockgroup": "BLOCKGROUP",
-  "cbsa": "CBSA",
-  "state": "STATE",
-  "zip": "ZIP",
-  "tract": "TRACT",
-  "county": "COUNTY",
+  radius: "RADIUS",
+  place: "PLACE",
+  block: "BLOCK",
+  blockgroup: "BLOCKGROUP",
+  cbsa: "CBSA",
+  state: "STATE",
+  zip: "ZIP",
+  tract: "TRACT",
+  county: "COUNTY",
 };
 
 export default function Toolbar({ onCreateMA, onToggleList }) {
@@ -38,6 +41,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const navigate = useNavigate();
   const [isExporting, setIsExporting] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isExportKMLDialogOpen, setIsExportKMLDialogOpen] = useState(false);
   const searchWidgetRef = useRef(null);
   const { mapView } = useMap();
   const { marketAreas } = useMarketAreas();
@@ -260,18 +264,60 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     };
   }
 
-  const handleExportKML = async () => {
-    if (!marketAreas || marketAreas.length === 0) {
-      toast.error("No market areas to export");
-      return;
+  const handleExportKML = () => {
+    // Open the dialog to select MAs for shapefile export
+    setIsExportKMLDialogOpen(true);
+  };
+
+  const isClockwise = (ring) => {
+    let area = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+      area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    }
+    return area > 0;
+  };
+
+  const validateAndPreparePolygon = (geometryObj) => {
+    const projected = projection.project(geometryObj, { wkid: 4326 });
+    if (!projected || !projected.rings || projected.rings.length === 0) return null;
+
+    const validRings = projected.rings
+      .map((ring) => {
+        let coords = ring.map((coord) => [coord[0], coord[1]]);
+        const first = coords[0];
+        const last = coords[coords.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+          coords.push(first);
+        }
+        return coords.length >= 4 ? coords : null;
+      })
+      .filter((r) => r !== null);
+
+    if (validRings.length === 0) return null;
+
+    // Use only the first ring for simplicity
+    let ring = validRings[0];
+    // Ensure CCW orientation for the outer ring
+    if (isClockwise(ring)) {
+      ring = ring.slice().reverse();
     }
 
+    return [ring];
+  };
+
+  const exportSelectedMAsToShapefiles = async ({ folderName, selectedMAIds }) => {
+    if (!selectedMAIds || selectedMAIds.length === 0) {
+      toast.error("No market areas selected");
+      return;
+    }
+  
     try {
       setIsExporting(true);
-      const loadingToast = toast.loading("Exporting KML...");
-
+      const loadingToast = toast.loading("Exporting KML files...");
+  
       await projection.load();
-
+      const zip = new JSZip();
+  
       const toKmlCoordinates = (rings) => {
         return rings
           .map((ring) =>
@@ -279,182 +325,180 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           )
           .join(" ");
       };
-
-      let kmlPlacemarks = "";
-
-      for (const area of marketAreas) {
+  
+      // Process each selected market area
+      for (const maId of selectedMAIds) {
+        const area = marketAreas.find((m) => m.id === maId);
+        if (!area) continue;
+  
+        let kmlPlacemarks = "";
+  
+        // Process radius points
         if (area.ma_type === "radius" && Array.isArray(area.radius_points)) {
           for (const pt of area.radius_points) {
             if (!pt.geometry) continue;
-
+  
             const projectedGeom = projection.project(pt.geometry, { wkid: 4326 });
             if (!projectedGeom || !projectedGeom.rings) continue;
-
+  
             const coords = toKmlCoordinates(projectedGeom.rings);
             kmlPlacemarks += `
-<Placemark>
-  <name>${area.name}</name>
-  <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${
-              area.short_name || ""
-            }</description>
-  <styleUrl>#polygonStyle</styleUrl>
-  <Polygon>
-    <outerBoundaryIs>
-      <LinearRing>
-        <coordinates>${coords}</coordinates>
-      </LinearRing>
-    </outerBoundaryIs>
-  </Polygon>
-</Placemark>`;
+  <Placemark>
+    <name>${area.name}</name>
+    <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
+    <styleUrl>#polygonStyle</styleUrl>
+    <Polygon>
+      <outerBoundaryIs>
+        <LinearRing>
+          <coordinates>${coords}</coordinates>
+        </LinearRing>
+      </outerBoundaryIs>
+    </Polygon>
+  </Placemark>`;
           }
-        } else if (area.locations && Array.isArray(area.locations)) {
+        } 
+        // Process other locations
+        else if (area.locations && Array.isArray(area.locations)) {
           for (const loc of area.locations) {
             if (!loc.geometry) continue;
-
+  
             const projectedGeom = projection.project(loc.geometry, { wkid: 4326 });
             if (!projectedGeom || !projectedGeom.rings) continue;
-
+  
             const coords = toKmlCoordinates(projectedGeom.rings);
             kmlPlacemarks += `
-<Placemark>
-  <name>${area.name}</name>
-  <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${
-              area.short_name || ""
-            }</description>
-  <styleUrl>#polygonStyle</styleUrl>
-  <Polygon>
-    <outerBoundaryIs>
-      <LinearRing>
-        <coordinates>${coords}</coordinates>
-      </LinearRing>
-    </outerBoundaryIs>
-  </Polygon>
-</Placemark>`;
+  <Placemark>
+    <name>${area.name}</name>
+    <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
+    <styleUrl>#polygonStyle</styleUrl>
+    <Polygon>
+      <outerBoundaryIs>
+        <LinearRing>
+          <coordinates>${coords}</coordinates>
+        </LinearRing>
+      </outerBoundaryIs>
+    </Polygon>
+  </Placemark>`;
           }
         }
+  
+        // Create KML content for this market area
+        const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+  <kml xmlns="http://earth.google.com/kml/2.2">
+  <Document>
+    <name>${area.name}</name>
+    <description>${area.description || ""}</description>
+    <Style id="polygonStyle">
+      <LineStyle>
+        <color>ff0000ff</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>7dff0000</color>
+      </PolyStyle>
+    </Style>
+    ${kmlPlacemarks}
+  </Document>
+  </kml>`;
+  
+        // Create sanitized filename
+        const fileName = `${area.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.kml`;
+        
+        // Add KML file directly to the ZIP root
+        zip.file(fileName, kmlContent);
       }
-
-      const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://earth.google.com/kml/2.2">
-<Document>
-  <name>Market Areas</name>
-  <description>Exported Market Areas</description>
-  <Style id="polygonStyle">
-    <LineStyle>
-      <color>ff0000ff</color>
-      <width>2</width>
-    </LineStyle>
-    <PolyStyle>
-      <color>7dff0000</color>
-    </PolyStyle>
-  </Style>
-  ${kmlPlacemarks}
-</Document>
-</kml>`;
-
-      const blob = new Blob([kmlContent], { type: "application/vnd.google-earth.kml+xml" });
-      const date = new Date().toISOString().split("T")[0];
-      const filename = `market_areas_${date}.kml`;
-      saveAs(blob, filename);
-
+  
+      // Generate the ZIP file
+      const content = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 }
+      });
+  
+      // Save the ZIP file
+      saveAs(content, `${folderName}.zip`);
+  
       toast.dismiss(loadingToast);
-      toast.success("KML exported successfully");
+      toast.success("KML files exported successfully");
+  
     } catch (error) {
       console.error("KML export failed:", error);
-      toast.error("Failed to export KML: " + error.message);
+      toast.error(`Failed to export KML files: ${error.message}`);
     } finally {
       setIsExporting(false);
+      setIsExportKMLDialogOpen(false);
     }
   };
 
   useEffect(() => {
-    let searchWidget;
+    // Initialize search widget
+    if (!mapView) return;
+    mapView.when(() => {
+      import("@arcgis/core/widgets/Search").then(({ default: Search }) => {
+        import("@arcgis/core/config").then((esriConfigModule) => {
+          const esriConfig = esriConfigModule.default;
+          esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
 
-    const initializeSearchWidget = async () => {
-      if (!mapView) return;
+          const locatorSource = {
+            url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer",
+            name: "ArcGIS World Geocoding Service",
+            placeholder: "Search for address or place",
+            singleLineFieldName: "SingleLine",
+            maxResults: 5,
+            maxSuggestions: 5,
+            minSuggestCharacters: 3,
+            suggestionsEnabled: true,
+            outFields: ["*"],
+            locationEnabled: true,
+          };
 
-      try {
-        const [Search, esriConfig] = await Promise.all([
-          import("@arcgis/core/widgets/Search").then((module) => module.default),
-          import("@arcgis/core/config").then((module) => module.default),
-        ]);
+          const searchContainer = searchWidgetRef.current;
+          if (!searchContainer.querySelector(".esri-search")) {
+            const searchDiv = document.createElement("div");
+            searchDiv.style.width = "100%";
+            searchDiv.style.height = "100%";
+            searchContainer.appendChild(searchDiv);
 
-        esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+            const sw = new Search({
+              view: mapView,
+              container: searchDiv,
+              includeDefaultSources: false,
+              sources: [locatorSource],
+              popupEnabled: false,
+              resultGraphicEnabled: false,
+              searchAllEnabled: false,
+              goToOverride: (view, params) => {
+                params.target.scale = 50000;
+                return view.goTo(params.target);
+              },
+            });
 
-        const locatorSource = {
-          url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer",
-          name: "ArcGIS World Geocoding Service",
-          placeholder: "Search for address or place",
-          singleLineFieldName: "SingleLine",
-          maxResults: 5,
-          maxSuggestions: 5,
-          minSuggestCharacters: 3,
-          suggestionsEnabled: true,
-          outFields: ["*"],
-          locationEnabled: true,
-        };
-
-        const searchContainer = searchWidgetRef.current;
-        if (!searchContainer.querySelector(".esri-search")) {
-          const searchDiv = document.createElement("div");
-          searchDiv.style.width = "100%";
-          searchDiv.style.height = "100%";
-          searchContainer.appendChild(searchDiv);
-
-          searchWidget = new Search({
-            view: mapView,
-            container: searchDiv,
-            includeDefaultSources: false,
-            sources: [locatorSource],
-            popupEnabled: false,
-            resultGraphicEnabled: false,
-            searchAllEnabled: false,
-            goToOverride: (view, params) => {
-              params.target.scale = 50000;
-              return view.goTo(params.target);
-            },
-          });
-
-          const searchInput = searchContainer.querySelector("input");
-          if (searchInput) {
-            searchInput.style.backgroundColor = "transparent";
-            searchInput.style.height = "100%";
-            searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
-          }
-
-          const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
-          if (suggestionContainer) {
-            suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
-          }
-
-          searchWidget.on("select-result", (event) => {
-            if (event.result && event.result.extent) {
-              mapView.goTo({
-                target: event.result.extent.center,
-                zoom: 14,
-              });
+            const searchInput = searchContainer.querySelector("input");
+            if (searchInput) {
+              searchInput.style.backgroundColor = "transparent";
+              searchInput.style.height = "100%";
+              searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
             }
-          });
 
-          console.log("Search widget initialized successfully");
-        }
-      } catch (error) {
-        console.error("Error initializing Search widget:", error);
-        toast.error("Failed to initialize search functionality");
-      }
-    };
+            const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
+            if (suggestionContainer) {
+              suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
+            }
 
-    initializeSearchWidget();
+            sw.on("select-result", (event) => {
+              if (event.result && event.result.extent) {
+                mapView.goTo({
+                  target: event.result.extent.center,
+                  zoom: 14,
+                });
+              }
+            });
 
-    return () => {
-      if (searchWidget) {
-        try {
-          searchWidget.destroy();
-        } catch (error) {
-          console.error("Error destroying search widget:", error);
-        }
-      }
-    };
+            console.log("Search widget initialized successfully");
+          }
+        });
+      });
+    });
   }, [mapView]);
 
   return (
@@ -527,7 +571,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                            ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
-                        Export KML
+                        Export Shapefiles
                       </button>
                     )}
                   </Menu.Item>
@@ -551,7 +595,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             <PlusIcon className="h-5 w-5" />
             Create New MA
           </button>
-          {/* Added id="maListButton" here */}
           <button
             id="maListButton"
             onClick={onToggleList}
@@ -576,6 +619,13 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         }}
         variablePresets={variablePresets}
         marketAreas={marketAreas}
+      />
+
+      <ExportKMLDialog
+        isOpen={isExportKMLDialogOpen}
+        onClose={() => setIsExportKMLDialogOpen(false)}
+        marketAreas={marketAreas}
+        onExport={exportSelectedMAsToShapefiles}
       />
     </div>
   );
