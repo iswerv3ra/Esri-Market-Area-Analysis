@@ -119,11 +119,11 @@ export default function CreateProject() {
                            shadow-sm py-2 px-3 focus:border-green-500 focus:ring-green-500 
                            bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white 
                            sm:text-sm"
-                  placeholder="Enter a project number (can be non-unique)"
+                  placeholder="Enter a project number"
                 />
               </div>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Enter a project number for reference. Multiple projects can share the same number.
+                Enter a project number
               </p>
             </div>
 
