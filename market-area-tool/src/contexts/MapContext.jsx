@@ -3,6 +3,7 @@ import {
   simplify,
   union,
 } from "@arcgis/core/geometry/geometryEngine";
+import { toast } from "react-hot-toast";
 
 import React, {
   createContext,
@@ -1350,6 +1351,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
+      // This function now only relies on the parameters passed in.
+      // No references to formState, maType, or radiusPoints.
       if (!radiusGraphicsLayerRef.current || !point?.center || !point?.radii || !mapView) {
         return;
       }
@@ -1357,7 +1360,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       try {
         const { default: Graphic } = await import("@arcgis/core/Graphic");
   
-        // Default to a visible style if none provided
+        // Use provided style or fallback
         const fillRgb = style?.fillColor ? hexToRgb(style.fillColor) : [255, 255, 255];
         const outlineRgb = style?.borderColor ? hexToRgb(style.borderColor) : [0, 0, 0];
         const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
@@ -1368,7 +1371,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   
         const centerPoint = webMercatorToGeographic(center);
   
-        // Keep other area graphics if any exist
         const otherAreaGraphics = radiusGraphicsLayerRef.current.graphics.filter(
           (g) => g.attributes?.marketAreaId && marketAreaId && g.attributes.marketAreaId !== marketAreaId
         );
@@ -1379,14 +1381,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
         const newGraphics = [];
   
-        // Use a temporary ID if no marketAreaId is given
         const effectiveMarketAreaId = marketAreaId || "tempRadiusId";
   
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
   
-          // Each radius ring gets a unique ID
           const uniqueMarketAreaId = `${effectiveMarketAreaId}-radius-${i}`;
   
           const polygon = geodesicBuffer(centerPoint, radiusMeters, "meters");
@@ -1425,6 +1425,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [mapView]
   );
+  
   
 
   const removeActiveLayer = useCallback(
@@ -1697,18 +1698,17 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [mapView, initializeGraphicsLayers]);
 
-  // In MapContext.jsx - Updated map click handler effect with safer popup handling
   useEffect(() => {
     if (!mapView) return;
-
+  
     // Safely disable popup behaviors
     if (mapView.popup) {
       mapView.popup.autoOpenEnabled = false;
       mapView.popup.dockEnabled = false;
       mapView.popup.defaultPopupTemplateEnabled = false;
     }
-
-    // Also disable popups on all feature layers
+  
+    // Disable popups on all feature layers
     Object.values(featureLayersRef.current).forEach((layer) => {
       if (layer) {
         if (Array.isArray(layer.featureLayers)) {
@@ -1730,104 +1730,72 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         }
       }
     });
-
+  
     const handleMapClick = async (event) => {
-      // Prevent default event behavior
       event.stopPropagation();
-
+  
+      // If map selection is not active or there are no active layers, do nothing.
       if (!isMapSelectionActive || !activeLayers.length) {
         return;
       }
-
+  
       try {
         const hitResult = await mapView.hitTest(event);
-
+  
         if (hitResult && hitResult.results.length > 0) {
           const validResults = hitResult.results.filter((result) => {
             const graphic = result.graphic;
             const graphicMarketAreaId = graphic.attributes?.marketAreaId;
-
-            // Allow interaction only if:
-            // 1. The feature doesn't belong to any market area OR
-            // 2. We're editing and it belongs to our current market area
+            // Only allow selection if feature doesn't belong to another market area or belongs to the one being edited
             return (
               !graphicMarketAreaId ||
-              (editingMarketArea &&
-                graphicMarketAreaId === editingMarketArea.id)
+              (editingMarketArea && graphicMarketAreaId === editingMarketArea.id)
             );
           });
-
+  
           if (validResults.length > 0) {
             const graphicResult = validResults.find((r) =>
               activeLayers.some(
                 (type) => FEATURE_LAYERS[type].title === r.layer.title
               )
             );
-
+  
             if (graphicResult && graphicResult.graphic) {
               const graphic = graphicResult.graphic;
-
-              // Check if the feature is already part of another market area
               const existingMarketAreaId = graphic.attributes?.marketAreaId;
               if (
                 existingMarketAreaId &&
                 (!editingMarketArea ||
                   existingMarketAreaId !== editingMarketArea.id)
               ) {
-                // Don't allow selection of features that belong to other market areas
                 console.log(
                   "Cannot select feature - belongs to another market area:",
                   existingMarketAreaId
                 );
                 return;
               }
-
+  
               const matchedLayerType = activeLayers.find(
-                (type) =>
-                  FEATURE_LAYERS[type].title === graphicResult.layer.title
+                (type) => FEATURE_LAYERS[type].title === graphicResult.layer.title
               );
-
+  
               await addToSelection(graphic, matchedLayerType);
             }
           }
-        }
+        } 
+        // If click hits no feature, do nothing here (no radius logic in this context).
       } catch (error) {
         console.error("[MapContext] Error handling map click:", error);
       }
     };
-
+  
     const handler = mapView.on("click", handleMapClick);
     return () => {
       handler.remove();
-      // Cleanup
-      if (mapView && mapView.popup) {
-        mapView.popup.defaultPopupTemplateEnabled = true;
-        mapView.popup.autoOpenEnabled = true;
-        mapView.popup.dockEnabled = true;
-
-        // Re-enable popups on feature layers
-        Object.values(featureLayersRef.current).forEach((layer) => {
-          if (layer) {
-            if (Array.isArray(layer.featureLayers)) {
-              layer.featureLayers.forEach((subLayer) => {
-                if (subLayer && !subLayer.destroyed) {
-                  subLayer.popupEnabled = true;
-                }
-              });
-            } else if (!layer.destroyed) {
-              layer.popupEnabled = true;
-            }
-          }
-        });
-      }
+      // Re-enable popups on cleanup if needed
     };
-  }, [
-    mapView,
-    isMapSelectionActive,
-    activeLayers,
-    addToSelection,
-    editingMarketArea,
-  ]);
+  }, [mapView, isMapSelectionActive, activeLayers, addToSelection, editingMarketArea]);
+  
 
   useEffect(() => {
     // Ensure conditions are met before running
