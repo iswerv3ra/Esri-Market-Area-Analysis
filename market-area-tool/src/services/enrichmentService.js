@@ -756,7 +756,104 @@ export default class EnrichmentService {
       }),
     ]);
 
-    csvRows.push(["State", ...marketAreas.map(ma => ma.ma_type?.toLowerCase() === "zip" ? "CA" : "")]);
+  // State row
+  csvRows.push([
+    "State",
+    ...marketAreas.map((ma) => {
+      const maType = ma.ma_type?.toLowerCase();
+      const firstLocationName = ma.locations?.[0]?.name || "";
+
+      // If we have no location names and it's not a radius, no state info
+      if (!firstLocationName && maType !== "radius") return "";
+
+      switch (maType) {
+        case "cbsa":
+          // Example: "Austin-Round Rock-San Marcos, TX Metro Area"
+          {
+            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Area/i);
+            if (stateAbbrMatch) {
+              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
+            }
+            return "";
+          }
+
+        case "county":
+          // Example: "Travis County, Texas"
+          {
+            const stateMatch = firstLocationName.match(/,\s*(\w[\w\s]+)$/);
+            if (stateMatch) {
+              // If we got a full state name, return it as is or convert if needed.
+              // Attempt to get full name from abbreviation, if it's just 2 letters:
+              const stateNameOrAbbr = stateMatch[1].trim();
+              return enrichmentService.getStateFullName(stateNameOrAbbr);
+            }
+            return "";
+          }
+
+        case "zip":
+          // Example: "78702 - Austin, TX"
+          {
+            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
+            if (stateAbbrMatch) {
+              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
+            }
+            return "";
+          }
+
+        case "place":
+          // Example: "Austin, City, Texas" or "Austin, Texas"
+          {
+            const parts = firstLocationName.split(",").map((p) => p.trim());
+            if (parts.length > 1) {
+              // The last part should be the state or state abbreviation
+              const lastPart = parts[parts.length - 1];
+              return enrichmentService.getStateFullName(lastPart);
+            }
+            return "";
+          }
+
+        case "state":
+          // The location name might be a full state name already
+          return enrichmentService.getStateFullName(firstLocationName);
+
+        case "tract":
+        case "block":
+        case "blockgroup":
+          // Often something like "Tract 123, Some County, Texas"
+          // We'll assume the last part is a state or state abbreviation
+          {
+            const parts = firstLocationName.split(",").map((p) => p.trim());
+            if (parts.length > 1) {
+              const lastPart = parts[parts.length - 1];
+              return enrichmentService.getStateFullName(lastPart);
+            }
+            return "";
+          }
+
+        case "md":
+          // Similar to CBSA: "Boston-Cambridge-Newton, MA Metro Division"
+          {
+            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Division/i);
+            if (stateAbbrMatch) {
+              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
+            }
+            return "";
+          }
+
+        case "radius":
+          // Radius-based MAs do not have a direct state reference
+          return "";
+
+        case "usa":
+          // USA layer covers entire country, no single state
+          return "";
+
+        default:
+          // If no pattern matches, return blank
+          return "";
+      }
+    }),
+  ]);
 
     csvRows.push([""]); // Blank separator row
 
