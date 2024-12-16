@@ -395,57 +395,36 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   }, [mapView]);
 
   const STATE_ABBR_BY_FIPS = {
-    "01": "AL",
-    "02": "AK",
-    "04": "AZ",
-    "05": "AR",
-    "06": "CA",
-    "08": "CO",
-    "09": "CT",
-    "10": "DE",
-    "11": "DC",
-    "12": "FL",
-    "13": "GA",
-    "15": "HI",
-    "16": "ID",
-    "17": "IL",
-    "18": "IN",
-    "19": "IA",
-    "20": "KS",
-    "21": "KY",
-    "22": "LA",
-    "23": "ME",
-    "24": "MD",
-    "25": "MA",
-    "26": "MI",
-    "27": "MN",
-    "28": "MS",
-    "29": "MO",
-    "30": "MT",
-    "31": "NE",
-    "32": "NV",
-    "33": "NH",
-    "34": "NJ",
-    "35": "NM",
-    "36": "NY",
-    "37": "NC",
-    "38": "ND",
-    "39": "OH",
-    "40": "OK",
-    "41": "OR",
-    "42": "PA",
-    "44": "RI",
-    "45": "SC",
-    "46": "SD",
-    "47": "TN",
-    "48": "TX",
-    "49": "UT",
-    "50": "VT",
-    "51": "VA",
-    "53": "WA",
-    "54": "WV",
-    "55": "WI",
-    "56": "WY"
+    "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT",
+    "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI", "16": "ID", "17": "IL",
+    "18": "IN", "19": "IA", "20": "KS", "21": "KY", "22": "LA", "23": "ME", "24": "MD",
+    "25": "MA", "26": "MI", "27": "MN", "28": "MS", "29": "MO", "30": "MT", "31": "NE",
+    "32": "NV", "33": "NH", "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND",
+    "39": "OH", "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD",
+    "47": "TN", "48": "TX", "49": "UT", "50": "VT", "51": "VA", "53": "WA", "54": "WV",
+    "55": "WI", "56": "WY"
+  };
+  
+  const STATE_NAME_BY_FIPS = {
+    "01": "Alabama", "02": "Alaska", "04": "Arizona", "05": "Arkansas", "06": "California",
+    "08": "Colorado", "09": "Connecticut", "10": "Delaware", "11": "District of Columbia",
+    "12": "Florida", "13": "Georgia", "15": "Hawaii", "16": "Idaho", "17": "Illinois",
+    "18": "Indiana", "19": "Iowa", "20": "Kansas", "21": "Kentucky", "22": "Louisiana",
+    "23": "Maine", "24": "Maryland", "25": "Massachusetts", "26": "Michigan", "27": "Minnesota",
+    "28": "Mississippi", "29": "Missouri", "30": "Montana", "31": "Nebraska", "32": "Nevada",
+    "33": "New Hampshire", "34": "New Jersey", "35": "New Mexico", "36": "New York", "37": "North Carolina",
+    "38": "North Dakota", "39": "Ohio", "40": "Oklahoma", "41": "Oregon", "42": "Pennsylvania",
+    "44": "Rhode Island", "45": "South Carolina", "46": "South Dakota", "47": "Tennessee",
+    "48": "Texas", "49": "Utah", "50": "Vermont", "51": "Virginia", "53": "Washington",
+    "54": "West Virginia", "55": "Wisconsin", "56": "Wyoming"
+  };
+  
+  // Map LSADC codes to their corresponding place type
+  const LSADC_TO_PLACETYPE = {
+    "21": "Borough",
+    "25": "City",
+    "43": "Town",
+    "47": "Village"
   };
   
   const formatLocationName = useCallback((feature, layerType) => {
@@ -467,12 +446,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       case "county": {
         let countyName = attrs.NAME || "";
         const stateFips = attrs.STATE || "";
-        const stateAbbr = STATE_ABBR_BY_FIPS[stateFips] || "";
-  
-        // Remove any trailing ", number"
+        const stateAbbr = STATE_NAME_BY_FIPS[stateFips] ? STATE_NAME_BY_FIPS[stateFips] : "";
+        
+        // Remove trailing ", number"
         countyName = countyName.replace(/,\s*\d+$/, "").trim();
-  
-        return stateAbbr ? `${countyName}, ${stateAbbr}` : countyName;
+        return stateAbbr ? `${countyName} County, ${stateAbbr}` : countyName;
       }
       case "tract":
         return `Tract ${attrs.TRACT_FIPS || attrs.TRACT || ""}`;
@@ -480,18 +458,42 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         return `Block ${attrs.BLOCK || ""}`;
       case "blockgroup":
         return `Block Group ${attrs.BLOCKGROUP_FIPS || ""}`;
-      case "place":
-        return attrs.NAME || attrs.BASENAME || "";
+      case "place": {
+        const placeName = attrs.NAME || attrs.BASENAME || "";
+        const stateFips = attrs.STATE || "";
+        const stateName = STATE_NAME_BY_FIPS[stateFips] || "";
+        const lsadcCode = attrs.LSADC || "";
+        
+        // Determine place type from LSADC code
+        const placeType = LSADC_TO_PLACETYPE[lsadcCode] || "";
+  
+        // Remove any generic place descriptors from the placeName to avoid duplication.
+        // This removes words like "city", "village", "borough", "town" if they appear at word boundaries.
+        let cleanPlaceName = placeName.replace(/\b(city|village|borough|town)\b/i, "").trim();
+        // If we end up with extra spaces or trailing commas after removal, clean them up
+        cleanPlaceName = cleanPlaceName.replace(/,\s*$/, "").trim();
+  
+        if (cleanPlaceName && stateName && placeType) {
+          return `${cleanPlaceName}, ${placeType}, ${stateName}`;
+        } else if (cleanPlaceName && stateName) {
+          return `${cleanPlaceName}, ${stateName}`;
+        } else {
+          return cleanPlaceName;
+        }
+      }
       case "state":
         return attrs.NAME || "";
       case "cbsa":
         return attrs.NAME || attrs.BASENAME || "";
       case "usa":
         return "United States";
+      case "md":
+        return attrs.BASENAME || attrs.NAME || "";
       default:
         return attrs.NAME || "";
     }
   }, []);
+  
 
   const [layersReady, setLayersReady] = useState(false);
 
