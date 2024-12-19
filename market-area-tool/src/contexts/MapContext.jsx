@@ -1221,90 +1221,199 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [activeLayers, mapView]
   );
 
-  // MapContext.jsx
-  // MapContext.jsx
-
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType) => {
       if (!selectionGraphicsLayerRef.current || !mapView) return;
-
+  
       try {
-        const [{ default: Graphic }, geometryEngineAsync] = await Promise.all([
+        const [{ default: Graphic }, geometryEngineAsync, geometryEngine] = await Promise.all([
           import("@arcgis/core/Graphic"),
           import("@arcgis/core/geometry/geometryEngineAsync"),
+          import("@arcgis/core/geometry/geometryEngine"),
         ]);
-
-        // Get the market area IDs being updated
-        const marketAreaIds = new Set(
-          features.map((f) => f.attributes.marketAreaId)
-        );
-
-        // Keep existing graphics from other market areas
-        const existingGraphics =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (g) => !marketAreaIds.has(g.attributes.marketAreaId)
-          );
-
-        // Clear existing graphics
-        selectionGraphicsLayerRef.current.removeAll();
-
-        // Add back existing graphics from other market areas
-        existingGraphics.forEach((g) =>
-          selectionGraphicsLayerRef.current.add(g)
-        );
-
-        // Process features by market area
+        const { default: Polygon } = await import("@arcgis/core/geometry/Polygon");
+  
+        // Group features by their marketAreaId
         const newFeaturesByMarketArea = features.reduce((acc, feature) => {
           const marketAreaId = feature.attributes.marketAreaId;
           if (!acc[marketAreaId]) acc[marketAreaId] = [];
           acc[marketAreaId].push(feature);
           return acc;
         }, {});
-
-        for (const [marketAreaId, maFeatures] of Object.entries(
-          newFeaturesByMarketArea
-        )) {
-          let geometries = maFeatures
-            .map((f) => f.geometry)
-            .filter((g) => g != null);
-
-          if (geometries.length === 0) continue;
-
-          // Simplify and repair geometries before union
-          geometries = await Promise.all(
-            geometries.map(async (geometry) => {
-              let simplified = await geometryEngineAsync.simplify(geometry);
-              // Repair geometry using buffer(0)
-              let repaired = await geometryEngineAsync.buffer(simplified, 0);
-              return repaired || simplified;
-            })
+  
+        // Keep existing graphics from other market areas
+        const marketAreaIds = new Set(Object.keys(newFeaturesByMarketArea));
+        const existingGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (g) => !marketAreaIds.has(g.attributes.marketAreaId)
           );
-
-          // Union geometries asynchronously
-          let unionGeometry;
+  
+        // Clear existing graphics for these market areas
+        selectionGraphicsLayerRef.current.removeAll();
+  
+        // Add back existing graphics from other market areas
+        existingGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+  
+        const repairGeometry = async (geom) => {
+          let repaired = geom;
           try {
-            unionGeometry = await geometryEngineAsync.union(geometries);
-          } catch (e) {
-            console.error("Error during union operation:", e);
-            // Fallback to iterative union if union fails
-            unionGeometry = geometries[0];
-            for (let i = 1; i < geometries.length; i++) {
+            repaired = await geometryEngineAsync.simplify(repaired);
+          } catch (err) {
+            console.warn("Failed to simplify geometry:", err);
+          }
+          try {
+            // buffer(0) often fixes self-intersections
+            repaired = await geometryEngineAsync.buffer(repaired, 0);
+          } catch (err) {
+            console.warn("Failed buffer(0) repair on geometry:", err);
+          }
+          return repaired || geom;
+        };
+  
+        const incrementalUnion = async (geometries) => {
+          if (geometries.length === 1) {
+            return geometries[0];
+          }
+  
+          // Sort by area (largest first)
+          geometries = geometries.slice().sort((a, b) => {
+            const areaA = geometryEngine.planarArea(a);
+            const areaB = geometryEngine.planarArea(b);
+            return areaB - areaA;
+          });
+  
+          let unionGeom = geometries[0];
+          for (let i = 1; i < geometries.length; i++) {
+            let current = geometries[i];
+            // Attempt union
+            try {
+              unionGeom = await geometryEngineAsync.union([unionGeom, current]);
+            } catch (err) {
+              console.warn(`Error unioning polygon at index ${i}:`, err, "Trying repairs...");
+              // Try repairing both geometries and re-union
+              unionGeom = await repairGeometry(unionGeom);
+              current = await repairGeometry(current);
+  
               try {
-                unionGeometry = await geometryEngineAsync.union([
-                  unionGeometry,
-                  geometries[i],
-                ]);
-              } catch (err) {
-                console.error(`Error unioning geometry at index ${i}:`, err);
-                // Continue with the next geometry
+                unionGeom = await geometryEngineAsync.union([unionGeom, current]);
+              } catch (finalErr) {
+                console.warn(`Union failed after repairs. Skipping polygon at index ${i}`, finalErr);
+                // Skip this polygon
               }
             }
+  
+            // Try simplifying after each union
+            try {
+              unionGeom = await geometryEngineAsync.simplify(unionGeom);
+            } catch (simplifyErr) {
+              console.warn("Error simplifying after union:", simplifyErr);
+            }
+  
+            // Additional repair steps
+            try {
+              unionGeom = await geometryEngineAsync.buffer(unionGeom, 0);
+            } catch (bufferErr) {
+              console.warn("Buffer(0) repair failed after union:", bufferErr);
+            }
           }
-
-          // Simplify the unioned geometry
-          unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
-
-          if (unionGeometry) {
+  
+          return unionGeom;
+        };
+  
+        for (const [marketAreaId, maFeatures] of Object.entries(newFeaturesByMarketArea)) {
+          let geometries = maFeatures.map((f) => f.geometry).filter((g) => g != null);
+  
+          // Repair each geometry before union
+          geometries = await Promise.all(
+            geometries.map(async (geom) => {
+              return await repairGeometry(geom);
+            })
+          );
+  
+          if (geometries.length === 0) continue;
+  
+          // Perform incremental union on all geometries
+          let unionGeometry = await incrementalUnion(geometries);
+  
+          if (!unionGeometry) {
+            console.warn(`No valid union geometry created for market area ${marketAreaId}`);
+            continue;
+          }
+  
+          // Final repairs on the union
+          try {
+            unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
+          } catch (err) {
+            console.warn("Final simplify failed:", err);
+          }
+  
+          try {
+            unionGeometry = await geometryEngineAsync.buffer(unionGeometry, 0);
+          } catch (err) {
+            console.warn("Final buffer(0) repair failed:", err);
+          }
+  
+          // If union results in multiple disconnected polygons, ArcGIS represents this
+          // as a multi-part polygon. We need to break it into separate polygon parts.
+          // Each polygon part consists of one outer ring (counterclockwise) and zero or more inner rings (clockwise).
+  
+          // Extract outer polygons from multi-part polygon
+          // We'll consider any clockwise ring as a hole and discard it for a clean boundary.
+          // We'll create one graphic per outer polygon ring.
+  
+          // Identify outer rings (counterclockwise) to form separate polygons
+          const outSR = unionGeometry.spatialReference;
+          const rings = unionGeometry.rings || [];
+          let currentPolygonRings = [];
+          const polygonsToAdd = [];
+          
+          // Helper to check ring orientation (true if counterclockwise)
+          const isCounterClockwise = (ring) => {
+            // Using planarArea of a polygon created by the ring
+            const testPoly = new Polygon({rings:[ring], spatialReference: outSR});
+            const area = geometryEngine.planarArea(testPoly, "square-meters");
+            // If area > 0, ring is counterclockwise (ArcGIS: counterclockwise yields a positive area)
+            return area > 0;
+          };
+  
+          for (const ring of rings) {
+            if (isCounterClockwise(ring)) {
+              // This is an outer boundary of a new disconnected polygon part
+              // If we have a currentPolygonRings, push as a polygon and start a new one
+              if (currentPolygonRings.length > 0) {
+                // Construct a polygon from the current rings (outer ring + no holes)
+                const poly = new Polygon({
+                  spatialReference: outSR,
+                  rings: currentPolygonRings
+                });
+                polygonsToAdd.push(poly);
+                currentPolygonRings = [];
+              }
+              // Start a new polygon with this outer ring
+              currentPolygonRings.push(ring);
+            } else {
+              // This ring is clockwise, representing a hole
+              // We are removing holes for a clean boundary, so skip it.
+            }
+          }
+  
+          // Add the last set of rings if any
+          if (currentPolygonRings.length > 0) {
+            const poly = new Polygon({
+              spatialReference: outSR,
+              rings: currentPolygonRings
+            });
+            polygonsToAdd.push(poly);
+          }
+  
+          // If for some reason no polygons were extracted, just skip
+          if (polygonsToAdd.length === 0) {
+            console.warn(`No polygons extracted from market area ${marketAreaId}`);
+            continue;
+          }
+  
+          // Create a graphic for each polygon part
+          for (const poly of polygonsToAdd) {
             const symbol = {
               type: "simple-fill",
               color: [...hexToRgb(styles.fill), styles.fillOpacity],
@@ -1313,9 +1422,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: styles.outlineWidth,
               },
             };
-
+  
             const unionGraphic = new Graphic({
-              geometry: unionGeometry,
+              geometry: poly,
               symbol: symbol,
               attributes: {
                 marketAreaId,
@@ -1323,17 +1432,25 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 order: maFeatures[0].attributes.order,
               },
             });
-
-            // Add the new graphic
+  
             selectionGraphicsLayerRef.current.add(unionGraphic);
           }
         }
+  
+        // Sort all graphics so that higher order market areas appear above lower order ones
+        const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
+        allGraphics.sort((a, b) => (b.attributes.order || 0) - (a.attributes.order || 0));
+        selectionGraphicsLayerRef.current.removeAll();
+        allGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+  
       } catch (error) {
         console.error("Error updating feature styles:", error);
       }
     },
     [mapView]
   );
+  
+  
 
   // Helper function to handle geometry validation
   const ensureValidGeometry = (geometry, spatialReference) => {
