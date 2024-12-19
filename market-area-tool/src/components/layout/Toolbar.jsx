@@ -21,7 +21,6 @@ import { usePresets } from "../../contexts/PresetsContext";
 import { useProjectCleanup } from "../../hooks/useProjectCleanup";
 import * as projection from "@arcgis/core/geometry/projection";
 import JSZip from "jszip";
-import shpwrite from "shp-write";
 
 const MA_TYPE_MAPPING = {
   radius: "RADIUS",
@@ -127,11 +126,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       const loadingToast = toast.loading("Exporting map as JPEG...");
 
       const scale = mapView.scale;
-      const canvas = document.createElement("canvas");
-      canvas.width = 400;
-      canvas.height = 80;
-      const ctx = canvas.getContext("2d");
-
       const metersDistance = scale / 24;
       const milesDistance = metersDistance * 0.000621371;
 
@@ -149,7 +143,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
       let displayDistance;
       let displayText;
-      let originalWidth = 320;
+      const originalWidth = 320;
 
       const feetDistance = milesDistance * 5280;
 
@@ -167,30 +161,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           : displayDistance / 5280 / milesDistance;
       const barWidth = Math.min(originalWidth, originalWidth * widthRatio);
 
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 2;
-      ctx.roundRect(0, 0, canvas.width, canvas.height, 8);
-      ctx.fill();
-      ctx.shadowColor = "transparent";
-
-      const drawScaleBar = (y, text) => {
-        const startX = (canvas.width - barWidth) / 2;
-        ctx.fillStyle = "#333333";
-        ctx.fillRect(startX, y, barWidth, 2);
-        ctx.fillRect(startX, y - 5, 1, 10);
-        ctx.fillRect(startX + barWidth, y - 5, 1, 10);
-        ctx.font = "18px Arial";
-        ctx.fillStyle = "#333333";
-        ctx.textAlign = "center";
-        ctx.fillText(text, startX + barWidth / 2, y + 25);
-      };
-
-      drawScaleBar(35, displayText);
-      const scaleBarImage = canvas.toDataURL();
-
+      // Take the screenshot of the map
       const screenshot = await mapView.takeScreenshot({
         format: "png",
         quality: 100,
@@ -198,7 +169,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
       const finalCanvas = document.createElement("canvas");
       const mainImage = new Image();
-      const scaleBarImg = new Image();
 
       await new Promise((resolve) => {
         mainImage.onload = () => {
@@ -207,16 +177,28 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           const finalCtx = finalCanvas.getContext("2d");
           finalCtx.drawImage(mainImage, 0, 0);
 
-          scaleBarImg.onload = () => {
-            const padding = 30;
-            finalCtx.drawImage(
-              scaleBarImg,
-              mainImage.width - scaleBarImg.width - padding,
-              mainImage.height - scaleBarImg.height - padding
-            );
-            resolve();
-          };
-          scaleBarImg.src = scaleBarImage;
+          // Draw the scale bar directly on the final image
+          // Position the scale bar in the bottom-right corner
+          const padding = 30;
+          const xPos = finalCanvas.width - barWidth - padding;
+          const yPos = finalCanvas.height - padding;
+
+          // Draw the scale line
+          finalCtx.fillStyle = "#333333";
+          // Horizontal line
+          finalCtx.fillRect(xPos, yPos - 2, barWidth, 2);
+          // Left tick
+          finalCtx.fillRect(xPos, yPos - 7, 2, 14);
+          // Right tick
+          finalCtx.fillRect(xPos + barWidth - 2, yPos - 7, 2, 14);
+
+          // Draw text below the bar
+          finalCtx.font = "18px Arial";
+          finalCtx.fillStyle = "#333333";
+          finalCtx.textAlign = "center";
+          finalCtx.fillText(displayText, xPos + barWidth / 2, yPos + 25);
+
+          resolve();
         };
         mainImage.src = screenshot.dataUrl;
       });
@@ -238,6 +220,11 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(false);
     }
   };
+
+  function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
 
   function numberWithCommas(x) {
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -265,7 +252,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   }
 
   const handleExportKML = () => {
-    // Open the dialog to select MAs for shapefile export
+    // Open the dialog to select MAs for KML export
     setIsExportKMLDialogOpen(true);
   };
 
@@ -277,47 +264,19 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     return area > 0;
   };
 
-  const validateAndPreparePolygon = (geometryObj) => {
-    const projected = projection.project(geometryObj, { wkid: 4326 });
-    if (!projected || !projected.rings || projected.rings.length === 0) return null;
-
-    const validRings = projected.rings
-      .map((ring) => {
-        let coords = ring.map((coord) => [coord[0], coord[1]]);
-        const first = coords[0];
-        const last = coords[coords.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          coords.push(first);
-        }
-        return coords.length >= 4 ? coords : null;
-      })
-      .filter((r) => r !== null);
-
-    if (validRings.length === 0) return null;
-
-    // Use only the first ring for simplicity
-    let ring = validRings[0];
-    // Ensure CCW orientation for the outer ring
-    if (isClockwise(ring)) {
-      ring = ring.slice().reverse();
-    }
-
-    return [ring];
-  };
-
-  const exportSelectedMAsToShapefiles = async ({ folderName, selectedMAIds }) => {
+  const exportSelectedMAsToKML = async ({ folderName, selectedMAIds }) => {
     if (!selectedMAIds || selectedMAIds.length === 0) {
       toast.error("No market areas selected");
       return;
     }
-  
+
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting KML files...");
-  
+
       await projection.load();
       const zip = new JSZip();
-  
+
       const toKmlCoordinates = (rings) => {
         return rings
           .map((ring) =>
@@ -325,22 +284,22 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           )
           .join(" ");
       };
-  
+
       // Process each selected market area
       for (const maId of selectedMAIds) {
         const area = marketAreas.find((m) => m.id === maId);
         if (!area) continue;
-  
+
         let kmlPlacemarks = "";
-  
+
         // Process radius points
         if (area.ma_type === "radius" && Array.isArray(area.radius_points)) {
           for (const pt of area.radius_points) {
             if (!pt.geometry) continue;
-  
+
             const projectedGeom = projection.project(pt.geometry, { wkid: 4326 });
             if (!projectedGeom || !projectedGeom.rings) continue;
-  
+
             const coords = toKmlCoordinates(projectedGeom.rings);
             kmlPlacemarks += `
   <Placemark>
@@ -361,10 +320,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         else if (area.locations && Array.isArray(area.locations)) {
           for (const loc of area.locations) {
             if (!loc.geometry) continue;
-  
+
             const projectedGeom = projection.project(loc.geometry, { wkid: 4326 });
             if (!projectedGeom || !projectedGeom.rings) continue;
-  
+
             const coords = toKmlCoordinates(projectedGeom.rings);
             kmlPlacemarks += `
   <Placemark>
@@ -381,7 +340,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   </Placemark>`;
           }
         }
-  
+
         // Create KML content for this market area
         const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
   <kml xmlns="http://earth.google.com/kml/2.2">
@@ -400,27 +359,26 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     ${kmlPlacemarks}
   </Document>
   </kml>`;
-  
+
         // Create sanitized filename
         const fileName = `${area.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.kml`;
         
         // Add KML file directly to the ZIP root
         zip.file(fileName, kmlContent);
       }
-  
+
       // Generate the ZIP file
       const content = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
         compressionOptions: { level: 6 }
       });
-  
+
       // Save the ZIP file
       saveAs(content, `${folderName}.zip`);
-  
+
       toast.dismiss(loadingToast);
       toast.success("KML files exported successfully");
-  
     } catch (error) {
       console.error("KML export failed:", error);
       toast.error(`Failed to export KML files: ${error.message}`);
@@ -571,7 +529,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                            ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
-                        Export Shapefiles
+                        Export KML
                       </button>
                     )}
                   </Menu.Item>
@@ -625,7 +583,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         isOpen={isExportKMLDialogOpen}
         onClose={() => setIsExportKMLDialogOpen(false)}
         marketAreas={marketAreas}
-        onExport={exportSelectedMAsToShapefiles}
+        onExport={exportSelectedMAsToKML}
       />
     </div>
   );
