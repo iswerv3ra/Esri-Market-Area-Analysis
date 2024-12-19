@@ -529,7 +529,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                            ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
-                        Export KML
+                        Export Shapefiles
                       </button>
                     )}
                   </Menu.Item>
