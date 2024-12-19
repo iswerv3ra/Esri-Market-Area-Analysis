@@ -500,9 +500,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           const newMarketAreaIds = [];
   
           for (const radiusMiles of radii) {
+            // Use the main MA name and append `(X Miles)` for each radius
             const singleRadiusData = {
               ma_type: mappedType,
-              name: `Radius-(${radiusMiles} Miles)`,
+              name: `${formState.maName} (${radiusMiles} Miles)`,
               short_name: formState.shortName || "",
               style_settings: styleSettings,
               radius_points: [
@@ -536,7 +537,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             setVisibleMarketAreaIds(currentVisibleIds);
           }
   
-          toast.success(editingMarketArea ? 
+          toast.success(editingMarketArea ?
             "Radius market area converted to multiple radius areas successfully" :
             "Multiple radius market areas created successfully"
           );
@@ -698,6 +699,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       setIsSaving(false);
     }
   };
+  
   
   
 

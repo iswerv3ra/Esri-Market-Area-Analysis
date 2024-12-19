@@ -42,7 +42,7 @@ const SortableItem = ({
     transition,
   };
 
-  // Determine count of features that define this market area
+  // Count of features for display
   const count = marketArea.ma_type === "radius"
     ? (marketArea.radius_points?.length || 0)
     : (marketArea.locations?.length || 0);
@@ -51,56 +51,52 @@ const SortableItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+      className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 py-1 text-sm"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center flex-1">
-          <div {...attributes} {...listeners} className="mr-3 cursor-grab">
-            <Bars3Icon className="h-5 w-5 text-gray-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-              {marketArea.name}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center space-x-2">
-              <span className="flex items-center space-x-1">
-                <span>{marketArea.ma_type}</span>
-                <span className="bg-gray-200 rounded-full px-2 py-0.5 text-xs font-semibold text-gray-800">
-                  {count}
-                </span>
-              </span>
-              <span>•</span>
-              <span>{marketArea.short_name}</span>
-            </p>
-          </div>
+      <div className="flex items-center flex-1 min-w-0">
+        <div {...attributes} {...listeners} className="mr-2 cursor-grab text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+          <Bars3Icon className="h-4 w-4" />
         </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => onToggleVisibility(marketArea)}
-            className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-            title={isVisible ? "Hide area" : "Show area"}
-          >
-            {isVisible ? (
-              <EyeIcon className="h-5 w-5" />
-            ) : (
-              <EyeSlashIcon className="h-5 w-5" />
-            )}
-          </button>
-          <button
-            onClick={() => onEdit(marketArea)}
-            className="p-2 text-blue-400 hover:text-blue-500"
-            title="Edit area"
-          >
-            <PencilIcon className="h-5 w-5" />
-          </button>
-          <button
-            onClick={() => onDelete(marketArea)}
-            className="p-2 text-red-400 hover:text-red-500"
-            title="Delete area"
-          >
-            <TrashIcon className="h-5 w-5" />
-          </button>
+        <div className="min-w-0 flex-1 flex items-center space-x-2">
+          <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+            {marketArea.name}
+          </span>
+          <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">
+            {marketArea.ma_type}({count})
+          </span>
+          {marketArea.short_name && (
+            <span className="text-gray-500 dark:text-gray-400 flex-shrink-0 truncate">
+              {marketArea.short_name}
+            </span>
+          )}
         </div>
+      </div>
+      <div className="flex items-center space-x-2 ml-2">
+        <button
+          onClick={() => onToggleVisibility(marketArea)}
+          className="p-1 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+          title={isVisible ? "Hide area" : "Show area"}
+        >
+          {isVisible ? (
+            <EyeIcon className="h-4 w-4" />
+          ) : (
+            <EyeSlashIcon className="h-4 w-4" />
+          )}
+        </button>
+        <button
+          onClick={() => onEdit(marketArea)}
+          className="p-1 text-blue-400 hover:text-blue-500"
+          title="Edit area"
+        >
+          <PencilIcon className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => onDelete(marketArea)}
+          className="p-1 text-red-400 hover:text-red-500"
+          title="Delete area"
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -427,7 +423,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-2">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -437,9 +433,9 @@ export default function MarketAreaList({ onClose, onEdit }) {
             items={marketAreas.map((ma) => ma.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-4">
+            <div className="space-y-1">
               {!Array.isArray(marketAreas) || marketAreas.length === 0 ? (
-                <div className="text-center p-4 text-gray-500 dark:text-gray-400">
+                <div className="text-center p-4 text-gray-500 dark:text-gray-400 text-sm">
                   No market areas defined yet
                 </div>
               ) : (

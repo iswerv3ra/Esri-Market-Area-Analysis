@@ -14,7 +14,7 @@ export default function Radius({
 
   const [formState, setFormState] = useState({
     radiusPoints: existingRadiusPoints, // Array of { center: Point, radii: number[] } objects
-    currentRadius: 1, // Default 1-mile radius
+    currentRadius: "1", // Default to "1" (string) so user can type freely
     selectedPinIndex: null, // For tracking selected pin
     isPlacingPin: false,
   });
@@ -26,10 +26,17 @@ export default function Radius({
     const handleMapClick = async (event) => {
       if (!formState.isPlacingPin) return;
 
+      // Parse currentRadius to a number
+      const parsedRadius = parseFloat(formState.currentRadius);
+      if (isNaN(parsedRadius) || parsedRadius <= 0) {
+        toast.error("Please enter a valid positive radius before placing a pin.");
+        return;
+      }
+
       try {
         const point = {
           center: event.mapPoint,
-          radii: [formState.currentRadius],
+          radii: [parsedRadius],
         };
 
         await drawRadius(point, styleSettings);
@@ -66,9 +73,15 @@ export default function Radius({
     onFormStateChange,
   ]);
 
-  // Add radius to selected or last point
+  // Add the current radius to the selected or last point
   const addCurrentRadius = async () => {
     if (!formState.radiusPoints.length) return;
+
+    const parsedRadius = parseFloat(formState.currentRadius);
+    if (isNaN(parsedRadius) || parsedRadius <= 0) {
+      toast.error("Please enter a valid positive radius.");
+      return;
+    }
 
     const updatedPoints = [...formState.radiusPoints];
     const targetIndex =
@@ -77,8 +90,8 @@ export default function Radius({
         : updatedPoints.length - 1;
     const targetPoint = updatedPoints[targetIndex];
 
-    if (!targetPoint.radii.includes(formState.currentRadius)) {
-      targetPoint.radii.push(formState.currentRadius);
+    if (!targetPoint.radii.includes(parsedRadius)) {
+      targetPoint.radii.push(parsedRadius);
       targetPoint.radii.sort((a, b) => a - b);
 
       await drawRadius(targetPoint, styleSettings);
@@ -97,9 +110,7 @@ export default function Radius({
 
   // Remove an entire point and its radii
   const removeRadiusPoint = (pointIndex) => {
-    const updatedPoints = formState.radiusPoints.filter(
-      (_, i) => i !== pointIndex
-    );
+    const updatedPoints = formState.radiusPoints.filter((_, i) => i !== pointIndex);
 
     setFormState((prev) => ({
       ...prev,
@@ -132,7 +143,6 @@ export default function Radius({
         selectedPinIndex: null,
       }));
     } else {
-      // Update the radii array
       updatedPoints[pointIndex] = {
         ...point,
         radii: newRadii,
@@ -145,8 +155,8 @@ export default function Radius({
 
     // Clear and redraw remaining points
     clearSelection();
-    updatedPoints.forEach((point) => {
-      drawRadius(point, styleSettings);
+    updatedPoints.forEach((pt) => {
+      drawRadius(pt, styleSettings);
     });
 
     // Notify parent of state change
@@ -157,8 +167,7 @@ export default function Radius({
   const handlePinSelect = (pointIndex) => {
     setFormState((prev) => ({
       ...prev,
-      selectedPinIndex:
-        prev.selectedPinIndex === pointIndex ? null : pointIndex,
+      selectedPinIndex: prev.selectedPinIndex === pointIndex ? null : pointIndex,
       isPlacingPin: false, // Disable placing pin when selecting
     }));
   };
@@ -176,12 +185,13 @@ export default function Radius({
     }
   };
 
-  // Update radius value
+  // Update radius value allowing any number
   const handleRadiusChange = (e) => {
-    const value = parseFloat(e.target.value) || 0;
+    const value = e.target.value;
+    // Just store the raw value. We'll parse it only when adding.
     setFormState((prev) => ({
       ...prev,
-      currentRadius: Math.max(0.1, value),
+      currentRadius: value,
     }));
   };
 
@@ -223,14 +233,13 @@ export default function Radius({
               Radius (miles)
             </label>
             <input
-              type="number"
-              min="0.1"
-              step="0.1"
+              type="text"
               value={formState.currentRadius}
               onChange={handleRadiusChange}
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
                 bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
                 focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+              placeholder="Enter any numeric value"
             />
           </div>
           <button
