@@ -6,6 +6,7 @@ import {
   HomeIcon,
   AdjustmentsHorizontalIcon,
   ArrowRightOnRectangleIcon,
+  SwatchIcon, // Added for "Manage Preset Colors"
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 import { logout } from "../../utils/auth";
@@ -80,9 +81,18 @@ export default function RootLayout() {
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
             >
               <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              <span className="hidden sm:inline">Manage Presets</span>
+              <span className="hidden sm:inline">Variables</span>
             </Link>
-            {/* Changed from Link to button */}
+
+            {/* New link for Manage Preset Colors */}
+            <Link
+              to="/manage-preset-color"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
+            >
+              <SwatchIcon className="h-5 w-5" />
+              <span className="hidden sm:inline">Colors</span>
+            </Link>
+
             <button
               onClick={handleHomeClick}
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"

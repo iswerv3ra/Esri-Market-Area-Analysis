@@ -19,11 +19,12 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CreateProject from "./pages/CreateProject";
 import Presets from "./pages/Presets";
+import ManagePresetColor from "./pages/ManagePresetColor"; // Import your ManagePresetColor component
 
 // Providers
 import { MarketAreaProvider } from "./contexts/MarketAreaContext";
 import { MapProvider } from "./contexts/MapContext";
-import { PresetsProvider } from "./contexts/PresetsContext"; // Add this import
+import { PresetsProvider } from "./contexts/PresetsContext";
 
 // Auth Utilities
 import {
@@ -124,7 +125,7 @@ function App() {
   return (
     <MapProvider>
       <MarketAreaProvider>
-        <PresetsProvider> {/* Add PresetsProvider here */}
+        <PresetsProvider>
           <Routes>
             {/* Public Routes */}
             <Route
@@ -150,9 +151,10 @@ function App() {
                   path="projects/:projectId/market-areas"
                   element={<MarketAreasLayout />}
                 />
-
-                {/* Top-Level Presets Route */}
                 <Route path="presets" element={<Presets />} />
+
+                {/* NEW ROUTE FOR MANAGE PRESET COLOR */}
+                <Route path="manage-preset-color" element={<ManagePresetColor />} />
 
                 {/* Catch-all Redirect */}
                 <Route path="*" element={<Navigate to="/" replace />} />
