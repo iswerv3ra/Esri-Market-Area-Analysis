@@ -4,10 +4,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
 from django.db import models, transaction
-from .models import Project, MarketArea, StylePreset, VariablePreset
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey
 from .serializers import (
     UserSerializer, ProjectSerializer, MarketAreaSerializer,
-    StylePresetSerializer, VariablePresetSerializer
+    StylePresetSerializer, VariablePresetSerializer, ColorKeySerializer
 )
 
 class CreateUserView(generics.CreateAPIView):
@@ -102,7 +102,6 @@ class MarketAreaReorder(generics.GenericAPIView):
             
         try:
             with transaction.atomic():
-                # Validate all IDs exist and belong to this project
                 market_areas = MarketArea.objects.filter(
                     project_id=project_id, 
                     id__in=order
@@ -114,13 +113,11 @@ class MarketAreaReorder(generics.GenericAPIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                # Update order field for each market area
                 order_mapping = {str(id): index for index, id in enumerate(order)}
                 for market_area in market_areas:
                     market_area.order = order_mapping[str(market_area.id)]
                     market_area.save()
                 
-                # Return the reordered market areas
                 updated_market_areas = MarketArea.objects.filter(
                     project_id=project_id
                 ).order_by('order')
@@ -203,3 +200,13 @@ class VariablePresetViewSet(viewsets.ModelViewSet):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+# NEW VIEWSET FOR COLORKEY
+class ColorKeyViewSet(viewsets.ModelViewSet):
+    serializer_class = ColorKeySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ColorKey.objects.all()
+
+    # PUT requests will update the R, G, B, Hex and color_name

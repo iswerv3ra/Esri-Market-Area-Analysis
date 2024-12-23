@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, MarketArea, StylePreset, VariablePreset
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -76,7 +76,6 @@ class StylePresetSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'last_modified', 'created_by']
 
     def validate(self, data):
-        # Validate that styles contain all required fields
         styles = data.get('styles', {})
         required_fields = {'fillColor', 'fillOpacity', 'borderColor', 'borderWidth'}
         
@@ -90,7 +89,6 @@ class StylePresetSerializer(serializers.ModelSerializer):
                     "styles": f"Style for {ma_type} is missing required fields: {missing_fields}"
                 })
             
-            # Validate opacity is between 0 and 1
             if not 0 <= style.get('fillOpacity', 0) <= 1:
                 raise serializers.ValidationError({
                     "styles": f"Fill opacity for {ma_type} must be between 0 and 1"
@@ -120,9 +118,15 @@ class VariablePresetSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        # Check uniqueness for global presets
         if data.get('is_global') and data.get('project'):
             raise serializers.ValidationError(
                 {"is_global": "Global presets cannot be associated with a specific project"}
             )
         return data
+
+# NEW SERIALIZER FOR COLORKEY
+class ColorKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColorKey
+        fields = ['id', 'key_number', 'color_name', 'R', 'G', 'B', 'Hex', 'created_at', 'last_modified']
+        read_only_fields = ['created_at', 'last_modified']

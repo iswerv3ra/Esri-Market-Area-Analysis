@@ -2,10 +2,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 
-# Create a router and register the preset viewsets
 router = DefaultRouter()
 router.register(r'style-presets', views.StylePresetViewSet, basename='style-preset')
 router.register(r'variable-presets', views.VariablePresetViewSet, basename='variable-preset')
+router.register(r'color-keys', views.ColorKeyViewSet, basename='color-key')  # NEW ROUTE
 
 urlpatterns = [
     # Project endpoints
@@ -20,6 +20,6 @@ urlpatterns = [
     path('projects/<uuid:project_id>/market-areas/<uuid:pk>/', 
          views.MarketAreaDetail.as_view(), name='market-area-detail'),
          
-    # Include the preset router URLs
+    # Include the preset and color key router URLs
     path('', include(router.urls)),
 ]

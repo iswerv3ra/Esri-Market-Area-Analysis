@@ -292,14 +292,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             <ListBulletIcon className="h-5 w-5" />
             MA List
           </button>
-
-          {/* NEW BUTTON ADDED HERE */}
-          <button
-            onClick={() => navigate('/ManagePresetColor')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Manage Preset Colors
-          </button>
         </div>
       </div>
 

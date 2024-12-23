@@ -1,4 +1,4 @@
-// src/api.js
+// src/services/api.js
 
 import axios from 'axios';
 import { getApiUrl, setAuthToken } from '../utils/auth';
@@ -203,7 +203,6 @@ export const projectsAPI = {
 
 // Style Presets API endpoints
 export const stylePresetsAPI = {
-  // **Updated: Removed projectId parameter to fetch all style presets**
   getAll: async () => {
     try {
       const response = await api.get('/api/style-presets/');
@@ -216,7 +215,6 @@ export const stylePresetsAPI = {
 
   create: async (presetData) => {
     try {
-      // **Ensure presetData does not include projectId, only is_global flag**
       const response = await api.post('/api/style-presets/', presetData);
       return response;
     } catch (error) {
@@ -247,7 +245,6 @@ export const stylePresetsAPI = {
 
   makeGlobal: async (id) => {
     try {
-      // **Ensure the endpoint matches your backend configuration**
       const response = await api.post(`/api/style-presets/${id}/make_global/`);
       return response;
     } catch (error) {
@@ -257,9 +254,20 @@ export const stylePresetsAPI = {
   }
 };
 
+// Update a single Color Key by ID
+export const updateColorKey = async (id, updatedData) => {
+  const response = await api.put(`/api/color-keys/${id}/`, updatedData);
+  return response.data;
+};
+
+// Update a single TCG Theme by ID
+export const updateTcgTheme = async (id, updatedData) => {
+  const response = await api.put(`/api/tcg-themes/${id}/`, updatedData);
+  return response.data;
+};
+
 // Variable Presets API endpoints
 export const variablePresetsAPI = {
-  // **Updated: Removed projectId parameter to fetch all variable presets**
   getAll: async () => {
     try {
       const response = await api.get('/api/variable-presets/');
@@ -272,7 +280,6 @@ export const variablePresetsAPI = {
 
   create: async (presetData) => {
     try {
-      // **Ensure presetData does not include projectId, only is_global flag**
       const response = await api.post('/api/variable-presets/', presetData);
       return response;
     } catch (error) {
@@ -303,7 +310,6 @@ export const variablePresetsAPI = {
 
   makeGlobal: async (id) => {
     try {
-      // **Ensure the endpoint matches your backend configuration**
       const response = await api.post(`/api/variable-presets/${id}/make_global/`);
       return response;
     } catch (error) {
@@ -311,6 +317,18 @@ export const variablePresetsAPI = {
       throw error;
     }
   }
+};
+
+// Fetch all TCG Themes
+export const getTcgThemes = async () => {
+  const response = await api.get('/api/tcg-themes/');
+  return response.data;
+};
+
+// Fetch all Color Keys
+export const getColorKeys = async () => {
+  const response = await api.get('/api/color-keys/');
+  return response.data;
 };
 
 export default api;

@@ -17,6 +17,7 @@ const EditableTable = ({ title, data, setData, columns }) => {
     setEditValues({});
   };
 
+  // No backend calls now, just update local state
   const handleSave = () => {
     setData((prev) => prev.map((item) => (item.id === editingId ? editValues : item)));
     setEditingId(null);
@@ -27,19 +28,71 @@ const EditableTable = ({ title, data, setData, columns }) => {
     setEditValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  const hexToRgb = (hex) => {
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return { r, g, b };
+  };
+
+  const rgbToHex = (r, g, b) => {
+    const toHex = (num) => num.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+  };
+
+  const handleColorChange = (newHex) => {
+    const { r, g, b } = hexToRgb(newHex);
+    setEditValues((prev) => ({
+      ...prev,
+      R: r.toString(),
+      G: g.toString(),
+      B: b.toString(),
+      Hex: newHex.toUpperCase(),
+    }));
+  };
+
+  const computeSwatchColor = (row) => {
+    const r = parseInt(row.R, 10) || 0;
+    const g = parseInt(row.G, 10) || 0;
+    const b = parseInt(row.B, 10) || 0;
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
   const renderCell = (row, col) => {
     const value = editingId === row.id ? editValues[col.field] : row[col.field];
     const isEditing = editingId === row.id;
 
-    if (col.compute) {
-      // Computed field (e.g., color swatch)
-      return col.compute(editingId === row.id ? editValues : row);
+    if (col.field === 'color_swatch') {
+      const swatchColor = computeSwatchColor(isEditing ? editValues : row);
+
+      if (isEditing) {
+        const r = parseInt(editValues.R, 10) || 0;
+        const g = parseInt(editValues.G, 10) || 0;
+        const b = parseInt(editValues.B, 10) || 0;
+        const currentHex = rgbToHex(r, g, b);
+        return (
+          <input
+            type="color"
+            value={currentHex}
+            onChange={(e) => handleColorChange(e.target.value)}
+            className="w-10 h-6 border border-gray-300 cursor-pointer"
+          />
+        );
+      }
+
+      return (
+        <div
+          className="w-6 h-4 rounded border border-gray-300"
+          style={{ background: swatchColor }}
+        ></div>
+      );
     }
 
     if (col.type === 'select') {
       return isEditing ? (
         <select
-          className="border border-gray-300 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800"
+          className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
           value={value}
           onChange={(e) => handleChange(col.field, e.target.value)}
         >
@@ -58,7 +111,7 @@ const EditableTable = ({ title, data, setData, columns }) => {
       return (
         <input
           type={col.type || 'text'}
-          className="border border-gray-300 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 w-full"
+          className="border border-gray-300 rounded px-2 py-1 text-sm bg-white w-full"
           value={value || ''}
           onChange={(e) => handleChange(col.field, e.target.value)}
         />
@@ -80,7 +133,7 @@ const EditableTable = ({ title, data, setData, columns }) => {
               {columns.map((col) => (
                 <th
                   key={col.field}
-                  className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 p-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                  className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
                   {col.header}
                 </th>
@@ -95,7 +148,7 @@ const EditableTable = ({ title, data, setData, columns }) => {
                 className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
               >
                 {columns.map((col) => (
-                  <td key={col.field} className="p-2 text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                  <td key={col.field} className="p-2 text-gray-700 whitespace-nowrap">
                     {renderCell(row, col)}
                   </td>
                 ))}
@@ -133,7 +186,7 @@ const EditableTable = ({ title, data, setData, columns }) => {
               <tr>
                 <td
                   colSpan={columns.length + 1}
-                  className="p-4 text-center text-sm text-gray-500 dark:text-gray-400"
+                  className="p-4 text-center text-sm text-gray-500"
                 >
                   No data found.
                 </td>
@@ -147,35 +200,33 @@ const EditableTable = ({ title, data, setData, columns }) => {
 };
 
 export default function ManagePresetColor() {
-  // Complete TCG Themes Data
   const tcgThemesData = [
-    { theme_key: 'A', theme_name: 'CMA', fill: 'Yes', fill_color: '1', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '1', excel_text: 'White' },
-    { theme_key: 'B', theme_name: 'PMA', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '2', weight: '2 or 3', excel_fill: '2', excel_text: 'White' },
-    { theme_key: 'C', theme_name: 'Subject MSA', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '3', weight: '2 or 3', excel_fill: '3', excel_text: 'White' },
-    { theme_key: 'D', theme_name: 'Micro-Market (Sub-CMA)', fill: 'Yes', fill_color: '4', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '4', excel_text: 'White' },
-    { theme_key: 'E', theme_name: 'Submarket 1', fill: 'Yes', fill_color: '5', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '25', excel_text: 'Black' },
-    { theme_key: 'F', theme_name: 'Submarket 2', fill: 'Yes', fill_color: '6', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '26', excel_text: 'Black' },
-    { theme_key: 'G', theme_name: 'Submarket 3', fill: 'Yes', fill_color: '7', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '27', excel_text: 'Black' },
-    { theme_key: 'H', theme_name: 'Submarket 4', fill: 'Yes', fill_color: '8', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '28', excel_text: 'Black' },
-    { theme_key: 'I', theme_name: 'Submarket 5', fill: 'Yes', fill_color: '9', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '29', excel_text: 'Black' },
-    { theme_key: 'J', theme_name: 'Submarket 6', fill: 'Yes', fill_color: '10', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '30', excel_text: 'Black' },
-    { theme_key: 'K', theme_name: 'Submarket 7', fill: 'Yes', fill_color: '11', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '31', excel_text: 'Black' },
-    { theme_key: 'L', theme_name: 'Submarket 8', fill: 'Yes', fill_color: '12', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '32', excel_text: 'Black' },
-    { theme_key: 'M', theme_name: 'Submarket 9', fill: 'Yes', fill_color: '13', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '33', excel_text: 'Black' },
-    { theme_key: 'N', theme_name: 'Submarket 10', fill: 'Yes', fill_color: '14', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '14', excel_text: 'White' },
-    { theme_key: 'O', theme_name: 'Submarket 11', fill: 'Yes', fill_color: '15', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '15', excel_text: 'White' },
-    { theme_key: 'P', theme_name: 'Submarket 12', fill: 'Yes', fill_color: '16', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '16', excel_text: 'Black' },
-    { theme_key: 'Q', theme_name: 'Submarket 13', fill: 'Yes', fill_color: '17', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '17', excel_text: 'White' },
-    { theme_key: 'R', theme_name: 'Submarket 14', fill: 'Yes', fill_color: '18', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '18', excel_text: 'White' },
-    { theme_key: 'S', theme_name: 'Submarket 15', fill: 'Yes', fill_color: '19', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '19', excel_text: 'White' },
-    { theme_key: 'T', theme_name: 'Submarket 16', fill: 'Yes', fill_color: '20', transparency: '65%', border: 'No', border_color: '-', weight: '-', excel_fill: '20', excel_text: 'White' },
-    { theme_key: 'U', theme_name: 'MSA 1', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '21', weight: '2 or 3', excel_fill: '21', excel_text: 'White' },
-    { theme_key: 'V', theme_name: 'MSA 2', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '22', weight: '2 or 3', excel_fill: '22', excel_text: 'Black' },
-    { theme_key: 'W', theme_name: 'MSA 3', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '23', weight: '2 or 3', excel_fill: '23', excel_text: 'White' },
-    { theme_key: 'X', theme_name: 'MSA 4', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', border_color: '24', weight: '2 or 3', excel_fill: '24', excel_text: 'Black' },
+    { theme_key: 'A', theme_name: 'CMA', fill: 'Yes', fill_color: '1', transparency: '65%', border: 'No', weight: '-', excel_fill: '1', excel_text: 'White' },
+    { theme_key: 'B', theme_name: 'PMA', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '3', excel_fill: '2', excel_text: 'White' },
+    { theme_key: 'C', theme_name: 'Subject MSA', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '3', excel_fill: '3', excel_text: 'White' },
+    { theme_key: 'D', theme_name: 'Micro-Market (Sub-CMA)', fill: 'Yes', fill_color: '4', transparency: '65%', border: 'No', weight: '-', excel_fill: '4', excel_text: 'White' },
+    { theme_key: 'E', theme_name: 'Submarket 1', fill: 'Yes', fill_color: '5', transparency: '65%', border: 'No', weight: '-', excel_fill: '25', excel_text: 'Black' },
+    { theme_key: 'F', theme_name: 'Submarket 2', fill: 'Yes', fill_color: '6', transparency: '65%', border: 'No', weight: '-', excel_fill: '26', excel_text: 'Black' },
+    { theme_key: 'G', theme_name: 'Submarket 3', fill: 'Yes', fill_color: '7', transparency: '65%', border: 'No', weight: '-', excel_fill: '27', excel_text: 'Black' },
+    { theme_key: 'H', theme_name: 'Submarket 4', fill: 'Yes', fill_color: '8', transparency: '65%', border: 'No', weight: '-', excel_fill: '28', excel_text: 'Black' },
+    { theme_key: 'I', theme_name: 'Submarket 5', fill: 'Yes', fill_color: '9', transparency: '65%', border: 'No', weight: '-', excel_fill: '29', excel_text: 'Black' },
+    { theme_key: 'J', theme_name: 'Submarket 6', fill: 'Yes', fill_color: '10', transparency: '65%', border: 'No', weight: '-', excel_fill: '30', excel_text: 'Black' },
+    { theme_key: 'K', theme_name: 'Submarket 7', fill: 'Yes', fill_color: '11', transparency: '65%', border: 'No', weight: '-', excel_fill: '31', excel_text: 'Black' },
+    { theme_key: 'L', theme_name: 'Submarket 8', fill: 'Yes', fill_color: '12', transparency: '65%', border: 'No', weight: '-', excel_fill: '32', excel_text: 'Black' },
+    { theme_key: 'M', theme_name: 'Submarket 9', fill: 'Yes', fill_color: '13', transparency: '65%', border: 'No', weight: '-', excel_fill: '33', excel_text: 'Black' },
+    { theme_key: 'N', theme_name: 'Submarket 10', fill: 'Yes', fill_color: '14', transparency: '65%', border: 'No', weight: '-', excel_fill: '14', excel_text: 'White' },
+    { theme_key: 'O', theme_name: 'Submarket 11', fill: 'Yes', fill_color: '15', transparency: '65%', border: 'No', weight: '-', excel_fill: '15', excel_text: 'White' },
+    { theme_key: 'P', theme_name: 'Submarket 12', fill: 'Yes', fill_color: '16', transparency: '65%', border: 'No', weight: '-', excel_fill: '16', excel_text: 'Black' },
+    { theme_key: 'Q', theme_name: 'Submarket 13', fill: 'Yes', fill_color: '17', transparency: '65%', border: 'No', weight: '-', excel_fill: '17', excel_text: 'White' },
+    { theme_key: 'R', theme_name: 'Submarket 14', fill: 'Yes', fill_color: '18', transparency: '65%', border: 'No', weight: '-', excel_fill: '18', excel_text: 'White' },
+    { theme_key: 'S', theme_name: 'Submarket 15', fill: 'Yes', fill_color: '19', transparency: '65%', border: 'No', weight: '-', excel_fill: '19', excel_text: 'White' },
+    { theme_key: 'T', theme_name: 'Submarket 16', fill: 'Yes', fill_color: '20', transparency: '65%', border: 'No', weight: '-', excel_fill: '20', excel_text: 'White' },
+    { theme_key: 'U', theme_name: 'MSA 1', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '2 or 3', excel_fill: '21', excel_text: 'White' },
+    { theme_key: 'V', theme_name: 'MSA 2', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '2 or 3', excel_fill: '22', excel_text: 'Black' },
+    { theme_key: 'W', theme_name: 'MSA 3', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '2 or 3', excel_fill: '23', excel_text: 'White' },
+    { theme_key: 'X', theme_name: 'MSA 4', fill: 'No', fill_color: '-', transparency: '-', border: 'Yes', weight: '2 or 3', excel_fill: '24', excel_text: 'Black' },
   ];
 
-  // Complete Color Keys Data
   const colorKeysData = [
     { key_number: '1', color_name: 'TCG Red', R: '255', G: '0', B: '0', Hex: '#FF0000' },
     { key_number: '2', color_name: 'TCG Blue', R: '0', G: '102', B: '255', Hex: '#0066FF' },
@@ -215,13 +266,6 @@ export default function ManagePresetColor() {
   const [tcgThemes, setTcgThemes] = useState(() => tcgThemesData.map((row, index) => ({ ...row, id: index + 1 })));
   const [colorKeys, setColorKeys] = useState(() => colorKeysData.map((row, index) => ({ ...row, id: index + 1 })));
 
-  const computeSwatch = (row) => {
-    const r = parseInt(row.R, 10) || 0;
-    const g = parseInt(row.G, 10) || 0;
-    const b = parseInt(row.B, 10) || 0;
-    return `rgb(${r}, ${g}, ${b})`;
-  };
-
   const tcgThemeColumns = [
     { field: 'theme_key', header: 'Theme Key', type: 'text' },
     { field: 'theme_name', header: 'Theme Name', type: 'text' },
@@ -257,16 +301,7 @@ export default function ManagePresetColor() {
     { field: 'G', header: 'G', type: 'number' },
     { field: 'B', header: 'B', type: 'number' },
     { field: 'Hex', header: 'Hex', type: 'text' },
-    {
-      field: 'color_swatch',
-      header: 'Swatch',
-      compute: (row) => {
-        const swatchColor = computeSwatch(row);
-        return (
-          <div className="w-6 h-4 rounded border border-gray-300" style={{ background: swatchColor }}></div>
-        );
-      },
-    },
+    { field: 'color_swatch', header: 'Swatch' },
   ];
 
   return (
@@ -278,7 +313,7 @@ export default function ManagePresetColor() {
             Manage Preset Colors
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-            Edit the TCG Themes and Color Keys below. Adjust values and see the swatch update automatically for Color Keys.
+            Edit the TCG Themes and Color Keys below. For Color Keys, click edit and select a custom color in the swatch column to update R, G, B, and Hex in real time.
           </p>
         </div>
       </div>
