@@ -27,86 +27,17 @@ const MA_TYPE_MAPPING = {
   county: "COUNTY",
 };
 
-export const analysisCategories = {
-  income: {
-    label: "Income by Age",
-    variables: [
-      { id: "incomebyage.IA15BASECY", label: "2024 HH Income Base: HHr 15-24" },
-      { id: "incomebyage.IA25BASECY", label: "2024 HH Income Base: HHr 25-34" },
-      { id: "incomebyage.IA35BASECY", label: "2024 HH Income Base: HHr 35-44" },
-      { id: "incomebyage.IA45BASECY", label: "2024 HH Income Base: HHr 45-54" },
-      { id: "incomebyage.IA55BASECY", label: "2024 HH Income Base: HHr 55-64" },
-      { id: "incomebyage.IA65BASECY", label: "2024 HH Income Base: HHr 65-74" },
-      { id: "incomebyage.IA75BASECY", label: "2024 HH Income Base: HHr 75+" },
-      { id: "incomebyage.IA55UBASCY", label: "2024 HH Income Base: HHr 55+ (UBA)" },
-      { id: "incomebyage.IA65UBASCY", label: "2024 HH Income Base: HHr 65+ (UBA)" },
 
-      // Newly added Future Year variables
-      { id: "incomebyage.IA15BASEFY", label: "2029 HH Income Base: HHr 15-24" },
-      { id: "incomebyage.IA25BASEFY", label: "2029 HH Income Base: HHr 25-34" },
-      { id: "incomebyage.IA35BASEFY", label: "2029 HH Income Base: HHr 35-44" },
-      { id: "incomebyage.IA45BASEFY", label: "2029 HH Income Base: HHr 45-54" },
-      { id: "incomebyage.IA55BASEFY", label: "2029 HH Income Base: HHr 55-64" },
-      { id: "incomebyage.IA65BASEFY", label: "2029 HH Income Base: HHr 65-74" },
-      { id: "incomebyage.IA75BASEFY", label: "2029 HH Income Base: HHr 75+" },
-    ],
-  },
-  incomeAge25: {
-    label: "Income by Age (25-34)",
+export const analysisCategories = {
+  variables: {
+    label: "Demographic Variables",
     variables: [
-      { id: "incomebyage.A25I0_CY", label: "2024 HH Inc <$15000/HHr 25-34" },
-      { id: "incomebyage.A25I15_CY", label: "2024 HH Inc $15K-24999/HHr 25-34" },
-      { id: "incomebyage.A25I25_CY", label: "2024 HH Inc $25K-34999/HHr 25-34" },
-      { id: "incomebyage.A25I35_CY", label: "2024 HH Inc $35K-49999/HHr 25-34" },
-      { id: "incomebyage.A25I50_CY", label: "2024 HH Inc $50K-74999/HHr 25-34" },
-      { id: "incomebyage.A25I75_CY", label: "2024 HH Inc $75K-99999/HHr 25-34" },
-      { id: "incomebyage.A25I100_CY", label: "2024 HH Inc $100K-149999/HHr 25-34" },
-      { id: "incomebyage.A25I150_CY", label: "2024 HH Inc $150K-199999/HHr 25-34" },
-      { id: "incomebyage.A25I200_CY", label: "2024 HH Inc $200000+/HHr 25-34" },
-    ],
-  },
-  incomeAge35: {
-    label: "Income by Age (35-44)",
-    variables: [
-      { id: "incomebyage.A35I0_CY", label: "2024 HH Inc <$15000/HHr 35-44" },
-      { id: "incomebyage.A35I15_CY", label: "2024 HH Inc $15K-24999/HHr 35-44" },
-      { id: "incomebyage.A35I25_CY", label: "2024 HH Inc $25K-34999/HHr 35-44" },
-      { id: "incomebyage.A35I35_CY", label: "2024 HH Inc $35K-49999/HHr 35-44" },
-      { id: "incomebyage.A35I50_CY", label: "2024 HH Inc $50K-74999/HHr 35-44" },
-      { id: "incomebyage.A35I75_CY", label: "2024 HH Inc $75K-99999/HHr 35-44" },
-      { id: "incomebyage.A35I100_CY", label: "2024 HH Inc $100K-149999/HHr 35-44" },
-      { id: "incomebyage.A35I150_CY", label: "2024 HH Inc $150K-199999/HHr 35-44" },
-      { id: "incomebyage.A35I200_CY", label: "2024 HH Inc $200000+/HHr 35-44" },
-    ],
-  },
-  incomeAge45: {
-    label: "Income by Age (45-54)",
-    variables: [
-      { id: "incomebyage.A45I0_CY", label: "2024 HH Inc <$15000/HHr 45-54" },
-      { id: "incomebyage.A45I15_CY", label: "2024 HH Inc $15K-24999/HHr 45-54" },
-      { id: "incomebyage.A45I25_CY", label: "2024 HH Inc $25K-34999/HHr 45-54" },
-      { id: "incomebyage.A45I35_CY", label: "2024 HH Inc $35K-49999/HHr 45-54" },
-      { id: "incomebyage.A45I50_CY", label: "2024 HH Inc $50K-74999/HHr 45-54" },
-      { id: "incomebyage.A45I75_CY", label: "2024 HH Inc $75K-99999/HHr 45-54" },
-      { id: "incomebyage.A45I100_CY", label: "2024 HH Inc $100K-149999/HHr 45-54" },
-      { id: "incomebyage.A45I150_CY", label: "2024 HH Inc $150K-199999/HHr 45-54" },
-      { id: "incomebyage.A45I200_CY", label: "2024 HH Inc $200000+/HHr 45-54" },
-    ],
-  },
-  currentYearDemographics: {
-    label: "Current Year Demographics",
-    variables: [
+      // Current Year Population Base
       { id: "AtRisk.TOTPOP_CY", label: "2024 Total Population" },
       { id: "AtRisk.TOTHH_CY", label: "2024 Total Households" },
       { id: "AtRisk.AVGHHSZ_CY", label: "2024 Average Household Size" },
-      { id: "AtRisk.AVGHINC_CY", label: "2024 Average Household Income" },
-      { id: "KeyUSFacts.OWNER_CY", label: "2024 Owner Occupied Housing Units" },
-      { id: "KeyUSFacts.RENTER_CY", label: "2024 Renter Occupied Housing Units" },
-    ],
-  },
-  populationByAge: {
-    label: "Population by Age (5-Year Increments)",
-    variables: [
+      
+      // Current Year Population by Age
       { id: "5yearincrements.POP0_CY", label: "2024 Population Age 0-4" },
       { id: "5yearincrements.POP5_CY", label: "2024 Population Age 5-9" },
       { id: "5yearincrements.POP10_CY", label: "2024 Population Age 10-14" },
@@ -126,6 +57,94 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80_CY", label: "2024 Population Age 80-84" },
       { id: "5yearincrements.POP85_CY", label: "2024 Population Age 85+" },
       { id: "5yearincrements.MEDAGE_CY", label: "2024 Median Age" },
+      
+      // Current Year Daytime Population
+      { id: "DaytimePopulation.DPOPWRK_CY", label: "2024 Daytime Pop: Workers" },
+      
+      // Current Year Household Income
+      { id: "householdincome.HINC0_CY", label: "2024 HH Income <$15000" },
+      { id: "householdincome.HINC15_CY", label: "2024 HH Income $15000-24999" },
+      { id: "householdincome.HINC25_CY", label: "2024 HH Income $25000-34999" },
+      { id: "householdincome.HINC35_CY", label: "2024 HH Income $35000-49999" },
+      { id: "householdincome.HINC50_CY", label: "2024 HH Income $50000-74999" },
+      { id: "householdincome.HINC75_CY", label: "2024 HH Income $75000-99999" },
+      { id: "householdincome.HINC100_CY", label: "2024 HH Income $100000-149999" },
+      { id: "householdincome.HINC150_CY", label: "2024 HH Income $150000-199999" },
+      { id: "householdincome.HINC200_CY", label: "2024 HH Income $200000+" },
+      { id: "householdincome.MEDHINC_CY", label: "2024 Median Household Income" },
+      { id: "householdincome.AVGHINC_CY", label: "2024 Average Household Income" },
+      
+      // Current Year Income by Age Groups - Organized with base before details
+      { id: "incomebyage.IA15BASECY", label: "2024 HH Income Base: HHr 15-24" },
+      
+      // Age 25-34 Income
+      { id: "incomebyage.A25I0_CY", label: "2024 HH Inc <$15000/HHr 25-34" },
+      { id: "incomebyage.A25I15_CY", label: "2024 HH Inc $15K-24999/HHr 25-34" },
+      { id: "incomebyage.A25I25_CY", label: "2024 HH Inc $25K-34999/HHr 25-34" },
+      { id: "incomebyage.A25I35_CY", label: "2024 HH Inc $35K-49999/HHr 25-34" },
+      { id: "incomebyage.A25I50_CY", label: "2024 HH Inc $50K-74999/HHr 25-34" },
+      { id: "incomebyage.A25I75_CY", label: "2024 HH Inc $75K-99999/HHr 25-34" },
+      { id: "incomebyage.A25I100_CY", label: "2024 HH Inc 100K-149999/HHr 25-34" },
+      { id: "incomebyage.A25I150_CY", label: "2024 HH Inc 150K-199999/HHr 25-34" },
+      { id: "incomebyage.A25I200_CY", label: "2024 HH Inc $200000+/HHr 25-34" },
+      { id: "incomebyage.IA25BASECY", label: "2024 HH Income Base: HHr 25-34" },
+      
+      // Age 35-44 Income
+      { id: "incomebyage.A35I0_CY", label: "2024 HH Inc <$15000/HHr 35-44" },
+      { id: "incomebyage.A35I15_CY", label: "2024 HH Inc $15K-24999/HHr 35-44" },
+      { id: "incomebyage.A35I25_CY", label: "2024 HH Inc $25K-34999/HHr 35-44" },
+      { id: "incomebyage.A35I35_CY", label: "2024 HH Inc $35K-49999/HHr 35-44" },
+      { id: "incomebyage.A35I50_CY", label: "2024 HH Inc $50K-74999/HHr 35-44" },
+      { id: "incomebyage.A35I75_CY", label: "2024 HH Inc $75K-99999/HHr 35-44" },
+      { id: "incomebyage.A35I100_CY", label: "2024 HH Inc 100K-149999/HHr 35-44" },
+      { id: "incomebyage.A35I150_CY", label: "2024 HH Inc 150K-199999/HHr 35-44" },
+      { id: "incomebyage.A35I200_CY", label: "2024 HH Inc $200000+/HHr 35-44" },
+      { id: "incomebyage.IA35BASECY", label: "2024 HH Income Base: HHr 35-44" },
+      
+      // Age 45-54 Income
+      { id: "incomebyage.A45I0_CY", label: "2024 HH Inc <$15000/HHr 45-54" },
+      { id: "incomebyage.A45I15_CY", label: "2024 HH Inc $15K-24999/HHr 45-54" },
+      { id: "incomebyage.A45I25_CY", label: "2024 HH Inc $25K-34999/HHr 45-54" },
+      { id: "incomebyage.A45I35_CY", label: "2024 HH Inc $35K-49999/HHr 45-54" },
+      { id: "incomebyage.A45I50_CY", label: "2024 HH Inc $50K-74999/HHr 45-54" },
+      { id: "incomebyage.A45I75_CY", label: "2024 HH Inc $75K-99999/HHr 45-54" },
+      { id: "incomebyage.A45I100_CY", label: "2024 HH Inc 100K-149999/HHr 45-54" },
+      { id: "incomebyage.A45I150_CY", label: "2024 HH Inc 150K-199999/HHr 45-54" },
+      { id: "incomebyage.A45I200_CY", label: "2024 HH Inc $200000+/HHr 45-54" },
+      { id: "incomebyage.IA45BASECY", label: "2024 HH Income Base: HHr 45-54" },
+      // Other Age Group Income Bases
+      { id: "incomebyage.IA55BASECY", label: "2024 HH Income Base: HHr 55-64" },
+      { id: "incomebyage.IA65BASECY", label: "2024 HH Income Base: HHr 65-74" },
+      { id: "incomebyage.IA75BASECY", label: "2024 HH Income Base: HHr 75+" },
+
+      // Current Year Net Worth
+      { id: "networth.NW0_CY", label: "2024 Net Worth <$15000" },
+      { id: "networth.NW15_CY", label: "2024 Net Worth $15000-$34999" },
+      { id: "networth.NW35_CY", label: "2024 Net Worth $35000-$49999" },
+      { id: "networth.NW50_CY", label: "2024 Net Worth $50000-$74999" },
+      { id: "networth.NW75_CY", label: "2024 Net Worth $75000-$99999" },
+      { id: "networth.NW100_CY", label: "2024 Net Worth $100000-$149999" },
+      { id: "networth.NW150_CY", label: "2024 Net Worth $150000-$249999" },
+      { id: "networth.NW250_CY", label: "2024 Net Worth $250000-$499999" },
+      { id: "networth.NW500_CY", label: "2024 Net Worth $500000-$999999" },
+      { id: "networth.NW1M_CY", label: "2024 Net Worth $1000000-$1499999" },
+      { id: "networth.NW1PT5M_CY", label: "2024 Net Worth $1500000-$1999999" },
+      { id: "networth.NW2M_CY", label: "2024 Net Worth $2000000+" },
+      { id: "networth.MEDNW_CY", label: "2024 Median Net Worth" },
+      { id: "networth.AVGNW_CY", label: "2024 Average Net Worth" },
+
+      // Current Year Housing
+      { id: "KeyUSFacts.TOTHU_CY", label: "2024 Total Housing Units" },
+      { id: "KeyUSFacts.OWNER_CY", label: "2024 Owner Occupied HUs" },
+      { id: "KeyUSFacts.RENTER_CY", label: "2024 Renter Occupied HUs" },
+      { id: "KeyUSFacts.VACANT_CY", label: "2024 Vacant Housing Units" },
+
+      // Future Year Population
+      { id: "KeyUSFacts.TOTPOP_FY", label: "2029 Total Population" },
+      { id: "KeyUSFacts.TOTHH_FY", label: "2029 Total Households" },
+      { id: "householdtotals.AVGHHSZ_FY", label: "2029 Average Household Size" },
+
+      // Future Year Population by Age
       { id: "5yearincrements.POP0_FY", label: "2029 Population Age 0-4" },
       { id: "5yearincrements.POP5_FY", label: "2029 Population Age 5-9" },
       { id: "5yearincrements.POP10_FY", label: "2029 Population Age 10-14" },
@@ -145,6 +164,29 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80_FY", label: "2029 Population Age 80-84" },
       { id: "5yearincrements.POP85_FY", label: "2029 Population Age 85+" },
       { id: "5yearincrements.MEDAGE_FY", label: "2029 Median Age" },
+      
+      // Future Year Household Income
+      { id: "householdincome.HINC0_FY", label: "2029 HH Income <$15000" },
+      { id: "householdincome.HINC15_FY", label: "2029 HH Income $15000-24999" },
+      { id: "householdincome.HINC25_FY", label: "2029 HH Income $25000-34999" },
+      { id: "householdincome.HINC35_FY", label: "2029 HH Income $35000-49999" },
+      { id: "householdincome.HINC50_FY", label: "2029 HH Income $50000-74999" },
+      { id: "householdincome.HINC75_FY", label: "2029 HH Income $75000-99999" },
+      { id: "householdincome.HINC100_FY", label: "2029 HH Income $100000-149999" },
+      { id: "householdincome.HINC150_FY", label: "2029 HH Income $150000-199999" },
+      { id: "householdincome.HINC200_FY", label: "2029 HH Income $200000+" },
+      { id: "householdincome.MEDHINC_FY", label: "2029 Median Household Income" },
+      { id: "householdincome.AVGHINC_FY", label: "2029 Average Household Income" },
+      
+      // Future Year Housing
+      { id: "KeyUSFacts.TOTHU_FY", label: "2029 Total Housing Units" },
+      { id: "KeyUSFacts.OWNER_FY", label: "2029 Owner Occupied HUs" },
+      { id: "KeyUSFacts.RENTER_FY", label: "2029 Renter Occupied HUs" },
+      { id: "KeyUSFacts.VACANT_FY", label: "2029 Vacant Housing Units" },
+      
+      // Historical (2010) Population
+      { id: "HistoricalPopulation.TOTPOP10", label: "2010 Total Population" },
+      { id: "HistoricalPopulation.TOTHH10", label: "2010 Total Households" },
       { id: "5yearincrements.POP0C10", label: "2010 Population Age 0-4" },
       { id: "5yearincrements.POP5C10", label: "2010 Population Age 5-9" },
       { id: "5yearincrements.POP10C10", label: "2010 Population Age 10-14" },
@@ -164,126 +206,13 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80C10", label: "2010 Population Age 80-84" },
       { id: "5yearincrements.POP85C10", label: "2010 Population Age 85+" },
       { id: "5yearincrements.MEDAGE10", label: "2010 Median Age" },
-    ],
-  },
-  daytimePopulation: {
-    label: "Daytime Population",
-    variables: [
-      { id: "DaytimePopulation.DPOPWRK_CY", label: "2024 Daytime Pop: Workers" },
-    ],
-  },
-  householdIncome: {
-    label: "Household Income Distribution",
-    variables: [
-      { id: "householdincome.HINC0_CY", label: "2024 HH Income <$15000" },
-      { id: "householdincome.HINC15_CY", label: "2024 HH Income $15000-24999" },
-      { id: "householdincome.HINC25_CY", label: "2024 HH Income $25000-34999" },
-      { id: "householdincome.HINC35_CY", label: "2024 HH Income $35000-49999" },
-      { id: "householdincome.HINC50_CY", label: "2024 HH Income $50000-74999" },
-      { id: "householdincome.HINC75_CY", label: "2024 HH Income $75000-99999" },
-      { id: "householdincome.HINC100_CY", label: "2024 HH Income $100000-149999" },
-      { id: "householdincome.HINC150_CY", label: "2024 HH Income $150000-199999" },
-      { id: "householdincome.HINC200_CY", label: "2024 HH Income $200000+" },
-      { id: "householdincome.HINC0_FY", label: "2029 HH Income <$15000" },
-      { id: "householdincome.HINC15_FY", label: "2029 HH Income $15000-24999" },
-      { id: "householdincome.HINC25_FY", label: "2029 HH Income $25000-34999" },
-      { id: "householdincome.HINC35_FY", label: "2029 HH Income $35000-49999" },
-      { id: "householdincome.HINC50_FY", label: "2029 HH Income $50000-74999" },
-      { id: "householdincome.HINC75_FY", label: "2029 HH Income $75000-99999" },
-      { id: "householdincome.HINC100_FY", label: "2029 HH Income $100000-149999" },
-      { id: "householdincome.HINC150_FY", label: "2029 HH Income $150000-199999" },
-      { id: "householdincome.HINC200_FY", label: "2029 HH Income $200000+" },
-      { id: "householdincome.MEDHINC_FY", label: "2029 Median Household Income" },
-      { id: "householdincome.AVGHINC_FY", label: "2029 Average Household Income" },
-    ],
-  },
-  health: {
-    label: "Health",
-    variables: [
-      { id: "Health.MEDHINC_CY", label: "2024 Median Household Income" },
-    ],
-  },
-  householdTotals: {
-    label: "Household Totals",
-    variables: [
-      { id: "householdtotals.FAMHH_FY", label: "2029 Family Households" },
-      { id: "householdtotals.AVGHHSZ_FY", label: "2029 Average Household Size" },
-    ],
-  },
-  housingUnitTotals: {
-    label: "Housing Unit Totals",
-    variables: [
-      { id: "housingunittotals.TOTHU_FY", label: "2029 Total Housing Units" },
-    ],
-  },
-  netWorth: {
-    label: "Net Worth",
-    variables: [
-      { id: "networth.NW0_CY", label: "2024 Net Worth <$15000" },
-      { id: "networth.NW15_CY", label: "2024 Net Worth $15000-$34999" },
-      { id: "networth.NW35_CY", label: "2024 Net Worth $35000-$49999" },
-      { id: "networth.NW50_CY", label: "2024 Net Worth $50000-$74999" },
-      { id: "networth.NW75_CY", label: "2024 Net Worth $75000-$99999" },
-      { id: "networth.NW100_CY", label: "2024 Net Worth $100000-$149999" },
-      { id: "networth.NW150_CY", label: "2024 Net Worth $150000-$199999" },
-      { id: "networth.NW250_CY", label: "2024 Net Worth $250000-$499999" },
-      { id: "networth.NW500_CY", label: "2024 Net Worth $500000-$999999" },
-      { id: "networth.NW1M_CY", label: "2024 Net Worth $1000000-$1499999" },
-      { id: "networth.NW1PT5M_CY", label: "2024 Net Worth $1500000-$1999999" },
-      { id: "networth.NW2M_CY", label: "2024 Net Worth $2000000+" },
-      { id: "networth.MEDNW_CY", label: "2024 Median Net Worth" },
-      { id: "networth.AVGNW_CY", label: "2024 Average Net Worth" },
-    ],
-  },
-  futureYearDemographics: {
-    label: "Future Year Demographics",
-    variables: [
-      { id: "gender.AGEBASE_FY", label: "2029 Base Age" },
-      { id: "householdtotals.FAMHH_FY", label: "2029 Family Households" },
-      { id: "housingunittotals.TOTHU_FY", label: "2029 Total Housing Units" },
-      { id: "householdtotals.AVGHHSZ_FY", label: "2029 Average Household Size" },
-    ],
-  },
-  historicalPopulation: {
-    label: "Historical Population",
-    variables: [
-      { id: "HistoricalPopulation.TSPOP10_CY", label: "2010 Historical Total Population" },
-    ],
-  },
-  householdsBySize: {
-    label: "Households by Size",
-    variables: [
-      { id: "householdsbysize.FAM2PERS10", label: "2024 Family Households with 2 Persons" },
-      { id: "householdsbysize.NF2PERS10", label: "2024 Non-Family Households with 2 Persons" },
-      { id: "householdsbysize.NF1PERS10", label: "2024 Non-Family Households with 1 Person" },
-    ],
-  },
-  Additional: {
-    label: "Additional Variables",
-    variables: [
-      { id: "KeyUSFacts.TOTHH_FY", label: "2029 Total Households" },
-      { id: "KeyUSFacts.TOTHU_CY", label: "2024 Total Housing Units" },
-      { id: "KeyUSFacts.OWNER_CY", label: "2024 Owner Occupied Housing Units" },
-      { id: "KeyUSFacts.RENTER_CY", label: "2024 Renter Occupied Housing Units" },
-      { id: "KeyUSFacts.VACANT_CY", label: "2024 Vacant Housing Units" },
-      { id: "KeyUSFacts.TOTHU_FY", label: "2029 Total Housing Units" },
-      { id: "KeyUSFacts.OWNER_FY", label: "2029 Owner Occupied Housing Units" },
-      { id: "KeyUSFacts.RENTER_FY", label: "2029 Renter Occupied Housing Units" },
-      { id: "KeyUSFacts.VACANT_FY", label: "2029 Vacant Housing Units" },
-      { id: "EducationalAttainment.HSGRAD_CY", label: "2024 Pop Age 25+: High School Diploma" },
-      { id: "EducationalAttainment.GED_CY", label: "2024 Pop Age 25+: GED" },
-      { id: "EducationalAttainment.SMCOLL_CY", label: "2024 Pop Age 25+: Some College/No Degree" },
-      { id: "EducationalAttainment.ASSCDEG_CY", label: "2024 Pop Age 25+: Associate's Degree" },
-      { id: "EducationalAttainment.BACHDEG_CY", label: "2024 Pop Age 25+: Bachelor's Degree" },
-      { id: "EducationalAttainment.GRADDEG_CY", label: "2024 Pop Age 25+: Grad/Professional Degree" },
-      { id: "EducationalAttainment.EDUCBASECY", label: "2024 Educational Attainment Base" },
-      { id: "KeyUSFacts.AGEBASE_FY", label: "2029 Base Age" },
-      { id: "KeyUSFacts.TOTPOP_FY", label: "2029 Total Population" },
-    ],
-  },
-  tapestryHouseholds: {
-    label: "Tapestry Households",
-    variables: [
+      
+      // Historical (2010) Households
+      { id: "householdsbysize.FAM2PERS10", label: "2010 Family HHs: 2-Person" },
+      { id: "householdsbysize.NF1PERS10", label: "2010 Nonfamily HHs: 1-Person" },
+      { id: "householdsbysize.NF2PERS10", label: "2010 Nonfamily HHs: 2-Person" },
+      
+      // Tapestry Segments
       { id: "tapestryhouseholdsNEW.THH01", label: "2024 HHs in Tapestry Seg 1A" },
       { id: "tapestryhouseholdsNEW.THH02", label: "2024 HHs in Tapestry Seg 1B" },
       { id: "tapestryhouseholdsNEW.THH03", label: "2024 HHs in Tapestry Seg 1C" },
@@ -357,18 +286,18 @@ export const analysisCategories = {
 
 // Helper functions
 export const getAllVariables = () => {
-  return Object.values(analysisCategories)
-    .flatMap((category) => category.variables)
-    .map((v) => v.id);
+  return analysisCategories.variables.variables.map((v) => v.id);
 };
 
 const shortKeyToLabelMap = {};
-Object.values(analysisCategories).forEach((category) => {
-  category.variables.forEach((variable) => {
-    const shortKey = variable.id.split(".").pop();
-    shortKeyToLabelMap[shortKey] = variable.label;
-  });
+analysisCategories.variables.variables.forEach((variable) => {
+  const shortKey = variable.id.split(".").pop();
+  shortKeyToLabelMap[shortKey] = variable.label;
 });
+
+export { shortKeyToLabelMap };
+
+
 
 export default class EnrichmentService {
   constructor() {

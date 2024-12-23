@@ -2008,6 +2008,60 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [marketAreas]);
 
+  
+  useEffect(() => {
+    if (marketAreas.length > 0) {
+      setVisibleMarketAreaIds(marketAreas.map((ma) => ma.id));
+    }
+  }, [marketAreas]);
+
+  // Center map on first market area
+  useEffect(() => {
+    const centerMap = async () => {
+      if (!mapView || !mapView.ready || !layersReady) {
+        console.log("[MapContext] Waiting for map initialization...", { 
+          mapReady: mapView?.ready, 
+          layersReady 
+        });
+        return;
+      }
+
+      // Double check we have valid market areas with data
+      const validMarketArea = marketAreas?.find(ma => 
+        ma?.locations?.length > 0 && 
+        ma.locations[0]?.geometry
+      );
+
+      if (!validMarketArea) {
+        console.log("[MapContext] No valid market areas with locations found", {
+          totalAreas: marketAreas?.length,
+          firstArea: marketAreas?.[0]
+        });
+        return;
+      }
+
+      try {
+        await mapView.when();
+        const targetGeometry = validMarketArea.locations[0].geometry;
+        console.log("[MapContext] Centering map on first valid location:", targetGeometry);
+        
+        await mapView.goTo({
+          target: targetGeometry,
+          zoom: 10
+        }, {
+          duration: 1000 // 1 second animation
+        });
+        
+        console.log("[MapContext] Map centered successfully");
+      } catch (err) {
+        console.error("[MapContext] Error centering map:", err);
+      }
+    };
+
+    centerMap();
+  }, [mapView, marketAreas, layersReady]);
+
+  
   const value = useMemo(
     () => ({
       mapView,
