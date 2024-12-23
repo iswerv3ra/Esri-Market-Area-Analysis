@@ -4,7 +4,7 @@ import {
   union,
 } from "@arcgis/core/geometry/geometryEngine";
 import { toast } from "react-hot-toast";
-
+import { updateMarketArea } from "@/services/api"; // adjust import path
 import React, {
   createContext,
   useContext,
@@ -838,41 +838,31 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView, initializeFeatureLayer]
   );
 
-  // In MapContext.jsx
+  // UPDATED removeFromSelection
   const removeFromSelection = useCallback(
     async (feature, layerType) => {
-      console.log(
-        "[MapContext] removeFromSelection called with feature:",
-        feature.attributes
-      );
+      console.log("[MapContext] removeFromSelection called with feature:", feature.attributes);
 
       if (!selectionGraphicsLayerRef.current) {
-        console.warn(
-          "[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized"
-        );
+        console.warn("[MapContext] Cannot remove from selection: selectionGraphicsLayer not initialized");
         return;
       }
 
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
-          console.error(
-            `[MapContext] Layer configuration not found for layer type: ${layerType}`
-          );
+          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
 
         // Find and remove the graphic from selectionGraphicsLayer
-        const graphicsToRemove =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (g) =>
-              g.attributes[uniqueIdField] ===
-                feature.attributes[uniqueIdField] &&
-              (!g.attributes?.marketAreaId ||
-                (editingMarketArea &&
-                  g.attributes.marketAreaId === editingMarketArea.id))
-          );
+        const graphicsToRemove = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) =>
+            g.attributes[uniqueIdField] === feature.attributes[uniqueIdField] &&
+            (!g.attributes?.marketAreaId ||
+              (editingMarketArea && g.attributes.marketAreaId === editingMarketArea.id))
+        );
 
         graphicsToRemove.forEach((g) => {
           selectionGraphicsLayerRef.current.remove(g);
@@ -886,30 +876,32 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         setSelectedFeatures((prev) => {
           const newSelectedFeatures = prev.filter(
             (f) =>
-              f.attributes[uniqueIdField] !==
-                feature.attributes[uniqueIdField] ||
+              f.attributes[uniqueIdField] !== feature.attributes[uniqueIdField] ||
               (f.attributes?.marketAreaId &&
-                (!editingMarketArea ||
-                  f.attributes.marketAreaId !== editingMarketArea.id))
+                (!editingMarketArea || f.attributes.marketAreaId !== editingMarketArea.id))
           );
-          console.log(
-            "[MapContext] Feature removed from selection:",
-            feature.attributes
-          );
+          console.log("[MapContext] Feature removed from selection:", feature.attributes);
 
           // If this was the last non-market-area feature, clear all temporary selection graphics
           if (
             newSelectedFeatures.length === 0 ||
             newSelectedFeatures.every((f) => f.attributes?.marketAreaId)
           ) {
-            const graphicsToKeep =
-              selectionGraphicsLayerRef.current.graphics.filter(
-                (g) => g.attributes?.marketAreaId
-              );
-            selectionGraphicsLayerRef.current.removeAll();
-            graphicsToKeep.forEach((g) =>
-              selectionGraphicsLayerRef.current.add(g)
+            const graphicsToKeep = selectionGraphicsLayerRef.current.graphics.filter(
+              (g) => g.attributes?.marketAreaId
             );
+            selectionGraphicsLayerRef.current.removeAll();
+            graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+          }
+
+          // ***** SAVE CHANGES HERE *****
+          // If we're in editing mode, persist the updated array
+          if (editingMarketArea) {
+            const updatedLocations = newSelectedFeatures.map((f) => ({
+              geometry: f.geometry,
+              attributes: f.attributes,
+            }));
+            saveMarketAreaChanges(editingMarketArea.id, { locations: updatedLocations });
           }
 
           return newSelectedFeatures;
@@ -921,63 +913,58 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [editingMarketArea]
   );
 
+  // UPDATED addToSelection
   const addToSelection = useCallback(
     async (feature, layerType) => {
-      console.log(
-        `[MapContext] addToSelection called with feature:`,
-        feature.attributes
-      );
+      console.log("[MapContext] addToSelection called with feature:", feature.attributes);
 
       if (!mapView) {
-        console.warn(
-          `[MapContext] Cannot add to selection: mapView not initialized`
-        );
+        console.warn("[MapContext] Cannot add to selection: mapView not initialized");
         return;
       }
 
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
-          console.error(
-            `[MapContext] Layer configuration not found for layer type: ${layerType}`
-          );
+          console.error(`[MapContext] Layer configuration not found for layer type: ${layerType}`);
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
 
         // Check if feature is already selected
         const isAlreadySelected = selectedFeatures.some(
-          (f) =>
-            f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
+          (f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField]
         );
 
         if (isAlreadySelected) {
-          console.log(
-            `[MapContext] Feature already selected:`,
-            feature.attributes
-          );
+          console.log("[MapContext] Feature already selected:", feature.attributes);
           await removeFromSelection(feature, layerType);
         } else {
-          // Only add if not already selected and not part of another market area
+          // Only add if not already selected and not part of another market area (or belongs to the one we're editing)
           if (
             !feature.attributes?.marketAreaId ||
-            (editingMarketArea &&
-              feature.attributes.marketAreaId === editingMarketArea.id)
+            (editingMarketArea && feature.attributes.marketAreaId === editingMarketArea.id)
           ) {
             setSelectedFeatures((prev) => {
               // Double-check we're not duplicating
               if (
-                !prev.some(
-                  (f) =>
-                    f.attributes[uniqueIdField] ===
-                    feature.attributes[uniqueIdField]
-                )
+                !prev.some((f) => f.attributes[uniqueIdField] === feature.attributes[uniqueIdField])
               ) {
-                console.log(
-                  `[MapContext] Feature added to selection:`,
-                  feature.attributes
-                );
-                return [...prev, feature];
+                console.log("[MapContext] Feature added to selection:", feature.attributes);
+                const newSelectedFeatures = [...prev, feature];
+
+                // ***** SAVE CHANGES HERE *****
+                // Example: build an array for 'locations' that you PATCH to the MarketArea
+                if (editingMarketArea) {
+                  const updatedLocations = newSelectedFeatures.map((f) => ({
+                    geometry: f.geometry, // or f.geometry.toJSON() / your desired format
+                    attributes: f.attributes,
+                  }));
+                  // Call our helper to persist changes
+                  saveMarketAreaChanges(editingMarketArea.id, { locations: updatedLocations });
+                }
+
+                return newSelectedFeatures;
               }
               return prev;
             });
@@ -1546,6 +1533,40 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   );
   
   
+  const saveMarketAreaChanges = useCallback(
+    async (marketAreaId, updates) => {
+      if (!marketAreaId) {
+        console.warn("No market area ID provided, cannot save changes.");
+        return;
+      }
+      if (!editingMarketArea) {
+        console.warn("No editing market area in context, cannot save changes.");
+        return;
+      }
+  
+      try {
+        // The relevant Project ID is usually stored in editingMarketArea.project or something similar
+        // Or you may have it in a separate piece of state (like currentProjectId)
+        const projectId = editingMarketArea.project; 
+        // If editingMarketArea.project is the entire object, you'll need projectId = editingMarketArea.project.id
+  
+        const responseData = await updateMarketArea(projectId, marketAreaId, updates);
+  
+        // Optionally update your local state if you store MarketAreas in context
+        // e.g. if you fetch MarketAreas on mount and keep them in state:
+        // setMarketAreas(prev => {
+        //   return prev.map(ma => ma.id === marketAreaId ? {...ma, ...responseData} : ma);
+        // });
+  
+        console.log("[MapContext] Successfully saved MarketArea changes:", responseData);
+      } catch (err) {
+        console.error("[MapContext] Error saving MarketArea changes:", err);
+        // You can also show a toast / notification
+      }
+    },
+    [editingMarketArea] // or [editingMarketArea, setMarketAreas], etc.
+  );
+
 
   const removeActiveLayer = useCallback(
     async (type) => {

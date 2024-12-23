@@ -325,6 +325,18 @@ export const getTcgThemes = async () => {
   return response.data;
 };
 
+// Add somewhere near the bottom of api.js or in a dedicated MarketArea service file:
+
+export const updateMarketArea = async (projectId, marketAreaId, updatedData) => {
+  // Use PATCH so we only send the fields that changed
+  const response = await api.patch(
+    `/api/projects/${projectId}/market-areas/${marketAreaId}/`,
+    updatedData
+  );
+  return response.data;
+};
+
+
 // Fetch all Color Keys
 export const getColorKeys = async () => {
   const response = await api.get('/api/color-keys/');
