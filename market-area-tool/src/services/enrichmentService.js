@@ -185,8 +185,8 @@ export const analysisCategories = {
       { id: "KeyUSFacts.VACANT_FY", label: "2029 Vacant Housing Units" },
       
       // Historical (2010) Population
-      { id: "HistoricalPopulation.TOTPOP10", label: "2010 Total Population" },
-      { id: "HistoricalPopulation.TOTHH10", label: "2010 Total Households" },
+      { id: "HistoricalPopulation.TSPOP10_CY", label: "2010 Total Population" },
+      { id: "HistoricalHouseholds.TSHH10_CY", label: "2010 Total Households" },
       { id: "5yearincrements.POP0C10", label: "2010 Population Age 0-4" },
       { id: "5yearincrements.POP5C10", label: "2010 Population Age 5-9" },
       { id: "5yearincrements.POP10C10", label: "2010 Population Age 10-14" },
