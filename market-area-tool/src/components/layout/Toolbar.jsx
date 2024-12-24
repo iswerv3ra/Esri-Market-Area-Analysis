@@ -120,97 +120,76 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       toast.error("Map not ready for export");
       return;
     }
-
+  
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting map as JPEG...");
-
-      const scale = mapView.scale;
-      const metersDistance = scale / 24;
-      const milesDistance = metersDistance * 0.000621371;
-
-      const getNiceNumber = (value) => {
-        const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-        const normalized = value / magnitude;
-        const niceNumbers = [1, 2, 2.5, 5, 10];
-        for (const nice of niceNumbers) {
-          if (nice >= normalized) {
-            return nice * magnitude;
-          }
-        }
-        return niceNumbers[niceNumbers.length - 1] * magnitude * 10;
-      };
-
-      let displayDistance;
-      let displayText;
-      const originalWidth = 320;
-
-      const feetDistance = milesDistance * 5280;
-
-      if (feetDistance >= 1000) {
-        displayDistance = getNiceNumber(milesDistance);
-        displayText = `${displayDistance} mi`;
-      } else {
-        displayDistance = getNiceNumber(feetDistance);
-        displayText = `${numberWithCommas(displayDistance)} ft`;
-      }
-
-      const widthRatio =
-        feetDistance >= 1000
-          ? displayDistance / milesDistance
-          : displayDistance / 5280 / milesDistance;
-      const barWidth = Math.min(originalWidth, originalWidth * widthRatio);
-
+  
       // Take the screenshot of the map
       const screenshot = await mapView.takeScreenshot({
         format: "png",
         quality: 100,
       });
-
+  
       const finalCanvas = document.createElement("canvas");
       const mainImage = new Image();
-
+  
       await new Promise((resolve) => {
         mainImage.onload = () => {
           finalCanvas.width = mainImage.width;
           finalCanvas.height = mainImage.height;
           const finalCtx = finalCanvas.getContext("2d");
           finalCtx.drawImage(mainImage, 0, 0);
-
-          // Draw the scale bar directly on the final image
-          // Position the scale bar in the bottom-right corner
-          const padding = 30;
+  
+          // Draw the scale bar
+          const padding = 20;
+          const barWidth = 90;
+          const barHeight = 20;
+          const lineThickness = 2;
           const xPos = finalCanvas.width - barWidth - padding;
           const yPos = finalCanvas.height - padding;
-
-          // Draw the scale line
-          finalCtx.fillStyle = "#333333";
-          // Horizontal line
-          finalCtx.fillRect(xPos, yPos - 2, barWidth, 2);
-          // Left tick
-          finalCtx.fillRect(xPos, yPos - 7, 2, 14);
-          // Right tick
-          finalCtx.fillRect(xPos + barWidth - 2, yPos - 7, 2, 14);
-
-          // Draw text below the bar
-          finalCtx.font = "18px Arial";
-          finalCtx.fillStyle = "#333333";
+  
+          // Calculate actual ground distance
+          const pixelSizeInMeters = mapView.resolution;
+          const scaleBarGroundDistance = pixelSizeInMeters * barWidth;
+          // Apply a correction factor to match Esri's scale
+          const correctionFactor = 0.75;
+          const scaleBarMiles = (scaleBarGroundDistance * 0.000621371) * correctionFactor;
+  
+          // Format with one decimal place
+          const scaleText = scaleBarMiles < 10 
+            ? `${scaleBarMiles.toFixed(1)} mi` 
+            : `${Math.round(scaleBarMiles)} mi`;
+  
+          // Draw the black inverted U-shaped scale
+          finalCtx.fillStyle = "#000000";
+          // Top line
+          finalCtx.fillRect(xPos, yPos - barHeight, barWidth, lineThickness);
+          // Left line
+          finalCtx.fillRect(xPos, yPos - barHeight, lineThickness, barHeight);
+          // Right line
+          finalCtx.fillRect(xPos + barWidth - lineThickness, yPos - barHeight, lineThickness, barHeight);
+  
+          // Draw text below the inverted U
+          finalCtx.font = "12px Arial";
+          finalCtx.fillStyle = "#000000";
           finalCtx.textAlign = "center";
-          finalCtx.fillText(displayText, xPos + barWidth / 2, yPos + 25);
-
+          finalCtx.textBaseline = "top";
+          finalCtx.fillText(scaleText, xPos + barWidth / 2, yPos - barHeight/3);
+  
           resolve();
         };
         mainImage.src = screenshot.dataUrl;
       });
-
+  
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 1.0);
       const response = await fetch(finalDataUrl);
       const blob = await response.blob();
-
+  
       const date = new Date().toISOString().split("T")[0];
       const filename = `market_areas_map_${date}.jpg`;
       saveAs(blob, filename);
-
+  
       toast.dismiss(loadingToast);
       toast.success("Map exported successfully with scale bar");
     } catch (error) {
