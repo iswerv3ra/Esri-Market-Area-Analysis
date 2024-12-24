@@ -152,7 +152,6 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           // Calculate actual ground distance
           const pixelSizeInMeters = mapView.resolution;
           const scaleBarGroundDistance = pixelSizeInMeters * barWidth;
-          // Apply a correction factor to match Esri's scale
           const correctionFactor = 0.75;
           const scaleBarMiles = (scaleBarGroundDistance * 0.000621371) * correctionFactor;
   
@@ -160,6 +159,15 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           const scaleText = scaleBarMiles < 10 
             ? `${scaleBarMiles.toFixed(1)} mi` 
             : `${Math.round(scaleBarMiles)} mi`;
+  
+          // Draw white background with padding
+          finalCtx.fillStyle = "#FFFFFF";
+          finalCtx.fillRect(
+            xPos - 2,
+            yPos - barHeight - 2,
+            barWidth + 4,
+            barHeight + 4
+          );
   
           // Draw the black inverted U-shaped scale
           finalCtx.fillStyle = "#000000";
@@ -170,12 +178,13 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           // Right line
           finalCtx.fillRect(xPos + barWidth - lineThickness, yPos - barHeight, lineThickness, barHeight);
   
-          // Draw text below the inverted U
+          // Draw text left-aligned and centered vertically
           finalCtx.font = "12px Arial";
           finalCtx.fillStyle = "#000000";
-          finalCtx.textAlign = "center";
-          finalCtx.textBaseline = "top";
-          finalCtx.fillText(scaleText, xPos + barWidth / 2, yPos - barHeight/3);
+          finalCtx.textAlign = "left";  // Changed from 'center' to 'left'
+          finalCtx.textBaseline = "middle";
+          // Position text just after the left vertical line with a small padding
+          finalCtx.fillText(scaleText, xPos + lineThickness + 4, yPos - barHeight/2.5);
   
           resolve();
         };
