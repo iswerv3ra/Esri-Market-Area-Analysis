@@ -59,17 +59,17 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
 
   const handleThemeClick = (theme) => {
     try {
-      // Convert transparency from percentage string to decimal
+      // Convert transparency percentage directly to opacity
       const transparencyPercent = parseInt(theme.transparency) || 65;
-      const opacity = (100 - transparencyPercent) / 100;
+      const opacity = transparencyPercent / 100;
   
       // Get hex value instead of building 'rgb(...)'
-      // This will be something like '#FFFFFF'
       const fillColorHex = theme.color_key?.Hex || theme.fill_color || '#0078D4';
   
       const styleSettings = {
+        themeName: theme.theme_name,
         fillColor: fillColorHex,
-        fillOpacity: theme.fill === 'Yes' ? opacity : 0,
+        fillOpacity: opacity,
         borderColor: fillColorHex,
         borderWidth:
           theme.border === 'Yes'
@@ -77,7 +77,7 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
               ? parseInt(theme.weight)
               : 3
             : 0,
-        excelFill: theme.excel_fill || '#ffffff',
+        excelFill: fillColorHex,  // Always use the theme's fill color
         excelText:
           theme.excel_text === 'Black'
             ? '#000000'
@@ -97,7 +97,6 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
     }
   };
   
-
   // Prevent clicks inside the modal from closing it
   const handleDialogClick = (e) => {
     e.preventDefault();
