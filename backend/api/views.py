@@ -1,14 +1,28 @@
+# views.py
+
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from django.db import models, transaction
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey
+from django.db import transaction
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme
 from .serializers import (
     UserSerializer, ProjectSerializer, MarketAreaSerializer,
-    StylePresetSerializer, VariablePresetSerializer, ColorKeySerializer
+    StylePresetSerializer, VariablePresetSerializer, ColorKeySerializer, TcgThemeSerializer
 )
+from django.db.models import Q
+
+
+class ColorKeyViewSet(viewsets.ModelViewSet):
+    queryset = ColorKey.objects.all().order_by('key_number')  # Ensure ordering
+    serializer_class = ColorKeySerializer
+    permission_classes = [IsAuthenticated]
+
+class TcgThemeViewSet(viewsets.ModelViewSet):
+    queryset = TcgTheme.objects.all().order_by('theme_key')  # Ensure ordering
+    serializer_class = TcgThemeSerializer
+    permission_classes = [IsAuthenticated]
 
 class CreateUserView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -200,13 +214,3 @@ class VariablePresetViewSet(viewsets.ModelViewSet):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-# NEW VIEWSET FOR COLORKEY
-class ColorKeyViewSet(viewsets.ModelViewSet):
-    serializer_class = ColorKeySerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return ColorKey.objects.all()
-
-    # PUT requests will update the R, G, B, Hex and color_name

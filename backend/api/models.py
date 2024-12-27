@@ -1,6 +1,8 @@
+# models.py
+
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 class Project(models.Model):
@@ -18,6 +20,41 @@ class Project(models.Model):
     
     class Meta:
         ordering = ['-last_modified']
+
+
+class ColorKey(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key_number = models.CharField(max_length=10, unique=True)
+    color_name = models.CharField(max_length=100)
+    R = models.IntegerField()
+    G = models.IntegerField()
+    B = models.IntegerField()
+    Hex = models.CharField(max_length=7)  # e.g., #FFFFFF
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key_number} - {self.color_name}"
+
+class TcgTheme(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    theme_key = models.CharField(max_length=10, unique=True)
+    theme_name = models.CharField(max_length=100)
+    fill = models.CharField(max_length=3, choices=[('Yes', 'Yes'), ('No', 'No')])
+    fill_color = models.CharField(max_length=10, default='')
+    color_key = models.ForeignKey(ColorKey, on_delete=models.SET_NULL, null=True, blank=True, related_name='tcg_themes')
+    transparency = models.CharField(max_length=10)
+    border = models.CharField(max_length=3, choices=[('Yes', 'Yes'), ('No', 'No')])
+    weight = models.CharField(max_length=10)
+    excel_fill = models.CharField(max_length=10)
+    excel_text = models.CharField(max_length=10)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.theme_key} - {self.theme_name}"
+
+
 
 class MarketArea(models.Model):
     MARKET_AREA_TYPES = [
@@ -106,33 +143,3 @@ class VariablePreset(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class TcgTheme(models.Model):
-    theme_key = models.CharField(max_length=10)
-    theme_name = models.CharField(max_length=100)
-    fill = models.CharField(max_length=3)  # 'Yes' or 'No'
-    fill_color = models.CharField(max_length=10, blank=True, null=True)
-    transparency = models.CharField(max_length=10, blank=True, null=True)
-    border = models.CharField(max_length=3, blank=True, null=True) # 'Yes' or 'No'
-    weight = models.CharField(max_length=10, blank=True, null=True)
-    excel_fill = models.CharField(max_length=10, blank=True, null=True)
-    excel_text = models.CharField(max_length=10, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    last_modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.theme_key} - {self.theme_name}"
-
-class ColorKey(models.Model):
-    key_number = models.CharField(max_length=10)
-    color_name = models.CharField(max_length=100)
-    R = models.CharField(max_length=3)
-    G = models.CharField(max_length=3)
-    B = models.CharField(max_length=3)
-    Hex = models.CharField(max_length=7)
-    created_at = models.DateTimeField(auto_now_add=True)
-    last_modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.key_number} - {self.color_name}"

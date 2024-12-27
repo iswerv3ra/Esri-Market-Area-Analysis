@@ -1,14 +1,25 @@
 // src/components/market-areas/MarketAreaForm.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
-import {
-  MagnifyingGlassIcon,
-} from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
 import { toast } from "react-hot-toast";
 import Radius from "./Radius";
 import { FEATURE_LAYERS } from "../../contexts/MapContext";
+import { StyleSettingsPanel } from "./StyleSettingsPanel";
+import ThemeSelector from "./ThemeSelector";
+
+const defaultStyleSettings = {
+  fillColor: "#0078D4",
+  fillOpacity: 0.35,
+  borderColor: "#0078D4",
+  borderWidth: 3,
+  excelFill: "#ffffff",
+  excelText: "#000000",
+  noFill: false,
+  noBorder: false,
+};
 
 export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const { projectId } = useParams();
@@ -35,6 +46,11 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const initializationDone = useRef(false);
   const locationsInitialized = useRef(false);
 
+  const mergedStyle = {
+    ...defaultStyleSettings,
+    ...(editingMarketArea?.style_settings || {}),
+  };
+
   const [formState, setFormState] = useState({
     maType: editingMarketArea?.ma_type || "",
     maName: editingMarketArea?.name || "",
@@ -44,18 +60,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     selectedLocations: [],
     isSearching: false,
     styleSettings: {
-      ...(editingMarketArea?.style_settings || {
-        fillColor: "#0078D4",
-        fillOpacity: 0.35,
-        borderColor: "#0078D4",
-        borderWidth: 3,
-      }),
-      noBorder: editingMarketArea?.style_settings?.borderWidth === 0 || false,
-      noFill: editingMarketArea?.style_settings?.fillOpacity === 0 || false,
+      ...mergedStyle,
+      noBorder: mergedStyle.borderWidth === 0,
+      noFill: mergedStyle.fillOpacity === 0,
     },
   });
 
-  const [radiusPoints, setRadiusPoints] = useState(editingMarketArea?.radius_points || []);
+  const [radiusPoints, setRadiusPoints] = useState(
+    editingMarketArea?.radius_points || []
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -79,20 +92,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   }, [setIsMapSelectionActive]);
 
   useEffect(() => {
-    if (editingMarketArea) return;
-    clearSelection();
+    if (!editingMarketArea) clearSelection();
   }, [editingMarketArea, clearSelection]);
 
+  // Initialize the form if we are in "edit" mode
   useEffect(() => {
     const initializeForm = async () => {
       if (!editingMarketArea || initializationDone.current) return;
       initializationDone.current = true;
 
       try {
+        // Non-radius area
         if (editingMarketArea.ma_type !== "radius") {
           await addActiveLayer(editingMarketArea.ma_type);
 
-          if (editingMarketArea.locations?.length > 0 && !locationsInitialized.current) {
+          // If it has locations already
+          if (
+            editingMarketArea.locations?.length > 0 &&
+            !locationsInitialized.current
+          ) {
             locationsInitialized.current = true;
 
             const features = editingMarketArea.locations
@@ -105,14 +123,20 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   order: editingMarketArea.order,
                 },
               }))
-              .filter((feature) => formatLocationName(feature, editingMarketArea.ma_type).trim() !== "");
+              .filter(
+                (f) =>
+                  formatLocationName(f, editingMarketArea.ma_type).trim() !== ""
+              );
 
+            // Update form state
             setFormState((prev) => ({
               ...prev,
               maType: editingMarketArea.ma_type,
               maName: editingMarketArea.name,
               shortName: editingMarketArea.short_name,
               styleSettings: {
+                ...prev.styleSettings,
+                // Overwrite with the editing area’s style settings,
                 ...editingMarketArea.style_settings,
                 noBorder: editingMarketArea.style_settings?.borderWidth === 0,
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
@@ -135,6 +159,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 })),
             }));
 
+            // Update map with this area’s style
             await updateFeatureStyles(
               features,
               editingMarketArea.style_settings,
@@ -142,7 +167,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             );
           }
         } else {
-          // Handle radius type
+          // Radius area
           if (editingMarketArea.radius_points?.length > 0) {
             setFormState((prev) => ({
               ...prev,
@@ -150,6 +175,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               maName: editingMarketArea.name,
               shortName: editingMarketArea.short_name,
               styleSettings: {
+                ...prev.styleSettings,
                 ...editingMarketArea.style_settings,
                 noBorder: editingMarketArea.style_settings?.borderWidth === 0,
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
@@ -158,6 +184,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
             setRadiusPoints(editingMarketArea.radius_points);
 
+            // Draw the radius(es)
             for (const point of editingMarketArea.radius_points) {
               await drawRadius(
                 point,
@@ -168,26 +195,29 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             }
           }
         }
-      } catch (error) {
-        console.error("Error initializing form for editing:", error);
+      } catch (err) {
+        console.error("Error initializing form for editing:", err);
         toast.error("Failed to load market area for editing");
       }
     };
 
     initializeForm();
-  }, [editingMarketArea, addActiveLayer, updateFeatureStyles, formatLocationName, drawRadius]);
+  }, [
+    editingMarketArea,
+    addActiveLayer,
+    updateFeatureStyles,
+    formatLocationName,
+    drawRadius,
+  ]);
 
-  useEffect(() => {
-    return () => {
-      // Do not disable map selection on cleanup, we are keeping it always active.
-    };
-  }, []);
-
+  // Re-apply styles when user changes style settings
   const updateStyles = useCallback(() => {
     try {
-      const { fillColor, fillOpacity, borderColor, borderWidth } = formState.styleSettings;
+      const { fillColor, fillOpacity, borderColor, borderWidth } =
+        formState.styleSettings;
 
       if (formState.maType === "radius") {
+        // Clear and re-draw all radius rings
         clearSelection();
         radiusPoints.forEach((point) => {
           drawRadius(point, formState.styleSettings);
@@ -215,8 +245,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           formState.maType
         );
       }
-    } catch (error) {
-      console.error("Error updating styles:", error);
+    } catch (err) {
+      console.error("Error updating styles:", err);
       toast.error("Failed to update visualization");
     }
   }, [
@@ -234,6 +264,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateStyles();
   }, [formState.styleSettings, radiusPoints, updateStyles]);
 
+  // Change the MA type
   const handleMATypeChange = useCallback(
     async (e) => {
       const newType = e.target.value;
@@ -257,52 +288,63 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         if (newType && newType !== "radius") {
           try {
             await addActiveLayer(newType);
-          } catch (error) {
-            console.error(`Error initializing layer ${newType}:`, error);
+          } catch (err) {
+            console.error(`Error initializing layer ${newType}:`, err);
             setError(`Failed to initialize ${newType} layer. Please try again.`);
           }
         }
-      } catch (error) {
-        console.error("Error switching market area type:", error);
+      } catch (err) {
+        console.error("Error switching market area type:", err);
         toast.error("Failed to switch market area type");
         setError(`Failed to switch to ${newType}. Please try again.`);
       }
     },
-    [addActiveLayer, clearSelection, removeActiveLayer, formState.maType]
+    [
+      addActiveLayer,
+      clearSelection,
+      removeActiveLayer,
+      formState.maType,
+      setError,
+    ]
   );
 
+  // Searching
   useEffect(() => {
     const searchTimer = setTimeout(async () => {
-      if (formState.locationSearch.length >= 3 && formState.maType && formState.maType !== "radius") {
+      if (
+        formState.locationSearch.length >= 3 &&
+        formState.maType &&
+        formState.maType !== "radius"
+      ) {
         setFormState((prev) => ({ ...prev, isSearching: true }));
         try {
-          const results = await queryFeatures(
-            formState.locationSearch,
-            formState.maType,
-            {
-              returnGeometry: true,
-              outFields: ["*"],
-              spatialRel: "esriSpatialRelIntersects",
-              num: 100,
-            }
-          );
+          const results = await queryFeatures(formState.locationSearch, formState.maType, {
+            returnGeometry: true,
+            outFields: ["*"],
+            spatialRel: "esriSpatialRelIntersects",
+            num: 100,
+          });
 
           const mappedResults = results
             .map((feature) => {
               const locationName = formatLocationName(feature, formState.maType);
               const stateName = feature.attributes.STATE || "";
-              const displayName = stateName ? `${locationName}, ${stateName}` : locationName;
+              const displayName = stateName
+                ? `${locationName}, ${stateName}`
+                : locationName;
 
               return {
                 id: feature.attributes.FID,
                 name: displayName,
-                feature: feature,
+                feature,
                 geometry: feature.geometry,
               };
             })
             .filter(
               (loc) =>
-                loc.name && loc.name.trim() !== "" && !formState.selectedLocations.some((sel) => sel.id === loc.id)
+                loc.name &&
+                loc.name.trim() !== "" &&
+                !formState.selectedLocations.some((sel) => sel.id === loc.id)
             );
 
           setFormState((prev) => ({
@@ -310,8 +352,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             availableLocations: mappedResults,
             isSearching: false,
           }));
-        } catch (error) {
-          console.error("Search error:", error);
+        } catch (err) {
+          console.error("Search error:", err);
           toast.error("Error searching locations");
           setError("Error searching locations");
           setFormState((prev) => ({ ...prev, isSearching: false }));
@@ -326,29 +368,39 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }, 300);
 
     return () => clearTimeout(searchTimer);
-  }, [formState.locationSearch, formState.maType, formState.selectedLocations, queryFeatures, formatLocationName]);
+  }, [
+    formState.locationSearch,
+    formState.maType,
+    formState.selectedLocations,
+    queryFeatures,
+    formatLocationName,
+  ]);
 
   const handleLocationSelect = useCallback(
     async (location) => {
       try {
         await addToSelection(location.feature, formState.maType);
-      } catch (error) {
-        console.error("Error selecting location:", error);
+      } catch (err) {
+        console.error("Error selecting location:", err);
         toast.error("Failed to select location");
       }
     },
     [addToSelection, formState.maType]
   );
 
+  // Sync the “selection on the map” back into our form state
   useEffect(() => {
     if (formState.maType === "radius") return;
 
     const uniqueIdField = FEATURE_LAYERS[formState.maType]?.uniqueIdField || "FID";
 
     setFormState((prev) => {
-      const selectedFeatureIds = new Set(selectedFeatures.map((f) => f.attributes[uniqueIdField]));
+      const selectedFeatureIds = new Set(
+        selectedFeatures.map((f) => f.attributes[uniqueIdField])
+      );
       const currentSelectedIds = new Set(prev.selectedLocations.map((loc) => loc.id));
 
+      // If the sets match, no update needed
       if (
         selectedFeatureIds.size === currentSelectedIds.size &&
         [...selectedFeatureIds].every((id) => currentSelectedIds.has(id))
@@ -356,6 +408,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         return prev;
       }
 
+      // Build final list
       const finalSelectedLocations = [...prev.selectedLocations];
 
       for (const feature of selectedFeatures) {
@@ -376,7 +429,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       }
 
       const finalSelectedIds = new Set(finalSelectedLocations.map((loc) => loc.id));
-      const updatedAvailableLocations = prev.availableLocations.filter((loc) => !finalSelectedIds.has(loc.id));
+      const updatedAvailableLocations = prev.availableLocations.filter(
+        (loc) => !finalSelectedIds.has(loc.id)
+      );
 
       return {
         ...prev,
@@ -390,7 +445,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     (location) => {
       try {
         setFormState((prev) => {
-          const updatedSelectedLocations = prev.selectedLocations.filter((loc) => loc.id !== location.id);
+          const updatedSelectedLocations = prev.selectedLocations.filter(
+            (loc) => loc.id !== location.id
+          );
           return {
             ...prev,
             selectedLocations: updatedSelectedLocations,
@@ -398,14 +455,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         });
         removeFromSelection(location.feature, formState.maType);
         toast.success(`Deselected: ${location.name}`);
-      } catch (error) {
-        console.error("Error deselecting location:", error);
+      } catch (err) {
+        console.error("Error deselecting location:", err);
         toast.error("Failed to deselect location");
       }
     },
     [removeFromSelection, formState.maType]
   );
 
+  // Keep the form state’s style settings updated as user picks them
   const handleStyleChange = useCallback((type, value) => {
     setFormState((prev) => {
       const newStyleSettings = { ...prev.styleSettings };
@@ -453,54 +511,65 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     });
   }, []);
 
+  // Helper to jump back to the MarketAreaList
   const pressMAListButton = () => {
-    const maListBtn = document.getElementById('maListButton');
+    const maListBtn = document.getElementById("maListButton");
     if (maListBtn) {
       maListBtn.click();
     }
   };
 
+  // The main “save & exit” or “update & exit” logic
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-  
+
     try {
+      // Build styleSettings from user’s final picks
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
-        fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+        fillOpacity: formState.styleSettings.noFill
+          ? 0
+          : formState.styleSettings.fillOpacity,
         borderColor: formState.styleSettings.borderColor,
-        borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
+        borderWidth: formState.styleSettings.noBorder
+          ? 0
+          : formState.styleSettings.borderWidth,
+        excelFill: formState.styleSettings.excelFill,
+        excelText: formState.styleSettings.excelText,
       };
-  
+
+      // If they picked “md” as a type, treat it as “place”
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
-  
+
       if (formState.maType === "radius") {
-        // Ensure only one pin (one center point) is allowed
+        // Only allow 1 center pin
         if (radiusPoints.length !== 1) {
-          throw new Error("Exactly one center pin is required for a radius market area.");
+          throw new Error(
+            "Exactly one center pin is required for a radius market area."
+          );
         }
-  
+
         const radiusCenter = radiusPoints[0]?.center;
         const radii = radiusPoints[0]?.radii || [];
-  
+
         if (!radiusCenter || radii.length === 0) {
-          throw new Error("No radius center or radii defined for radius market area.");
+          throw new Error(
+            "No radius center or radii defined for radius market area."
+          );
         }
-  
+
+        // If multiple radius rings => create multiple separate MAs
         if (radii.length > 1) {
-          // Multiple radius rings scenario
           if (editingMarketArea) {
-            // Delete the old single-radius MA before creating multiple new ones
+            // Remove the old single MA
             await deleteMarketArea(projectId, editingMarketArea.id);
-            // Clear any existing selection graphics since we're effectively starting fresh
             selectionGraphicsLayer.removeAll();
           }
-  
+
           const newMarketAreaIds = [];
-  
           for (const radiusMiles of radii) {
-            // Use the main MA name and append `(X Miles)` for each radius
             const singleRadiusData = {
               ma_type: mappedType,
               name: `${formState.maName} (${radiusMiles} Miles)`,
@@ -515,33 +584,44 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               locations: [],
               original_type: formState.maType,
             };
-  
-            const savedMarketArea = await addMarketArea(projectId, singleRadiusData);
+
+            const savedMarketArea = await addMarketArea(
+              projectId,
+              singleRadiusData
+            );
             newMarketAreaIds.push(savedMarketArea.id);
-  
-            // Draw the circle after save
+
+            // Redraw the circle for that new area
             await drawRadius(
               { center: radiusCenter, radii: [radiusMiles] },
               styleSettings,
               savedMarketArea.id,
               savedMarketArea.order || 0
             );
-  
-            // Make sure it's visible
-            const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-            let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+
+            // Mark it visible
+            const storedVisibleIds = localStorage.getItem(
+              `marketAreas.${projectId}.visible`
+            );
+            let currentVisibleIds = storedVisibleIds
+              ? JSON.parse(storedVisibleIds)
+              : [];
             if (!currentVisibleIds.includes(savedMarketArea.id)) {
               currentVisibleIds.push(savedMarketArea.id);
             }
-            localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+            localStorage.setItem(
+              `marketAreas.${projectId}.visible`,
+              JSON.stringify(currentVisibleIds)
+            );
             setVisibleMarketAreaIds(currentVisibleIds);
           }
-  
-          toast.success(editingMarketArea ?
-            "Radius market area converted to multiple radius areas successfully" :
-            "Multiple radius market areas created successfully"
+
+          toast.success(
+            editingMarketArea
+              ? "Radius market area converted to multiple radius areas successfully"
+              : "Multiple radius market areas created successfully"
           );
-  
+
           setEditingMarketArea(null);
           onClose?.();
           pressMAListButton();
@@ -552,59 +632,92 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             name: formState.maName,
             short_name: formState.shortName,
             style_settings: styleSettings,
-            radius_points: radiusPoints.map(point => ({
+            radius_points: radiusPoints.map((point) => ({
               center: point.center,
               radii: point.radii,
             })),
             locations: [],
             original_type: formState.maType,
           };
-  
+
           if (editingMarketArea) {
-            const savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+            // Update existing
+            const savedMarketArea = await updateMarketArea(
+              projectId,
+              editingMarketArea.id,
+              marketAreaData
+            );
             toast.success("Radius market area updated successfully");
-  
-            // Redraw the radius with updated styles
+
+            // Redraw
             selectionGraphicsLayer.removeAll();
             for (const point of radiusPoints) {
-              await drawRadius(point, styleSettings, savedMarketArea.id, savedMarketArea.order || 0);
+              await drawRadius(
+                point,
+                styleSettings,
+                savedMarketArea.id,
+                savedMarketArea.order || 0
+              );
             }
-  
-            const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-            let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+
+            const storedVisibleIds = localStorage.getItem(
+              `marketAreas.${projectId}.visible`
+            );
+            let currentVisibleIds = storedVisibleIds
+              ? JSON.parse(storedVisibleIds)
+              : [];
             if (!currentVisibleIds.includes(savedMarketArea.id)) {
               currentVisibleIds.push(savedMarketArea.id);
             }
-            localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+            localStorage.setItem(
+              `marketAreas.${projectId}.visible`,
+              JSON.stringify(currentVisibleIds)
+            );
             setVisibleMarketAreaIds(currentVisibleIds);
-  
+
             setEditingMarketArea(null);
             onClose?.();
             pressMAListButton();
           } else {
-            const savedMarketArea = await addMarketArea(projectId, marketAreaData);
+            // Create new
+            const savedMarketArea = await addMarketArea(
+              projectId,
+              marketAreaData
+            );
             toast.success("Radius market area created successfully");
-  
-            // Draw radius
+
+            // Draw
             for (const point of radiusPoints) {
-              await drawRadius(point, styleSettings, savedMarketArea.id, savedMarketArea.order || 0);
+              await drawRadius(
+                point,
+                styleSettings,
+                savedMarketArea.id,
+                savedMarketArea.order || 0
+              );
             }
-  
-            const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-            let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+
+            const storedVisibleIds = localStorage.getItem(
+              `marketAreas.${projectId}.visible`
+            );
+            let currentVisibleIds = storedVisibleIds
+              ? JSON.parse(storedVisibleIds)
+              : [];
             if (!currentVisibleIds.includes(savedMarketArea.id)) {
               currentVisibleIds.push(savedMarketArea.id);
             }
-            localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+            localStorage.setItem(
+              `marketAreas.${projectId}.visible`,
+              JSON.stringify(currentVisibleIds)
+            );
             setVisibleMarketAreaIds(currentVisibleIds);
-  
+
             setEditingMarketArea(null);
             onClose?.();
             pressMAListButton();
           }
         }
       } else {
-        // Non-radius scenario remains unchanged
+        // Non-radius scenario
         const marketAreaData = {
           ma_type: mappedType,
           name: formState.maName,
@@ -618,7 +731,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           radius_points: [],
           original_type: formState.maType,
         };
-  
+
         const existingGraphics = selectionGraphicsLayer.graphics
           .filter((g) => g.attributes?.marketAreaId)
           .toArray()
@@ -627,18 +740,23 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             attributes: g.attributes,
             symbol: g.symbol,
           }));
-  
+
         let savedMarketArea;
         if (editingMarketArea) {
-          savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+          savedMarketArea = await updateMarketArea(
+            projectId,
+            editingMarketArea.id,
+            marketAreaData
+          );
           toast.success("Market area updated successfully");
         } else {
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-  
+
+        // Turn off map selection for now
         setIsMapSelectionActive(false);
-  
+
         const currentSelections = selectedFeatures.map((feature) => ({
           ...feature,
           attributes: {
@@ -647,13 +765,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             FEATURE_TYPE: formState.maType,
           },
         }));
-  
+
+        // Remove active layer to re-apply
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-  
+
+        // Clear old graphics
         selectionGraphicsLayer.removeAll();
-  
+
+        // Re-add any that existed
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
           const graphic = new Graphic({
@@ -663,7 +784,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           });
           selectionGraphicsLayer.add(graphic);
         });
-  
+
+        // Re-apply new styles
         await updateFeatureStyles(
           currentSelections,
           {
@@ -674,53 +796,63 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           },
           formState.maType
         );
-  
-        const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-        let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+
+        // Ensure that new/updated MA is visible
+        const storedVisibleIds = localStorage.getItem(
+          `marketAreas.${projectId}.visible`
+        );
+        let currentVisibleIds = storedVisibleIds
+          ? JSON.parse(storedVisibleIds)
+          : [];
         const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-  
+
         if (!currentVisibleIds.includes(marketAreaId)) {
           currentVisibleIds.push(marketAreaId);
         }
-  
-        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`,
+          JSON.stringify(currentVisibleIds)
+        );
         setVisibleMarketAreaIds(currentVisibleIds);
-  
+
         setEditingMarketArea(null);
-  
+
         onClose?.();
         pressMAListButton();
       }
-    } catch (error) {
-      console.error("Error saving market area:", error);
-      setError(error.message || "Error saving market area");
-      toast.error(error.message || "Error saving market area");
+    } catch (err) {
+      console.error("Error saving market area:", err);
+      setError(err.message || "Error saving market area");
+      toast.error(err.message || "Error saving market area");
     } finally {
       setIsSaving(false);
     }
   };
-  
-  
-  
 
+  // “Cancel” logic
   const handleCancel = useCallback(async () => {
     try {
       const existingGraphics = selectionGraphicsLayer.graphics
-        .filter((g) => g.attributes?.marketAreaId && g.attributes.marketAreaId !== editingMarketArea?.id)
+        .filter(
+          (g) =>
+            g.attributes?.marketAreaId &&
+            g.attributes.marketAreaId !== editingMarketArea?.id
+        )
         .toArray()
         .map((g) => ({
           geometry: g.geometry,
           attributes: g.attributes,
           symbol: g.symbol,
         }));
-  
+
       if (formState.maType) {
         await removeActiveLayer(formState.maType);
       }
-  
+
       if (selectionGraphicsLayer) {
         selectionGraphicsLayer.removeAll();
-  
+
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
           const graphic = new Graphic({
@@ -731,10 +863,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           selectionGraphicsLayer.add(graphic);
         });
       }
-  
-      // If we were editing a market area, restore its original display if needed
+
+      // If we were editing, re-draw that area’s original style
       if (editingMarketArea) {
-        if (editingMarketArea.ma_type === "radius" && editingMarketArea.radius_points) {
+        if (
+          editingMarketArea.ma_type === "radius" &&
+          editingMarketArea.radius_points
+        ) {
           for (const point of editingMarketArea.radius_points) {
             await drawRadius(
               point,
@@ -758,7 +893,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               FEATURE_TYPE: editingMarketArea.ma_type,
             },
           }));
-  
+
           await updateFeatureStyles(
             features,
             {
@@ -771,29 +906,27 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
         }
       }
-  
-      // Clear selected locations from the form state
+
+      // Clear selected
       setFormState((prev) => ({
         ...prev,
         selectedLocations: [],
         locationSearch: "",
         availableLocations: [],
       }));
-  
-      // Clear any selections from the map context to prevent "sticky" selections
+
       clearSelection();
-  
       setEditingMarketArea(null);
-  
+
       onClose?.();
-      // Simulate MA List button click after cancel
-      const maListBtn = document.getElementById('maListButton');
+
+      // Go back to the MA list
+      const maListBtn = document.getElementById("maListButton");
       if (maListBtn) {
         maListBtn.click();
       }
-  
-    } catch (error) {
-      console.error("Error during cancel:", error);
+    } catch (err) {
+      console.error("Error during cancel:", err);
       toast.error("Error cleaning up. Please try again.");
     }
   }, [
@@ -805,9 +938,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateFeatureStyles,
     setEditingMarketArea,
     onClose,
-    selectionGraphicsLayer
+    selectionGraphicsLayer,
   ]);
-  
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
@@ -835,8 +967,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               value={formState.maType}
               onChange={handleMATypeChange}
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                       bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
-                       focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                         bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
+                         focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
               disabled={isLayerLoading || editingMarketArea}
             >
               <option value="">Select type...</option>
@@ -865,8 +997,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 }
                 placeholder="Enter Market Area Name"
                 className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                         bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
-                         focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                           bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
+                           focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
                 required
               />
             </div>
@@ -876,295 +1008,177 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 htmlFor="shortName"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-                Short Name (Optional)
-              </label>
-              <input
-                type="text"
-                id="shortName"
-                value={formState.shortName}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    shortName: e.target.value,
-                  }))
-                }
-                placeholder="Enter Short Name"
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                         bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
+              Short Name (Optional)
+            </label>
+            <input
+              type="text"
+              id="shortName"
+              value={formState.shortName}
+              onChange={(e) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  shortName: e.target.value,
+                }))
+              }
+              placeholder="Enter Short Name"
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                         bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
                          focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 border rounded-md">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100">
-              Style Settings
-            </h3>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Fill Color
-                </label>
-                <div className="flex items-center mt-1">
-                  <input
-                    type="color"
-                    value={formState.styleSettings.fillColor}
-                    onChange={(e) => handleStyleChange("fillColor", e.target.value)}
-                    className="h-8 w-8 rounded cursor-pointer"
-                    disabled={formState.styleSettings.noFill}
-                  />
-                </div>
-                <div className="flex items-center mt-2">
-                  <input
-                    type="checkbox"
-                    id="noFill"
-                    checked={formState.styleSettings.noFill}
-                    onChange={(e) => handleStyleChange("noFill", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="noFill"
-                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    No fill
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Border Color
-                </label>
-                <div className="flex items-center mt-1">
-                  <input
-                    type="color"
-                    value={formState.styleSettings.borderColor}
-                    onChange={(e) => handleStyleChange("borderColor", e.target.value)}
-                    className="h-8 w-8 rounded cursor-pointer"
-                    disabled={formState.styleSettings.noBorder}
-                  />
-                </div>
-                <div className="flex items-center mt-2">
-                  <input
-                    type="checkbox"
-                    id="noBorder"
-                    checked={formState.styleSettings.noBorder}
-                    onChange={(e) => handleStyleChange("noBorder", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="noBorder"
-                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    No border
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Transparency %
-                </label>
-                <div className="flex items-center mt-1">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={(1 - formState.styleSettings.fillOpacity) * 100}
-                    onChange={(e) =>
-                      handleStyleChange("fillOpacity", 1 - Number(e.target.value) / 100)
-                    }
-                    className="flex-1"
-                    disabled={formState.styleSettings.noFill}
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={Math.round((1 - formState.styleSettings.fillOpacity) * 100)}
-                    onChange={(e) =>
-                      handleStyleChange("fillOpacity", 1 - Number(e.target.value) / 100)
-                    }
-                    className="ml-2 w-16 rounded-md border border-gray-300 dark:border-gray-600
-                      bg-white dark:bg-gray-700 py-1 px-2 shadow-sm focus:border-green-500
-                      focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                    disabled={formState.styleSettings.noFill}
-                  />
-                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">%</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300">
-                  Border Weight
-                </label>
-                <div className="flex items-center mt-1">
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={formState.styleSettings.borderWidth}
-                    onChange={(e) => handleStyleChange("borderWidth", Number(e.target.value))}
-                    className="flex-1"
-                    disabled={formState.styleSettings.noBorder}
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={formState.styleSettings.borderWidth}
-                    onChange={(e) => handleStyleChange("borderWidth", Number(e.target.value))}
-                    className="ml-2 w-16 rounded-md border border-gray-300 dark:border-gray-600
-                      bg-white dark:bg-gray-700 py-1 px-2 shadow-sm focus:border-green-500
-                      focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                    disabled={formState.styleSettings.noBorder}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {formState.maType === "radius" ? (
-            <Radius
-              onFormStateChange={(newState) => setRadiusPoints(newState.radiusPoints)}
-              styleSettings={formState.styleSettings}
-              existingRadiusPoints={radiusPoints}
             />
-          ) : (
-            formState.maType && (
-              <>
-                <div>
-                  <label
-                    htmlFor="locationSearch"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    Search Locations {formState.isSearching && "(Searching...)"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="locationSearch"
-                      value={formState.locationSearch}
-                      onChange={(e) =>
-                        setFormState((prev) => ({
-                          ...prev,
-                          locationSearch: e.target.value,
-                        }))
-                      }
-                      placeholder={`Search ${formState.maType} locations...`}
-                      className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                               bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500 
+          </div>
+        </div>
+
+        <StyleSettingsPanel
+          styleSettings={formState.styleSettings}
+          onStyleChange={handleStyleChange}
+        />
+
+        {formState.maType === "radius" ? (
+          <Radius
+            onFormStateChange={(newState) => setRadiusPoints(newState.radiusPoints)}
+            styleSettings={formState.styleSettings}
+            existingRadiusPoints={radiusPoints}
+          />
+        ) : (
+          formState.maType && (
+            <>
+              <div>
+                <label
+                  htmlFor="locationSearch"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Search Locations {formState.isSearching && "(Searching...)"}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="locationSearch"
+                    value={formState.locationSearch}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        locationSearch: e.target.value,
+                      }))
+                    }
+                    placeholder={`Search ${formState.maType} locations...`}
+                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
                                focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                      disabled={!formState.maType || isLayerLoading}
-                    />
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    disabled={!formState.maType || isLayerLoading}
+                  />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Available Locations
+                    </label>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formState.availableLocations.length} found
+                    </span>
+                  </div>
+                  <div
+                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                    style={{ minHeight: "300px" }}
+                  >
+                    {formState.availableLocations.map((location) => (
+                      <div
+                        key={`available-${location.id}-${
+                          location.feature?.attributes?.FID || ""
+                        }`}
+                        onClick={() => handleLocationSelect(location)}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+                                  text-sm text-gray-900 dark:text-gray-100"
+                      >
+                        {location.name}
+                      </div>
+                    ))}
+                    {formState.availableLocations.length === 0 &&
+                      !formState.isSearching && (
+                        <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                          {formState.locationSearch.length >= 3
+                            ? "No locations found"
+                            : "Enter at least 3 characters to search"}
+                        </div>
+                      )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Available Locations
-                      </label>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {formState.availableLocations.length} found
-                      </span>
-                    </div>
-                    <div className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700" style={{ minHeight: "300px" }}>
-                      {formState.availableLocations.map((location) => (
-                        <div
-                          key={`available-${location.id}-${
-                            location.feature?.attributes?.FID || ""
-                          }`}
-                          onClick={() => handleLocationSelect(location)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                  text-sm text-gray-900 dark:text-gray-100"
-                        >
-                          {location.name}
-                        </div>
-                      ))}
-                      {formState.availableLocations.length === 0 && !formState.isSearching && (
-                        <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                          {formState.locationSearch.length >= 3 ? "No locations found" : "Enter at least 3 characters to search"}
-                        </div>
-                      )}
-                    </div>
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Selected Locations
+                    </label>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formState.selectedLocations.length} selected
+                    </span>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Selected Locations
-                      </label>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {formState.selectedLocations.length} selected
-                      </span>
-                    </div>
-                    <div className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700" style={{ minHeight: "300px" }}>
-                      {formState.selectedLocations.map((location) => (
-                        <div
-                          key={`selected-${location.id}-${
-                            location.feature?.attributes?.FID || ""
-                          }`}
-                          onClick={() => handleLocationDeselect(location)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
+                  <div
+                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                    style={{ minHeight: "300px" }}
+                  >
+                    {formState.selectedLocations.map((location) => (
+                      <div
+                        key={`selected-${location.id}-${
+                          location.feature?.attributes?.FID || ""
+                        }`}
+                        onClick={() => handleLocationDeselect(location)}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
                                   text-sm text-gray-900 dark:text-gray-100"
-                        >
-                          {location.name}
-                        </div>
-                      ))}
-                      {formState.selectedLocations.length === 0 && (
-                        <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                          No locations selected
-                        </div>
-                      )}
-                    </div>
+                      >
+                        {location.name}
+                      </div>
+                    ))}
+                    {formState.selectedLocations.length === 0 && (
+                      <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        No locations selected
+                      </div>
+                    )}
                   </div>
                 </div>
-              </>
-            )
-          )}
+              </div>
+            </>
+          )
+        )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
                        hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
                        dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
                        focus:ring-offset-2 disabled:opacity-50"
-              disabled={isSaving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
                        hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                        disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={
-                isSaving ||
-                (formState.maType === "radius" && radiusPoints.length === 0) ||
-                (formState.maType !== "radius" && formState.selectedLocations.length === 0) ||
-                !formState.maName
-              }
-            >
-              {isSaving
-                ? "Saving..."
-                : editingMarketArea
-                ? "Update & Exit"
-                : "Save & Exit"}
-            </button>
-          </div>
-        </form>
-      </div>
+            disabled={
+              isSaving ||
+              (formState.maType === "radius" && radiusPoints.length === 0) ||
+              (formState.maType !== "radius" &&
+                formState.selectedLocations.length === 0) ||
+              !formState.maName
+            }
+          >
+            {isSaving
+              ? "Saving..."
+              : editingMarketArea
+              ? "Update & Exit"
+              : "Save & Exit"}
+          </button>
+        </div>
+      </form>
     </div>
-  );
+  </div>
+);
 }

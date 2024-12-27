@@ -2,20 +2,21 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { stylePresetsAPI, variablePresetsAPI } from '../services/api';
+import { tcgThemesAPI, colorKeysAPI, variablePresetsAPI } from '../services/api';
 import { isAuthenticated } from '../utils/auth';
 
 // Create context with initial values
 const PresetsContext = createContext({
-  stylePresets: [],
+  tcgThemes: [],
   variablePresets: [],
   loading: false,
   error: null,
   refreshPresets: () => {},
-  createStylePreset: async () => {},
-  updateStylePreset: async () => {},
-  deleteStylePreset: async () => {},
-  makeStylePresetGlobal: async () => {},
+  createTcgTheme: async () => {},
+  updateTcgTheme: async () => {},
+  deleteTcgTheme: async () => {},
+  makeTcgThemeGlobal: async () => {},
+
   createVariablePreset: async () => {},
   updateVariablePreset: async () => {},
   deleteVariablePreset: async () => {},
@@ -33,13 +34,15 @@ export const usePresets = () => {
 
 // Provider component
 export const PresetsProvider = ({ children }) => {
-  const [stylePresets, setStylePresets] = useState([]);
+  const [tcgThemes, setTcgThemes] = useState([]);
   const [variablePresets, setVariablePresets] = useState([]);
+  const [colorKeys, setColorKeys] = useState([]); // Added to manage ColorKeys
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const fetchPresets = async () => {
+    // If not authenticated, redirect to login
     if (!isAuthenticated()) {
       navigate('/login');
       return;
@@ -49,17 +52,22 @@ export const PresetsProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const [styleResponse, variableResponse] = await Promise.all([
-        stylePresetsAPI.getAll(),
-        variablePresetsAPI.getAll()
+      // Fetch TCG Themes, Color Keys, and Variable Presets in parallel
+      const [themesResponse, colorKeysResponse, variableResponse] = await Promise.all([
+        tcgThemesAPI.getAll(),
+        colorKeysAPI.getAll(),
+        variablePresetsAPI.getAll(),
       ]);
 
-      setStylePresets(styleResponse.data || []);
+      // themesResponse.data / colorKeysResponse.data / variableResponse.data holds the arrays from your API
+      setTcgThemes(themesResponse.data || []);
+      setColorKeys(colorKeysResponse.data || []);
       setVariablePresets(variableResponse.data || []);
     } catch (error) {
-      console.error('Error fetching presets:', error);
+      console.error('Error fetching TCG Themes / Variable Presets:', error);
       setError(error);
-      
+
+      // Handle "No refresh token" or 401 logic
       if (error.message === 'No refresh token available' || error.response?.status === 401) {
         navigate('/login');
       }
@@ -68,63 +76,67 @@ export const PresetsProvider = ({ children }) => {
     }
   };
 
-  // Style preset operations
-  const createStylePreset = async (presetData) => {
+  // TCG Themes operations
+  const createTcgTheme = async (themeData) => {
     try {
       setLoading(true);
-      const response = await stylePresetsAPI.create(presetData);
+      const response = await tcgThemesAPI.create(themeData);
       await fetchPresets();
       return response.data;
     } catch (error) {
-      console.error('Error creating style preset:', error);
+      console.error('Error creating TCG Theme:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const updateStylePreset = async (id, presetData) => {
+  const updateTcgTheme = async (id, themeData) => {
     try {
       setLoading(true);
-      const response = await stylePresetsAPI.update(id, presetData);
+      const response = await tcgThemesAPI.update(id, themeData);
       await fetchPresets();
       return response.data;
     } catch (error) {
-      console.error('Error updating style preset:', error);
+      console.error('Error updating TCG Theme:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteStylePreset = async (id) => {
+  const deleteTcgTheme = async (id) => {
     try {
       setLoading(true);
-      await stylePresetsAPI.delete(id);
+      await tcgThemesAPI.delete(id);
       await fetchPresets();
     } catch (error) {
-      console.error('Error deleting style preset:', error);
+      console.error('Error deleting TCG Theme:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const makeStylePresetGlobal = async (id) => {
+  // If you have an endpoint for making a TCG Theme global:
+  const makeTcgThemeGlobal = async (id) => {
     try {
       setLoading(true);
-      const response = await stylePresetsAPI.makeGlobal(id);
+      // In your API file, if you have something like:
+      //   tcgThemesAPI.makeGlobal(id)
+      // you can call it here. Otherwise, remove this method.
+      const response = await tcgThemesAPI.makeGlobal(id);
       await fetchPresets();
       return response.data;
     } catch (error) {
-      console.error('Error making style preset global:', error);
+      console.error('Error making TCG Theme global:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Variable preset operations
+  // Variable Preset operations
   const createVariablePreset = async (presetData) => {
     try {
       setLoading(true);
@@ -180,25 +192,34 @@ export const PresetsProvider = ({ children }) => {
     }
   };
 
-  // Load presets on mount
+  // Load TCG Themes & Variable Presets on mount
   useEffect(() => {
     fetchPresets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = {
-    stylePresets,
+    // TCG Themes
+    tcgThemes,
+    createTcgTheme,
+    updateTcgTheme,
+    deleteTcgTheme,
+    makeTcgThemeGlobal,
+
+    // Variable Presets
     variablePresets,
-    loading,
-    error,
-    refreshPresets: fetchPresets,
-    createStylePreset,
-    updateStylePreset,
-    deleteStylePreset,
-    makeStylePresetGlobal,
     createVariablePreset,
     updateVariablePreset,
     deleteVariablePreset,
     makeVariablePresetGlobal,
+
+    // Color Keys
+    colorKeys,
+
+    // Common
+    loading,
+    error,
+    refreshPresets: fetchPresets,
   };
 
   return (

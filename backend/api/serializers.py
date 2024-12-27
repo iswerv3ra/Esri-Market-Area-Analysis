@@ -1,7 +1,45 @@
+# serializers.py
+
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme
 
+class ColorKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColorKey
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'last_modified']  # Adjust as needed
+
+class TcgThemeSerializer(serializers.ModelSerializer):
+    color_key = ColorKeySerializer(read_only=True)
+    color_key_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = TcgTheme
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'last_modified', 'color_key']
+
+    def update(self, instance, validated_data):
+        color_key_id = validated_data.pop('color_key_id', None)
+        fill_color = validated_data.get('fill_color')
+
+        if color_key_id:
+            try:
+                color_key = ColorKey.objects.get(id=color_key_id)
+                instance.color_key = color_key
+                instance.fill_color = color_key.key_number
+            except ColorKey.DoesNotExist:
+                raise serializers.ValidationError({'color_key_id': 'Invalid Color Key ID.'})
+        elif fill_color:
+            instance.fill_color = fill_color
+            # If fill_color is provided but no color_key_id, clear the color_key relation
+            instance.color_key = None
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -53,7 +91,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             'created_at', 'last_modified', 'market_areas', 'market_areas_count',
             'users'
         ]
-        read_only_fields = ['created_at', 'last_modified']
+        read_only_fields = ['id', 'created_at', 'last_modified']
 
     def create(self, validated_data):
         project = Project.objects.create(
@@ -73,7 +111,7 @@ class StylePresetSerializer(serializers.ModelSerializer):
         model = StylePreset
         fields = ['id', 'name', 'project', 'styles', 'is_global', 
                  'created_at', 'last_modified', 'created_by', 'created_by_username']
-        read_only_fields = ['created_at', 'last_modified', 'created_by']
+        read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
 
     def validate(self, data):
         styles = data.get('styles', {})
@@ -105,7 +143,7 @@ class VariablePresetSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'project', 'variables', 'is_global', 
                  'created_at', 'last_modified', 'created_by', 'created_by_username',
                  'variable_count']
-        read_only_fields = ['created_at', 'last_modified', 'created_by']
+        read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
 
     def get_variable_count(self, obj):
         return len(obj.variables)
@@ -123,10 +161,3 @@ class VariablePresetSerializer(serializers.ModelSerializer):
                 {"is_global": "Global presets cannot be associated with a specific project"}
             )
         return data
-
-# NEW SERIALIZER FOR COLORKEY
-class ColorKeySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ColorKey
-        fields = ['id', 'key_number', 'color_name', 'R', 'G', 'B', 'Hex', 'created_at', 'last_modified']
-        read_only_fields = ['created_at', 'last_modified']

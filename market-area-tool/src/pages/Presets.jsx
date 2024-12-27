@@ -1,6 +1,4 @@
-// src/pages/Presets.jsx
-
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   PlusIcon,
@@ -13,153 +11,9 @@ import {
   GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 
-// Import APIs (Ensure these paths are correct)
-import { stylePresetsAPI, variablePresetsAPI } from '../services/api';
+// Import the existing context instead of creating a new one
+import { usePresets } from '../contexts/PresetsContext';
 import { analysisCategories, getAllVariables } from '../services/enrichmentService';
-
-const PresetsContext = createContext(null);
-
-const usePresets = () => {
-  const context = useContext(PresetsContext);
-  if (!context) {
-    throw new Error('usePresets must be used within PresetsProvider');
-  }
-  return context;
-};
-
-const PresetsProvider = ({ children }) => {
-  const [stylePresets, setStylePresets] = useState([]);
-  const [variablePresets, setVariablePresets] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPresets = async () => {
-      setIsLoading(true);
-      try {
-        const [styleRes, variableRes] = await Promise.all([
-          stylePresetsAPI.getAll(),
-          variablePresetsAPI.getAll(),
-        ]);
-        setStylePresets(styleRes.data);
-        setVariablePresets(variableRes.data);
-      } catch (error) {
-        console.error('Error fetching presets:', error);
-        toast.error('Failed to load presets');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPresets();
-  }, []);
-
-  const saveVariablePreset = async (name, variables, isGlobal = false) => {
-    try {
-      const presetData = {
-        name,
-        variables,
-        is_global: isGlobal,
-        project: null
-      };
-      const response = await variablePresetsAPI.create(presetData);
-      setVariablePresets((prev) => [...prev, response.data]);
-      toast.success('Variable preset saved');
-      return response.data;
-    } catch (error) {
-      console.error('Error saving variable preset:', error);
-      console.error('Error response data:', error.response?.data);
-      toast.error('Failed to save variable preset');
-      throw error;
-    }
-  };
-
-  const deleteStylePreset = async (id) => {
-    try {
-      await stylePresetsAPI.delete(id);
-      setStylePresets((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Style preset deleted');
-    } catch (error) {
-      console.error('Error deleting style preset:', error);
-      toast.error('Failed to delete style preset');
-      throw error;
-    }
-  };
-
-  const deleteVariablePreset = async (id) => {
-    try {
-      await variablePresetsAPI.delete(id);
-      setVariablePresets((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Variable preset deleted');
-    } catch (error) {
-      console.error('Error deleting variable preset:', error);
-      toast.error('Failed to delete variable preset');
-      throw error;
-    }
-  };
-
-  const makeStylePresetGlobal = async (id) => {
-    try {
-      const response = await stylePresetsAPI.makeGlobal(id);
-      setStylePresets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, is_global: true } : p))
-      );
-      toast.success('Style preset is now global');
-      return response.data;
-    } catch (error) {
-      console.error('Error making style preset global:', error);
-      toast.error('Failed to make style preset global');
-      throw error;
-    }
-  };
-
-  const makeVariablePresetGlobal = async (id) => {
-    try {
-      const response = await variablePresetsAPI.makeGlobal(id);
-      setVariablePresets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, is_global: true } : p))
-      );
-      toast.success('Variable preset is now global');
-      return response.data;
-    } catch (error) {
-      console.error('Error making variable preset global:', error);
-      toast.error('Failed to make variable preset global');
-      throw error;
-    }
-  };
-
-  const updateVariablePreset = async (id, variables) => {
-    try {
-      const response = await variablePresetsAPI.update(id, { variables });
-      setVariablePresets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, variables } : p))
-      );
-      toast.success('Variable preset updated');
-      return response.data;
-    } catch (error) {
-      console.error('Error updating variable preset:', error);
-      toast.error('Failed to update variable preset');
-      throw error;
-    }
-  };
-
-  const value = {
-    stylePresets,
-    variablePresets,
-    isLoading,
-    saveVariablePreset,
-    deleteStylePreset,
-    deleteVariablePreset,
-    makeStylePresetGlobal,
-    makeVariablePresetGlobal,
-    updateVariablePreset,
-  };
-
-  return (
-    <PresetsContext.Provider value={value}>
-      {children}
-    </PresetsContext.Provider>
-  );
-};
 
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
@@ -229,7 +83,7 @@ const VariablePresetModalContent = ({ preset, closeModal }) => {
     setIsLoading(true);
     try {
       const updatedVariables = preset.variables.filter((id) => id !== varId);
-      await updateVariablePreset(preset.id, updatedVariables);
+      await updateVariablePreset(preset.id, { variables: updatedVariables });
       toast.success('Variable removed');
     } catch (error) {
       console.error('Error removing variable:', error);
@@ -502,8 +356,8 @@ const PresetsContent = () => {
   const {
     stylePresets,
     variablePresets,
-    isLoading,
-    saveVariablePreset,
+    loading: isLoading,
+    createVariablePreset: saveVariablePreset,
     deleteStylePreset,
     deleteVariablePreset,
   } = usePresets();
@@ -512,7 +366,6 @@ const PresetsContent = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [newPresetName, setNewPresetName] = useState('');
   const [isGlobal, setIsGlobal] = useState(false);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState(null);
@@ -566,7 +419,7 @@ const PresetsContent = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+<div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="flex-none bg-white dark:bg-gray-800 shadow">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
@@ -663,7 +516,6 @@ const PresetsContent = () => {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {/* No apply button needed since style editing removed */}
                         <button
                           onClick={() => deleteStylePreset(preset.id)}
                           className="text-red-600 hover:text-red-700"
@@ -755,10 +607,8 @@ const PresetsContent = () => {
   );
 };
 
-export default function Presets() {
-  return (
-    <PresetsProvider>
-      <PresetsContent />
-    </PresetsProvider>
-  );
-}
+const Presets = () => {
+  return <PresetsContent />;
+};
+
+export default Presets;

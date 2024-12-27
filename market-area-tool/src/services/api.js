@@ -32,6 +32,7 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Ensure trailing slash on URL
     if (!config.url.endsWith('/')) {
       config.url = `${config.url}/`;
     }
@@ -71,6 +72,7 @@ api.interceptors.response.use(
 
     const originalRequest = error.config;
 
+    // Handle token refresh logic if we get 401
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -111,7 +113,9 @@ api.interceptors.response.use(
   }
 );
 
+// ---------------------------------------------------------
 // Auth API endpoints
+// ---------------------------------------------------------
 export const authAPI = {
   login: async (credentials) => {
     const response = await api.post('/api/token/', credentials);
@@ -145,10 +149,12 @@ export const authAPI = {
     } catch (error) {
       return false;
     }
-  }
+  },
 };
 
+// ---------------------------------------------------------
 // Projects API endpoints
+// ---------------------------------------------------------
 export const projectsAPI = {
   getAll: async () => {
     try {
@@ -198,75 +204,150 @@ export const projectsAPI = {
       console.error(`Error deleting project ${id}:`, error);
       throw error;
     }
-  }
+  },
 };
 
-// Style Presets API endpoints
-export const stylePresetsAPI = {
+// ---------------------------------------------------------
+// TCG Themes API endpoints
+// ---------------------------------------------------------
+export const tcgThemesAPI = {
   getAll: async () => {
     try {
-      const response = await api.get('/api/style-presets/');
-      return response;
+      // Fetch all TCG Themes from the backend
+      const response = await api.get('/api/tcg-themes/');
+      return response; // or response.data
     } catch (error) {
-      console.error('Error fetching style presets:', error);
+      console.error('Error fetching TCG Themes:', error);
       throw error;
     }
   },
 
-  create: async (presetData) => {
+  getById: async (id) => {
     try {
-      const response = await api.post('/api/style-presets/', presetData);
+      // Correctly fetch a single TCG Theme by ID without colon
+      const response = await api.get(`/api/tcg-themes/${id}/`);
       return response;
     } catch (error) {
-      console.error('Error creating style preset:', error);
+      console.error(`Error fetching TCG Theme ${id}:`, error);
       throw error;
     }
   },
 
-  update: async (id, presetData) => {
+  create: async (themeData) => {
     try {
-      const response = await api.put(`/api/style-presets/${id}/`, presetData);
+      // Create a new TCG Theme
+      const response = await api.post('/api/tcg-themes/', themeData);
       return response;
     } catch (error) {
-      console.error(`Error updating style preset ${id}:`, error);
+      console.error('Error creating TCG Theme:', error);
+      throw error;
+    }
+  },
+
+  update: async (id, themeData) => {
+    try {
+      // Update a TCG Theme by ID without colon
+      const response = await api.put(`/api/tcg-themes/${id}/`, themeData);
+      return response;
+    } catch (error) {
+      console.error(`Error updating TCG Theme ${id}:`, error);
       throw error;
     }
   },
 
   delete: async (id) => {
     try {
-      const response = await api.delete(`/api/style-presets/${id}/`);
+      // Delete a TCG Theme by ID without colon
+      const response = await api.delete(`/api/tcg-themes/${id}/`);
       return response;
     } catch (error) {
-      console.error(`Error deleting style preset ${id}:`, error);
+      console.error(`Error deleting TCG Theme ${id}:`, error);
       throw error;
     }
   },
 
+  // If you have an endpoint for making a TCG Theme global, ensure it's correctly defined
   makeGlobal: async (id) => {
     try {
-      const response = await api.post(`/api/style-presets/${id}/make_global/`);
+      const response = await api.post(`/api/tcg-themes/${id}/make_global/`);
       return response;
     } catch (error) {
-      console.error(`Error making style preset ${id} global:`, error);
+      console.error(`Error making TCG Theme ${id} global:`, error);
       throw error;
     }
-  }
+  },
 };
 
-// Update a single Color Key by ID
-export const updateColorKey = async (id, updatedData) => {
-  const response = await api.put(`/api/color-keys/${id}/`, updatedData);
-  return response.data;
+// ---------------------------------------------------------
+// Color Keys API endpoints
+// ---------------------------------------------------------
+export const colorKeysAPI = {
+  getAll: async () => {
+    try {
+      const response = await api.get('/api/color-keys/');
+      return response;
+    } catch (error) {
+      console.error('Error fetching Color Keys:', error);
+      throw error;
+    }
+  },
+
+  getById: async (id) => {
+    try {
+      // Correctly fetch a single Color Key by ID without colon
+      const response = await api.get(`/api/color-keys/${id}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error fetching Color Key ${id}:`, error);
+      throw error;
+    }
+  },
+
+  create: async (colorKeyData) => {
+    try {
+      const response = await api.post('/api/color-keys/', colorKeyData);
+      return response;
+    } catch (error) {
+      console.error('Error creating Color Key:', error);
+      throw error;
+    }
+  },
+
+  update: async (id, colorKeyData) => {
+    try {
+      const response = await api.put(`/api/color-keys/${id}/`, colorKeyData);
+      return response;
+    } catch (error) {
+      console.error(`Error updating Color Key ${id}:`, error);
+      throw error;
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/api/color-keys/${id}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error deleting Color Key ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // If you have an endpoint for making a Color Key global, ensure it's correctly defined
+  makeGlobal: async (id) => {
+    try {
+      const response = await api.post(`/api/color-keys/${id}/make_global/`);
+      return response;
+    } catch (error) {
+      console.error(`Error making Color Key ${id} global:`, error);
+      throw error;
+    }
+  },
 };
 
-// Update a single TCG Theme by ID
-export const updateTcgTheme = async (id, updatedData) => {
-  const response = await api.put(`/api/tcg-themes/${id}/`, updatedData);
-  return response.data;
-};
-
+// ---------------------------------------------------------
 // Variable Presets API endpoints
+// ---------------------------------------------------------
 export const variablePresetsAPI = {
   getAll: async () => {
     try {
@@ -316,31 +397,81 @@ export const variablePresetsAPI = {
       console.error(`Error making variable preset ${id} global:`, error);
       throw error;
     }
-  }
+  },
 };
 
-// Fetch all TCG Themes
-export const getTcgThemes = async () => {
-  const response = await api.get('/api/tcg-themes/');
-  return response.data;
+// ---------------------------------------------------------
+// Market Areas API endpoints
+// ---------------------------------------------------------
+export const marketAreasAPI = {
+  getAll: async (projectId) => {
+    try {
+      const response = await api.get(`/api/projects/${projectId}/market-areas/`);
+      return response;
+    } catch (error) {
+      console.error('Error fetching Market Areas:', error);
+      throw error;
+    }
+  },
+
+  create: async (projectId, marketAreaData) => {
+    try {
+      const response = await api.post(`/api/projects/${projectId}/market-areas/`, marketAreaData);
+      return response;
+    } catch (error) {
+      console.error('Error creating Market Area:', error);
+      throw error;
+    }
+  },
+
+  update: async (projectId, marketAreaId, marketAreaData) => {
+    try {
+      const response = await api.put(`/api/projects/${projectId}/market-areas/${marketAreaId}/`, marketAreaData);
+      return response;
+    } catch (error) {
+      console.error(`Error updating Market Area ${marketAreaId}:`, error);
+      throw error;
+    }
+  },
+
+  delete: async (projectId, marketAreaId) => {
+    try {
+      const response = await api.delete(`/api/projects/${projectId}/market-areas/${marketAreaId}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error deleting Market Area ${marketAreaId}:`, error);
+      throw error;
+    }
+  },
+
+  reorder: async (projectId, newOrderData) => {
+    try {
+      const response = await api.post(`/api/projects/${projectId}/market-areas/reorder/`, newOrderData);
+      return response;
+    } catch (error) {
+      console.error('Error reordering Market Areas:', error);
+      throw error;
+    }
+  },
 };
 
-// Add somewhere near the bottom of api.js or in a dedicated MarketArea service file:
+// ---------------------------------------------------------
+// **Named Exports for Update Functions**
+// ---------------------------------------------------------
+// These exports allow you to import them directly in your components.
+export const updateColorKey = async (id, updatedData) => {
+  return await colorKeysAPI.update(id, updatedData);
+};
+
+export const updateTcgTheme = async (id, updatedData) => {
+  return await tcgThemesAPI.update(id, updatedData);
+};
 
 export const updateMarketArea = async (projectId, marketAreaId, updatedData) => {
-  // Use PATCH so we only send the fields that changed
-  const response = await api.patch(
-    `/api/projects/${projectId}/market-areas/${marketAreaId}/`,
-    updatedData
-  );
-  return response.data;
+  return await marketAreasAPI.update(projectId, marketAreaId, updatedData);
 };
 
-
-// Fetch all Color Keys
-export const getColorKeys = async () => {
-  const response = await api.get('/api/color-keys/');
-  return response.data;
-};
-
+// ---------------------------------------------------------
+// Export the base axios instance if needed
+// ---------------------------------------------------------
 export default api;
