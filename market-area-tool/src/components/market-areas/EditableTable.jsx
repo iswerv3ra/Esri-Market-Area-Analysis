@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ColorSwatchCell from './ColorSwatchCell';
+import ColorSwatchCell from '../ColorSwatchCell';
 
 const EditableTable = ({ title, data, setData, columns, onSave }) => {
   const [editingId, setEditingId] = useState(null);
