@@ -419,7 +419,7 @@ const PresetsContent = () => {
   }
 
   return (
-<div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="flex-none bg-white dark:bg-gray-800 shadow">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
@@ -501,7 +501,7 @@ const PresetsContent = () => {
                   Style Presets
                 </h3>
                 <div className="space-y-2">
-                  {stylePresets.map((preset) => (
+                  {(stylePresets || []).map((preset) => (
                     <div
                       key={preset.id}
                       className="flex items-center justify-between p-2 bg-gray-50 
@@ -526,7 +526,7 @@ const PresetsContent = () => {
                       </div>
                     </div>
                   ))}
-                  {stylePresets.length === 0 && (
+                  {(stylePresets || []).length === 0 && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                       No style presets saved
                     </div>
@@ -540,7 +540,7 @@ const PresetsContent = () => {
                   Variable Presets
                 </h3>
                 <div className="space-y-2">
-                  {variablePresets.map((preset) => (
+                  {(variablePresets || []).map((preset) => (
                     <div
                       key={preset.id}
                       className="flex items-center justify-between p-2 bg-gray-50 
@@ -587,7 +587,7 @@ const PresetsContent = () => {
                       </div>
                     </div>
                   ))}
-                  {variablePresets.length === 0 && (
+                  {(variablePresets || []).length === 0 && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                       No variable presets saved
                     </div>

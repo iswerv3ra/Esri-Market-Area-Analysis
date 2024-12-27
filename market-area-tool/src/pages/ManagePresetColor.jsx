@@ -1,7 +1,7 @@
 // src/pages/ManagePresetColor.jsx
 
 import React, { useState, useEffect } from 'react';
-import EditableTable from '../components/EditableTable';
+import EditableTable from "../components/EditableTable.jsx";
 import { tcgThemesAPI, colorKeysAPI, updateColorKey, updateTcgTheme } from '../services/api';
 
 export default function ManagePresetColor() {
