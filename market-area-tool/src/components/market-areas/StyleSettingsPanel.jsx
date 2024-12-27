@@ -32,7 +32,7 @@ export const StyleSettingsPanel = ({
       <div className="p-6 space-y-6">
         {/* Header with Theme Selection */}
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
             Style Settings
           </h3>
           <button

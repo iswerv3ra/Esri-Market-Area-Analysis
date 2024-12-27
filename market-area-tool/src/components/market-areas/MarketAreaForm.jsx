@@ -1143,42 +1143,42 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             </>
           )
         )}
-
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
-                       hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
-                       dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
-                       focus:ring-offset-2 disabled:opacity-50"
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
-                       hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={
-              isSaving ||
-              (formState.maType === "radius" && radiusPoints.length === 0) ||
-              (formState.maType !== "radius" &&
-                formState.selectedLocations.length === 0) ||
-              !formState.maName
-            }
-          >
-            {isSaving
-              ? "Saving..."
-              : editingMarketArea
-              ? "Update & Exit"
-              : "Save & Exit"}
-          </button>
-        </div>
       </form>
     </div>
-  </div>
-);
+       {/* Right-aligned container with centered buttons */}
+       <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
+                   hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
+                   dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
+                   focus:ring-offset-2 disabled:opacity-50 shadow-lg"
+          disabled={isSaving}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
+                   hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          disabled={
+            isSaving ||
+            (formState.maType === "radius" && radiusPoints.length === 0) ||
+            (formState.maType !== "radius" &&
+              formState.selectedLocations.length === 0) ||
+            !formState.maName
+          }
+        >
+          {isSaving
+            ? "Saving..."
+            : editingMarketArea
+            ? "Update & Exit"
+            : "Save & Exit"}
+        </button>
+      </div>
+    </div>
+  );
 }
