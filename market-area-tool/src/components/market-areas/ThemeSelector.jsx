@@ -8,15 +8,14 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Static groupings for themes
   const categoryOrder = useMemo(() => [
     'Core Study',
-    'Submarkets',
+    'Submarkets 1-11',
+    'Submarkets 12-16',
     'Additional MSAs'
   ], []);
 
   useEffect(() => {
-    // Only fetch themes once when the component mounts
     const fetchThemes = async () => {
       try {
         const response = await tcgThemesAPI.getAll();
@@ -25,12 +24,15 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
         // Group themes by category
         const grouped = themeData.reduce((acc, theme) => {
           let category;
-          if (theme.theme_name.includes('Submarket')) {
-            category = 'Submarkets';
+          const submarketNumber = theme.theme_name.match(/Submarket (\d+)/)?.[1];
+          
+          if (theme.theme_name.includes('Subject MSA') || !theme.theme_name.match(/Submarket|MSA/)) {
+            category = 'Core Study';
+          } else if (submarketNumber) {
+            const num = parseInt(submarketNumber);
+            category = num <= 11 ? 'Submarkets 1-11' : 'Submarkets 12-16';
           } else if (theme.theme_name.includes('MSA')) {
             category = 'Additional MSAs';
-          } else {
-            category = 'Core Study';
           }
 
           if (!acc[category]) {
@@ -40,9 +42,13 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
           return acc;
         }, {});
 
-        // Sort themes within each category by theme_key
+        // Sort themes within each category
         Object.keys(grouped).forEach(category => {
-          grouped[category].sort((a, b) => a.theme_key.localeCompare(b.theme_key));
+          grouped[category].sort((a, b) => {
+            const aNum = parseInt(a.theme_name.match(/\d+/)?.[0] || '0');
+            const bNum = parseInt(b.theme_name.match(/\d+/)?.[0] || '0');
+            return aNum - bNum;
+          });
         });
 
         setThemes(grouped);
@@ -55,7 +61,21 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
     };
 
     fetchThemes();
-  }, []); // Empty dependency array means this only runs once
+  }, []);
+
+  const getColorName = (theme) => {
+    if (theme.color_key && theme.color_key.color_name) {
+      return theme.color_key.color_name;
+    }
+    return 'Default';
+  };
+
+  const getBackgroundColor = (theme) => {
+    if (theme.color_key) {
+      return `rgb(${theme.color_key.R}, ${theme.color_key.G}, ${theme.color_key.B})`;
+    }
+    return theme.fill_color || '#0078D4';
+  };
 
   const handleThemeClick = (theme) => {
     try {
@@ -169,14 +189,15 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
                       <div 
                         className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
                         style={{ 
-                          backgroundColor: theme.color_key ? 
-                            `rgb(${theme.color_key.R}, ${theme.color_key.G}, ${theme.color_key.B})` : 
-                            theme.fill_color || '#0078D4',
+                          backgroundColor: getBackgroundColor(theme),
                           opacity: theme.fill === 'Yes' ? 1 : 0.35
                         }}
                       />
-                      <span className="text-sm text-gray-900 dark:text-white">
+                      <span className="text-sm text-gray-900 dark:text-white flex-1">
                         {theme.theme_name}
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">
+                          {getColorName(theme)}
+                        </span>
                       </span>
                     </button>
                   ))}
