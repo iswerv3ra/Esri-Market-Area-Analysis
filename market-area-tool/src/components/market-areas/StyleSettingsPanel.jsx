@@ -168,48 +168,59 @@ export const StyleSettingsPanel = ({
           </div>
         </div>
 
-        {/* Transparency and Weight */}
-        <div className="grid grid-cols-2 gap-8">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Transparency</span>
-            <input
-              type="number"
-              value={Math.round(styleSettings.fillOpacity * 100)}
-              onChange={(e) => {
-                const value = parseInt(e.target.value, 10);
-                if (!isNaN(value)) {
-                  onStyleChange(
-                    'fillOpacity',
-                    Math.max(0, Math.min(1, value / 100))
-                  );
-                }
-              }}
-              disabled={styleSettings.noFill}
-              className="w-16 px-2 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-200 
-                         dark:border-gray-700 rounded text-gray-800 dark:text-gray-300"
-              min="0"
-              max="100"
-            />
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Border Weight</span>
-            <input
-              type="number"
-              value={styleSettings.borderWidth}
-              onChange={(e) => {
-                const value = parseInt(e.target.value, 10);
-                if (!isNaN(value)) {
-                  onStyleChange('borderWidth', Math.max(0, Math.min(10, value)));
-                }
-              }}
-              disabled={styleSettings.noBorder}
-              className="w-16 px-2 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-200 
-                         dark:border-gray-700 rounded text-gray-800 dark:text-gray-300"
-              min="0"
-              max="10"
-            />
-          </div>
-        </div>
+{/* Transparency and Weight */}
+<div className="grid grid-cols-2 gap-8">
+  <div className="flex justify-between items-center">
+    <span className="text-sm text-gray-600 dark:text-gray-400">Transparency</span>
+    <input
+      type="number"
+      value={Math.round((1 - styleSettings.fillOpacity) * 100)} // Inverted calculation
+      onChange={(e) => {
+        // Allow empty input for deletion
+        if (e.target.value === '') {
+          onStyleChange('fillOpacity', 1); // Default to fully opaque when empty
+          return;
+        }
+        
+        const transparencyValue = parseFloat(e.target.value);
+        if (!isNaN(transparencyValue)) {
+          // Convert transparency to opacity (inverted)
+          const opacity = 1 - (Math.max(0, Math.min(100, transparencyValue)) / 100);
+          onStyleChange('fillOpacity', opacity);
+        }
+      }}
+      disabled={styleSettings.noFill}
+      className="w-16 px-2 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-200 
+                 dark:border-gray-700 rounded text-gray-800 dark:text-gray-300"
+      min="0"
+      max="100"
+    />
+  </div>
+  <div className="flex justify-between items-center">
+    <span className="text-sm text-gray-600 dark:text-gray-400">Border Weight</span>
+    <input
+      type="number"
+      value={styleSettings.borderWidth}
+      onChange={(e) => {
+        // Allow empty input for deletion
+        if (e.target.value === '') {
+          onStyleChange('borderWidth', 0);
+          return;
+        }
+        
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value)) {
+          onStyleChange('borderWidth', Math.max(0, Math.min(10, value)));
+        }
+      }}
+      disabled={styleSettings.noBorder}
+      className="w-16 px-2 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-200 
+                 dark:border-gray-700 rounded text-gray-800 dark:text-gray-300"
+      min="0"
+      max="10"
+    />
+  </div>
+</div>
 
         {/* Excel Settings */}
         <div className="grid grid-cols-2 gap-8">

@@ -23,7 +23,8 @@ const defaultStyleSettings = {
 
 export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const { projectId } = useParams();
-  const { addMarketArea, updateMarketArea, deleteMarketArea } = useMarketAreas();
+  const { addMarketArea, updateMarketArea, deleteMarketArea } =
+    useMarketAreas();
   const {
     isLayerLoading,
     queryFeatures,
@@ -290,7 +291,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             await addActiveLayer(newType);
           } catch (err) {
             console.error(`Error initializing layer ${newType}:`, err);
-            setError(`Failed to initialize ${newType} layer. Please try again.`);
+            setError(
+              `Failed to initialize ${newType} layer. Please try again.`
+            );
           }
         }
       } catch (err) {
@@ -318,34 +321,28 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       ) {
         setFormState((prev) => ({ ...prev, isSearching: true }));
         try {
-          const results = await queryFeatures(formState.locationSearch, formState.maType, {
-            returnGeometry: true,
-            outFields: ["*"],
-            spatialRel: "esriSpatialRelIntersects",
-            num: 100,
+          const results = await queryFeatures(
+            formState.locationSearch,
+            formState.maType,
+            {
+              returnGeometry: true,
+              outFields: ["*"],
+              spatialRel: "esriSpatialRelIntersects",
+              num: 100,
+            }
+          );
+
+          // In the search effect, modify the mapping:
+          const mappedResults = results.map((feature) => {
+            const locationName = formatLocationName(feature, formState.maType);
+            // Remove the extra state append
+            return {
+              id: feature.attributes.FID,
+              name: locationName, // Just use the formatted name directly
+              feature,
+              geometry: feature.geometry,
+            };
           });
-
-          const mappedResults = results
-            .map((feature) => {
-              const locationName = formatLocationName(feature, formState.maType);
-              const stateName = feature.attributes.STATE || "";
-              const displayName = stateName
-                ? `${locationName}, ${stateName}`
-                : locationName;
-
-              return {
-                id: feature.attributes.FID,
-                name: displayName,
-                feature,
-                geometry: feature.geometry,
-              };
-            })
-            .filter(
-              (loc) =>
-                loc.name &&
-                loc.name.trim() !== "" &&
-                !formState.selectedLocations.some((sel) => sel.id === loc.id)
-            );
 
           setFormState((prev) => ({
             ...prev,
@@ -392,13 +389,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   useEffect(() => {
     if (formState.maType === "radius") return;
 
-    const uniqueIdField = FEATURE_LAYERS[formState.maType]?.uniqueIdField || "FID";
+    const uniqueIdField =
+      FEATURE_LAYERS[formState.maType]?.uniqueIdField || "FID";
 
     setFormState((prev) => {
       const selectedFeatureIds = new Set(
         selectedFeatures.map((f) => f.attributes[uniqueIdField])
       );
-      const currentSelectedIds = new Set(prev.selectedLocations.map((loc) => loc.id));
+      const currentSelectedIds = new Set(
+        prev.selectedLocations.map((loc) => loc.id)
+      );
 
       // If the sets match, no update needed
       if (
@@ -415,12 +415,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         const featureId = feature.attributes[uniqueIdField];
         if (!currentSelectedIds.has(featureId)) {
           const locationName = formatLocationName(feature, formState.maType);
-          const stateName = feature.attributes.STATE || "";
-          const displayName = stateName ? `${locationName}, ${stateName}` : locationName;
           if (locationName && locationName.trim() !== "") {
             finalSelectedLocations.push({
               id: featureId,
-              name: displayName,
+              name: locationName, // Just use the formatted name directly
               feature,
               geometry: feature.geometry,
             });
@@ -428,7 +426,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         }
       }
 
-      const finalSelectedIds = new Set(finalSelectedLocations.map((loc) => loc.id));
+      const finalSelectedIds = new Set(
+        finalSelectedLocations.map((loc) => loc.id)
+      );
       const updatedAvailableLocations = prev.availableLocations.filter(
         (loc) => !finalSelectedIds.has(loc.id)
       );
@@ -1008,145 +1008,156 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 htmlFor="shortName"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-              Short Name (Optional)
-            </label>
-            <input
-              type="text"
-              id="shortName"
-              value={formState.shortName}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  shortName: e.target.value,
-                }))
-              }
-              placeholder="Enter Short Name"
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                Short Name (Optional)
+              </label>
+              <input
+                type="text"
+                id="shortName"
+                value={formState.shortName}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    shortName: e.target.value,
+                  }))
+                }
+                placeholder="Enter Short Name"
+                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
                          focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-            />
+              />
+            </div>
           </div>
-        </div>
 
-        <StyleSettingsPanel
-          styleSettings={formState.styleSettings}
-          onStyleChange={handleStyleChange}
-        />
-
-        {formState.maType === "radius" ? (
-          <Radius
-            onFormStateChange={(newState) => setRadiusPoints(newState.radiusPoints)}
+          <StyleSettingsPanel
             styleSettings={formState.styleSettings}
-            existingRadiusPoints={radiusPoints}
+            onStyleChange={handleStyleChange}
           />
-        ) : (
-          formState.maType && (
-            <>
-              <div>
-                <label
-                  htmlFor="locationSearch"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Search Locations {formState.isSearching && "(Searching...)"}
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="locationSearch"
-                    value={formState.locationSearch}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        locationSearch: e.target.value,
-                      }))
-                    }
-                    placeholder={`Search ${formState.maType} locations...`}
-                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+
+          {formState.maType === "radius" ? (
+            <Radius
+              onFormStateChange={(newState) =>
+                setRadiusPoints(newState.radiusPoints)
+              }
+              styleSettings={formState.styleSettings}
+              existingRadiusPoints={radiusPoints}
+            />
+          ) : (
+            formState.maType && (
+              <>
+                <div>
+                  <label
+                    htmlFor="locationSearch"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Search Locations {formState.isSearching && "(Searching...)"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="locationSearch"
+                      value={formState.locationSearch}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          locationSearch: e.target.value,
+                        }))
+                      }
+                      placeholder={`Search ${formState.maType} locations...`}
+                      className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
                                focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                    disabled={!formState.maType || isLayerLoading}
-                  />
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Available Locations
-                    </label>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {formState.availableLocations.length} found
-                    </span>
+                      disabled={!formState.maType || isLayerLoading}
+                    />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   </div>
-                  <div
-                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
-                    style={{ minHeight: "300px" }}
-                  >
-                    {formState.availableLocations.map((location) => (
-                      <div
-                        key={`available-${location.id}-${
-                          location.feature?.attributes?.FID || ""
-                        }`}
-                        onClick={() => handleLocationSelect(location)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                  text-sm text-gray-900 dark:text-gray-100"
-                      >
-                        {location.name}
-                      </div>
-                    ))}
-                    {formState.availableLocations.length === 0 &&
-                      !formState.isSearching && (
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Available Locations
+                      </label>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {formState.availableLocations.length} found
+                      </span>
+                    </div>
+                    <div
+                      className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                      style={{ minHeight: "300px" }}
+                    >
+                      {formState.availableLocations.map((location, index) => {
+                        // Fallback to index-based key if location.id is missing or null
+                        const keyVal =
+                          location.id != null
+                            ? `available-${location.id}`
+                            : `available-index-${index}`;
+
+                        return (
+                          <div
+                            key={keyVal}
+                            onClick={() => handleLocationSelect(location)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+                          >
+                            {location.name}
+                          </div>
+                        );
+                      })}
+                      {formState.availableLocations.length === 0 &&
+                        !formState.isSearching && (
+                          <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                            {formState.locationSearch.length >= 3
+                              ? "No locations found"
+                              : "Enter at least 3 characters to search"}
+                          </div>
+                        )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Selected Locations
+                      </label>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {formState.selectedLocations.length} selected
+                      </span>
+                    </div>
+                    <div
+                      className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                      style={{ minHeight: "300px" }}
+                    >
+                      {formState.selectedLocations.map((location, index) => {
+                        const keyVal =
+                          location.id != null
+                            ? `selected-${location.id}`
+                            : `selected-index-${index}`;
+
+                        return (
+                          <div
+                            key={keyVal}
+                            onClick={() => handleLocationDeselect(location)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+                          >
+                            {location.name}
+                          </div>
+                        );
+                      })}
+                      {formState.selectedLocations.length === 0 && (
                         <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                          {formState.locationSearch.length >= 3
-                            ? "No locations found"
-                            : "Enter at least 3 characters to search"}
+                          No locations selected
                         </div>
                       )}
+                    </div>
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Selected Locations
-                    </label>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {formState.selectedLocations.length} selected
-                    </span>
-                  </div>
-                  <div
-                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
-                    style={{ minHeight: "300px" }}
-                  >
-                    {formState.selectedLocations.map((location) => (
-                      <div
-                        key={`selected-${location.id}-${
-                          location.feature?.attributes?.FID || ""
-                        }`}
-                        onClick={() => handleLocationDeselect(location)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer
-                                  text-sm text-gray-900 dark:text-gray-100"
-                      >
-                        {location.name}
-                      </div>
-                    ))}
-                    {formState.selectedLocations.length === 0 && (
-                      <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                        No locations selected
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )
-        )}
-      </form>
-    </div>
-       {/* Right-aligned container with centered buttons */}
-       <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
+              </>
+            )
+          )}
+        </form>
+      </div>
+      {/* Right-aligned container with centered buttons */}
+      <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
         <button
           type="button"
           onClick={handleCancel}
