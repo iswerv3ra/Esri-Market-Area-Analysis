@@ -10,8 +10,8 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
 
   const categoryOrder = useMemo(() => [
     'Core Study',
-    'Submarkets 1-11',
-    'Submarkets 12-16',
+    'Submarkets With Comps 1-11',
+    'Submarkets Without Comps 12-16',
     'Additional MSAs'
   ], []);
 
@@ -30,7 +30,7 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
             category = 'Core Study';
           } else if (submarketNumber) {
             const num = parseInt(submarketNumber);
-            category = num <= 11 ? 'Submarkets 1-11' : 'Submarkets 12-16';
+            category = num <= 11 ? 'Submarkets With Comps 1-11' : 'Submarkets Without Comps 12-16';
           } else if (theme.theme_name.includes('MSA')) {
             category = 'Additional MSAs';
           }

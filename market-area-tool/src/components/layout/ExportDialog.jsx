@@ -1,67 +1,125 @@
-import React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
 import { TableCellsIcon, XMarkIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import Papa from 'papaparse';
 
 const MA_TYPE_MAPPING = {
-  'radius': 'RADIUS',
-  'place': 'PLACE',
-  'block': 'BLOCK',
-  'blockgroup': 'BLOCKGROUP',
-  'cbsa': 'CBSA',
-  'state': 'STATE',
-  'zip': 'ZIP',
-  'tract': 'TRACT',
-  'county': 'COUNTY',
-  'cb': 'CENSUS BLOCK',
-  'cbg': 'CENSUS BLOCK GROUP',
-  'caa': 'CUSTOM ANALYSIS AREA',
-  'project': 'PROJECT',
-  'rt': 'RADIUS TARGET'
+  radius: 'RADIUS',
+  place: 'PLACE',
+  block: 'BLOCK',
+  blockgroup: 'BLOCKGROUP',
+  cbsa: 'CBSA',
+  state: 'STATE',
+  zip: 'ZIP',
+  tract: 'TRACT',
+  county: 'COUNTY',
+  cb: 'CENSUS BLOCK',
+  cbg: 'CENSUS BLOCK GROUP',
+  caa: 'CUSTOM ANALYSIS AREA',
+  project: 'PROJECT',
+  rt: 'RADIUS TARGET',
+  usa: 'USA'
 };
 
-const COST_PER_VARIABLE = 0.001; // $0.001 per variable
+const COST_PER_VARIABLE = 0.001;
 
-const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketAreas = [] }) => {
+const ExportDialog = ({
+  isOpen,
+  onClose,
+  onExport,
+  variablePresets = [],
+  marketAreas = [],
+}) => {
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [exportOption, setExportOption] = useState('selected-preset');
-  const [fileName, setFileName] = useState(`market_areas_enriched_${new Date().toISOString().split('T')[0]}`);
-  const [selectedAreas, setSelectedAreas] = useState(
-    () => new Set(marketAreas.map(area => area.id))
+  const [fileName, setFileName] = useState(
+    `market_areas_enriched_${new Date().toISOString().split('T')[0]}`
   );
+  const [selectedAreas, setSelectedAreas] = useState(
+    () => new Set(marketAreas.map((area) => area.id))
+  );
+  const [usaData, setUsaData] = useState(null);
+  const [isLoadingUSAData, setIsLoadingUSAData] = useState(false);
+  const [includeUSAData, setIncludeUSAData] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    setSelectedAreas(new Set(marketAreas.map(area => area.id)));
+    setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
   }, [marketAreas]);
 
-  // Calculate total variables based on export option
+  // Enhanced USA data loading
+  useEffect(() => {
+    if (includeUSAData && !usaData && !isLoadingUSAData) {
+      setIsLoadingUSAData(true);
+      setLoadError(null);
+
+      fetch('/usa-data.csv')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch USA data: ${response.statusText}`);
+          }
+          return response.text();
+        })
+        .then(csvText => {
+          Papa.parse(csvText, {
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              if (results.errors.length > 0) {
+                console.warn('CSV parsing warnings:', results.errors);
+              }
+
+              // Transform the data into the expected format
+              const transformedData = {
+                variables: results.data[0] || {}, // Take the first row as it contains all our data
+                metadata: {
+                  type: 'USA',
+                  name: 'United States',
+                  id: 'USA-1'
+                }
+              };
+
+              setUsaData(transformedData);
+              setIsLoadingUSAData(false);
+            },
+            error: (err) => {
+              setLoadError(`Error parsing CSV: ${err.message}`);
+              setIsLoadingUSAData(false);
+            },
+          });
+        })
+        .catch(error => {
+          setLoadError(`Error loading USA data: ${error.message}`);
+          setIsLoadingUSAData(false);
+        });
+    }
+  }, [includeUSAData, usaData, isLoadingUSAData]);
+
   const totalVariables = useMemo(() => {
     if (exportOption === 'selected-preset') {
-      const selectedPreset = variablePresets.find(p => p.id === selectedPresetId);
+      const selectedPreset = variablePresets.find((p) => p.id === selectedPresetId);
       return selectedPreset ? selectedPreset.variables.length : 0;
-    } else {
-      // Assuming getAllVariables() for 'all-variables' option
-      return variablePresets.reduce((total, preset) => total + preset.variables.length, 0);
     }
+    return variablePresets.reduce((total, preset) => total + preset.variables.length, 0);
   }, [exportOption, selectedPresetId, variablePresets]);
 
-  // Calculate total cost
   const totalCost = useMemo(() => {
-    const numAreas = selectedAreas.size;
-    const cost = (totalVariables * numAreas * COST_PER_VARIABLE);
+    const numAreas = selectedAreas.size + (includeUSAData ? 1 : 0);
+    const cost = totalVariables * numAreas * COST_PER_VARIABLE;
     return cost.toFixed(2);
-  }, [selectedAreas.size, totalVariables]);
+  }, [selectedAreas.size, totalVariables, includeUSAData]);
 
   const handleSelectAllAreas = (e) => {
     if (e.target.checked) {
-      setSelectedAreas(new Set(marketAreas.map(area => area.id)));
+      setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
     } else {
       setSelectedAreas(new Set());
     }
   };
 
   const handleAreaSelection = (areaId) => {
-    setSelectedAreas(prev => {
+    setSelectedAreas((prev) => {
       const next = new Set(prev);
       if (next.has(areaId)) {
         next.delete(areaId);
@@ -73,21 +131,32 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
   };
 
   const handleExport = () => {
-    const selectedMarketAreas = marketAreas.filter(area => selectedAreas.has(area.id));
     let variables = [];
-    
     if (exportOption === 'selected-preset' && selectedPresetId) {
-      const preset = variablePresets.find(p => p.id === selectedPresetId);
+      const preset = variablePresets.find((p) => p.id === selectedPresetId);
       variables = preset ? preset.variables : [];
     } else if (exportOption === 'all-variables') {
-      // Collect all variables from all presets
       variables = variablePresets.reduce((all, preset) => [...all, ...preset.variables], []);
+    }
+
+    const selectedMarketAreas = marketAreas.filter((area) =>
+      selectedAreas.has(area.id)
+    );
+
+    let finalMarketAreas = [...selectedMarketAreas];
+
+    if (includeUSAData && usaData) {
+      finalMarketAreas.push({
+        ...usaData.metadata,
+        variables: usaData.variables,
+        geometry: null // Add if you have geometry data
+      });
     }
 
     onExport({
       variables,
-      selectedMarketAreas,
-      fileName
+      selectedMarketAreas: finalMarketAreas,
+      fileName,
     });
 
     onClose();
@@ -96,7 +165,6 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -104,10 +172,7 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
               <TableCellsIcon className="h-5 w-5" />
               Export Enriched Data
             </Dialog.Title>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
@@ -127,6 +192,27 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
                     ${totalCost}
                   </span>
                 </div>
+              </div>
+
+              {/* Include USA Data Checkbox */}
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={includeUSAData}
+                    onChange={(e) => setIncludeUSAData(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                    Include USA Data
+                  </span>
+                </label>
+                {isLoadingUSAData && (
+                  <p className="text-sm text-blue-500">Loading USA Data...</p>
+                )}
+                {loadError && (
+                  <p className="text-sm text-red-500">{loadError}</p>
+                )}
               </div>
 
               {/* File Name Input */}
@@ -158,7 +244,7 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
                       onChange={handleSelectAllAreas}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <span className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="ml-2 text-sm text-gray-900 dark:text-white">
                       Select All
                     </span>
                   </label>
@@ -183,7 +269,7 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
 
               {/* Export Options */}
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Export Options
                 </label>
                 <div className="mt-2 space-y-2">
@@ -256,7 +342,7 @@ const ExportDialog = ({ isOpen, onClose, onExport, variablePresets = [], marketA
                 selectedAreas.size === 0
               }
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md 
-                       hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                         hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Export
             </button>

@@ -44,6 +44,9 @@ export default defineConfig(({ command, mode }) => {
       }
     },
 
+    // Asset handling configuration
+    assetsInclude: ['**/*.csv'],  // Add CSV files to assets
+
     // Dependency optimization
     optimizeDeps: {
       exclude: ['@arcgis/core']

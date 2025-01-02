@@ -71,7 +71,7 @@ export default function RootLayout() {
 
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-teal-400 px-4 py-1 rounded-lg">
-              TCG Data Mapper
+              TCG Navigator
             </h1>
           </div>
 

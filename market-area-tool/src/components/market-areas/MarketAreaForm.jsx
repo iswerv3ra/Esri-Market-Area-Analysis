@@ -83,7 +83,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "blockgroup", label: "Census Block Group" },
     { value: "cbsa", label: "CBSA" },
     { value: "state", label: "State" },
-    { value: "usa", label: "USA" },
     { value: "md", label: "Metro Division" },
   ];
 
