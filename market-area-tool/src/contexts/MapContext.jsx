@@ -1195,13 +1195,38 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   
       try {
         console.log(
-          `[MapContext] Displaying ${featuresToDraw.length} features...`
+          `[MapContext] Displaying ${
+            features.length
+          } features for layers: ${activeLayers.join(", ")}`
+        );
+
+        // Preserve market area graphics
+        const existingMarketAreaGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (graphic) => graphic.attributes?.marketAreaId
         );
   
-        // Clear EVERYTHING first
+        // Get existing selection graphics that we want to keep (ones not being toggled)
+        const existingSelectionGraphics =
+          selectionGraphicsLayerRef.current.graphics.filter(
+            (graphic) =>
+              !graphic.attributes?.marketAreaId &&
+              !features.some((f) => f.attributes.FID === graphic.attributes.FID)
+          );
+
+        // Clear the graphics layer
         selectionGraphicsLayerRef.current.removeAll();
   
-        // Add them all
+        // Add back existing market area graphics
+        existingMarketAreaGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+
+        // Add back existing selection graphics we're keeping
+        existingSelectionGraphics.forEach((g) =>
+          selectionGraphicsLayerRef.current.add(g)
+        );
+
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         for (const feat of featuresToDraw) {
           // Make sure geometry is valid & define your symbol
