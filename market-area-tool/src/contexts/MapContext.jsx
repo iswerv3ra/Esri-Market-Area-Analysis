@@ -1195,10 +1195,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   
       try {
         console.log(
-          `[MapContext] Displaying ${
-            features.length
-          } features for layers: ${activeLayers.join(", ")}`
-        );
+          `[MapContext] Displaying ${featuresToDraw.length} features for layers: ${activeLayers.join(", ")}`
+          );
 
         // Preserve market area graphics
         const existingMarketAreaGraphics =
@@ -1211,7 +1209,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           selectionGraphicsLayerRef.current.graphics.filter(
             (graphic) =>
               !graphic.attributes?.marketAreaId &&
-              !features.some((f) => f.attributes.FID === graphic.attributes.FID)
+              !featuresToDraw.some((f) => f.attributes.FID === graphic.attributes.FID)
           );
 
         // Clear the graphics layer

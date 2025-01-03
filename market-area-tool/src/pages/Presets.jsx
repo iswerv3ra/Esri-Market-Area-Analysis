@@ -371,28 +371,38 @@ const PresetsContent = () => {
   const [modalContent, setModalContent] = useState(null);
 
   const handleSaveVariablePreset = async () => {
-    if (!newPresetName.trim()) {
-      toast.error('Please enter a preset name');
-      return;
-    }
-
-    if (selectedVariables.size === 0) {
-      toast.error('Please select at least one variable');
-      return;
-    }
-
     try {
-      await saveVariablePreset(
-        newPresetName.trim(),
-        Array.from(selectedVariables),
-        isGlobal
-      );
-      setNewPresetName('');
-      setIsGlobal(false);
+      if (!newPresetName.trim()) {
+        toast.error("Please enter a preset name");
+        return;
+      }
+  
+      if (!selectedVariables || selectedVariables.size === 0) {
+        toast.error("Please select at least one variable");
+        return;
+      }
+  
+      const presetData = {
+        name: newPresetName.trim(),
+        variables: Array.from(selectedVariables), // Convert Set to Array
+        is_global: isGlobal
+      };
+  
+      const response = await saveVariablePreset(presetData);
+      
+      if (response?.id) {
+        toast.success("Variable preset created successfully!");
+        // Reset form
+        setNewPresetName("");
+        setSelectedVariables(new Set());
+        setIsGlobal(false);
+      }
     } catch (error) {
-      // Error is already handled in the context
+      console.error("Error saving variable preset:", error);
+      toast.error(error.response?.data?.message || "Error creating variable preset");
     }
   };
+
 
   const openPresetModal = (preset, type) => {
     setModalTitle(`${type === 'variable' ? 'Variable' : 'Preset'} Details`);
@@ -465,17 +475,6 @@ const PresetsContent = () => {
                              shadow-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isGlobal}
-                      onChange={(e) => setIsGlobal(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Global
-                    </span>
-                  </label>
                 </div>
 
                 {/* Save Variable Preset Button */}

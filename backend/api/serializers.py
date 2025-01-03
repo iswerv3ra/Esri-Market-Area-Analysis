@@ -58,12 +58,17 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class MarketAreaSerializer(serializers.ModelSerializer):
+    # Pull project_number from the related Project
+    project_number = serializers.ReadOnlyField(source='project.project_number')
+    
     class Meta:
         model = MarketArea
         fields = [
-            'id', 'name', 'short_name', 'ma_type', 'geometry', 
+            'id', 'name', 'short_name', 'ma_type', 'geometry',
             'style_settings', 'locations', 'radius_points',
-            'created_at', 'last_modified'
+            'created_at', 'last_modified',
+            # Add project_number here
+            'project_number',
         ]
         read_only_fields = ['created_at', 'last_modified']
 
@@ -109,7 +114,7 @@ class StylePresetSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = StylePreset
-        fields = ['id', 'name', 'project', 'styles', 'is_global', 
+        fields = ['id', 'name', 'project', 'styles',
                  'created_at', 'last_modified', 'created_by', 'created_by_username']
         read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
 
@@ -140,7 +145,7 @@ class VariablePresetSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = VariablePreset
-        fields = ['id', 'name', 'project', 'variables', 'is_global', 
+        fields = ['id', 'name', 'variables', 'is_global', 
                  'created_at', 'last_modified', 'created_by', 'created_by_username',
                  'variable_count']
         read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
@@ -155,9 +160,8 @@ class VariablePresetSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Variables list cannot be empty")
         return value
 
+    # If always global, you could remove is_global or just default it
     def validate(self, data):
-        if data.get('is_global') and data.get('project'):
-            raise serializers.ValidationError(
-                {"is_global": "Global presets cannot be associated with a specific project"}
-            )
+        # If you want to force is_global always True:
+        data['is_global'] = True
         return data

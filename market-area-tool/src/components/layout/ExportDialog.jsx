@@ -32,9 +32,30 @@ const ExportDialog = ({
 }) => {
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [exportOption, setExportOption] = useState('selected-preset');
-  const [fileName, setFileName] = useState(
-    `market_areas_enriched_${new Date().toISOString().split('T')[0]}`
-  );
+// First, debug log to see what we're getting
+console.log('Market Areas in ExportDialog:', marketAreas);
+const [fileName, setFileName] = useState(""); // start empty
+
+useEffect(() => {
+  if (marketAreas.length > 0) {
+    const firstArea = marketAreas[0];
+    const projectNumber =
+      firstArea?.project_number ||
+      firstArea?.project?.project_number ||
+      "00000.00";
+
+    const date = new Date();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const year = String(date.getFullYear()).slice(-2);
+
+    setFileName(`${projectNumber} Esri Data ${month}.${day}.${year}`);
+  } else {
+    // If empty, set a fallback
+    setFileName("00000.00 Esri Data 00.00.00");
+  }
+}, [marketAreas]);
+
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
