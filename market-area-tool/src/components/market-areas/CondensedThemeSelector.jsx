@@ -6,8 +6,6 @@ import { tcgThemesAPI } from "../../services/api"; // Use real API
 //
 // 1) THEME DATA CACHING
 //
-// We'll store the grouped themes in a static variable so it's fetched once.
-// Subsequent openings of CondensedThemeSelector won't hit the API again.
 let themeCache = null;
 
 // We skip storing these in "recent" if user picks them
@@ -24,19 +22,19 @@ const STANDARD_COLORS = [
 
 // Keep track of up to 10 recently used colors
 function addToRecentColors(color, prevColors) {
-  const idx = prevColors.findIndex((c) => c.toLowerCase() === color.toLowerCase());
-  // If color is already in the list, move it to the front
+  const idx = prevColors.findIndex(
+    (c) => c.toLowerCase() === color.toLowerCase()
+  );
   if (idx >= 0) {
     const updated = [...prevColors];
     updated.splice(idx, 1);
     updated.unshift(color);
     return updated.slice(0, 10);
   }
-  // Otherwise, just prepend
   return [color, ...prevColors].slice(0, 10);
 }
 
-// Determine category for a theme (same logic as your ThemeSelector)
+// Determine category for a theme
 function getCategory(themeName) {
   const submarketMatch = themeName.match(/Submarket\s+(\d+)/i);
   if (themeName.includes("Subject MSA") || !themeName.match(/Submarket|MSA/i)) {
@@ -50,7 +48,7 @@ function getCategory(themeName) {
   return "Other";
 }
 
-// Categories in your desired order
+// Desired category order
 const categoryOrder = [
   "Core Study",
   "Submarkets 1-11",
@@ -59,27 +57,25 @@ const categoryOrder = [
   "Other",
 ];
 
-//
-// 2) COLOR CONVERSION UTILS (HSB <-> RGB <-> HEX)
-//
+// HSB <-> RGB <-> HEX conversions
 function hsbToRgb(h, s, v) {
   const c = v * s;
   const hh = h / 60;
   const x = c * (1 - Math.abs((hh % 2) - 1));
-  let [r, g, b] = [0, 0, 0];
+  let [rr, gg, bb] = [0, 0, 0];
 
-  if (hh >= 0 && hh < 1) [r, g, b] = [c, x, 0];
-  else if (hh >= 1 && hh < 2) [r, g, b] = [x, c, 0];
-  else if (hh >= 2 && hh < 3) [r, g, b] = [0, c, x];
-  else if (hh >= 3 && hh < 4) [r, g, b] = [0, x, c];
-  else if (hh >= 4 && hh < 5) [r, g, b] = [x, 0, c];
-  else if (hh >= 5 && hh <= 6) [r, g, b] = [c, 0, x];
+  if (hh >= 0 && hh < 1) [rr, gg, bb] = [c, x, 0];
+  else if (hh >= 1 && hh < 2) [rr, gg, bb] = [x, c, 0];
+  else if (hh >= 2 && hh < 3) [rr, gg, bb] = [0, c, x];
+  else if (hh >= 3 && hh < 4) [rr, gg, bb] = [0, x, c];
+  else if (hh >= 4 && hh < 5) [rr, gg, bb] = [x, 0, c];
+  else if (hh >= 5 && hh <= 6) [rr, gg, bb] = [c, 0, x];
 
   const m = v - c;
   return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255),
+    r: Math.round((rr + m) * 255),
+    g: Math.round((gg + m) * 255),
+    b: Math.round((bb + m) * 255),
   };
 }
 
@@ -135,22 +131,17 @@ function rgbToHsb(r, g, b) {
   return { h, s, v };
 }
 
-//
-// 3) HUE SLIDER (THIN SPECTRUM)
-//
 function HueStrip({ hue, onChange, width = 300, height = 16 }) {
   const canvasRef = useRef(null);
 
-  // Redraw whenever size or hue changes
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     const imageData = ctx.createImageData(width, height);
 
-    // We'll do a left-to-right hue from 0..360
     for (let x = 0; x < width; x++) {
       const curHue = (360 * x) / (width - 1);
-      const { r, g, b } = hsbToRgb(curHue, 1, 1); // full sat, full val
+      const { r, g, b } = hsbToRgb(curHue, 1, 1);
       for (let y = 0; y < height; y++) {
         const idx = (y * width + x) * 4;
         imageData.data[idx + 0] = r;
@@ -161,7 +152,6 @@ function HueStrip({ hue, onChange, width = 300, height = 16 }) {
     }
     ctx.putImageData(imageData, 0, 0);
 
-    // Draw small marker line for the current hue
     const markerX = Math.round((hue / 360) * (width - 1));
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2;
@@ -201,9 +191,6 @@ function HueStrip({ hue, onChange, width = 300, height = 16 }) {
   );
 }
 
-//
-// 4) SATURATION-BRIGHTNESS SQUARE
-//
 function SaturationBrightnessSquare({
   hue,
   saturation,
@@ -213,8 +200,6 @@ function SaturationBrightnessSquare({
 }) {
   const canvasRef = useRef(null);
 
-  // Redraw the square whenever hue or size changes
-  // S = x from 0..1, B = y from 1..0
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
@@ -234,7 +219,7 @@ function SaturationBrightnessSquare({
     }
     ctx.putImageData(imageData, 0, 0);
 
-    // Draw the marker for current S/B
+    // Marker
     const xPos = Math.round(saturation * (size - 1));
     const yPos = Math.round((1 - brightness) * (size - 1));
     ctx.strokeStyle = "white";
@@ -249,7 +234,6 @@ function SaturationBrightnessSquare({
     const rect = canvasRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(evt.clientX - rect.left, size - 1));
     const y = Math.max(0, Math.min(evt.clientY - rect.top, size - 1));
-
     const newS = x / (size - 1);
     const newB = 1 - y / (size - 1);
     onChange({ s: newS, v: newB });
@@ -277,14 +261,7 @@ function SaturationBrightnessSquare({
   );
 }
 
-//
-// 5) MAIN CondensedThemeSelector
-//
-const CondensedThemeSelector = ({
-  isOpen,
-  onClose,
-  onColorOnlySelect,
-}) => {
+const CondensedThemeSelector = ({ isOpen, onClose, onColorOnlySelect }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [themes, setThemes] = useState({});
@@ -295,36 +272,47 @@ const CondensedThemeSelector = ({
   // Show/hide the advanced color section
   const [showMoreColors, setShowMoreColors] = useState(false);
 
-  // HSB state for advanced picking
-  const [hsb, setHsb] = useState({ h: 0, s: 0, v: 1 }); // default to #FFFFFF
+  // HSB state
+  const [hsb, setHsb] = useState({ h: 0, s: 0, v: 1 }); // default #FFFFFF
+
+  // *** SAFE GUARD ***:
+  // We coerce h, s, v to valid numeric defaults
+  const safeH = Number.isFinite(hsb.h) ? hsb.h : 0;
+  const safeS = Number.isFinite(hsb.s) ? hsb.s : 0;
+  const safeV = Number.isFinite(hsb.v) ? hsb.v : 1;
 
   // Convert to RGB => Hex for user display
-  const { r, g, b } = hsbToRgb(hsb.h, hsb.s, hsb.v);
+  const { r, g, b } = hsbToRgb(safeH, safeS, safeV) || { r: 255, g: 255, b: 255 };
   const advancedHex = rgbToHex(r, g, b);
 
-  // Fields for R/G/B + Hex
   const [rgbFields, setRgbFields] = useState({ r, g, b });
   const [hexField, setHexField] = useState(advancedHex);
 
   // Keep fields in sync with HSB changes
   useEffect(() => {
-    const { r, g, b } = hsbToRgb(hsb.h, hsb.s, hsb.v);
+    // Re-run the safe guard
+    const safeH = Number.isFinite(hsb.h) ? hsb.h : 0;
+    const safeS = Number.isFinite(hsb.s) ? hsb.s : 0;
+    const safeV = Number.isFinite(hsb.v) ? hsb.v : 1;
+
+    const { r, g, b } = hsbToRgb(safeH, safeS, safeV);
     setRgbFields({ r, g, b });
     setHexField(rgbToHex(r, g, b));
   }, [hsb]);
 
-  // If user changes R/G/B
+  // R/G/B changes
   const handleRgbChange = (chan, val) => {
     const n = Math.max(0, Math.min(parseInt(val, 10) || 0, 255));
     const updated = { ...rgbFields, [chan]: n };
     setRgbFields(updated);
     const hex = rgbToHex(updated.r, updated.g, updated.b);
     setHexField(hex);
+    // Convert back to HSB
     const newHSB = rgbToHsb(updated.r, updated.g, updated.b);
     setHsb(newHSB);
   };
 
-  // If user changes Hex
+  // Hex changes
   const handleHexChange = (val) => {
     setHexField(val);
     const { r, g, b } = hexToRgb(val);
@@ -332,12 +320,12 @@ const CondensedThemeSelector = ({
     setHsb(rgbToHsb(r, g, b));
   };
 
-  // If user picks from Hue strip
+  // Hue changes
   const handleHueChange = (newHue) => {
     setHsb((old) => ({ ...old, h: newHue }));
   };
 
-  // If user picks from Sat/Bri square
+  // Saturation/Brightness changes
   const handleSBChange = ({ s, v }) => {
     setHsb((old) => ({ ...old, s, v }));
   };
@@ -349,16 +337,19 @@ const CondensedThemeSelector = ({
 
   // Common color click
   const handleColorClick = (color, label = "") => {
-    const isStandard = STANDARD_COLORS.some((std) => std.toLowerCase() === color.toLowerCase());
+    const isStandard = STANDARD_COLORS.some(
+      (std) => std.toLowerCase() === color.toLowerCase()
+    );
     if (!isStandard) {
       setRecentColors((prev) => addToRecentColors(color, prev));
     }
     onColorOnlySelect(color);
     onClose();
-    toast.success(label ? `Color applied from ${label}` : `Color applied: ${color}`);
+    toast.success(
+      label ? `Color applied from ${label}` : `Color applied: ${color}`
+    );
   };
 
-  // Toggle advanced panel
   const toggleMoreColors = () => {
     setShowMoreColors((prev) => !prev);
   };
@@ -366,14 +357,12 @@ const CondensedThemeSelector = ({
   // Load/cached themes
   useEffect(() => {
     if (!isOpen) return;
-    // If we already have themeCache, use it instantly
     if (themeCache) {
       setThemes(themeCache);
       setLoading(false);
       return;
     }
 
-    // Otherwise fetch from the API
     setLoading(true);
     setError(null);
 
@@ -381,7 +370,7 @@ const CondensedThemeSelector = ({
       try {
         const resp = await tcgThemesAPI.getAll();
         const data = resp.data;
-        // Group them
+
         const grouped = data.reduce((acc, theme) => {
           const cat = getCategory(theme.theme_name);
           if (!acc[cat]) acc[cat] = [];
@@ -398,7 +387,7 @@ const CondensedThemeSelector = ({
           });
         });
 
-        themeCache = grouped; // store in static var
+        themeCache = grouped;
         setThemes(grouped);
         setLoading(false);
       } catch (err) {
@@ -413,7 +402,6 @@ const CondensedThemeSelector = ({
 
   if (!isOpen) return null;
 
-  // Prevent clicks inside the modal from closing it
   const handleDialogClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -444,14 +432,21 @@ const CondensedThemeSelector = ({
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         {/* MAIN CONTENT */}
         {loading ? (
-          <div className="text-gray-500 dark:text-gray-300">Loading colors...</div>
+          <div className="text-gray-500 dark:text-gray-300">
+            Loading colors...
+          </div>
         ) : error ? (
           <div className="text-red-500 text-center">{error}</div>
         ) : (
@@ -467,16 +462,19 @@ const CondensedThemeSelector = ({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {catThemes.map((theme) => {
-                      // Each theme has a color_key with a Hex
                       const hexColor = theme.color_key?.Hex || "#0078D4";
+                      const colorName =
+                        theme.color_key?.color_name || "Unknown Color";
                       return (
                         <button
                           key={theme.id}
                           type="button"
                           className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600 hover:opacity-75"
                           style={{ backgroundColor: hexColor }}
-                          title={`${theme.theme_name} (${hexColor})`}
-                          onClick={() => handleColorClick(hexColor, theme.theme_name)}
+                          title={`${theme.theme_name} (${colorName})`}
+                          onClick={() =>
+                            handleColorClick(hexColor, `${theme.theme_name} (${colorName})`)
+                          }
                         />
                       );
                     })}
@@ -527,17 +525,17 @@ const CondensedThemeSelector = ({
                   {/* LEFT: Big S/B Square + Thin Hue Strip */}
                   <div className="flex flex-col items-center gap-2">
                     <SaturationBrightnessSquare
-                      hue={hsb.h}
-                      saturation={hsb.s}
-                      brightness={hsb.v}
+                      hue={safeH}
+                      saturation={safeS}
+                      brightness={safeV}
                       onChange={handleSBChange}
                       size={200}
                     />
                     <HueStrip
-                      hue={hsb.h}
+                      hue={safeH}
                       onChange={handleHueChange}
                       width={200}
-                      height={16} 
+                      height={16}
                     />
                   </div>
 
