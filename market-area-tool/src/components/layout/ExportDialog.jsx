@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
-import { TableCellsIcon, XMarkIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Papa from 'papaparse';
 
 const MA_TYPE_MAPPING = {
@@ -22,6 +22,7 @@ const MA_TYPE_MAPPING = {
 };
 
 const COST_PER_VARIABLE = 0.001;
+const MAX_COST_LIMIT = 20;
 
 const ExportDialog = ({
   isOpen,
@@ -32,29 +33,26 @@ const ExportDialog = ({
 }) => {
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [exportOption, setExportOption] = useState('selected-preset');
-// First, debug log to see what we're getting
-console.log('Market Areas in ExportDialog:', marketAreas);
-const [fileName, setFileName] = useState(""); // start empty
+  const [fileName, setFileName] = useState("");
 
-useEffect(() => {
-  if (marketAreas.length > 0) {
-    const firstArea = marketAreas[0];
-    const projectNumber =
-      firstArea?.project_number ||
-      firstArea?.project?.project_number ||
-      "00000.00";
+  useEffect(() => {
+    if (marketAreas.length > 0) {
+      const firstArea = marketAreas[0];
+      const projectNumber =
+        firstArea?.project_number ||
+        firstArea?.project?.project_number ||
+        "00000.00";
 
-    const date = new Date();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const year = String(date.getFullYear()).slice(-2);
+      const date = new Date();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const year = String(date.getFullYear()).slice(-2);
 
-    setFileName(`${projectNumber} Esri Data ${month}.${day}.${year}`);
-  } else {
-    // If empty, set a fallback
-    setFileName("00000.00 Esri Data 00.00.00");
-  }
-}, [marketAreas]);
+      setFileName(`${projectNumber} Esri Data ${month}.${day}.${year}`);
+    } else {
+      setFileName("00000.00 Esri Data 00.00.00");
+    }
+  }, [marketAreas]);
 
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
@@ -68,7 +66,6 @@ useEffect(() => {
     setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
   }, [marketAreas]);
 
-  // Enhanced USA data loading
   useEffect(() => {
     if (includeUSAData && !usaData && !isLoadingUSAData) {
       setIsLoadingUSAData(true);
@@ -91,9 +88,8 @@ useEffect(() => {
                 console.warn('CSV parsing warnings:', results.errors);
               }
 
-              // Transform the data into the expected format
               const transformedData = {
-                variables: results.data[0] || {}, // Take the first row as it contains all our data
+                variables: results.data[0] || {},
                 metadata: {
                   type: 'USA',
                   name: 'United States',
@@ -125,10 +121,9 @@ useEffect(() => {
     return variablePresets.reduce((total, preset) => total + preset.variables.length, 0);
   }, [exportOption, selectedPresetId, variablePresets]);
 
-  const totalCost = useMemo(() => {
+  const estimatedCost = useMemo(() => {
     const numAreas = selectedAreas.size + (includeUSAData ? 1 : 0);
-    const cost = totalVariables * numAreas * COST_PER_VARIABLE;
-    return cost.toFixed(2);
+    return totalVariables * numAreas * COST_PER_VARIABLE;
   }, [selectedAreas.size, totalVariables, includeUSAData]);
 
   const handleSelectAllAreas = (e) => {
@@ -152,6 +147,7 @@ useEffect(() => {
   };
 
   const handleExport = () => {
+
     let variables = [];
     if (exportOption === 'selected-preset' && selectedPresetId) {
       const preset = variablePresets.find((p) => p.id === selectedPresetId);
@@ -170,7 +166,7 @@ useEffect(() => {
       finalMarketAreas.push({
         ...usaData.metadata,
         variables: usaData.variables,
-        geometry: null // Add if you have geometry data
+        geometry: null
       });
     }
 
@@ -200,21 +196,6 @@ useEffect(() => {
 
           <div className="px-4 py-4">
             <div className="space-y-4">
-              {/* Cost Display */}
-              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CurrencyDollarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                      Estimated Cost
-                    </span>
-                  </div>
-                  <span className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-                    ${totalCost}
-                  </span>
-                </div>
-              </div>
-
               {/* Include USA Data Checkbox */}
               <div className="space-y-2">
                 <label className="flex items-center">
@@ -360,15 +341,19 @@ useEffect(() => {
               onClick={handleExport}
               disabled={
                 (exportOption === 'selected-preset' && !selectedPresetId) ||
-                selectedAreas.size === 0
+                selectedAreas.size === 0 ||
+                estimatedCost >= MAX_COST_LIMIT
               }
+              title={estimatedCost >= MAX_COST_LIMIT ? 
+                `Export size exceeds maximum cost limit of ${MAX_COST_LIMIT}` : 
+                ''}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md 
                          hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Export
             </button>
           </div>
-        </Dialog.Panel>
+          </Dialog.Panel>
       </div>
     </Dialog>
   );

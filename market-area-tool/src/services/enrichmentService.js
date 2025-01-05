@@ -834,16 +834,16 @@ export default class EnrichmentService {
 
   exportToCSV(enrichmentData, marketAreas, selectedVariables = null) {
     const { results, studyAreas, idToIndexMap } = enrichmentData;
-
+  
     // Prepare a lookup: result attributes keyed by originalIndex
     const enrichmentLookup = {};
-
+  
     results.forEach((res) => {
       const featureSet = res.value?.FeatureSet?.[0];
       if (!featureSet?.features?.[0]?.attributes) return;
       const attrs = featureSet.features[0].attributes;
       const objId = attrs.ObjectID;
-
+  
       const originalIndex = idToIndexMap[objId];
       if (originalIndex !== undefined) {
         enrichmentLookup[originalIndex] = attrs;
@@ -851,9 +851,36 @@ export default class EnrichmentService {
         console.warn(`No matching originalIndex found for ObjectID ${objId}`);
       }
     });
-
+  
+    /**
+     * Convert a raw string value to a safe text string for Excel.
+     * - Parses the string as a float
+     * - Uses fullwide numeric formatting (no decimals, no grouping)
+     * - If it's >= 12 digits, wraps in ="" so Excel sees it as text
+     */
+    function formatBigNumberAsText(value) {
+      if (!value) return "";
+  
+      const numVal = parseFloat(value);
+      if (Number.isNaN(numVal)) {
+        // If not numeric, just return as-is
+        return value;
+      }
+  
+      const noDecimal = numVal.toLocaleString("fullwide", {
+        useGrouping: false,
+        maximumFractionDigits: 0,
+      });
+  
+      // If very large, wrap so Excel sees it as text
+      if (noDecimal.length >= 12) {
+        return `="${noDecimal}"`;
+      }
+      return noDecimal;
+    }
+  
     const csvRows = [];
-
+  
     // Headers
     csvRows.push(["Market Area Name", ...marketAreas.map(ma => ma.name || "")]);
     csvRows.push(["Short Name", ...marketAreas.map(ma => ma.short_name || "")]);
@@ -864,155 +891,148 @@ export default class EnrichmentService {
         return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
       }),
     ]);
-
+  
+    // Areas Included row
     csvRows.push([
       "Areas Included",
       ...marketAreas.map((ma) => {
-        switch (ma.ma_type?.toLowerCase()) {
+        const maType = ma.ma_type?.toLowerCase();
+        switch (maType) {
           case "zip":
-            return ma.locations?.map(loc => loc.name?.split(" - ")?.[0]).join(", ") || "";
+            return (
+              ma.locations
+                ?.map((loc) => loc.name?.split(" - ")?.[0] || "")
+                .join(", ") || ""
+            );
+  
           case "radius":
             if (ma.radius_points?.length > 0) {
-              const allRadii = ma.radius_points.flatMap(p => p.radii || []);
+              const allRadii = ma.radius_points.flatMap((p) => p.radii || []);
               if (allRadii.length > 0) {
                 const largestRadius = Math.max(...allRadii);
                 return `${largestRadius} miles`;
               }
             }
             return "";
+  
+          case "block":
+          case "blockgroup":
+          case "tract":
+          case "cen b":
+          case "cenblockgr":
+            return (
+              ma.locations
+                ?.map((loc) => formatBigNumberAsText(loc.name))
+                .join(", ") || ""
+            );
+  
           default:
-            return (ma.locations?.map(loc => loc.name).join(", ")) || "";
+            return ma.locations?.map((loc) => loc.name).join(", ") || "";
         }
       }),
     ]);
-
-  // State row
-  csvRows.push([
-    "State",
-    ...marketAreas.map((ma) => {
-      const maType = ma.ma_type?.toLowerCase();
-      const firstLocationName = ma.locations?.[0]?.name || "";
-
-      // If we have no location names and it's not a radius, no state info
-      if (!firstLocationName && maType !== "radius") return "";
-
-      switch (maType) {
-        case "cbsa":
-          // Example: "Austin-Round Rock-San Marcos, TX Metro Area"
-          {
-            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Area/i);
-            if (stateAbbrMatch) {
-              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
-            }
-            return "";
+  
+    // State row
+    csvRows.push([
+      "State",
+      ...marketAreas.map((ma) => {
+        const maType = ma.ma_type?.toLowerCase();
+        const firstLocationName = ma.locations?.[0]?.name || "";
+  
+        if (!firstLocationName && maType !== "radius") return "";
+  
+        switch (maType) {
+          case "cbsa": {
+            const stateAbbrMatch = firstLocationName.match(
+              /,\s*([A-Z]{2})\s+Metro Area/i
+            );
+            return stateAbbrMatch
+              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
+              : "";
           }
-
-        case "county":
-          // Example: "Travis County, Texas"
-          {
+          case "county": {
             const stateMatch = firstLocationName.match(/,\s*(\w[\w\s]+)$/);
-            if (stateMatch) {
-              // If we got a full state name, return it as is or convert if needed.
-              // Attempt to get full name from abbreviation, if it's just 2 letters:
-              const stateNameOrAbbr = stateMatch[1].trim();
-              return enrichmentService.getStateFullName(stateNameOrAbbr);
-            }
-            return "";
+            return stateMatch
+              ? enrichmentService.getStateFullName(stateMatch[1].trim())
+              : "";
           }
-
-        case "zip":
-          // Example: "78702 - Austin, TX"
-          {
+          case "zip": {
             const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
-            if (stateAbbrMatch) {
-              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
-            }
-            return "";
+            return stateAbbrMatch
+              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
+              : "";
           }
-
-        case "place":
-          // Example: "Austin, City, Texas" or "Austin, Texas"
-          {
+          case "place": {
             const parts = firstLocationName.split(",").map((p) => p.trim());
-            if (parts.length > 1) {
-              // The last part should be the state or state abbreviation
-              const lastPart = parts[parts.length - 1];
-              return enrichmentService.getStateFullName(lastPart);
-            }
-            return "";
+            return parts.length > 1
+              ? enrichmentService.getStateFullName(parts[parts.length - 1])
+              : "";
           }
-
-        case "state":
-          // The location name might be a full state name already
-          return enrichmentService.getStateFullName(firstLocationName);
-
-        case "tract":
-        case "block":
-        case "blockgroup":
-          // Often something like "Tract 123, Some County, Texas"
-          // We'll assume the last part is a state or state abbreviation
-          {
-            const parts = firstLocationName.split(",").map((p) => p.trim());
-            if (parts.length > 1) {
-              const lastPart = parts[parts.length - 1];
-              return enrichmentService.getStateFullName(lastPart);
-            }
-            return "";
+          case "state":
+            return enrichmentService.getStateFullName(firstLocationName);
+  
+          case "block":
+          case "blockgroup":
+          case "tract":
+          case "cen b":
+          case "cenblockgr":
+            return (
+              ma.locations
+                ?.map((loc) => formatBigNumberAsText(loc.name))
+                .join(", ") || ""
+            );
+  
+          case "md": {
+            const stateAbbrMatch = firstLocationName.match(
+              /,\s*([A-Z]{2})\s+Metro Division/i
+            );
+            return stateAbbrMatch
+              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
+              : "";
           }
-
-        case "md":
-          // Similar to CBSA: "Boston-Cambridge-Newton, MA Metro Division"
-          {
-            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Division/i);
-            if (stateAbbrMatch) {
-              return enrichmentService.getStateFullName(stateAbbrMatch[1]);
-            }
+          case "radius":
+          case "usa":
             return "";
-          }
-
-        case "radius":
-          // Radius-based MAs do not have a direct state reference
-          return "";
-
-        case "usa":
-          // USA layer covers entire country, no single state
-          return "";
-
-        default:
-          // If no pattern matches, return blank
-          return "";
-      }
-    }),
-  ]);
-
-    csvRows.push([""]); // Blank separator row
-
+          default:
+            return "";
+        }
+      }),
+    ]);
+  
+    // Blank separator row
+    csvRows.push([""]);
+  
+    // Selected variables data rows
     selectedVariables.forEach((variableId) => {
       const shortKey = variableId.split(".").pop();
       const label = this.getVariableLabel(shortKey);
-
+  
       const values = marketAreas.map((_, index) => {
         const attrs = enrichmentLookup[index];
         if (!attrs) return "";
         const value = attrs[shortKey];
         return this.formatNumberValue(value);
       });
-
+  
       csvRows.push([label, ...values]);
     });
-
+  
+    // CSV Escaping and formatting
     const processField = (field) => {
-      if (field === null || field === undefined) return "";
-      const stringField = String(field);
-      if (stringField.includes(",") || stringField.includes('"') || stringField.includes("\n")) {
-        return `"${stringField.replace(/"/g, '""')}"`;
-      }
-      return stringField;
+      if (field === null || field === undefined) return '""';
+      const stringField = String(field).trim();
+      // Always quote fields to ensure proper column separation
+      return `"${stringField.replace(/"/g, '""')}"`;
     };
-
-    return csvRows.map(row => row.map(processField).join(",")).join("\n");
+  
+    // Generate CSV with proper field escaping
+    const csv = csvRows
+      .map((row) => row.map(processField).join(","))
+      .join("\n");
+  
+    return csv;
   }
-
+    
   getStateFullName(stateAbbr) {
     if (!stateAbbr) return "";
 
