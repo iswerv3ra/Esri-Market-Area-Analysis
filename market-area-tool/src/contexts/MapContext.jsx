@@ -518,120 +518,150 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     43: "Town",
     47: "Village",
   };
-
   function formatLocationName(feature, type) {
+    if (!feature || !feature.attributes) return "Unknown Location";
+  
     const { attributes } = feature;
-
+  
     // Helper for state FIPS handling
-    const getValidStateFips = (stateAttr, stateFipsAttr) => {
-      // If GEOID exists and is long enough to contain state code, use first 2 digits
+    function getValidStateFips() {
+      // 1) If GEOID exists and is long enough to contain state code, use first 2 digits
       if (attributes.GEOID && attributes.GEOID.length >= 2) {
         return attributes.GEOID.substring(0, 2);
       }
-
-      // Otherwise try state attributes, ensuring they're not '00'
-      const state = stateAttr && stateAttr !== "00" ? stateAttr : null;
-      const stateFips =
-        stateFipsAttr && stateFipsAttr !== "00" ? stateFipsAttr : null;
-
-      // Default to "06" (California) if no valid state code
-      return state || stateFips || "06";
-    };
-
+  
+      // 2) Otherwise, try the attributes.STATE or attributes.STATE_FIPS fields
+      const maybeState = attributes.STATE;
+      const maybeFips = attributes.STATE_FIPS;
+      if (maybeState && maybeState !== "00") return maybeState;
+      if (maybeFips && maybeFips !== "00") return maybeFips;
+  
+      // 3) Default to "06" (California) if no valid state code
+      return "06";
+    }
+  
     // Common attributes with fallbacks
-    const stateFips = getValidStateFips(
-      attributes.STATE,
-      attributes.STATE_FIPS
-    );
+    const stateFips = getValidStateFips();
     const countyFips = attributes.COUNTY_FIPS || attributes.COUNTY || "";
     const tractFips = attributes.TRACT_FIPS || attributes.TRACT || "";
     const blockGroupFips = attributes.BLOCKGROUP_FIPS || "";
     const blockVal = attributes.BLOCK || "";
     const zipCode = attributes.ZIP || "";
-    const stateAbbr = attributes.STATE_ABBR || "";
-
+  
+    // If attributes.STATE_ABBR is empty, fallback to dictionary
+    const stateAbbr = attributes.STATE_ABBR || STATE_ABBR_BY_FIPS[stateFips] || "CA";
+    // Also get a spelled-out state name, in case you want it
+    const stateName = attributes.STATE_NAME || STATE_NAME_BY_FIPS[stateFips] || "California";
+  
     // Original location name from attributes - check multiple possible field names
-    let rawName =
-      attributes.STATE_NAME || attributes.NAME || attributes.BASENAME || "";
-
-    // Utility to remove "county" and "city" from the end of the raw name, if present
+    let rawName = attributes.NAME || attributes.BASENAME || attributes.STATE_NAME || "";
+  
+    // Utility to remove trailing “county,” “city,” “town,” “village,” or “borough.”
+    // This prevents “Arcadia Lakes town Town” duplication, etc.
     function sanitizeName(name) {
       return (
         name
-          // Remove trailing ","
-          .replace(/,\s*$/, "")
-          // Remove trailing "county" (case-insensitive)
-          .replace(/\s+[Cc][Oo][Uu][Nn][Tt][Yy]$/, "")
-          // Remove trailing "city" (case-insensitive)
-          .replace(/\s+[Cc][Ii][Tt][Yy]$/, "")
+          .replace(/,\s*$/, "") // remove trailing comma
+          // remove trailing county/city/town/village/borough (case-insensitive)
+          .replace(/\s+(county|city|town|village|borough)$/i, "")
           .trim()
       );
     }
-
-    // Sanitize the rawName
+  
     const locationName = sanitizeName(rawName);
-
-    // Utility to zero-pad strings (for tract/block codes)
-    const pad = (value, length) => (value || "").padStart(length, "0");
-
+  
+    // Zero-pad utility (for FIPS codes)
+    function pad(value, length) {
+      return String(value || "").padStart(length, "0");
+    }
+  
+    // For "place", see if we have an LSADC-coded place type
+    // e.g. "25" => "City"
+    let placeType = "";
+    if (type === "place" && attributes.LSADC) {
+      const codeNum = parseInt(attributes.LSADC, 10);
+      if (LSADC_TO_PLACETYPE[codeNum]) {
+        placeType = LSADC_TO_PLACETYPE[codeNum];
+      }
+    }
+  
     switch (type) {
+      /***********************************
+       * 1) County
+       ***********************************/
       case "county":
-        // Example: "Orange County, CA"
+        // e.g. "Orange County, CA"
         return `${locationName} County, ${stateAbbr}`;
-
+  
+      /***********************************
+       * 2) Place
+       ***********************************/
       case "place":
-        // Example: "Lake Forest, CA"
+        // e.g. "Arcadia Lakes Town, SC" or "Bailey Lakes Village, OH"
+        // only append placeType if it exists and not blank
+        // e.g. locationName: "Arcadia Lakes town" -> sanitized to "Arcadia Lakes"
+        // placeType: "Town" -> final: "Arcadia Lakes Town"
+        if (placeType) {
+          return `${locationName} ${placeType}, ${stateAbbr}`;
+        }
         return `${locationName}, ${stateAbbr}`;
-
+  
+      /***********************************
+       * 3) Zip
+       ***********************************/
       case "zip":
-        // Example: "77001, TX"
+        // e.g. "77001, TX"
         return `${zipCode}, ${stateAbbr}`;
-
-      case "tract": {
-        // Return just the GEOID without state code
-        if (attributes.GEOID) {
-          return attributes.GEOID;
-        }
-        // Otherwise build the 11-digit code
+  
+      /***********************************
+       * 4) Census Tract
+       ***********************************/
+      case "tract":
+        // If GEOID is present, just return that
+        if (attributes.GEOID) return attributes.GEOID;
+        // Otherwise build the 11-digit code => SS + CCC + TTTTTT
+        return `${pad(stateFips, 2)}${pad(countyFips, 3)}${pad(tractFips, 6)}`;
+  
+      /***********************************
+       * 5) Census Block Group
+       ***********************************/
+      case "blockgroup":
+        if (attributes.GEOID) return attributes.GEOID;
+        // => SS + CCC + TTTTTT + B
+        return (
+          pad(stateFips, 2) +
+          pad(countyFips, 3) +
+          pad(tractFips, 6) +
+          pad(blockGroupFips, 1)
+        );
+  
+      /***********************************
+       * 6) Census Block
+       ***********************************/
+      case "block":
+        if (attributes.GEOID) return attributes.GEOID;
+        // => SS + CCC + TTTTTT + BBBB(L)
         const s = pad(stateFips, 2);
         const c = pad(countyFips, 3);
         const t = pad(tractFips, 6);
-        return `${s}${c}${t}`;
-      }
-
-      case "blockgroup": {
-        // Return just the GEOID without state code
-        if (attributes.GEOID) {
-          return attributes.GEOID;
-        }
-        const s = pad(stateFips, 2);
-        const c = pad(countyFips, 3);
-        const t = pad(tractFips, 6);
-        const bg = pad(blockGroupFips, 1);
-        return `${s}${c}${t}${bg}`;
-      }
-
-      case "block": {
-        // Return just the GEOID without state code
-        if (attributes.GEOID) {
-          return attributes.GEOID;
-        }
-        const s = pad(stateFips, 2);
-        const c = pad(countyFips, 3);
-        const t = pad(tractFips, 6);
-
+  
+        // Some blocks have numeric + letter combos
         const numericPart = blockVal.replace(/[^\d]/g, "");
         const letterPart = blockVal.replace(/\d/g, "");
         const paddedBlock = pad(numericPart, 4) + letterPart;
-
         return `${s}${c}${t}${paddedBlock}`;
-      }
-
+  
+      /***********************************
+       * 7) State
+       ***********************************/
       case "state":
-        // For a state, just return the name without state code
-        return locationName;
-
-      // "md", "cbsa", "usa", or anything else
+        // For a state, just return the (possibly cleaned) name
+        // or a fallback like "California"
+        return locationName || stateName;
+  
+      /***********************************
+       * 8) Catch-all: md, cbsa, etc.
+       ***********************************/
       default:
         return locationName || "Unknown Location";
     }
