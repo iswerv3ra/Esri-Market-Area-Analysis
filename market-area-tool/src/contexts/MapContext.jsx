@@ -245,6 +245,7 @@ const FEATURE_LAYERS = {
     maxScale: 100,
   },
   cbsa: {
+    // TWO sub-layer URLs: 91 (Micropolitan), 93 (Metropolitan)
     urls: [
       "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/91",
       "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/93",
@@ -670,50 +671,80 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     setLayersReady(true);
   }, [mapView]);
 
-  // Helper function to get label configuration based on layer type
   const getLabelingInfo = (type) => {
     let label;
+  
     switch (type) {
       case "zip":
         label = {
           field: "ZIP",
           expressionInfo: {
-            expression: "$feature.ZIP", // Direct reference to ZIP field
+            expression: "$feature.ZIP",
           },
         };
         break;
+  
       case "county":
         label = {
           field: "NAME",
           expressionInfo: {
-            expression: "$feature.NAME + ' County'",
+            expression: `
+  var name = Trim($feature.NAME);
+  var nameUpper = Upper(name);
+  var endsWithCounty = (Right(nameUpper, 6) == "COUNTY");
+  IIf(endsWithCounty, name, name + " County")
+  `,
           },
         };
         break;
+  
       case "tract":
         label = {
           field: "TRACT_FIPS",
           expressionInfo: {
-            expression: "$feature.TRACT_FIPS",
+            expression: `
+  Concatenate(
+    IIf(IsEmpty($feature.STATE_FIPS) || $feature.STATE_FIPS == '00', '06', $feature.STATE_FIPS),
+    $feature.COUNTY_FIPS,
+    $feature.TRACT_FIPS
+  )
+  `,
           },
         };
         break;
-      case "block":
-        label = {
-          field: "BLOCK",
-          expressionInfo: {
-            expression: "$feature.BLOCK",
-          },
-        };
-        break;
+  
       case "blockgroup":
         label = {
           field: "BLOCKGROUP_FIPS",
           expressionInfo: {
-            expression: "'Block Group ' + $feature.BLOCKGROUP_FIPS",
+            expression: `
+  Concatenate(
+    $feature.STATE_FIPS,
+    $feature.COUNTY_FIPS,
+    $feature.TRACT_FIPS,
+    $feature.BLOCKGROUP_FIPS
+  )
+  `,
           },
         };
         break;
+  
+      case "block":
+        label = {
+          field: "BLOCK",
+          expressionInfo: {
+            expression: `
+  Concatenate(
+    IIf(IsEmpty($feature.STATE) || $feature.STATE == '00', '06', Text($feature.STATE,'00')),
+    Right(Concatenate('000',$feature.COUNTY),3),
+    Right(Concatenate('000000',$feature.TRACT),6),
+    $feature.BLOCK
+  )
+  `,
+          },
+        };
+        break;
+  
       case "place":
         label = {
           field: "NAME",
@@ -722,14 +753,16 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
+  
       case "state":
         label = {
-          field: "STATE_NAME",
+          field: "NAME",
           expressionInfo: {
-            expression: "$feature.STATE_NAME",
+            expression: "$feature.NAME",
           },
         };
         break;
+  
       case "cbsa":
         label = {
           field: "NAME",
@@ -738,6 +771,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
+  
       case "md":
         label = {
           field: "BASENAME",
@@ -746,37 +780,46 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
+  
       case "usa":
         label = {
-          field: "STATE_NAME",
+          field: "NAME", // or any field
           expressionInfo: {
             expression: "'United States'",
           },
         };
         break;
+  
       default:
         return undefined;
     }
-
+  
     return [
       {
         labelPlacement: "always-horizontal",
         symbol: {
           type: "text",
-          color: [0, 0, 0, 1], // Pure black
-          haloColor: [255, 255, 255, 1],
+          color: [0, 0, 0, 1],         // Black text
+          haloColor: [255, 255, 255, 1], // White halo
           haloSize: 2,
           font: {
-            size: 14, // Increased font size
+            // Adjust specific font sizes for tract, blockgroup, and block
+            size:
+              type === "block"
+                ? 10
+                : type === "tract" || type === "blockgroup"
+                ? 12
+                : 14,
             family: "Noto Sans",
-            weight: "bold", // Made text bold
+            weight: "bold",
           },
         },
+        // CBSA & state visible at all scales
         minScale:
           type === "state" || type === "usa"
-            ? 20000000
+            ? 0
             : type === "cbsa" || type === "md"
-            ? 5000000
+            ? 0
             : type === "county"
             ? 2000000
             : type === "place"
@@ -799,14 +842,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       },
     ];
   };
+  
 
   const initializeFeatureLayer = useCallback(async (type) => {
     if (!type || !FEATURE_LAYERS[type]) {
       console.error(`Invalid or undefined layer type: ${type}`);
       return null;
     }
-
     const layerConfig = FEATURE_LAYERS[type];
+
     try {
       const { default: FeatureLayer } = await import(
         "@arcgis/core/layers/FeatureLayer"
@@ -824,90 +868,88 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           symbol = SYMBOLS.defaultPolyline;
           break;
         case "polygon":
-          symbol = SYMBOLS.defaultPolygon;
-          break;
         default:
           symbol = SYMBOLS.defaultPolygon;
           break;
       }
 
+      // -- CASE A: CBSA (or any layer with multiple "urls" in config)
       if (layerConfig.urls) {
-        // Create a group layer to hold all the feature layers
+        // 1) Create a group layer
         const groupLayer = new GroupLayer({
           title: layerConfig.title,
-          visible: false,
+          visible: false, // we set to visible after .when() in addActiveLayer
           listMode: "hide",
         });
 
-        // Create a feature layer for each URL
-        const featureLayers = layerConfig.urls.map(
-          (url) =>
-            new FeatureLayer({
-              url: url,
-              outFields: layerConfig.outFields,
-              visible: true,
-              opacity: 1,
-              popupEnabled: true,
-              popupTemplate: layerConfig.popupTemplate,
-              renderer: {
-                type: "simple",
-                symbol: symbol,
-              },
-              // Set the title to match the one in FEATURE_LAYERS
-              title: layerConfig.title,
-            })
-        );
-
-        // Add all feature layers to the group layer
-        groupLayer.addMany(featureLayers);
-
-        // Store feature layers for reference
-        groupLayer.featureLayers = featureLayers;
-
-        return groupLayer;
-      } else {
-        // In the initializeFeatureLayer function
-        const layer = new FeatureLayer({
-          url: layerConfig.url,
-          outFields: layerConfig.outFields,
-          title: layerConfig.title,
-          visible: false,
-          opacity: 1,
-          popupEnabled: true,
-          popupTemplate: layerConfig.popupTemplate,
-          renderer: {
-            type: "simple",
-            symbol: symbol,
-          },
-          labelingInfo: getLabelingInfo(type),
-          // Add label optimization settings
-          labelsVisible: true,
-          labelsOptimizationThreshold: 1000000,
-          minScale: layerConfig.minScale,
-          maxScale: layerConfig.maxScale,
+        // 2) Create FeatureLayer for each URL
+        const featureLayers = layerConfig.urls.map((url) => {
+          return new FeatureLayer({
+            url: url,
+            outFields: layerConfig.outFields,
+            title: layerConfig.title,
+            visible: true,
+            opacity: 1,
+            popupEnabled: true,
+            popupTemplate: layerConfig.popupTemplate,
+            renderer: {
+              type: "simple",
+              symbol: symbol,
+            },
+            // Label each sub-layer with getLabelingInfo(type)
+            labelingInfo: getLabelingInfo(type),
+            labelsVisible: true,
+            // Override server minScale if you want them always visible
+            // (particularly for CBSA, which defaults to 22,000,000)
+            minScale: 0,
+            maxScale: 0,
+          });
         });
 
-        return layer;
+        // 3) Add them to the group
+        groupLayer.addMany(featureLayers);
+
+        // 4) Keep a reference
+        groupLayer.featureLayers = featureLayers;
+        return groupLayer;
       }
+
+      // -- CASE B: Single URL
+      const layer = new FeatureLayer({
+        url: layerConfig.url,
+        outFields: layerConfig.outFields,
+        title: layerConfig.title,
+        visible: false,
+        opacity: 1,
+        popupEnabled: true,
+        popupTemplate: layerConfig.popupTemplate,
+        renderer: {
+          type: "simple",
+          symbol: symbol,
+        },
+        labelingInfo: getLabelingInfo(type),
+        labelsVisible: true,
+        // If the layer config has a minScale / maxScale, apply them
+        minScale: layerConfig.minScale,
+        maxScale: layerConfig.maxScale,
+      });
+      return layer;
     } catch (error) {
       console.error(`Error initializing FeatureLayer for type ${type}:`, error);
       return null;
     }
   }, []);
 
-  // Function to add a layer to activeLayers
   const addActiveLayer = useCallback(
     async (type) => {
       if (type === "radius") {
-        // Radius is not a server-based layer, just skip
+        // "radius" is not a server-based layer
         return;
       }
-
       if (!type || !FEATURE_LAYERS[type] || !mapView) {
         console.error(`Invalid layer type or map not initialized: ${type}`);
         return;
       }
-
       setIsLayerLoading(true);
 
       try {
@@ -923,13 +965,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
         let layer = featureLayersRef.current[type];
 
+        // Create the layer if not already present
         if (!layer) {
           layer = await initializeFeatureLayer(type);
           if (layer) {
             await mapView.map.add(layer);
             featureLayersRef.current[type] = layer;
             console.log(
-              `[MapContext] New FeatureLayer for type ${type} added to the map.`
+              `[MapContext] New FeatureLayer for type ${type} added.`
             );
           }
         }
@@ -939,13 +982,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             await layer.when();
             layer.visible = true;
             console.log(`[MapContext] FeatureLayer ${type} set to visible.`);
-          } catch (error) {
+          } catch (err) {
             console.error(
-              `[MapContext] Error setting layer visibility for ${type}:`,
-              error
+              `[MapContext] Error making layer ${type} visible:`,
+              err
             );
           }
-
           setActiveLayers((prev) => {
             if (!prev.includes(type)) {
               console.log(`[MapContext] Adding layer ${type} to activeLayers.`);
