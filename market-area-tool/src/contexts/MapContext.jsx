@@ -2511,116 +2511,159 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const hasCentered = useRef(false);
   
   useEffect(() => {
-    // Skip if we've already centered or prerequisites aren't ready
-    if (hasCentered.current || !mapView?.ready || !layersReady) {
-      console.log("[MapContext] Skipping center:", {
-        alreadyCentered: hasCentered.current,
-        mapReady: mapView?.ready,
-        layersReady,
-      });
+    let isActive = true;
+
+    console.log("[MapContext] Centering effect triggered:", {
+      hasCentered: hasCentered.current,
+      mapReady: mapView?.ready,
+      layersReady,
+      hasMarketAreas: Boolean(marketAreas?.length)
+    });
+
+    if (!mapView?.ready) {
+      console.log("[MapContext] Map not ready, skipping");
       return;
     }
-  
-    // 2) Check for market areas
-    if (!marketAreas?.length) {
-      console.log("[MapContext] No marketAreas available");
+
+    if (hasCentered.current) {
+      console.log("[MapContext] Already centered, skipping");
       return;
     }
-  
-    console.log("[MapContext] Processing market areas:", 
-      marketAreas.map(ma => ({
-        id: ma.id,
-        name: ma.name,
-        locationsCount: ma.locations?.length || 0
-      }))
-    );
-  
-    // 3) Find the first valid geometry and create extent
-    let validGeometry = null;
-    
-    for (const ma of marketAreas) {
-      if (ma.locations?.length) {
-        for (const loc of ma.locations) {
-          if (loc.geometry) {
-            validGeometry = loc.geometry;
-            console.log("[MapContext] Found valid geometry in location of market area:", ma.id);
-            break;
+
+    const centerMap = async () => {
+      if (!isActive) return;
+
+      if (marketAreas?.length) {
+        console.log("[MapContext] Processing market areas:", 
+          marketAreas.map(ma => ({
+            id: ma.id,
+            name: ma.name,
+            locationsCount: ma.locations?.length || 0
+          }))
+        );
+
+        let validGeometry = null;
+        for (const ma of marketAreas) {
+          if (ma.locations?.length) {
+            for (const loc of ma.locations) {
+              if (loc.geometry) {
+                validGeometry = loc.geometry;
+                console.log("[MapContext] Found valid geometry in location of market area:", ma.id);
+                break;
+              }
+            }
+            if (validGeometry) break;
           }
         }
-        if (validGeometry) break;
-      }
-    }
-  
-    // 4) If we found a valid geometry, center on it
-    if (validGeometry) {
-      console.log("[MapContext] Centering on geometry:", validGeometry);
-  
-      // Import required modules
-      import('@arcgis/core/geometry/Extent').then(({ default: Extent }) => {
-        import('@arcgis/core/geometry/SpatialReference').then(({ default: SpatialReference }) => {
-          // Create a spatial reference for Web Mercator
-          const sr = new SpatialReference({ wkid: 102100 });
-  
-          // Create an extent from the geometry
-          let extent;
-          if (validGeometry.rings) {
-            // For polygons, calculate extent from rings
-            const xCoords = [];
-            const yCoords = [];
+
+        if (validGeometry && isActive) {
+          try {
+            // Import required modules for extent calculation
+            const [Extent, SpatialReference] = await Promise.all([
+              import('@arcgis/core/geometry/Extent').then(m => m.default),
+              import('@arcgis/core/geometry/SpatialReference').then(m => m.default)
+            ]);
+
+            console.log("[MapContext] Creating extent from geometry");
             
-            validGeometry.rings[0].forEach(coord => {
-              xCoords.push(coord[0]);
-              yCoords.push(coord[1]);
-            });
-  
-            extent = new Extent({
-              xmin: Math.min(...xCoords),
-              ymin: Math.min(...yCoords),
-              xmax: Math.max(...xCoords),
-              ymax: Math.max(...yCoords),
-              spatialReference: sr
-            });
-          }
-  
-          // Center the map on the extent with a wider view
-          mapView.when(() => {
-            mapView.goTo(
+            // Create a spatial reference for Web Mercator
+            const sr = new SpatialReference({ wkid: 102100 });
+
+            // Create an extent from the geometry
+            let extent;
+            if (validGeometry.rings) {
+              const xCoords = [];
+              const yCoords = [];
+              
+              validGeometry.rings[0].forEach(coord => {
+                xCoords.push(coord[0]);
+                yCoords.push(coord[1]);
+              });
+
+              extent = new Extent({
+                xmin: Math.min(...xCoords),
+                ymin: Math.min(...yCoords),
+                xmax: Math.max(...xCoords),
+                ymax: Math.max(...yCoords),
+                spatialReference: sr
+              });
+            }
+
+            console.log("[MapContext] Centering on project extent");
+            await mapView.goTo(
               { 
                 target: extent || validGeometry,
-                zoom: 9
+                zoom: 9  // Always use zoom level 9
               },
               {
                 duration: 1000,
                 easing: "ease-in-out"
               }
-            ).then(() => {
-              console.log("[MapContext] Map centered successfully");
-              hasCentered.current = true;  // Mark as centered
-            }).catch(err => {
-              console.error("[MapContext] Error centering map:", err);
-            });
-          });
+            );
+
+            if (isActive) {
+              console.log("[MapContext] Successfully centered on project extent");
+              hasCentered.current = true;
+            }
+            return;
+          } catch (err) {
+            console.error("[MapContext] Error centering on project extent:", err);
+            if (isActive) {
+              await centerOnOrangeCounty();
+            }
+          }
+        }
+      }
+
+      if (isActive) {
+        console.log("[MapContext] No valid project extent found, falling back to Orange County");
+        await centerOnOrangeCounty();
+      }
+    };
+
+    async function centerOnOrangeCounty() {
+      if (!isActive) return;
+
+      console.log("[MapContext] Attempting to center on Orange County");
+      try {
+        const Point = (await import('@arcgis/core/geometry/Point')).default;
+        const orangeCountyPoint = new Point({
+          longitude: -117.8311,
+          latitude: 33.7175
         });
-      });
-    } else {
-      console.log("[MapContext] No valid geometry found in any market area");
-      
-      // 5) Fallback to a default location (Orange County coordinates in Web Mercator)
-      mapView.when(() => {
-        mapView.goTo({
-          target: [-13165507, 4020992],  // Orange County in Web Mercator
-          zoom: 8  // Decreased from 10 to show more context
+
+        await mapView.goTo({
+          target: orangeCountyPoint,
+          zoom: 9  // Use zoom level 9 for consistency
         }, {
           duration: 1000,
           easing: "ease-in-out"
-        }).then(() => {
-          hasCentered.current = true;  // Mark as centered even for fallback
-        }).catch(err => {
-          console.error("[MapContext] Error in fallback centering:", err);
         });
-      });
+
+        if (isActive) {
+          const finalCenter = mapView.center;
+          console.log("[MapContext] Successfully centered on Orange County. View state:", {
+            center: {
+              latitude: finalCenter.latitude,
+              longitude: finalCenter.longitude
+            },
+            zoom: mapView.zoom,
+            scale: mapView.scale
+          });
+          hasCentered.current = true;
+        }
+      } catch (err) {
+        console.error("[MapContext] Error in Orange County fallback:", err);
+      }
     }
-  }, [mapView, marketAreas, layersReady]);  // Keep all dependencies
+
+    centerMap();
+
+    return () => {
+      isActive = false;
+      console.log("[MapContext] Cleaning up centering effect");
+    };
+}, [mapView, marketAreas]);
 
   useEffect(() => {
     if (!mapView || !selectionGraphicsLayerRef.current) return;
