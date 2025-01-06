@@ -27,6 +27,228 @@ const MA_TYPE_MAPPING = {
   county: "COUNTY",
 };
 
+// The full list of USA data rows
+const usaDataRows = [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "337,363,227",
+  "130,230,713",
+  "2.53",
+  "18,528,357",
+  "19,739,212",
+  "20,377,078",
+  "21,722,665",
+  "22,963,389",
+  "21,989,996",
+  "23,630,977",
+  "22,606,112",
+  "22,303,992",
+  "20,003,271",
+  "20,802,123",
+  "20,209,023",
+  "21,243,426",
+  "19,351,281",
+  "15,802,502",
+  "12,026,469",
+  "7,242,221",
+  "6,821,133",
+  "39.4",
+  "163,263,561",
+  "11,207,418",
+  "8,163,073",
+  "8,764,793",
+  "13,113,591",
+  "20,482,045",
+  "16,712,451",
+  "22,957,763",
+  "12,421,514",
+  "16,404,596",
+  "79,010",
+  "113,025",
+  "4,646,590",
+  "1,441,329",
+  "934,562",
+  "1,283,634",
+  "1,991,912",
+  "3,352,530",
+  "2,797,059",
+  "3,769,833",
+  "1,764,430",
+  "1,933,267",
+  "19,268,555",
+  "1,392,369",
+  "826,622",
+  "994,992",
+  "1,704,948",
+  "3,220,255",
+  "3,124,335",
+  "4,926,730",
+  "2,871,923",
+  "3,841,486",
+  "22,903,660",
+  "1,309,623",
+  "763,787",
+  "907,784",
+  "1,648,164",
+  "3,119,929",
+  "2,804,721",
+  "4,747,351",
+  "2,772,229",
+  "4,058,643",
+  "22,132,230",
+  "23,667,744",
+  "21,236,572",
+  "16,371,893",
+  "24,341,656",
+  "8,010,378",
+  "3,031,442",
+  "5,509,999",
+  "5,381,388",
+  "8,481,907",
+  "12,703,104",
+  "20,245,138",
+  "16,708,018",
+  "8,369,252",
+  "3,481,001",
+  "13,963,961",
+  "225,822",
+  "1,253,256",
+  "144,632,401",
+  "83,926,905",
+  "46,303,809",
+  "14,401,688",
+  "343,761,788",
+  "134,417,874",
+  "2.5",
+  "18,577,292",
+  "18,662,329",
+  "19,993,221",
+  "20,773,463",
+  "22,423,837",
+  "23,659,208",
+  "22,495,538",
+  "23,640,020",
+  "22,635,783",
+  "22,100,375",
+  "19,773,175",
+  "20,041,030",
+  "19,462,109",
+  "20,081,586",
+  "17,832,859",
+  "13,930,180",
+  "9,674,105",
+  "8,005,678",
+  "40.4",
+  "9,939,688",
+  "6,471,905",
+  "7,452,181",
+  "11,631,246",
+  "19,511,522",
+  "17,139,547",
+  "25,941,084",
+  "16,114,800",
+  "20,212,487",
+  "91,365",
+  "130,401",
+  "149,075,457",
+  "88,085,823",
+  "46,332,051",
+  "14,657,583",
+  "308,162,550",
+  "116,441,641",
+  "20,146,004",
+  "20,302,435",
+  "20,632,774",
+  "21,981,645",
+  "21,500,361",
+  "21,001,468",
+  "19,876,996",
+  "20,108,863",
+  "20,827,024",
+  "22,643,745",
+  "22,236,357",
+  "19,608,613",
+  "16,769,321",
+  "12,399,759",
+  "9,252,271",
+  "7,297,551",
+  "5,726,794",
+  "5,476,655",
+  "37.1",
+  "31,797,478",
+  "31,037,135",
+  "6,320,574",
+  "2,081,323",
+  "2,152,524",
+  "2,580,904",
+  "3,870,718",
+  "2,503,844",
+  "1,639,189",
+  "2,733,888",
+  "888,278",
+  "1,904,026",
+  "1,283,665",
+  "2,250,188",
+  "1,341,862",
+  "4,049,751",
+  "2,195,223",
+  "4,092,601",
+  "3,153,887",
+  "2,915,221",
+  "2,545,521",
+  "2,780,813",
+  "3,150,005",
+  "4,312,601",
+  "3,634,799",
+  "2,040,940",
+  "1,275,675",
+  "1,308,533",
+  "2,857,726",
+  "3,798,361",
+  "1,348,495",
+  "1,977,587",
+  "1,366,270",
+  "311,211",
+  "1,020,611",
+  "1,852,597",
+  "1,851,755",
+  "3,031,701",
+  "818,195",
+  "2,054,374",
+  "2,978,031",
+  "1,519,086",
+  "1,062,344",
+  "1,700,578",
+  "961,380",
+  "1,186,778",
+  "1,546,248",
+  "1,086,244",
+  "4,099,449",
+  "2,412,528",
+  "750,985",
+  "1,528,055",
+  "1,582,405",
+  "959,746",
+  "2,313,345",
+  "1,891,600",
+  "1,803,657",
+  "1,119,518",
+  "1,318,214",
+  "2,432,165",
+  "2,321,476",
+  "1,587,222",
+  "1,596,541",
+  "939,322",
+  "1,034,833",
+  "845,589",
+  "629,212",
+  "188,219",
+  "1,221,924",
+  "634,665"
+];
 
 export const analysisCategories = {
   tier1: {
@@ -498,7 +720,10 @@ Object.values(analysisCategories).forEach(tier => {
 
 export { shortKeyToLabelMap };
 
-
+// Provide a trivial label function; just returns shortKey if no context:
+function getVariableLabelFromShortKey(shortKey) {
+  return shortKey;
+}
 
 export default class EnrichmentService {
   constructor() {
@@ -602,7 +827,7 @@ export default class EnrichmentService {
       });
 
       if (area.ma_type === "radius") {
-        // For radius types, we will take the largest radius and use that polygon only.
+        // For radius types, use the largest radius polygon
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
 
@@ -655,7 +880,8 @@ export default class EnrichmentService {
         }
       } else {
         // Non-radius areas: union all rings from locations
-        const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
+        const allRings =
+          area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
 
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
@@ -708,18 +934,18 @@ export default class EnrichmentService {
       points.push([centerX + dx, centerY + dy]);
     }
 
+    // Close the ring
     points.push(points[0]);
     return [points];
   }
 
-  async enrichChunk(studyAreas, selectedVariables = null) {
+  async enrichChunk(studyAreas, selectedVariables = []) {
     try {
       const token = await this.getToken();
       const enrichmentUrl =
         "https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich";
-      const analysisVariables = selectedVariables || getAllVariables();
 
-      console.log("Enriching chunk with variables:", analysisVariables);
+      console.log("Enriching chunk with variables:", selectedVariables);
       console.log("Study areas for enrichment:", studyAreas);
 
       if (!studyAreas?.[0]?.geometry) {
@@ -737,11 +963,8 @@ export default class EnrichmentService {
       params.append("f", "json");
       params.append("token", token);
       params.append("studyAreas", JSON.stringify(studyAreasPayload));
-      params.append("analysisVariables", JSON.stringify(analysisVariables));
+      params.append("analysisVariables", JSON.stringify(selectedVariables));
       params.append("returnGeometry", "false");
-
-      // If needed, you can append studyAreasOptions here for buffers if using points.
-      // For polygons, typically not needed.
 
       const response = await fetch(enrichmentUrl, {
         method: "POST",
@@ -781,37 +1004,58 @@ export default class EnrichmentService {
     }
   }
 
-  async enrichAreas(marketAreas, selectedVariables = null) {
+  async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = true) {
+    // Convert includeUSAData to boolean explicitly
+    const shouldIncludeUSA = Boolean(includeUSAData);
+    
+    console.log('enrichAreas called with:', {
+      marketAreasCount: marketAreas?.length,
+      variablesCount: selectedVariables?.length,
+      includeUSAData: shouldIncludeUSA // Log the boolean value
+    });
+  
     if (!marketAreas?.length) {
       throw new Error("No market areas provided for enrichment");
     }
-
+  
     const studyAreas = await this.prepareGeometryForEnrichment(marketAreas);
     if (!studyAreas?.length) {
       throw new Error("No valid study areas generated from market areas");
     }
-
+  
     const chunks = this.chunkArray(studyAreas, CHUNK_SIZE);
     const results = [];
-
+  
     for (const chunk of chunks) {
       const response = await this.enrichChunk(chunk, selectedVariables);
       if (response?.results) {
         results.push(...response.results);
       }
     }
-
+  
     if (!results.length) {
       throw new Error("No enrichment results returned");
     }
-
-    // Create a map from ObjectID to originalIndex for easy lookups
+  
     const idToIndexMap = {};
-    studyAreas.forEach(sa => {
+    studyAreas.forEach((sa) => {
       idToIndexMap[sa.attributes.ObjectID] = sa.originalIndex;
     });
-
-    return { results, studyAreas, idToIndexMap };
+  
+    // Return with the explicit boolean flag
+    return {
+      results,
+      studyAreas,
+      idToIndexMap,
+      includeUSAData: shouldIncludeUSA,
+      metadata: {
+        processedAt: new Date().toISOString(),
+        marketAreasCount: marketAreas.length,
+        studyAreasCount: studyAreas.length,
+        variablesCount: selectedVariables.length,
+        includeUSAData: shouldIncludeUSA
+      }
+    };
   }
 
   aggregateResults(groupedResults, area) {
@@ -828,11 +1072,26 @@ export default class EnrichmentService {
     return aggregated;
   }
 
+  // Simplified getVariableLabel (no categories):
   getVariableLabel(shortKey) {
-    return shortKeyToLabelMap[shortKey] || shortKey;
+    return getVariableLabelFromShortKey(shortKey);
   }
 
-  exportToCSV(enrichmentData, marketAreas, selectedVariables = null) {
+  // Updated exportToCSV without references to analysisCategories
+  exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = true) {
+    // Convert both flags to boolean and use explicit parameter first
+    const shouldIncludeUSAData = Boolean(includeUSAData) || Boolean(enrichmentData?.includeUSAData);
+  
+    console.log("Starting exportToCSV with params:", {
+      marketAreasCount: marketAreas?.length,
+      selectedVariablesCount: selectedVariables?.length,
+      explicitIncludeUSAData: Boolean(includeUSAData),
+      enrichmentDataIncludeUSAData: Boolean(enrichmentData?.includeUSAData),
+      finalIncludeUSAData: shouldIncludeUSAData,
+      hasUSADataRows: typeof usaDataRows !== "undefined",
+      usaDataRowsLength: usaDataRows?.length
+    });
+  
     const { results, studyAreas, idToIndexMap } = enrichmentData;
   
     // Prepare a lookup: result attributes keyed by originalIndex
@@ -852,18 +1111,11 @@ export default class EnrichmentService {
       }
     });
   
-    /**
-     * Convert a raw string value to a safe text string for Excel.
-     * - Parses the string as a float
-     * - Uses fullwide numeric formatting (no decimals, no grouping)
-     * - If it's >= 12 digits, wraps in ="" so Excel sees it as text
-     */
     function formatBigNumberAsText(value) {
       if (!value) return "";
   
       const numVal = parseFloat(value);
       if (Number.isNaN(numVal)) {
-        // If not numeric, just return as-is
         return value;
       }
   
@@ -872,7 +1124,6 @@ export default class EnrichmentService {
         maximumFractionDigits: 0,
       });
   
-      // If very large, wrap so Excel sees it as text
       if (noDecimal.length >= 12) {
         return `="${noDecimal}"`;
       }
@@ -881,12 +1132,14 @@ export default class EnrichmentService {
   
     const csvRows = [];
   
-    // Headers
-    csvRows.push(["Market Area Name", ...marketAreas.map(ma => ma.name || "")]);
-    csvRows.push(["Short Name", ...marketAreas.map(ma => ma.short_name || "")]);
+    // -----------------------------
+    // 1) HEADER ROWS
+    // -----------------------------
+    csvRows.push(["Market Area Name", ...marketAreas.map((ma) => ma.name || "")]);
+    csvRows.push(["Short Name", ...marketAreas.map((ma) => ma.short_name || "")]);
     csvRows.push([
       "Definition Type",
-      ...marketAreas.map(ma => {
+      ...marketAreas.map((ma) => {
         const maType = ma.ma_type?.toLowerCase();
         return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
       }),
@@ -946,69 +1199,47 @@ export default class EnrichmentService {
             const stateAbbrMatch = firstLocationName.match(
               /,\s*([A-Z]{2})\s+Metro Area/i
             );
-            return stateAbbrMatch
-              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
-              : "";
+            return stateAbbrMatch ? this.getStateFullName(stateAbbrMatch[1]) : "";
           }
           case "county": {
             const stateMatch = firstLocationName.match(/,\s*(\w[\w\s]+)$/);
-            return stateMatch
-              ? enrichmentService.getStateFullName(stateMatch[1].trim())
-              : "";
+            return stateMatch ? this.getStateFullName(stateMatch[1].trim()) : "";
           }
           case "zip": {
             const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
-            return stateAbbrMatch
-              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
-              : "";
+            return stateAbbrMatch ? this.getStateFullName(stateAbbrMatch[1]) : "";
           }
           case "place": {
             const parts = firstLocationName.split(",").map((p) => p.trim());
             return parts.length > 1
-              ? enrichmentService.getStateFullName(parts[parts.length - 1])
+              ? this.getStateFullName(parts[parts.length - 1])
               : "";
           }
           case "state":
-            return enrichmentService.getStateFullName(firstLocationName);
-  
-          case "block":
-          case "blockgroup":
-          case "tract":
-          case "cen b":
-          case "cenblockgr":
-            return (
-              ma.locations
-                ?.map((loc) => formatBigNumberAsText(loc.name))
-                .join(", ") || ""
-            );
-  
+            return this.getStateFullName(firstLocationName);
           case "md": {
             const stateAbbrMatch = firstLocationName.match(
               /,\s*([A-Z]{2})\s+Metro Division/i
             );
             return stateAbbrMatch
-              ? enrichmentService.getStateFullName(stateAbbrMatch[1])
+              ? this.getStateFullName(stateAbbrMatch[1])
               : "";
           }
-          case "radius":
-          case "usa":
-            return "";
           default:
             return "";
         }
       }),
     ]);
   
-    // Blank separator row
-    csvRows.push([""]);
-  
-    // Selected variables data rows
+    // -----------------------------
+    // 2) DATA ROWS
+    // -----------------------------
     selectedVariables.forEach((variableId) => {
       const shortKey = variableId.split(".").pop();
       const label = this.getVariableLabel(shortKey);
   
-      const values = marketAreas.map((_, index) => {
-        const attrs = enrichmentLookup[index];
+      const values = marketAreas.map((_, idx) => {
+        const attrs = enrichmentLookup[idx];
         if (!attrs) return "";
         const value = attrs[shortKey];
         return this.formatNumberValue(value);
@@ -1017,22 +1248,55 @@ export default class EnrichmentService {
       csvRows.push([label, ...values]);
     });
   
-    // CSV Escaping and formatting
+    // -----------------------------
+    // 3) APPEND USA DATA IF REQUESTED
+    // -----------------------------
+    if (shouldIncludeUSAData) {
+      console.log("Adding USA data to CSV output");
+      
+      // Add USA column to headers
+      csvRows[0].push("United States of America"); // Market Area Name row
+      csvRows[1].push("USA"); // Short Name row
+      csvRows[2].push(""); // Definition Type row
+      csvRows[3].push(""); // Areas Included row
+      csvRows[4].push(""); // State row
+  
+      // Add USA data to each variable row
+      const SHIFT = 5;
+      for (let i = 5; i < csvRows.length; i++) {
+        const rowForVar = csvRows[i];
+        const usaDataIndex = (i - 5) + SHIFT;
+  
+        let usaValue = "";
+        if (usaDataIndex < usaDataRows.length) {
+          usaValue = usaDataRows[usaDataIndex];
+          console.log(`Adding USA data for row ${i}: ${usaValue}`);
+        } else {
+          console.warn(`No USA data available for row ${i} (usaDataIndex=${usaDataIndex})`);
+        }
+  
+        rowForVar.push(usaValue);
+      }
+      
+      console.log("Finished adding USA data");
+    }
+  
+    // -----------------------------
+    // 4) GENERATE FINAL CSV
+    // -----------------------------
     const processField = (field) => {
       if (field === null || field === undefined) return '""';
       const stringField = String(field).trim();
-      // Always quote fields to ensure proper column separation
       return `"${stringField.replace(/"/g, '""')}"`;
     };
   
-    // Generate CSV with proper field escaping
     const csv = csvRows
       .map((row) => row.map(processField).join(","))
       .join("\n");
   
     return csv;
   }
-    
+
   getStateFullName(stateAbbr) {
     if (!stateAbbr) return "";
 
@@ -1092,23 +1356,7 @@ export default class EnrichmentService {
 
     return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
   }
-
-  getCategories() {
-    return Object.entries(analysisCategories).map(([key, category]) => ({
-      id: key,
-      label: category.label,
-      variableCount: category.variables.length,
-    }));
-  }
-
-  getVariablesByCategory(categoryId) {
-    return analysisCategories[categoryId]?.variables || [];
-  }
-
-  validateVariables(variableIds) {
-    const allVariables = new Set(getAllVariables());
-    return variableIds.filter((id) => allVariables.has(id));
-  }
 }
 
+// Export an instance for direct usage
 export const enrichmentService = new EnrichmentService();
