@@ -312,18 +312,34 @@ export default function MarketAreaList({ onClose, onEdit }) {
       const { id } = marketArea;
       const isVisible = visibleMarketAreaIds.includes(id);
 
+      console.log('=== TOGGLE VISIBILITY START ===');
+      console.log('Market Area:', {
+        id: marketArea.id,
+        name: marketArea.name,
+        type: marketArea.ma_type,
+        currentlyVisible: isVisible
+      });
+
       try {
         const newVisibleIds = isVisible
           ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
           : [...visibleMarketAreaIds, id];
 
+        console.log('New visible IDs will be:', newVisibleIds);
+        
+        // Update state and localStorage
         setVisibleMarketAreaIds(newVisibleIds);
-        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(newVisibleIds));
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`, 
+          JSON.stringify(newVisibleIds)
+        );
 
         if (isVisible) {
+          // Only clear the specific market area's graphics
           clearMarketAreaGraphics(id);
         } else {
           if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+            console.log('Drawing radius points:', marketArea.radius_points.length);
             for (const point of marketArea.radius_points) {
               await drawRadius(
                 point,
@@ -333,6 +349,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
               );
             }
           } else if (marketArea.locations) {
+            console.log('Processing locations:', marketArea.locations.length);
             const features = marketArea.locations.map((loc) => ({
               geometry: loc.geometry,
               attributes: {
@@ -354,8 +371,11 @@ export default function MarketAreaList({ onClose, onEdit }) {
             );
           }
         }
+
+        console.log('=== TOGGLE VISIBILITY COMPLETE ===');
       } catch (error) {
-        console.error("Error toggling market area visibility:", error);
+        console.error('=== TOGGLE VISIBILITY ERROR ===', error);
+        toast.error('Error toggling market area visibility');
       }
     },
     [visibleMarketAreaIds, projectId, clearMarketAreaGraphics, drawRadius, updateFeatureStyles]
