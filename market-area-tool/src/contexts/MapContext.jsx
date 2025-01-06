@@ -14,9 +14,15 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils";
+import { 
+  webMercatorToGeographic, 
+  geographicToWebMercator 
+} from "@arcgis/core/geometry/support/webMercatorUtils";
 import * as geometryEngineAsync from "@arcgis/core/geometry/geometryEngineAsync";
 import { useMarketAreas } from "../contexts/MarketAreaContext";
+import { default as SpatialReference } from "@arcgis/core/geometry/SpatialReference";
+import { default as ProjectParameters } from "@arcgis/core/rest/support/ProjectParameters";
+import * as geometryService from "@arcgis/core/rest/geometryService";
 
 const MapContext = createContext();
 
@@ -972,6 +978,89 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, []);
 
+
+  // Reproject geometry to a specific spatial reference
+  const reprojectGeometry = async (geometry, sourceSR, targetSR) => {
+    if (!geometry || !sourceSR || !targetSR) return geometry;
+  
+    try {
+      const params = new ProjectParameters({
+        geometries: [geometry],
+        outSpatialReference: targetSR
+      });
+  
+      const projectedGeometries = await geometryService.project(params);
+      return projectedGeometries[0];
+    } catch (error) {
+      console.error("Geometry reprojection error:", error);
+      return geometry;
+    }
+  };
+
+  const incrementalUnion = async (geometries) => {
+    if (geometries.length === 1) {
+      return geometries[0];
+    }
+  
+    // Sort the geometries by area, largest first
+    geometries = geometries.slice().sort((a, b) => {
+      const areaA = geometryEngine.planarArea(a);
+      const areaB = geometryEngine.planarArea(b);
+      return areaB - areaA;
+    });
+  
+    let unionGeometry = geometries[0];
+    for (let i = 1; i < geometries.length; i++) {
+      let currentGeometry = geometries[i];
+  
+      try {
+        // Attempt to union the geometries
+        unionGeometry = await geometryEngineAsync.union([unionGeometry, currentGeometry]);
+      } catch (err) {
+        console.warn(`Error unioning polygon at index ${i}:`, err);
+  
+        // If union fails, try repairing the geometries and re-attempting the union
+        unionGeometry = await repairGeometry(unionGeometry);
+        currentGeometry = await repairGeometry(currentGeometry);
+  
+        try {
+          unionGeometry = await geometryEngineAsync.union([unionGeometry, currentGeometry]);
+        } catch (finalErr) {
+          console.warn(`Union failed after repairs. Skipping polygon at index ${i}`, finalErr);
+          // Skip this polygon if the union still fails
+          continue;
+        }
+      }
+  
+      // Simplify the union geometry after each step
+      try {
+        unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
+      } catch (simplifyErr) {
+        console.warn("Error simplifying after union:", simplifyErr);
+      }
+  
+      // Additional repair steps, such as buffer(0), can be added here
+    }
+  
+    return unionGeometry;
+  };
+  
+  const repairGeometry = async (geometry) => {
+    let repairedGeometry = geometry;
+  
+    try {
+      // Simplify can help remove small irregularities
+      repairedGeometry = await geometryEngineAsync.simplify(repairedGeometry);
+  
+      // Buffer with 0 distance can fix self-intersections
+      repairedGeometry = await geometryEngineAsync.buffer(repairedGeometry, 0);
+    } catch (error) {
+      console.error("Geometry repair failed:", error);
+    }
+  
+    return repairedGeometry;
+  };
+
   const addActiveLayer = useCallback(
     async (type) => {
       if (type === "radius") {
@@ -1143,14 +1232,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         "[MapContext] addToSelection called with feature:",
         feature.attributes
       );
-
+  
       if (!mapView) {
         console.warn(
           "[MapContext] Cannot add to selection: mapView not initialized"
         );
         return;
       }
-
+  
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
@@ -1160,11 +1249,31 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
-
+  
+        // Repair and validate geometry
+        let validatedGeometry = feature.geometry;
+        try {
+          // Repair the geometry first
+          validatedGeometry = await repairGeometry(feature.geometry);
+  
+          // Ensure correct spatial reference
+          if (validatedGeometry.spatialReference.wkid !== mapView.spatialReference.wkid) {
+            validatedGeometry = await reprojectGeometry(
+              validatedGeometry, 
+              validatedGeometry.spatialReference, 
+              mapView.spatialReference
+            );
+          }
+        } catch (geometryError) {
+          console.warn("[MapContext] Geometry validation failed:", geometryError);
+          // If validation fails, fall back to original geometry
+          validatedGeometry = feature.geometry;
+        }
+  
         // Normalize the incoming feature
         const validAttributes = feature.attributes || {};
         const normalizedFeature = {
-          geometry: feature.geometry,
+          geometry: validatedGeometry,
           attributes: {
             ...validAttributes,
             [uniqueIdField]:
@@ -1191,14 +1300,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               formatLocationName({ attributes: validAttributes }, layerType),
           },
         };
-
+  
         // Check if already selected
         const isAlreadySelected = selectedFeatures.some((existing) => {
           const idMatch =
             existing.attributes[uniqueIdField] ===
             normalizedFeature.attributes[uniqueIdField];
           if (idMatch) return true;
-
+  
           if (layerType === "tract") {
             const existingFips = formatLocationName(
               { attributes: existing.attributes },
@@ -1212,7 +1321,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           }
           return false;
         });
-
+  
         if (isAlreadySelected) {
           console.log(
             "[MapContext] Feature already selected, toggling off:",
@@ -1244,7 +1353,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               }
               return newSelectedFeatures;
             });
-
+  
             // Add to graphics layer with transparent symbol by default
             // The actual styling will be handled by updateFeatureStyles
             if (selectionGraphicsLayerRef.current) {
@@ -1278,7 +1387,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       formatLocationName,
     ]
   );
-
   // Update the clearSelection function to better handle existing selections
   const clearSelection = useCallback((preserveEditingId = null) => {
     if (!selectionGraphicsLayerRef.current) return;
@@ -1733,15 +1841,22 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView]
   );
 
-  // Helper function to handle geometry validation
-  const ensureValidGeometry = (geometry, spatialReference) => {
+  const ensureValidGeometry = async (geometry, spatialReference) => {
     if (!geometry) return null;
-
+  
     try {
+      // First, repair the geometry
+      geometry = await repairGeometry(geometry);
+  
       // Ensure the geometry is properly projected
       if (geometry.spatialReference.wkid !== spatialReference.wkid) {
-        geometry = webMercatorToGeographic(geometry);
+        geometry = await reprojectGeometry(
+          geometry, 
+          geometry.spatialReference, 
+          spatialReference
+        );
       }
+  
       return geometry;
     } catch (error) {
       console.error("Error validating geometry:", error);
