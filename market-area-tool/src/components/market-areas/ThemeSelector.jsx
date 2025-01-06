@@ -80,8 +80,8 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
   const handleThemeClick = (theme) => {
     try {
       // Convert transparency percentage directly to opacity
-      const transparencyPercent = parseInt(theme.transparency) || 65;
-      const opacity = transparencyPercent / 100;
+      const transparencyPercent = parseInt(theme.transparency) || 35;
+      const opacity = 1 - (transparencyPercent / 100);  // Invert the calculation
   
       // Get hex value instead of building 'rgb(...)'
       const fillColorHex = theme.color_key?.Hex || theme.fill_color || '#0078D4';
@@ -190,7 +190,7 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
                         className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
                         style={{ 
                           backgroundColor: getBackgroundColor(theme),
-                          opacity: theme.fill === 'Yes' ? 1 : 0.35
+                          opacity: theme.fill === 'Yes' ? 1 : 0.65
                         }}
                       />
                       <span className="text-sm text-gray-900 dark:text-white flex-1">

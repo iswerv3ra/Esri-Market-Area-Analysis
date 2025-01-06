@@ -25,6 +25,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
   Bars3Icon,
+  EyeDropperIcon, // Add this import
 } from "@heroicons/react/24/outline";
 
 const SortableItem = ({
@@ -303,6 +304,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     }
   }, [visibleMarketAreaIds, projectId]);
 
+  
   const handleToggleVisibility = useCallback(
     async (marketArea) => {
       if (!marketArea) return;
@@ -423,6 +425,14 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
+      <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={handleToggleAll}
+          className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
+        >
+          {areAllAreasVisible ? "Hide All" : "Show All"}
+        </button>
+      </div>
       <div className="flex-1 overflow-y-auto p-2">
         <DndContext
           sensors={sensors}
