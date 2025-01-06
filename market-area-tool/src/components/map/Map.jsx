@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import esriConfig from '@arcgis/core/config';
 import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
@@ -11,6 +11,116 @@ import { useMap } from '../../contexts/MapContext';
 
 // Initialize the API key
 const API_KEY = "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
+
+// Orange County coordinates
+const ORANGE_COUNTY_COORDS = {
+  longitude: -117.8311,
+  latitude: 33.7175,
+  zoom: 10
+};
+
+const PencilIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="12" 
+    height="12" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+const XIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+const EditableTabName = ({ name, isEditing, onEdit, onSave, onCancel }) => {
+  const [editedName, setEditedName] = useState(name);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center space-x-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editedName}
+          onChange={(e) => setEditedName(e.target.value)}
+          className="px-1 py-0.5 text-sm bg-white dark:bg-gray-700 border border-blue-500 dark:border-blue-400 rounded focus:outline-none"
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              onSave(editedName);
+            }
+          }}
+        />
+        <button
+          onClick={() => onSave(editedName)}
+          className="p-1 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+        >
+          <CheckIcon />
+        </button>
+        <button
+          onClick={onCancel}
+          className="p-1 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+        >
+          <XIcon />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-1">
+      <span>{name}</span>
+      <button
+        onClick={onEdit}
+        className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+      >
+        <PencilIcon />
+      </button>
+    </div>
+  );
+};
 
 const ZoomAlert = () => {
   const { isOutsideZoomRange, zoomMessage } = useMap();
@@ -39,7 +149,15 @@ export default function MapComponent({ onToggleList }) {
   const mapRef = useRef(null);
   const { setMapView } = useMap();
   const initCompleteRef = useRef(false);
+  const [maps, setMaps] = useState([
+    { id: 1, name: 'Core Map', active: true, mapView: null, mapInstance: null },
+    { id: 2, name: 'Map 2', active: false, mapView: null, mapInstance: null },
+    { id: 3, name: 'Map 3', active: false, mapView: null, mapInstance: null }
+  ]);
+  const [editingTabId, setEditingTabId] = useState(null);
+  const [activeMapId, setActiveMapId] = useState(1);
 
+  // Initialize ArcGIS configuration
   useEffect(() => {
     try {
       esriConfig.apiKey = API_KEY;
@@ -50,7 +168,7 @@ export default function MapComponent({ onToggleList }) {
       }
 
       const serversToAdd = [
-        "geocode-api.arcgis.com",  // Added geocoding server
+        "geocode-api.arcgis.com",
         "route-api.arcgis.com",
         "services.arcgis.com",
         "basemaps.arcgis.com",
@@ -76,6 +194,44 @@ export default function MapComponent({ onToggleList }) {
     }
   }, []);
 
+  const handleTabClick = (mapId) => {
+    // Only switch if clicking a different tab
+    if (mapId !== activeMapId) {
+      setActiveMapId(mapId);
+      setMaps(maps.map(map => ({
+        ...map,
+        active: map.id === mapId
+      })));
+    }
+  };
+
+  const addNewMap = () => {
+    const newMapId = maps.length + 1;
+    const newMap = {
+      id: newMapId,
+      name: `Map ${newMapId}`,
+      active: false,
+      mapView: null,
+      mapInstance: null
+    };
+    setMaps([...maps, newMap]);
+  };
+
+  const handleEditTab = (mapId) => {
+    setEditingTabId(mapId);
+  };
+
+  const handleSaveTab = (mapId, newName) => {
+    setMaps(maps.map(map => 
+      map.id === mapId ? { ...map, name: newName } : map
+    ));
+    setEditingTabId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTabId(null);
+  };
+
   const goToLocation = async (view, longitude, latitude, zoom = 12) => {
     try {
       await view.goTo({
@@ -91,6 +247,7 @@ export default function MapComponent({ onToggleList }) {
     }
   };
 
+  // Initialize or update map for active tab
   useEffect(() => {
     let isMounted = true;
 
@@ -106,7 +263,8 @@ export default function MapComponent({ onToggleList }) {
         const view = new MapView({
           container: mapRef.current,
           map: map,
-          zoom: 13,
+          zoom: activeMapId === 1 ? 13 : ORANGE_COUNTY_COORDS.zoom,
+          center: activeMapId === 1 ? undefined : [ORANGE_COUNTY_COORDS.longitude, ORANGE_COUNTY_COORDS.latitude],
           padding: {
             top: 10,
             right: 10,
@@ -204,19 +362,35 @@ export default function MapComponent({ onToggleList }) {
           view.ui.add(widget, position);
         });
 
-        setMapView(view);
+        // Center non-core maps on Orange County after initialization
+        if (activeMapId !== 1) {
+          await view.when();
+          if (isMounted) {
+            await goToLocation(view, ORANGE_COUNTY_COORDS.longitude, ORANGE_COUNTY_COORDS.latitude, ORANGE_COUNTY_COORDS.zoom);
+          }
+        }
 
-        // Auto-toggle MA list after map initialization
-        if (!initCompleteRef.current && onToggleList) {
+        // Update the maps state with the new view
+        setMaps(currentMaps => 
+          currentMaps.map(m => 
+            m.id === activeMapId 
+              ? { ...m, mapView: view, mapInstance: map } 
+              : m
+          )
+        );
+
+        // Only set the main mapView context for the Core Map
+        if (activeMapId === 1) {
+          setMapView(view);
+        }
+        // Auto-toggle MA list after map initialization for Core Map only
+        if (activeMapId === 1 && !initCompleteRef.current && onToggleList) {
           console.log('[Map] Triggering auto-toggle of MA list');
           setTimeout(() => {
             onToggleList();
             initCompleteRef.current = true;
           }, 1000);
         }
-
-        // No initial geolocation fallback here.
-        // The MapContext will handle zooming to market areas or fallback to Orange County if none exist.
 
       } catch (error) {
         console.error('[Map] Error initializing map:', error);
@@ -227,23 +401,69 @@ export default function MapComponent({ onToggleList }) {
 
     return () => {
       isMounted = false;
-      if (mapRef.current) {
-        console.log('[Map] Cleaning up map view');
-        setMapView(null);
+      // Cleanup previous map view
+      const currentMap = maps.find(m => m.id === activeMapId);
+      if (currentMap?.mapView && !currentMap.mapView.destroyed) {
+        currentMap.mapView.destroy();
       }
     };
-  }, [setMapView, onToggleList]);
+  }, [activeMapId, setMapView, onToggleList]);
 
   return (
-    <div 
-      ref={mapRef} 
-      className="w-full h-full relative"
-      style={{ 
-        position: 'relative',
-        overflow: 'hidden'
-      }}
-    >
-      <ZoomAlert />
+    <div className="flex flex-col h-full">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+        <div className="flex items-center">
+          <div className="flex space-x-2 overflow-x-auto">
+            {maps.map((map) => (
+              <button
+                key={map.id}
+                onClick={() => handleTabClick(map.id)}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors ${
+                  map.active
+                    ? 'bg-blue-500 dark:bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <EditableTabName
+                  name={map.name}
+                  isEditing={editingTabId === map.id}
+                  onEdit={() => handleEditTab(map.id)}
+                  onSave={(newName) => handleSaveTab(map.id, newName)}
+                  onCancel={handleCancelEdit}
+                />
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={addNewMap}
+            className="ml-2 px-3 py-1 text-sm bg-green-500 dark:bg-green-600 text-white rounded hover:bg-green-600 dark:hover:bg-green-700 focus:outline-none transition-colors"
+          >
+            + New Map
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex-grow relative">
+        {maps.map((map) => (
+          <div
+            key={map.id}
+            className={`absolute inset-0 ${map.active ? 'block' : 'hidden'}`}
+          >
+            {map.active && (
+              <div 
+                ref={mapRef}
+                className="w-full h-full relative"
+                style={{ 
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <ZoomAlert />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

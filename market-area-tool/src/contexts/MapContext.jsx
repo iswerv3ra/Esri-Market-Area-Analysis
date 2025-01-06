@@ -1599,14 +1599,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [mapView]
   );
-
-  const updateFeatureStyles = useCallback(
-    async (features, styles, featureType) => {
+const updateFeatureStyles = useCallback(
+    async (features, styles, featureType, immediate = false) => {
       console.log('=== UPDATE FEATURE STYLES START ===');
       console.log('Updating styles for:', {
         featureCount: features.length,
         featureType,
-        styles
+        styles,
+        immediate
       });
 
       if (!selectionGraphicsLayerRef.current || !mapView) {
@@ -1633,15 +1633,31 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           featuresByMarketArea[id].push(feature);
         });
 
-        // Keep existing graphics from other market areas
+        // Handle existing graphics with more precision
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
-        const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-          g => !marketAreaIds.has(g.attributes?.marketAreaId)
-        );
+        let existingGraphics = [];
+        
+        if (!immediate) {
+          // Normal flow - keep other market areas' graphics
+          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+            g => !marketAreaIds.has(g.attributes?.marketAreaId)
+          );
+        } else {
+          // Immediate mode - only keep graphics that aren't related to this update
+          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(g => 
+            !marketAreaIds.has(g.attributes?.marketAreaId) && 
+            g.attributes?.FEATURE_TYPE !== featureType
+          );
+        }
 
-        // Clear and restore
+        // Clear and restore in one batch
         selectionGraphicsLayerRef.current.removeAll();
-        existingGraphics.forEach(g => selectionGraphicsLayerRef.current.add(g));
+        if (existingGraphics.length > 0) {
+          selectionGraphicsLayerRef.current.addMany(existingGraphics);
+        }
+
+        // Prepare all new graphics before adding
+        const newGraphics = [];
 
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
@@ -1666,7 +1682,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             return null;
           }).filter(Boolean);
 
-          // Create unified boundary using union and simplify
+          if (polygons.length === 0) continue;
+
+          // Create unified boundary
           const unifiedGeometry = union(polygons);
           if (!unifiedGeometry) {
             console.warn(`Failed to create unified geometry for market area ${marketAreaId}`);
@@ -1674,10 +1692,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           }
 
           const simplifiedGeometry = simplify(unifiedGeometry);
-          
-          // Get the total area of the unified geometry for scale reference
           const totalArea = Math.abs(planarArea(simplifiedGeometry));
-          const minHoleArea = totalArea * 0.001; // Holes must be at least 0.1% of total area
+          const minHoleArea = totalArea * 0.001;
 
           // Extract and filter rings
           const rings = simplifiedGeometry.rings;
@@ -1699,7 +1715,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             return acc;
           }, { exteriorRings: [], holeRings: [] });
 
-          // Create fill graphic
+          // Create fill graphic with exact specified styles
           const fillSymbol = {
             type: "simple-fill",
             color: [...hexToRgb(styles.fill), styles.fillOpacity],
@@ -1715,7 +1731,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             type: "polygon"
           });
 
-          const fillGraphic = new Graphic({
+          newGraphics.push(new Graphic({
             geometry: fillGeometry,
             symbol: fillSymbol,
             attributes: {
@@ -1724,9 +1740,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               isUnified: true,
               ...maFeatures[0].attributes
             }
-          });
+          }));
 
-          // Create outline symbol
+          // Create outline graphics
           const outlineSymbol = {
             type: "simple-fill",
             color: [0, 0, 0, 0],
@@ -1736,29 +1752,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             }
           };
 
-          // Create exterior outline graphic
-          const exteriorGeometry = new Polygon({
-            rings: exteriorRings,
-            spatialReference: mapView.spatialReference,
-            type: "polygon"
-          });
-
-          const exteriorOutlineGraphic = new Graphic({
-            geometry: exteriorGeometry,
-            symbol: outlineSymbol,
-            attributes: {
-              marketAreaId,
-              FEATURE_TYPE: featureType,
-              isUnified: true,
-              isOutline: true,
-              isExterior: true,
-              ...maFeatures[0].attributes
-            }
-          });
-
-          // Add graphics in order: fill, holes, exterior
-          selectionGraphicsLayerRef.current.add(fillGraphic);
-
           // Add hole outlines
           holeRings.forEach((holeRing, index) => {
             const holeGeometry = new Polygon({
@@ -1767,7 +1760,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               type: "polygon"
             });
 
-            const holeGraphic = new Graphic({
+            newGraphics.push(new Graphic({
               geometry: holeGeometry,
               symbol: outlineSymbol,
               attributes: {
@@ -1779,11 +1772,33 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 holeIndex: index,
                 ...maFeatures[0].attributes
               }
-            });
-            selectionGraphicsLayerRef.current.add(holeGraphic);
+            }));
           });
 
-          selectionGraphicsLayerRef.current.add(exteriorOutlineGraphic);
+          // Add exterior outline
+          const exteriorGeometry = new Polygon({
+            rings: exteriorRings,
+            spatialReference: mapView.spatialReference,
+            type: "polygon"
+          });
+
+          newGraphics.push(new Graphic({
+            geometry: exteriorGeometry,
+            symbol: outlineSymbol,
+            attributes: {
+              marketAreaId,
+              FEATURE_TYPE: featureType,
+              isUnified: true,
+              isOutline: true,
+              isExterior: true,
+              ...maFeatures[0].attributes
+            }
+          }));
+        }
+
+        // Add all new graphics in one batch
+        if (newGraphics.length > 0) {
+          selectionGraphicsLayerRef.current.addMany(newGraphics);
         }
 
         console.log('Final graphics count:', selectionGraphicsLayerRef.current.graphics.length);
@@ -1799,6 +1814,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [mapView, hexToRgb]
   );
+  
   const ensureValidGeometry = async (geometry, spatialReference) => {
     if (!geometry) return null;
   
