@@ -1004,7 +1004,7 @@ export default class EnrichmentService {
     }
   }
 
-  async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = true) {
+  async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = false) {
     // Convert includeUSAData to boolean explicitly
     const shouldIncludeUSA = Boolean(includeUSAData);
     
@@ -1078,9 +1078,12 @@ export default class EnrichmentService {
   }
 
   // Updated exportToCSV without references to analysisCategories
-  exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = true) {
+  exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
     // Convert both flags to boolean and use explicit parameter first
-    const shouldIncludeUSAData = Boolean(includeUSAData) || Boolean(enrichmentData?.includeUSAData);
+    const shouldIncludeUSAData =
+      typeof includeUSAData === "boolean"
+        ? includeUSAData
+        : Boolean(enrichmentData?.includeUSAData);
   
     console.log("Starting exportToCSV with params:", {
       marketAreasCount: marketAreas?.length,
