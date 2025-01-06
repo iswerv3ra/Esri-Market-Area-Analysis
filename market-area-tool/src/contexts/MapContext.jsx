@@ -15,6 +15,8 @@ import React, {
   useRef,
 } from "react";
 import { webMercatorToGeographic } from "@arcgis/core/geometry/support/webMercatorUtils";
+import * as geometryEngineAsync from "@arcgis/core/geometry/geometryEngineAsync";
+import { useMarketAreas } from "../contexts/MarketAreaContext";
 
 const MapContext = createContext();
 
@@ -2316,7 +2318,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       visibleMarketAreaIds.length > 0 &&
       layersReady // ensure this is true
     ) {
-      showVisibleMarketAreas();
     }
   }, [
     mapView,
@@ -2334,7 +2335,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       visibleMarketAreaIds.length > 0 &&
       layersReady
     ) {
-      showVisibleMarketAreas();
     }
   }, [mapView, marketAreas, visibleMarketAreaIds, layersReady]);
 
@@ -2401,56 +2401,143 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [marketAreas]);
 
-  // Center map on first market area
+  const unionAllMarketAreas = async (marketAreas) => {
+    // Gather all polygons
+    let polygons = [];
+    marketAreas.forEach((ma) => {
+      if (ma.locations && ma.locations.length > 0) {
+        ma.locations.forEach((loc) => {
+          if (loc.geometry) polygons.push(loc.geometry);
+        });
+      }
+    });
+  
+    if (!polygons.length) return null;
+  
+    // union them all
+    try {
+      const unioned = await geometryEngineAsync.union(polygons);
+      return unioned;
+    } catch (err) {
+      console.error("Error unioning polygons:", err);
+      return null;
+    }
+  };
+
+  // Create ref outside the effect
+  const hasCentered = useRef(false);
+  
   useEffect(() => {
-    const centerMap = async () => {
-      if (!mapView || !mapView.ready || !layersReady) {
-        console.log("[MapContext] Waiting for map initialization...", {
-          mapReady: mapView?.ready,
-          layersReady,
-        });
-        return;
-      }
-
-      // Double check we have valid market areas with data
-      const validMarketArea = marketAreas?.find(
-        (ma) => ma?.locations?.length > 0 && ma.locations[0]?.geometry
-      );
-
-      if (!validMarketArea) {
-        console.log("[MapContext] No valid market areas with locations found", {
-          totalAreas: marketAreas?.length,
-          firstArea: marketAreas?.[0],
-        });
-        return;
-      }
-
-      try {
-        await mapView.when();
-        const targetGeometry = validMarketArea.locations[0].geometry;
-        console.log(
-          "[MapContext] Centering map on first valid location:",
-          targetGeometry
-        );
-
-        await mapView.goTo(
-          {
-            target: targetGeometry,
-            zoom: 10,
-          },
-          {
-            duration: 1000, // 1 second animation
+    // Skip if we've already centered or prerequisites aren't ready
+    if (hasCentered.current || !mapView?.ready || !layersReady) {
+      console.log("[MapContext] Skipping center:", {
+        alreadyCentered: hasCentered.current,
+        mapReady: mapView?.ready,
+        layersReady,
+      });
+      return;
+    }
+  
+    // 2) Check for market areas
+    if (!marketAreas?.length) {
+      console.log("[MapContext] No marketAreas available");
+      return;
+    }
+  
+    console.log("[MapContext] Processing market areas:", 
+      marketAreas.map(ma => ({
+        id: ma.id,
+        name: ma.name,
+        locationsCount: ma.locations?.length || 0
+      }))
+    );
+  
+    // 3) Find the first valid geometry and create extent
+    let validGeometry = null;
+    
+    for (const ma of marketAreas) {
+      if (ma.locations?.length) {
+        for (const loc of ma.locations) {
+          if (loc.geometry) {
+            validGeometry = loc.geometry;
+            console.log("[MapContext] Found valid geometry in location of market area:", ma.id);
+            break;
           }
-        );
-
-        console.log("[MapContext] Map centered successfully");
-      } catch (err) {
-        console.error("[MapContext] Error centering map:", err);
+        }
+        if (validGeometry) break;
       }
-    };
-
-    centerMap();
-  }, [mapView, marketAreas, layersReady]);
+    }
+  
+    // 4) If we found a valid geometry, center on it
+    if (validGeometry) {
+      console.log("[MapContext] Centering on geometry:", validGeometry);
+  
+      // Import required modules
+      import('@arcgis/core/geometry/Extent').then(({ default: Extent }) => {
+        import('@arcgis/core/geometry/SpatialReference').then(({ default: SpatialReference }) => {
+          // Create a spatial reference for Web Mercator
+          const sr = new SpatialReference({ wkid: 102100 });
+  
+          // Create an extent from the geometry
+          let extent;
+          if (validGeometry.rings) {
+            // For polygons, calculate extent from rings
+            const xCoords = [];
+            const yCoords = [];
+            
+            validGeometry.rings[0].forEach(coord => {
+              xCoords.push(coord[0]);
+              yCoords.push(coord[1]);
+            });
+  
+            extent = new Extent({
+              xmin: Math.min(...xCoords),
+              ymin: Math.min(...yCoords),
+              xmax: Math.max(...xCoords),
+              ymax: Math.max(...yCoords),
+              spatialReference: sr
+            });
+          }
+  
+          // Center the map on the extent with a wider view
+          mapView.when(() => {
+            mapView.goTo(
+              { 
+                target: extent || validGeometry,
+                zoom: 9
+              },
+              {
+                duration: 1000,
+                easing: "ease-in-out"
+              }
+            ).then(() => {
+              console.log("[MapContext] Map centered successfully");
+              hasCentered.current = true;  // Mark as centered
+            }).catch(err => {
+              console.error("[MapContext] Error centering map:", err);
+            });
+          });
+        });
+      });
+    } else {
+      console.log("[MapContext] No valid geometry found in any market area");
+      
+      // 5) Fallback to a default location (Orange County coordinates in Web Mercator)
+      mapView.when(() => {
+        mapView.goTo({
+          target: [-13165507, 4020992],  // Orange County in Web Mercator
+          zoom: 8  // Decreased from 10 to show more context
+        }, {
+          duration: 1000,
+          easing: "ease-in-out"
+        }).then(() => {
+          hasCentered.current = true;  // Mark as centered even for fallback
+        }).catch(err => {
+          console.error("[MapContext] Error in fallback centering:", err);
+        });
+      });
+    }
+  }, [mapView, marketAreas, layersReady]);  // Keep all dependencies
 
   useEffect(() => {
     if (!mapView || !selectionGraphicsLayerRef.current) return;

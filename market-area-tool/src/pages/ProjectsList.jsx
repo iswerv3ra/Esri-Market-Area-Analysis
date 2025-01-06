@@ -63,7 +63,7 @@ export default function ProjectsList() {
   // Navigation handlers
   const handleProjectClick = (projectId) => {
     if (projectId) {
-      navigate(`/projects/${projectId}/market-areas`);
+      window.location.href = `/projects/${projectId}/market-areas`;
     }
   };
 

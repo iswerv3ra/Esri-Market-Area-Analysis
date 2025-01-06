@@ -20,9 +20,6 @@ const MA_TYPE_MAPPING = {
   usa: 'USA',
 };
 
-const COST_PER_VARIABLE = 0.001;
-const MAX_COST_LIMIT = 20;
-
 const ExportDialog = ({
   isOpen = false,
   onClose = () => {},
@@ -71,12 +68,6 @@ const ExportDialog = ({
     return variablePresets.reduce((sum, preset) => sum + preset.variables.length, 0);
   }, [exportOption, selectedPresetId, variablePresets]);
 
-  // Calculate estimated cost
-  const estimatedCost = useMemo(() => {
-    const areaCount = includeUSAData ? selectedAreas.size + 1 : selectedAreas.size;
-    return totalVariables * areaCount * COST_PER_VARIABLE;
-  }, [selectedAreas.size, totalVariables, includeUSAData]);
-
   // Handler functions
   const handleSelectAllAreas = (e) => {
     if (e.target.checked) {
@@ -110,7 +101,6 @@ const ExportDialog = ({
       selectedPresetId,
       selectedAreasCount: selectedAreas.size,
       includeUSAData,
-      estimatedCost
     });
 
     let variables = [];
@@ -290,11 +280,6 @@ const ExportDialog = ({
                 </select>
               </div>
             )}
-
-            {/* Estimated cost */}
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Estimated cost: ${estimatedCost.toFixed(2)} (Limit: ${MAX_COST_LIMIT})
-            </div>
           </div>
 
           {/* Footer */}
@@ -311,13 +296,7 @@ const ExportDialog = ({
               onClick={handleSubmitExport}
               disabled={
                 (exportOption === 'selected-preset' && !selectedPresetId) ||
-                selectedAreas.size === 0 ||
-                estimatedCost >= MAX_COST_LIMIT
-              }
-              title={
-                estimatedCost >= MAX_COST_LIMIT
-                  ? `Export size exceeds maximum cost limit of $${MAX_COST_LIMIT}`
-                  : ''
+                selectedAreas.size === 0
               }
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md 
                          hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"

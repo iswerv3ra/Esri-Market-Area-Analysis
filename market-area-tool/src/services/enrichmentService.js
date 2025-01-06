@@ -1005,8 +1005,9 @@ export default class EnrichmentService {
   }
 
   async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = false) {
-    // Convert includeUSAData to boolean explicitly
-    const shouldIncludeUSA = Boolean(includeUSAData);
+    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
+        ? includeUSAData 
+        : false;
     
     console.log('enrichAreas called with:', {
       marketAreasCount: marketAreas?.length,
@@ -1058,6 +1059,7 @@ export default class EnrichmentService {
     };
   }
 
+
   aggregateResults(groupedResults, area) {
     const aggregated = {};
     groupedResults.forEach((attributes) => {
@@ -1079,9 +1081,7 @@ export default class EnrichmentService {
 
   // Updated exportToCSV without references to analysisCategories
   exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
-    // Convert both flags to boolean and use explicit parameter first
-    const shouldIncludeUSAData =
-      typeof includeUSAData === "boolean"
+    const shouldIncludeUSAData = typeof includeUSAData === "boolean"
         ? includeUSAData
         : Boolean(enrichmentData?.includeUSAData);
   

@@ -59,30 +59,33 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     formattedMarketAreas,
     selectedMarketAreas,
     fileName,
+    includeUSAData  // Add this
   }) => {
     if (!variables || variables.length === 0) {
       setIsExportDialogOpen(true);
       return;
     }
-
+  
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Enriching market areas...");
-
+  
       const enrichedData = await enrichmentService.enrichAreas(
         selectedMarketAreas,
-        variables
+        variables,
+        includeUSAData  // Pass it here
       );
-
+  
       const csvContent = enrichmentService.exportToCSV(
         enrichedData,
         selectedMarketAreas,
-        variables
+        variables,
+        includeUSAData  // And here
       );
-
+  
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       saveAs(blob, `${fileName}.csv`);
-
+  
       toast.dismiss(loadingToast);
       toast.success("Export completed successfully");
     } catch (error) {

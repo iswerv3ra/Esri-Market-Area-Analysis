@@ -130,8 +130,8 @@ function InnerLayout() {
 
 export default function MarketAreasLayout() {
   return (
-    <MapProvider>
-      <InnerLayout />
-    </MapProvider>
+    // Just return <InnerLayout/> 
+    // because the top-level <MapProvider> is already in App.jsx
+    <InnerLayout />
   );
 }

@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import React, { useEffect, useState } from "react";
 import {
   Routes,
@@ -22,7 +24,7 @@ import Presets from "./pages/Presets";
 import ManagePresetColor from "./pages/ManagePresetColor"; // Import your ManagePresetColor component
 
 // Providers
-import { MarketAreaProvider } from "./contexts/MarketAreaContext";
+import { MarketAreaProvider, useMarketAreas } from "./contexts/MarketAreaContext";
 import { MapProvider } from "./contexts/MapContext";
 import { PresetsProvider } from "./contexts/PresetsContext";
 
@@ -83,6 +85,7 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
+// This is the outermost parent that sets up interceptors, checks token, etc.
 function App() {
   const navigate = useNavigate();
   const [isInitializing, setIsInitializing] = useState(true);
@@ -122,51 +125,62 @@ function App() {
     return <LoadingSpinner />;
   }
 
+  // Wrap everything in MarketAreaProvider (so it can fetch MarketAreas)
   return (
-    <MapProvider>
-      <MarketAreaProvider>
-        <PresetsProvider>
-          <Routes>
-            {/* Public Routes */}
-            <Route
-              path="/login"
-              element={
-                isAuthenticated() ? <Navigate to="/" replace /> : <Login />
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                isAuthenticated() ? <Navigate to="/" replace /> : <Register />
-              }
-            />
+    <MarketAreaProvider>
+      <InnerApp />
+    </MarketAreaProvider>
+  );
+}
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<RootLayout />}>
-                {/* Nested Routes */}
-                <Route index element={<ProjectsList />} />
-                <Route path="projects/create" element={<CreateProject />} />
-                <Route
-                  path="projects/:projectId/market-areas"
-                  element={<MarketAreasLayout />}
-                />
-                <Route path="presets" element={<Presets />} />
+// This component reads marketAreas from context and passes them to MapProvider
+function InnerApp() {
+  const { marketAreas } = useMarketAreas();
 
-                {/* NEW ROUTE FOR MANAGE PRESET COLOR */}
-                <Route path="manage-preset-color" element={<ManagePresetColor />} />
+  return (
+    <MapProvider marketAreas={marketAreas}>
+      <PresetsProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route
+            path="/login"
+            element={
+              isAuthenticated() ? <Navigate to="/" replace /> : <Login />
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              isAuthenticated() ? <Navigate to="/" replace /> : <Register />
+            }
+          />
 
-                {/* Catch-all Redirect */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
+          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<RootLayout />}>
+              {/* Nested Routes */}
+              <Route index element={<ProjectsList />} />
+              <Route path="projects/create" element={<CreateProject />} />
+              <Route
+                path="projects/:projectId/market-areas"
+                element={<MarketAreasLayout />}
+              />
+              <Route path="presets" element={<Presets />} />
+
+              {/* NEW ROUTE FOR MANAGE PRESET COLOR */}
+              <Route path="manage-preset-color" element={<ManagePresetColor />} />
+
+              {/* Catch-all Redirect */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
-          </Routes>
-        </PresetsProvider>
-      </MarketAreaProvider>
+          </Route>
+        </Routes>
+      </PresetsProvider>
     </MapProvider>
   );
 }
 
+// Error boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

@@ -107,7 +107,6 @@ export default function MapComponent({ onToggleList }) {
           container: mapRef.current,
           map: map,
           zoom: 13,
-          center: [-117.8311, 33.7175],
           padding: {
             top: 10,
             right: 10,
