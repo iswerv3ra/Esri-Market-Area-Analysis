@@ -6,7 +6,7 @@ import {
   HomeIcon,
   AdjustmentsHorizontalIcon,
   ArrowRightOnRectangleIcon,
-  SwatchIcon,
+  SwatchIcon, // Added for "Manage Preset Colors"
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 import { logout } from "../../utils/auth";
@@ -45,10 +45,10 @@ export default function RootLayout() {
     }
   };
 
+  // In RootLayout.jsx, simplify the handleHomeClick:
   const handleHomeClick = (e) => {
-    e.preventDefault(); // Prevent default Link behavior
-    cleanupProject();
-    navigate("/projects"); // Updated to navigate to projects page
+    e.preventDefault();
+    navigate("/projects");
   };
 
   return (
@@ -84,6 +84,7 @@ export default function RootLayout() {
               <span className="hidden sm:inline">Variables</span>
             </Link>
 
+            {/* New link for Manage Preset Colors */}
             <Link
               to="/manage-preset-color"
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
