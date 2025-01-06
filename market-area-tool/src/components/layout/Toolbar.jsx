@@ -158,10 +158,19 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           const correctionFactor = 0.75;
           const scaleBarMiles = (scaleBarGroundDistance * 0.000621371) * correctionFactor;
   
-          // Format with one decimal place
-          const scaleText = scaleBarMiles < 10 
-            ? `${scaleBarMiles.toFixed(1)} mi` 
-            : `${Math.round(scaleBarMiles)} mi`;
+          // Round the scale bar distance to the nearest 1000 feet if under 1 mile, or the nearest mile if 1 mile or more
+          let scaleBarValue;
+          let scaleText;
+          if (scaleBarMiles < 1) {
+            const scaleBarFeet = scaleBarGroundDistance * 3.28084;
+            const scaleBarFeetRounded = Math.round(scaleBarFeet / 1000) * 1000;
+            scaleBarValue = scaleBarFeetRounded;
+            scaleText = `${scaleBarFeetRounded} ft`;
+          } else {
+            const scaleBarMilesRounded = Math.round(scaleBarMiles);
+            scaleBarValue = scaleBarMilesRounded;
+            scaleText = `${scaleBarMilesRounded} mi`;
+          }
   
           // Draw white background with padding
           finalCtx.fillStyle = "#FFFFFF";
@@ -184,10 +193,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           // Draw text left-aligned and centered vertically
           finalCtx.font = "12px Arial";
           finalCtx.fillStyle = "#000000";
-          finalCtx.textAlign = "left";  // Changed from 'center' to 'left'
+          finalCtx.textAlign = "left";
           finalCtx.textBaseline = "middle";
           // Position text just after the left vertical line with a small padding
-          finalCtx.fillText(scaleText, xPos + lineThickness + 4, yPos - barHeight/2.5);
+          finalCtx.fillText(scaleText, xPos + lineThickness + 4, yPos - barHeight / 2.5);
   
           resolve();
         };
