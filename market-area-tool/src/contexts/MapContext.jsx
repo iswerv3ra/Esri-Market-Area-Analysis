@@ -1599,18 +1599,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     },
     [mapView]
   );
-const updateFeatureStyles = useCallback(
-    async (features, styles, featureType, immediate = false) => {
-      console.log('=== UPDATE FEATURE STYLES START ===');
-      console.log('Updating styles for:', {
-        featureCount: features.length,
-        featureType,
-        styles,
-        immediate
-      });
 
+
+  const updateFeatureStyles = useCallback(
+    async (features, styles, featureType, immediate = false) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
-        console.warn('Missing required refs');
         return;
       }
 
@@ -1687,7 +1680,6 @@ const updateFeatureStyles = useCallback(
           // Create unified boundary
           const unifiedGeometry = union(polygons);
           if (!unifiedGeometry) {
-            console.warn(`Failed to create unified geometry for market area ${marketAreaId}`);
             continue;
           }
 
@@ -1801,20 +1793,14 @@ const updateFeatureStyles = useCallback(
           selectionGraphicsLayerRef.current.addMany(newGraphics);
         }
 
-        console.log('Final graphics count:', selectionGraphicsLayerRef.current.graphics.length);
-        console.log('=== UPDATE FEATURE STYLES COMPLETE ===');
-
       } catch (error) {
-        console.error('=== UPDATE FEATURE STYLES ERROR ===', {
-          error,
-          featureType,
-          featureCount: features.length
-        });
+        // Optional: You might want to add error handling logic here
       }
     },
     [mapView, hexToRgb]
   );
-  
+
+
   const ensureValidGeometry = async (geometry, spatialReference) => {
     if (!geometry) return null;
   
