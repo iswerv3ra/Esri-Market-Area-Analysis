@@ -725,12 +725,29 @@ function getVariableLabelFromShortKey(shortKey) {
   return shortKey;
 }
 
+// Create a mapping of variable IDs to their human-readable labels
+const variableLabels = {};
+
+// Helper function to initialize the variable labels mapping
+function initializeVariableLabels(categories) {
+  Object.values(categories).forEach(category => {
+    category.variables.forEach(variable => {
+      variableLabels[variable.id] = variable.label;
+    });
+  });
+}
+
+// Initialize labels when the service is created
+initializeVariableLabels(analysisCategories);
+
+
 export default class EnrichmentService {
   constructor() {
     this.clientId = ARCGIS_CLIENT_ID;
     this.clientSecret = ARCGIS_CLIENT_SECRET;
     this.token = null;
     this.tokenExpiration = null;
+    this.variableLabels = variableLabels;
   }
 
   async getToken() {
@@ -1079,225 +1096,178 @@ export default class EnrichmentService {
     return getVariableLabelFromShortKey(shortKey);
   }
 
-  // Updated exportToCSV without references to analysisCategories
+
+  getVariableLabel(variableId) {
+    // First try to get the full label from our mapping
+    if (this.variableLabels[variableId]) {
+      return this.variableLabels[variableId];
+    }
+    
+    // If not found, try to get just the short key's label
+    const shortKey = variableId.split(".").pop();
+    return this.variableLabels[shortKey] || shortKey;
+  }
+
   exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
     const shouldIncludeUSAData = typeof includeUSAData === "boolean"
-        ? includeUSAData
-        : Boolean(enrichmentData?.includeUSAData);
-  
+      ? includeUSAData
+      : Boolean(enrichmentData?.includeUSAData);
+
     console.log("Starting exportToCSV with params:", {
       marketAreasCount: marketAreas?.length,
       selectedVariablesCount: selectedVariables?.length,
-      explicitIncludeUSAData: Boolean(includeUSAData),
-      enrichmentDataIncludeUSAData: Boolean(enrichmentData?.includeUSAData),
-      finalIncludeUSAData: shouldIncludeUSAData,
-      hasUSADataRows: typeof usaDataRows !== "undefined",
-      usaDataRowsLength: usaDataRows?.length
+      includeUSAData: shouldIncludeUSAData
     });
-  
+
     const { results, studyAreas, idToIndexMap } = enrichmentData;
-  
-    // Prepare a lookup: result attributes keyed by originalIndex
+
+    // Prepare enrichment lookup
     const enrichmentLookup = {};
-  
     results.forEach((res) => {
       const featureSet = res.value?.FeatureSet?.[0];
       if (!featureSet?.features?.[0]?.attributes) return;
       const attrs = featureSet.features[0].attributes;
       const objId = attrs.ObjectID;
-  
       const originalIndex = idToIndexMap[objId];
+      
       if (originalIndex !== undefined) {
         enrichmentLookup[originalIndex] = attrs;
-      } else {
-        console.warn(`No matching originalIndex found for ObjectID ${objId}`);
       }
     });
-  
-    function formatBigNumberAsText(value) {
-      if (!value) return "";
-  
-      const numVal = parseFloat(value);
-      if (Number.isNaN(numVal)) {
-        return value;
-      }
-  
-      const noDecimal = numVal.toLocaleString("fullwide", {
-        useGrouping: false,
-        maximumFractionDigits: 0,
-      });
-  
-      if (noDecimal.length >= 12) {
-        return `="${noDecimal}"`;
-      }
-      return noDecimal;
-    }
-  
+
     const csvRows = [];
-  
-    // -----------------------------
-    // 1) HEADER ROWS
-    // -----------------------------
-    csvRows.push(["Market Area Name", ...marketAreas.map((ma) => ma.name || "")]);
-    csvRows.push(["Short Name", ...marketAreas.map((ma) => ma.short_name || "")]);
+
+    // Header rows
+    csvRows.push(["Market Area Name", ...marketAreas.map(ma => ma.name || "")]);
+    csvRows.push(["Short Name", ...marketAreas.map(ma => ma.short_name || "")]);
     csvRows.push([
       "Definition Type",
-      ...marketAreas.map((ma) => {
+      ...marketAreas.map(ma => {
         const maType = ma.ma_type?.toLowerCase();
         return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
-      }),
+      })
     ]);
-  
+
     // Areas Included row
     csvRows.push([
       "Areas Included",
-      ...marketAreas.map((ma) => {
+      ...marketAreas.map(ma => {
         const maType = ma.ma_type?.toLowerCase();
         switch (maType) {
           case "zip":
-            return (
-              ma.locations
-                ?.map((loc) => loc.name?.split(" - ")?.[0] || "")
-                .join(", ") || ""
-            );
-  
+            return ma.locations?.map(loc => loc.name?.split(" - ")?.[0] || "").join(", ") || "";
           case "radius":
             if (ma.radius_points?.length > 0) {
-              const allRadii = ma.radius_points.flatMap((p) => p.radii || []);
+              const allRadii = ma.radius_points.flatMap(p => p.radii || []);
               if (allRadii.length > 0) {
                 const largestRadius = Math.max(...allRadii);
                 return `${largestRadius} miles`;
               }
             }
             return "";
-  
           case "block":
           case "blockgroup":
           case "tract":
-          case "cen b":
-          case "cenblockgr":
-            return (
-              ma.locations
-                ?.map((loc) => formatBigNumberAsText(loc.name))
-                .join(", ") || ""
-            );
-  
+            return ma.locations?.map(loc => this.formatBigNumberAsText(loc.name)).join(", ") || "";
           default:
-            return ma.locations?.map((loc) => loc.name).join(", ") || "";
+            return ma.locations?.map(loc => loc.name).join(", ") || "";
         }
-      }),
+      })
     ]);
-  
+
     // State row
     csvRows.push([
       "State",
-      ...marketAreas.map((ma) => {
+      ...marketAreas.map(ma => {
         const maType = ma.ma_type?.toLowerCase();
         const firstLocationName = ma.locations?.[0]?.name || "";
-  
+        
         if (!firstLocationName && maType !== "radius") return "";
-  
+        
         switch (maType) {
           case "cbsa": {
-            const stateAbbrMatch = firstLocationName.match(
-              /,\s*([A-Z]{2})\s+Metro Area/i
-            );
-            return stateAbbrMatch ? this.getStateFullName(stateAbbrMatch[1]) : "";
+            const stateMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Area/i);
+            return stateMatch ? this.getStateFullName(stateMatch[1]) : "";
           }
           case "county": {
             const stateMatch = firstLocationName.match(/,\s*(\w[\w\s]+)$/);
             return stateMatch ? this.getStateFullName(stateMatch[1].trim()) : "";
           }
           case "zip": {
-            const stateAbbrMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
-            return stateAbbrMatch ? this.getStateFullName(stateAbbrMatch[1]) : "";
+            const stateMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
+            return stateMatch ? this.getStateFullName(stateMatch[1]) : "";
           }
           case "place": {
-            const parts = firstLocationName.split(",").map((p) => p.trim());
-            return parts.length > 1
-              ? this.getStateFullName(parts[parts.length - 1])
-              : "";
+            const parts = firstLocationName.split(",").map(p => p.trim());
+            return parts.length > 1 ? this.getStateFullName(parts[parts.length - 1]) : "";
           }
           case "state":
             return this.getStateFullName(firstLocationName);
-          case "md": {
-            const stateAbbrMatch = firstLocationName.match(
-              /,\s*([A-Z]{2})\s+Metro Division/i
-            );
-            return stateAbbrMatch
-              ? this.getStateFullName(stateAbbrMatch[1])
-              : "";
-          }
           default:
             return "";
         }
-      }),
+      })
     ]);
-  
-    // -----------------------------
-    // 2) DATA ROWS
-    // -----------------------------
-    selectedVariables.forEach((variableId) => {
+
+    // Add a blank row after headers
+    csvRows.push(Array(marketAreas.length + 1).fill(""));
+
+    // Data rows with proper labels
+    selectedVariables.forEach(variableId => {
       const shortKey = variableId.split(".").pop();
-      const label = this.getVariableLabel(shortKey);
-  
+      // Use the full variable label from our mapping
+      const label = this.getVariableLabel(variableId);
+
       const values = marketAreas.map((_, idx) => {
         const attrs = enrichmentLookup[idx];
         if (!attrs) return "";
         const value = attrs[shortKey];
         return this.formatNumberValue(value);
       });
-  
+
       csvRows.push([label, ...values]);
     });
-  
-    // -----------------------------
-    // 3) APPEND USA DATA IF REQUESTED
-    // -----------------------------
-    if (shouldIncludeUSAData) {
-      console.log("Adding USA data to CSV output");
-      
+
+    // Add USA data if requested
+    if (shouldIncludeUSAData && usaDataRows?.length) {
       // Add USA column to headers
-      csvRows[0].push("United States of America"); // Market Area Name row
-      csvRows[1].push("USA"); // Short Name row
-      csvRows[2].push(""); // Definition Type row
-      csvRows[3].push(""); // Areas Included row
-      csvRows[4].push(""); // State row
-  
-      // Add USA data to each variable row
+      csvRows[0].push("United States of America");
+      csvRows[1].push("USA");
+      csvRows[2].push("");
+      csvRows[3].push("");
+      csvRows[4].push("");
+
+      // Add USA data to variable rows
       const SHIFT = 5;
       for (let i = 5; i < csvRows.length; i++) {
-        const rowForVar = csvRows[i];
         const usaDataIndex = (i - 5) + SHIFT;
-  
-        let usaValue = "";
-        if (usaDataIndex < usaDataRows.length) {
-          usaValue = usaDataRows[usaDataIndex];
-          console.log(`Adding USA data for row ${i}: ${usaValue}`);
-        } else {
-          console.warn(`No USA data available for row ${i} (usaDataIndex=${usaDataIndex})`);
-        }
-  
-        rowForVar.push(usaValue);
+        const usaValue = usaDataIndex < usaDataRows.length ? usaDataRows[usaDataIndex] : "";
+        csvRows[i].push(usaValue);
       }
-      
-      console.log("Finished adding USA data");
     }
-  
-    // -----------------------------
-    // 4) GENERATE FINAL CSV
-    // -----------------------------
+
+    // Generate CSV string
     const processField = (field) => {
       if (field === null || field === undefined) return '""';
       const stringField = String(field).trim();
       return `"${stringField.replace(/"/g, '""')}"`;
     };
-  
-    const csv = csvRows
-      .map((row) => row.map(processField).join(","))
-      .join("\n");
-  
-    return csv;
+
+    return csvRows.map(row => row.map(processField).join(",")).join("\n");
+  }
+
+  formatBigNumberAsText(value) {
+    if (!value) return "";
+    
+    const numVal = parseFloat(value);
+    if (Number.isNaN(numVal)) return value;
+    
+    const noDecimal = numVal.toLocaleString("fullwide", {
+      useGrouping: false,
+      maximumFractionDigits: 0
+    });
+    
+    return noDecimal.length >= 12 ? `="${noDecimal}"` : noDecimal;
   }
 
   getStateFullName(stateAbbr) {
@@ -1358,8 +1328,8 @@ export default class EnrichmentService {
     };
 
     return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
+    }
   }
-}
 
 // Export an instance for direct usage
 export const enrichmentService = new EnrichmentService();

@@ -191,7 +191,11 @@ const FEATURE_LAYERS = {
     },
   },
   place: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
+    // TWO sub-layer URLs: 28 (Incorporated Places), 30 (Census Designated Places)
+    urls: [
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/30"
+    ],
     outFields: [
       "OBJECTID",
       "GEOID",
@@ -200,6 +204,10 @@ const FEATURE_LAYERS = {
       "NAME",
       "BASENAME",
       "LSADC",
+      "FUNCSTAT",
+      "PLACECC",
+      "AREALAND",
+      "AREAWATER"
     ],
     uniqueIdField: "OBJECTID",
     title: "Places",
@@ -214,10 +222,16 @@ const FEATURE_LAYERS = {
             { fieldName: "STATE", label: "State" },
             { fieldName: "LSADC", label: "Legal/Statistical Area Description" },
             { fieldName: "BASENAME", label: "Base Name" },
+            { fieldName: "FUNCSTAT", label: "Functional Status" },
+            { fieldName: "PLACECC", label: "Place Class Code" },
+            { fieldName: "AREALAND", label: "Land Area" },
+            { fieldName: "AREAWATER", label: "Water Area" }
           ],
         },
       ],
     },
+    minScale: 1400000,
+    maxScale: 100,
   },
   state: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/80",

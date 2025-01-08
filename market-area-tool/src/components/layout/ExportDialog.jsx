@@ -26,6 +26,7 @@ const ExportDialog = ({
   onExport = () => {},
   variablePresets = [],
   marketAreas = [],
+  isExporting = false,
 }) => {
   // State management
   const [selectedPresetId, setSelectedPresetId] = useState('');
@@ -35,6 +36,13 @@ const ExportDialog = ({
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
+
+  // Reset selected preset when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedPresetId('');
+    }
+  }, [isOpen]);
 
   // Build default filename
   useEffect(() => {
@@ -90,57 +98,58 @@ const ExportDialog = ({
   };
 
   const handleIncludeUSACheckbox = (e) => {
-    console.log('includeUSAData checkbox changed to:', e.target.checked);
     setIncludeUSAData(e.target.checked);
   };
 
-  const handleSubmitExport = () => {
-    console.log('--- Starting Export Process ---');
-    console.log('Export Options:', {
-      exportOption,
-      selectedPresetId,
-      selectedAreasCount: selectedAreas.size,
-      includeUSAData,
-    });
-
-    let variables = [];
-    if (exportOption === 'selected-preset' && selectedPresetId) {
-      const preset = variablePresets.find((p) => p.id === selectedPresetId);
-      variables = preset?.variables || [];
-      console.log('Selected preset variables:', variables);
-    } else if (exportOption === 'all-variables') {
-      variables = variablePresets.reduce(
-        (allVars, preset) => [...allVars, ...(preset?.variables || [])],
-        []
-      );
-      console.log('All variables:', variables);
+  const handleSubmitExport = async (e) => {
+    e.preventDefault();
+    
+    if (isExporting) {
+      return;
     }
 
-    const selectedMarketAreas = marketAreas.filter((area) =>
-      selectedAreas.has(area.id)
-    );
-    
-    console.log('Final Export Payload:', {
-      variablesCount: variables.length,
-      marketAreasCount: selectedMarketAreas.length,
-      fileName,
-      includeUSAData
-    });
+    try {
+      let variables = [];
+      if (exportOption === 'selected-preset' && selectedPresetId) {
+        const preset = variablePresets.find((p) => p.id === selectedPresetId);
+        variables = preset?.variables || [];
+      } else if (exportOption === 'all-variables') {
+        variables = variablePresets.reduce(
+          (allVars, preset) => [...allVars, ...(preset?.variables || [])],
+          []
+        );
+      }
 
-    onExport({
-      variables,
-      selectedMarketAreas,
-      fileName,
-      includeUSAData: Boolean(includeUSAData)
-    });
+      const selectedMarketAreas = marketAreas.filter((area) =>
+        selectedAreas.has(area.id)
+      );
+
+      await onExport({
+        variables,
+        selectedMarketAreas,
+        fileName,
+        includeUSAData: Boolean(includeUSAData)
+      });
+      
+      // Close dialog on successful export
+      onClose();
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
   };
+
+  const isExportDisabled = 
+    isExporting || 
+    (exportOption === 'selected-preset' && !selectedPresetId) ||
+    selectedAreas.size === 0;
+
+  const exportButtonText = isExporting ? 'Exporting...' : 'Export';
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-          
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
@@ -149,7 +158,8 @@ const ExportDialog = ({
             </Dialog.Title>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+              disabled={isExporting}
+              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>
@@ -164,7 +174,9 @@ const ExportDialog = ({
                   type="checkbox"
                   checked={includeUSAData}
                   onChange={handleIncludeUSACheckbox}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  disabled={isExporting}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded 
+                           disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm text-gray-900 dark:text-gray-100">
                   Include USA Data
@@ -181,9 +193,11 @@ const ExportDialog = ({
                 type="text"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
+                disabled={isExporting}
                 className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
                          bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
-                         focus:outline-none focus:ring-blue-500 dark:text-white"
+                         focus:outline-none focus:ring-blue-500 dark:text-white
+                         disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Enter file name"
               />
             </div>
@@ -199,7 +213,9 @@ const ExportDialog = ({
                     type="checkbox"
                     checked={selectedAreas.size === marketAreas.length}
                     onChange={handleSelectAllAreas}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    disabled={isExporting}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                             disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-white">
                     Select All
@@ -214,7 +230,9 @@ const ExportDialog = ({
                       type="checkbox"
                       checked={selectedAreas.has(area.id)}
                       onChange={() => handleAreaSelection(area.id)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      disabled={isExporting}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                               disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <span className="ml-2 text-sm text-gray-900 dark:text-white">
                       {area.name}
@@ -236,7 +254,9 @@ const ExportDialog = ({
                     value="selected-preset"
                     checked={exportOption === 'selected-preset'}
                     onChange={(e) => setExportOption(e.target.value)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    disabled={isExporting}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                             disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
                     Use Selected Preset
@@ -248,7 +268,9 @@ const ExportDialog = ({
                     value="all-variables"
                     checked={exportOption === 'all-variables'}
                     onChange={(e) => setExportOption(e.target.value)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    disabled={isExporting}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                             disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
                     Use All Variables
@@ -266,9 +288,11 @@ const ExportDialog = ({
                 <select
                   value={selectedPresetId}
                   onChange={(e) => setSelectedPresetId(e.target.value)}
+                  disabled={isExporting}
                   className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
                            bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
-                           focus:outline-none focus:ring-blue-500 dark:text-white"
+                           focus:outline-none focus:ring-blue-500 dark:text-white
+                           disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Select a preset...</option>
                   {variablePresets.map((preset) => (
@@ -286,22 +310,23 @@ const ExportDialog = ({
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <button
               onClick={onClose}
+              disabled={isExporting}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border 
                        border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 
-                       dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                       dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600
+                       disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmitExport}
-              disabled={
-                (exportOption === 'selected-preset' && !selectedPresetId) ||
-                selectedAreas.size === 0
-              }
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md 
-                         hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isExportDisabled}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white 
+                       bg-blue-600 rounded-md hover:bg-blue-700 
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       min-w-[80px] justify-center"
             >
-              Export
+              {exportButtonText}
             </button>
           </div>
         </Dialog.Panel>
