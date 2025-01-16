@@ -308,85 +308,85 @@ export default function MarketAreaList({ onClose, onEdit }) {
   const handleToggleVisibility = useCallback(
     async (marketArea) => {
       if (!marketArea) return;
-
+  
       const { id } = marketArea;
       const isVisible = visibleMarketAreaIds.includes(id);
-
-      console.log('=== TOGGLE VISIBILITY START ===');
-      console.log('Market Area:', {
-        id: marketArea.id,
-        name: marketArea.name,
+  
+      console.log('Toggle visibility for radius market area:', {
+        id,
         type: marketArea.ma_type,
-        currentlyVisible: isVisible
+        points: marketArea.radius_points
       });
-
+  
       try {
         const newVisibleIds = isVisible
           ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
           : [...visibleMarketAreaIds, id];
-
-        console.log('New visible IDs will be:', newVisibleIds);
-        
-        // Update state and localStorage
+  
         setVisibleMarketAreaIds(newVisibleIds);
         localStorage.setItem(
           `marketAreas.${projectId}.visible`, 
           JSON.stringify(newVisibleIds)
         );
-
+  
         if (isVisible) {
-          // Only clear the specific market area's graphics
           clearMarketAreaGraphics(id);
-        } else {
-          if (marketArea.ma_type === "radius" && marketArea.radius_points) {
-            console.log('Drawing radius points:', marketArea.radius_points.length);
-            for (const point of marketArea.radius_points) {
-              await drawRadius(
-                point,
-                marketArea.style_settings,
-                marketArea.id,
-                marketArea.order
-              );
+        } else if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+          for (const point of marketArea.radius_points) {
+            // Transform the x/y coordinates into the expected array format
+            if (!point.center || typeof point.center.x !== 'number' || typeof point.center.y !== 'number') {
+              console.error('Invalid center point:', point);
+              continue;
             }
-          } else if (marketArea.locations) {
-            console.log('Processing locations:', marketArea.locations.length);
-            const features = marketArea.locations.map((loc) => ({
-              geometry: loc.geometry,
-              attributes: {
-                id: loc.id,
-                marketAreaId: marketArea.id,
-                order: marketArea.order,
-              },
-            }));
-
-            await updateFeatureStyles(
-              features,
-              {
-                fill: marketArea.style_settings?.fillColor,
-                fillOpacity: marketArea.style_settings?.fillOpacity,
-                outline: marketArea.style_settings?.borderColor,
-                outlineWidth: marketArea.style_settings?.borderWidth,
-              },
-              marketArea.ma_type
+  
+            // Create the expected point format
+            const transformedPoint = {
+              center: [point.center.x, point.center.y],
+              radii: point.radii,
+              spatialReference: point.center.spatialReference
+            };
+  
+            console.log('Drawing radius point:', transformedPoint);
+  
+            await drawRadius(
+              transformedPoint,
+              marketArea.style_settings,
+              marketArea.id,
+              marketArea.order
             );
           }
         }
-
-        console.log('=== TOGGLE VISIBILITY COMPLETE ===');
       } catch (error) {
-        console.error('=== TOGGLE VISIBILITY ERROR ===', error);
-        toast.error('Error toggling market area visibility');
+        console.error('Toggle visibility error:', error);
       }
     },
-    [visibleMarketAreaIds, projectId, clearMarketAreaGraphics, drawRadius, updateFeatureStyles]
+    [visibleMarketAreaIds, projectId, clearMarketAreaGraphics, drawRadius]
   );
 
   const handleEdit = useCallback(
     async (marketArea) => {
       if (!marketArea) return;
+      
+      // Ensure visibility is maintained for radius areas during edit
+      if (marketArea.ma_type === "radius" && marketArea.radius_points) {
+        console.log('Preserving radius visibility during edit');
+        // Clear any existing graphics for this market area
+        clearMarketAreaGraphics(marketArea.id);
+        
+        // Immediately redraw the radius points
+        for (const point of marketArea.radius_points) {
+          await drawRadius(
+            point,
+            marketArea.style_settings,
+            marketArea.id,
+            marketArea.order
+          );
+        }
+      }
+      
       onEdit?.(marketArea);
     },
-    [onEdit]
+    [onEdit, clearMarketAreaGraphics, drawRadius]
   );
 
   const handleDelete = async (marketArea) => {

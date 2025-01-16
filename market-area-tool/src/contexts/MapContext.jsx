@@ -14,15 +14,20 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { 
-  webMercatorToGeographic, 
-  geographicToWebMercator 
+import {
+  webMercatorToGeographic,
+  geographicToWebMercator,
 } from "@arcgis/core/geometry/support/webMercatorUtils";
 import * as geometryEngineAsync from "@arcgis/core/geometry/geometryEngineAsync";
 import { useMarketAreas } from "../contexts/MarketAreaContext";
 import { default as SpatialReference } from "@arcgis/core/geometry/SpatialReference";
 import { default as ProjectParameters } from "@arcgis/core/rest/support/ProjectParameters";
 import * as geometryService from "@arcgis/core/rest/geometryService";
+import {
+  unifyBoundaries,
+  detectAndAlignSharedBorders,
+  groupFeaturesBySharedAttributes,
+} from "./IncrementalUnion";
 
 const MapContext = createContext();
 
@@ -67,7 +72,15 @@ const FEATURE_LAYERS = {
   },
   zip: {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_ZIP_Codes/FeatureServer/0",
-    outFields: ["ZIP", "PO_NAME"],
+    outFields: [
+      "ZIP",
+      "PO_NAME",
+      "STATE",
+      "STATE_FIPS",
+      "STATE_NAME",
+      "STATE_ABBR",
+      "FID",
+    ],
     uniqueIdField: "FID",
     title: "ZIP Codes",
     geometryType: "polygon",
@@ -79,11 +92,14 @@ const FEATURE_LAYERS = {
           fieldInfos: [
             { fieldName: "ZIP", label: "ZIP Code" },
             { fieldName: "PO_NAME", label: "Post Office Name" },
+            { fieldName: "STATE_NAME", label: "State" },
+            { fieldName: "STATE_ABBR", label: "State Abbreviation" },
           ],
         },
       ],
     },
   },
+
   county: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/82",
     layerId: 82,
@@ -119,21 +135,70 @@ const FEATURE_LAYERS = {
     maxScale: 100,
   },
 
-  tract: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts/FeatureServer/0",
-    outFields: ["OBJECTID", "TRACT_FIPS", "STATE_ABBR", "COUNTY_FIPS"],
+  place: {
+    urls: [
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/30",
+    ],
+    outFields: [
+      "OBJECTID",
+      "GEOID",
+      "STATE",
+      "PLACE",
+      "NAME",
+      "BASENAME",
+      "LSADC",
+      "FUNCSTAT",
+      "PLACECC",
+      "AREALAND",
+      "AREAWATER",
+    ],
     uniqueIdField: "OBJECTID",
-    title: "Census Tracts",
+    title: "Places",
     geometryType: "polygon",
     popupTemplate: {
-      title: "Census Tract {TRACT_FIPS}",
+      title: "{NAME}",
       content: [
         {
           type: "fields",
           fieldInfos: [
-            { fieldName: "TRACT_FIPS", label: "TRACT" },
-            { fieldName: "COUNTY_FIPS", label: "County" },
+            { fieldName: "NAME", label: "Place Name" },
+            { fieldName: "STATE", label: "State" },
+            { fieldName: "LSADC", label: "Legal/Statistical Area Description" },
+            { fieldName: "BASENAME", label: "Base Name" },
+            { fieldName: "FUNCSTAT", label: "Functional Status" },
+            { fieldName: "PLACECC", label: "Place Class Code" },
+            { fieldName: "AREALAND", label: "Land Area" },
+            { fieldName: "AREAWATER", label: "Water Area" },
+          ],
+        },
+      ],
+    },
+    minScale: 1400000,
+    maxScale: 100,
+  },
+  tract: {
+    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_Tracts/FeatureServer/0",
+    outFields: [
+      "OBJECTID",
+      "FIPS", // Add this field to get the complete FIPS code
+      "STATE_ABBR",
+      "STATE_FIPS",
+      "COUNTY_FIPS",
+      "TRACT_FIPS",
+    ],
+    uniqueIdField: "OBJECTID",
+    title: "Census Tracts",
+    geometryType: "polygon",
+    popupTemplate: {
+      title: "Census Tract {FIPS}", // Updated to use FIPS
+      content: [
+        {
+          type: "fields",
+          fieldInfos: [
+            { fieldName: "FIPS", label: "FIPS Code" },
             { fieldName: "STATE_ABBR", label: "State" },
+            { fieldName: "COUNTY_FIPS", label: "County" },
           ],
         },
       ],
@@ -167,71 +232,30 @@ const FEATURE_LAYERS = {
     url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/USA_Census_BlockGroups/FeatureServer/0",
     outFields: [
       "OBJECTID",
-      "BLOCKGROUP_FIPS",
-      "TRACT_FIPS",
+      "FIPS", // Added FIPS field for complete code
+      "STATE_ABBR",
       "COUNTY_FIPS",
-      "STATE_FIPS",
+      "TRACT_FIPS",
+      "BLOCKGROUP_FIPS",
     ],
     uniqueIdField: "OBJECTID",
     title: "Block Groups",
     geometryType: "polygon",
     popupTemplate: {
-      title: "Block Group {BLOCKGROUP_FIPS}",
+      title: "Block Group {FIPS}",
       content: [
         {
           type: "fields",
           fieldInfos: [
-            { fieldName: "BLOCKGROUP_FIPS", label: "Block Group" },
-            { fieldName: "TRACT_FIPS", label: "Tract" },
+            { fieldName: "FIPS", label: "FIPS Code" },
+            { fieldName: "STATE_ABBR", label: "State" },
             { fieldName: "COUNTY_FIPS", label: "County" },
-            { fieldName: "STATE_FIPS", label: "State" },
+            { fieldName: "TRACT_FIPS", label: "Tract" },
+            { fieldName: "BLOCKGROUP_FIPS", label: "Block Group" },
           ],
         },
       ],
     },
-  },
-  place: {
-    // TWO sub-layer URLs: 28 (Incorporated Places), 30 (Census Designated Places)
-    urls: [
-      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
-      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/30"
-    ],
-    outFields: [
-      "OBJECTID",
-      "GEOID",
-      "STATE",
-      "PLACE",
-      "NAME",
-      "BASENAME",
-      "LSADC",
-      "FUNCSTAT",
-      "PLACECC",
-      "AREALAND",
-      "AREAWATER"
-    ],
-    uniqueIdField: "OBJECTID",
-    title: "Places",
-    geometryType: "polygon",
-    popupTemplate: {
-      title: "{NAME}",
-      content: [
-        {
-          type: "fields",
-          fieldInfos: [
-            { fieldName: "NAME", label: "Place Name" },
-            { fieldName: "STATE", label: "State" },
-            { fieldName: "LSADC", label: "Legal/Statistical Area Description" },
-            { fieldName: "BASENAME", label: "Base Name" },
-            { fieldName: "FUNCSTAT", label: "Functional Status" },
-            { fieldName: "PLACECC", label: "Place Class Code" },
-            { fieldName: "AREALAND", label: "Land Area" },
-            { fieldName: "AREAWATER", label: "Water Area" }
-          ],
-        },
-      ],
-    },
-    minScale: 1400000,
-    maxScale: 100,
   },
   state: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/80",
@@ -540,65 +564,53 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     43: "Town",
     47: "Village",
   };
+
   function formatLocationName(feature, type) {
     if (!feature || !feature.attributes) return "Unknown Location";
-  
+
     const { attributes } = feature;
-  
+
     // Helper for state FIPS handling
     function getValidStateFips() {
       // 1) If GEOID exists and is long enough to contain state code, use first 2 digits
       if (attributes.GEOID && attributes.GEOID.length >= 2) {
-        return attributes.GEOID.substring(0, 2);
+        const stateFips = attributes.GEOID.substring(0, 2);
+        return stateFips !== "00" ? stateFips : null;
       }
-  
-      // 2) Otherwise, try the attributes.STATE or attributes.STATE_FIPS fields
+
+      // 2) Try the attributes.STATE field
       const maybeState = attributes.STATE;
-      const maybeFips = attributes.STATE_FIPS;
       if (maybeState && maybeState !== "00") return maybeState;
-      if (maybeFips && maybeFips !== "00") return maybeFips;
-  
-      // 3) Default to "06" (California) if no valid state code
-      return "06";
+
+      // 3) Return null if no valid state code found
+      return null;
     }
-  
+
     // Common attributes with fallbacks
     const stateFips = getValidStateFips();
-    const countyFips = attributes.COUNTY_FIPS || attributes.COUNTY || "";
-    const tractFips = attributes.TRACT_FIPS || attributes.TRACT || "";
+    const countyFips = attributes.COUNTY || "";
+    const tractFips = attributes.TRACT || "";
     const blockGroupFips = attributes.BLOCKGROUP_FIPS || "";
     const blockVal = attributes.BLOCK || "";
     const zipCode = attributes.ZIP || "";
-  
-    // If attributes.STATE_ABBR is empty, fallback to dictionary
-    const stateAbbr = attributes.STATE_ABBR || STATE_ABBR_BY_FIPS[stateFips] || "CA";
-    // Also get a spelled-out state name, in case you want it
-    const stateName = attributes.STATE_NAME || STATE_NAME_BY_FIPS[stateFips] || "California";
-  
-    // Original location name from attributes - check multiple possible field names
-    let rawName = attributes.NAME || attributes.BASENAME || attributes.STATE_NAME || "";
-  
-    // Utility to remove trailing “county,” “city,” “town,” “village,” or “borough.”
-    // This prevents “Arcadia Lakes town Town” duplication, etc.
+
+    // Original location name from attributes
+    let rawName = attributes.NAME || attributes.BASENAME || "";
+
     function sanitizeName(name) {
-      return (
-        name
-          .replace(/,\s*$/, "") // remove trailing comma
-          // remove trailing county/city/town/village/borough (case-insensitive)
-          .replace(/\s+(county|city|town|village|borough)$/i, "")
-          .trim()
-      );
+      return name
+        .replace(/,\s*$/, "")
+        .replace(/\s+(county|city|town|village|borough)$/i, "")
+        .trim();
     }
-  
+
     const locationName = sanitizeName(rawName);
-  
-    // Zero-pad utility (for FIPS codes)
+
     function pad(value, length) {
       return String(value || "").padStart(length, "0");
     }
-  
-    // For "place", see if we have an LSADC-coded place type
-    // e.g. "25" => "City"
+
+    // For "place", handle LSADC-coded place type
     let placeType = "";
     if (type === "place" && attributes.LSADC) {
       const codeNum = parseInt(attributes.LSADC, 10);
@@ -606,84 +618,56 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         placeType = LSADC_TO_PLACETYPE[codeNum];
       }
     }
-  
+
+    // For counties, places, and zips, use the STATE field directly to get state abbreviation
+    let stateAbbr;
+    if (["county", "place", "zip"].includes(type)) {
+      if (!attributes.STATE) {
+        return "Invalid Location - Missing State Information";
+      }
+      stateAbbr = STATE_ABBR_BY_FIPS[attributes.STATE] || attributes.STATE;
+    } else {
+      stateAbbr =
+        attributes.STATE_ABBR ||
+        (stateFips ? STATE_ABBR_BY_FIPS[stateFips] : "Unknown");
+    }
+
     switch (type) {
-      /***********************************
-       * 1) County
-       ***********************************/
       case "county":
-        // e.g. "Orange County, CA"
+        if (!locationName) return "Invalid Location - Missing County Name";
         return `${locationName} County, ${stateAbbr}`;
-  
-      /***********************************
-       * 2) Place
-       ***********************************/
+
       case "place":
-        // e.g. "Arcadia Lakes Town, SC" or "Bailey Lakes Village, OH"
-        // only append placeType if it exists and not blank
-        // e.g. locationName: "Arcadia Lakes town" -> sanitized to "Arcadia Lakes"
-        // placeType: "Town" -> final: "Arcadia Lakes Town"
+        if (!locationName) return "Invalid Location - Missing Place Name";
         if (placeType) {
           return `${locationName} ${placeType}, ${stateAbbr}`;
         }
         return `${locationName}, ${stateAbbr}`;
-  
-      /***********************************
-       * 3) Zip
-       ***********************************/
+
       case "zip":
-        // e.g. "77001, TX"
-        return `${zipCode}, ${stateAbbr}`;
-  
-      /***********************************
-       * 4) Census Tract
-       ***********************************/
+        if (!attributes.ZIP) return "Invalid Location - Missing ZIP Code";
+        return `${attributes.ZIP}, ${stateAbbr}`;
+
       case "tract":
-        // If GEOID is present, just return that
-        if (attributes.GEOID) return attributes.GEOID;
-        // Otherwise build the 11-digit code => SS + CCC + TTTTTT
-        return `${pad(stateFips, 2)}${pad(countyFips, 3)}${pad(tractFips, 6)}`;
-  
-      /***********************************
-       * 5) Census Block Group
-       ***********************************/
+        return attributes.FIPS || "Invalid Tract - Missing FIPS Code";
+
       case "blockgroup":
-        if (attributes.GEOID) return attributes.GEOID;
-        // => SS + CCC + TTTTTT + B
-        return (
-          pad(stateFips, 2) +
-          pad(countyFips, 3) +
-          pad(tractFips, 6) +
-          pad(blockGroupFips, 1)
-        );
-  
-      /***********************************
-       * 6) Census Block
-       ***********************************/
+        return attributes.FIPS || "Invalid Block Group - Missing FIPS Code";
+
       case "block":
         if (attributes.GEOID) return attributes.GEOID;
-        // => SS + CCC + TTTTTT + BBBB(L)
+        if (!stateFips) return "Invalid Block - Missing State Information";
         const s = pad(stateFips, 2);
         const c = pad(countyFips, 3);
         const t = pad(tractFips, 6);
-  
-        // Some blocks have numeric + letter combos
         const numericPart = blockVal.replace(/[^\d]/g, "");
         const letterPart = blockVal.replace(/\d/g, "");
         const paddedBlock = pad(numericPart, 4) + letterPart;
         return `${s}${c}${t}${paddedBlock}`;
-  
-      /***********************************
-       * 7) State
-       ***********************************/
+
       case "state":
-        // For a state, just return the (possibly cleaned) name
-        // or a fallback like "California"
-        return locationName || stateName;
-  
-      /***********************************
-       * 8) Catch-all: md, cbsa, etc.
-       ***********************************/
+        return locationName || "Unknown State";
+
       default:
         return locationName || "Unknown Location";
     }
@@ -692,14 +676,22 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [layersReady, setLayersReady] = useState(false);
 
   const initializeGraphicsLayers = useCallback(async () => {
-    if (!mapView) return;
+    if (!mapView) {
+      console.log("[MapContext] Cannot initialize graphics layer: no map view");
+      return;
+    }
 
     try {
       const { default: GraphicsLayer } = await import(
         "@arcgis/core/layers/GraphicsLayer"
       );
 
-      // Single Graphics Layer for *all* Market Area geometry
+      // Remove any existing graphics layer first
+      if (selectionGraphicsLayerRef.current) {
+        mapView.map.remove(selectionGraphicsLayerRef.current);
+      }
+
+      // Create new graphics layer
       const selectionLayer = new GraphicsLayer({
         title: "Market Area Graphics",
         listMode: "hide",
@@ -709,23 +701,31 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         },
       });
 
-      // Add our single layer to the map
+      // Add to map
       mapView.map.add(selectionLayer);
 
-      // Store it in ref so we can access it later
+      // Store in ref
       selectionGraphicsLayerRef.current = selectionLayer;
 
-      console.log("[MapContext] Single GraphicsLayer initialized");
+      console.log("[MapContext] Graphics layer initialized successfully");
+      setLayersReady(true);
     } catch (error) {
-      console.error("[MapContext] Error initializing GraphicsLayer:", error);
+      console.error("[MapContext] Error initializing graphics layer:", error);
+      setLayersReady(false);
     }
-
-    setLayersReady(true);
   }, [mapView]);
+
+  // Add effect to monitor graphics layer state
+  useEffect(() => {
+    if (mapView && !layersReady) {
+      console.log("[MapContext] Initializing graphics layer");
+      initializeGraphicsLayers();
+    }
+  }, [mapView, layersReady, initializeGraphicsLayers]);
 
   const getLabelingInfo = (type) => {
     let label;
-  
+
     switch (type) {
       case "zip":
         label = {
@@ -735,7 +735,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "county":
         label = {
           field: "NAME",
@@ -749,7 +749,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "tract":
         label = {
           field: "TRACT_FIPS",
@@ -764,7 +764,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "blockgroup":
         label = {
           field: "BLOCKGROUP_FIPS",
@@ -780,7 +780,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "block":
         label = {
           field: "BLOCK",
@@ -796,7 +796,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "place":
         label = {
           field: "NAME",
@@ -805,7 +805,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "state":
         label = {
           field: "NAME",
@@ -814,7 +814,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "cbsa":
         label = {
           field: "NAME",
@@ -823,7 +823,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "md":
         label = {
           field: "BASENAME",
@@ -832,7 +832,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       case "usa":
         label = {
           field: "NAME", // or any field
@@ -841,17 +841,17 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           },
         };
         break;
-  
+
       default:
         return undefined;
     }
-  
+
     return [
       {
         labelPlacement: "always-horizontal",
         symbol: {
           type: "text",
-          color: [0, 0, 0, 1],         // Black text
+          color: [0, 0, 0, 1], // Black text
           haloColor: [255, 255, 255, 1], // White halo
           haloSize: 2,
           font: {
@@ -894,27 +894,30 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       },
     ];
   };
-  
 
   const initializeFeatureLayer = useCallback(async (type) => {
     if (!type || !FEATURE_LAYERS[type]) {
       console.error(`Invalid or undefined layer type: ${type}`);
       return null;
     }
-  
+
     // Check if we already have this layer initialized
     const existingLayer = featureLayersRef.current[type];
     if (existingLayer && !existingLayer.destroyed) {
       console.log(`[MapContext] Using existing layer for type ${type}`);
       return existingLayer;
     }
-  
+
     const layerConfig = FEATURE_LAYERS[type];
-  
+
     try {
-      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer");
-      const { default: GroupLayer } = await import("@arcgis/core/layers/GroupLayer");
-  
+      const { default: FeatureLayer } = await import(
+        "@arcgis/core/layers/FeatureLayer"
+      );
+      const { default: GroupLayer } = await import(
+        "@arcgis/core/layers/GroupLayer"
+      );
+
       let symbol;
       switch (layerConfig.geometryType.toLowerCase()) {
         case "point":
@@ -928,7 +931,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           symbol = SYMBOLS.defaultPolygon;
           break;
       }
-  
+
       // CBSA or any layer with multiple "urls" in config
       if (layerConfig.urls) {
         // Check if we already have this group layer
@@ -936,13 +939,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         if (existingGroup && !existingGroup.destroyed) {
           return existingGroup;
         }
-  
+
         const groupLayer = new GroupLayer({
           title: layerConfig.title,
           visible: false,
           listMode: "hide",
         });
-  
+
         const featureLayers = layerConfig.urls.map((url) => {
           return new FeatureLayer({
             url: url,
@@ -962,12 +965,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             maxScale: 0,
           });
         });
-  
+
         groupLayer.addMany(featureLayers);
         groupLayer.featureLayers = featureLayers;
         return groupLayer;
       }
-  
+
       // Single URL layer
       const layer = new FeatureLayer({
         url: layerConfig.url,
@@ -986,7 +989,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         minScale: layerConfig.minScale,
         maxScale: layerConfig.maxScale,
       });
-  
+
       return layer;
     } catch (error) {
       console.error(`Error initializing FeatureLayer for type ${type}:`, error);
@@ -994,17 +997,16 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, []);
 
-
   // Reproject geometry to a specific spatial reference
   const reprojectGeometry = async (geometry, sourceSR, targetSR) => {
     if (!geometry || !sourceSR || !targetSR) return geometry;
-  
+
     try {
       const params = new ProjectParameters({
         geometries: [geometry],
-        outSpatialReference: targetSR
+        outSpatialReference: targetSR,
       });
-  
+
       const projectedGeometries = await geometryService.project(params);
       return projectedGeometries[0];
     } catch (error) {
@@ -1013,67 +1015,97 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-  const incrementalUnion = async (geometries) => {
+  const incrementalUnion = async (geometries, options = {}) => {
     if (geometries.length === 1) {
       return geometries[0];
     }
-  
-    // Sort the geometries by area, largest first
-    geometries = geometries.slice().sort((a, b) => {
-      const areaA = geometryEngine.planarArea(a);
-      const areaB = geometryEngine.planarArea(b);
-      return areaB - areaA;
-    });
-  
-    let unionGeometry = geometries[0];
-    for (let i = 1; i < geometries.length; i++) {
-      let currentGeometry = geometries[i];
-  
-      try {
-        // Attempt to union the geometries
-        unionGeometry = await geometryEngineAsync.union([unionGeometry, currentGeometry]);
-      } catch (err) {
-        console.warn(`Error unioning polygon at index ${i}:`, err);
-  
-        // If union fails, try repairing the geometries and re-attempting the union
-        unionGeometry = await repairGeometry(unionGeometry);
-        currentGeometry = await repairGeometry(currentGeometry);
-  
+
+    try {
+      // Import the new boundary unification function
+      const { unifyBoundaries } = await import("./IncrementalUnion");
+
+      // Create feature-like objects for unification
+      const features = geometries.map((geometry, index) => ({
+        geometry,
+        attributes: {
+          // Add some basic attributes to help with grouping
+          index,
+          // You could add more context like STATE, COUNTY, etc. if available
+          type: geometry.type,
+        },
+      }));
+
+      // Use the advanced unification method
+      const unifiedGeometry = await unifyBoundaries(features, {
+        toleranceMeters: options.toleranceMeters || 10,
+        simplificationFactor: options.simplificationFactor || 0.001,
+        debugMode: options.debugMode || false,
+      });
+
+      return unifiedGeometry;
+    } catch (error) {
+      console.error(
+        "Boundary unification failed, falling back to standard union:",
+        error
+      );
+
+      // Fallback to original union method
+      let unionGeometry = geometries[0];
+      for (let i = 1; i < geometries.length; i++) {
+        let currentGeometry = geometries[i];
+
         try {
-          unionGeometry = await geometryEngineAsync.union([unionGeometry, currentGeometry]);
-        } catch (finalErr) {
-          console.warn(`Union failed after repairs. Skipping polygon at index ${i}`, finalErr);
-          // Skip this polygon if the union still fails
-          continue;
+          unionGeometry = await geometryEngineAsync.union([
+            unionGeometry,
+            currentGeometry,
+          ]);
+        } catch (err) {
+          console.warn(`Error unioning polygon at index ${i}:`, err);
+
+          // If union fails, try repairing the geometries and re-attempting the union
+          unionGeometry = await repairGeometry(unionGeometry);
+          currentGeometry = await repairGeometry(currentGeometry);
+
+          try {
+            unionGeometry = await geometryEngineAsync.union([
+              unionGeometry,
+              currentGeometry,
+            ]);
+          } catch (finalErr) {
+            console.warn(
+              `Union failed after repairs. Skipping polygon at index ${i}`,
+              finalErr
+            );
+            // Skip this polygon if the union still fails
+            continue;
+          }
+        }
+
+        // Simplify the union geometry after each step
+        try {
+          unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
+        } catch (simplifyErr) {
+          console.warn("Error simplifying after union:", simplifyErr);
         }
       }
-  
-      // Simplify the union geometry after each step
-      try {
-        unionGeometry = await geometryEngineAsync.simplify(unionGeometry);
-      } catch (simplifyErr) {
-        console.warn("Error simplifying after union:", simplifyErr);
-      }
-  
-      // Additional repair steps, such as buffer(0), can be added here
+
+      return unionGeometry;
     }
-  
-    return unionGeometry;
   };
-  
+
   const repairGeometry = async (geometry) => {
     let repairedGeometry = geometry;
-  
+
     try {
       // Simplify can help remove small irregularities
       repairedGeometry = await geometryEngineAsync.simplify(repairedGeometry);
-  
+
       // Buffer with 0 distance can fix self-intersections
       repairedGeometry = await geometryEngineAsync.buffer(repairedGeometry, 0);
     } catch (error) {
       console.error("Geometry repair failed:", error);
     }
-  
+
     return repairedGeometry;
   };
 
@@ -1248,14 +1280,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         "[MapContext] addToSelection called with feature:",
         feature.attributes
       );
-  
+
       if (!mapView) {
         console.warn(
           "[MapContext] Cannot add to selection: mapView not initialized"
         );
         return;
       }
-  
+
       try {
         const currentLayerConfig = FEATURE_LAYERS[layerType];
         if (!currentLayerConfig) {
@@ -1265,27 +1297,33 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           return;
         }
         const uniqueIdField = currentLayerConfig.uniqueIdField;
-  
+
         // Repair and validate geometry
         let validatedGeometry = feature.geometry;
         try {
           // Repair the geometry first
           validatedGeometry = await repairGeometry(feature.geometry);
-  
+
           // Ensure correct spatial reference
-          if (validatedGeometry.spatialReference.wkid !== mapView.spatialReference.wkid) {
+          if (
+            validatedGeometry.spatialReference.wkid !==
+            mapView.spatialReference.wkid
+          ) {
             validatedGeometry = await reprojectGeometry(
-              validatedGeometry, 
-              validatedGeometry.spatialReference, 
+              validatedGeometry,
+              validatedGeometry.spatialReference,
               mapView.spatialReference
             );
           }
         } catch (geometryError) {
-          console.warn("[MapContext] Geometry validation failed:", geometryError);
+          console.warn(
+            "[MapContext] Geometry validation failed:",
+            geometryError
+          );
           // If validation fails, fall back to original geometry
           validatedGeometry = feature.geometry;
         }
-  
+
         // Normalize the incoming feature
         const validAttributes = feature.attributes || {};
         const normalizedFeature = {
@@ -1316,14 +1354,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               formatLocationName({ attributes: validAttributes }, layerType),
           },
         };
-  
+
         // Check if already selected
         const isAlreadySelected = selectedFeatures.some((existing) => {
           const idMatch =
             existing.attributes[uniqueIdField] ===
             normalizedFeature.attributes[uniqueIdField];
           if (idMatch) return true;
-  
+
           if (layerType === "tract") {
             const existingFips = formatLocationName(
               { attributes: existing.attributes },
@@ -1337,7 +1375,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           }
           return false;
         });
-  
+
         if (isAlreadySelected) {
           console.log(
             "[MapContext] Feature already selected, toggling off:",
@@ -1369,7 +1407,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               }
               return newSelectedFeatures;
             });
-  
+
             // Add to graphics layer with transparent symbol by default
             // The actual styling will be handled by updateFeatureStyles
             if (selectionGraphicsLayerRef.current) {
@@ -1409,28 +1447,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     try {
       // If we're editing, preserve both existing market areas and current editing session
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (preserveEditingId) {
         const graphicsToKeep =
           selectionGraphicsLayerRef.current.graphics.filter((graphic) => {
@@ -1464,17 +1480,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           prev.filter((f) => f.attributes?.marketAreaId)
         );
       }
-
     } catch (error) {
       console.error("Error clearing selection:", error);
-
     }
   }, []);
 
   const toggleMarketAreaEditMode = useCallback(
     async (marketAreaId) => {
       if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
-  
+
       try {
         // Find the market area being edited
         const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
@@ -1482,50 +1496,52 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           console.warn(`Market area ${marketAreaId} not found`);
           return;
         }
-  
+
         // Set the editing state
         setEditingMarketArea(marketArea);
-  
+
         // Update selectedFeatures state to include the locations from the market area being edited
         if (marketArea && marketArea.locations) {
           setSelectedFeatures(
-            marketArea.locations.map(loc => ({
+            marketArea.locations.map((loc) => ({
               geometry: loc.geometry,
               attributes: {
                 ...loc,
                 marketAreaId: marketAreaId,
                 FEATURE_TYPE: marketArea.ma_type,
-                order: marketArea.order
-              }
+                order: marketArea.order,
+              },
             }))
           );
         }
-  
+
         // Get all current graphics and update their interactivity state
-        const currentGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-        
+        const currentGraphics =
+          selectionGraphicsLayerRef.current.graphics.toArray();
+
         // Temporarily remove all graphics
         selectionGraphicsLayerRef.current.removeAll();
-  
+
         // Re-add each graphic with updated properties
-        currentGraphics.forEach(graphic => {
-          const isEditingArea = graphic.attributes?.marketAreaId === marketAreaId;
-          
+        currentGraphics.forEach((graphic) => {
+          const isEditingArea =
+            graphic.attributes?.marketAreaId === marketAreaId;
+
           // Clone the graphic to avoid modifying the original
           const updatedGraphic = graphic.clone();
-          
+
           // Update interactive state
           updatedGraphic.interactive = isEditingArea;
-  
+
           // Add the graphic back
           selectionGraphicsLayerRef.current.add(updatedGraphic);
         });
-  
+
         // Update feature layer interactivity
-        Object.values(featureLayersRef.current).forEach(layer => {
+        Object.values(featureLayersRef.current).forEach((layer) => {
           if (layer && !layer.destroyed) {
             if (Array.isArray(layer.featureLayers)) {
-              layer.featureLayers.forEach(subLayer => {
+              layer.featureLayers.forEach((subLayer) => {
                 if (subLayer && !subLayer.destroyed) {
                   subLayer.interactive = true;
                 }
@@ -1535,13 +1551,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             }
           }
         });
-  
+
         console.log("[MapContext] Market area edit mode toggled", {
           marketAreaId,
           marketArea,
-          graphicsCount: selectionGraphicsLayerRef.current.graphics.length
+          graphicsCount: selectionGraphicsLayerRef.current.graphics.length,
         });
-  
       } catch (error) {
         console.error("Error toggling market area edit mode:", error);
         toast.error("Error entering edit mode");
@@ -1614,7 +1629,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView]
   );
 
-
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType, immediate = false) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
@@ -1623,18 +1637,18 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       try {
         const [
-          { default: Graphic }, 
+          { default: Graphic },
           { default: Polygon },
-          { union, simplify, planarArea, planarLength }
+          { union, simplify, planarArea, planarLength },
         ] = await Promise.all([
           import("@arcgis/core/Graphic"),
           import("@arcgis/core/geometry/Polygon"),
-          import("@arcgis/core/geometry/geometryEngine")
+          import("@arcgis/core/geometry/geometryEngine"),
         ]);
 
         // Group features by their marketAreaId
         const featuresByMarketArea = {};
-        features.forEach(feature => {
+        features.forEach((feature) => {
           const id = feature.attributes.marketAreaId;
           if (!featuresByMarketArea[id]) featuresByMarketArea[id] = [];
           featuresByMarketArea[id].push(feature);
@@ -1643,17 +1657,18 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         // Handle existing graphics with more precision
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
         let existingGraphics = [];
-        
+
         if (!immediate) {
           // Normal flow - keep other market areas' graphics
           existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-            g => !marketAreaIds.has(g.attributes?.marketAreaId)
+            (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
           );
         } else {
           // Immediate mode - only keep graphics that aren't related to this update
-          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(g => 
-            !marketAreaIds.has(g.attributes?.marketAreaId) && 
-            g.attributes?.FEATURE_TYPE !== featureType
+          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+            (g) =>
+              !marketAreaIds.has(g.attributes?.marketAreaId) &&
+              g.attributes?.FEATURE_TYPE !== featureType
           );
         }
 
@@ -1667,27 +1682,31 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         const newGraphics = [];
 
         // Process each market area's features
-        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+        for (const [marketAreaId, maFeatures] of Object.entries(
+          featuresByMarketArea
+        )) {
           // Convert all features to Polygon geometries
-          const polygons = maFeatures.map(feature => {
-            const geomConfig = {
-              spatialReference: mapView.spatialReference,
-              type: "polygon"
-            };
+          const polygons = maFeatures
+            .map((feature) => {
+              const geomConfig = {
+                spatialReference: mapView.spatialReference,
+                type: "polygon",
+              };
 
-            if (feature.geometry.rings) {
-              return new Polygon({
-                ...geomConfig,
-                rings: feature.geometry.rings
-              });
-            } else if (feature.geometry.type === "polygon") {
-              return new Polygon({
-                ...geomConfig,
-                rings: feature.geometry.rings || feature.geometry.coordinates
-              });
-            }
-            return null;
-          }).filter(Boolean);
+              if (feature.geometry.rings) {
+                return new Polygon({
+                  ...geomConfig,
+                  rings: feature.geometry.rings,
+                });
+              } else if (feature.geometry.type === "polygon") {
+                return new Polygon({
+                  ...geomConfig,
+                  rings: feature.geometry.rings || feature.geometry.coordinates,
+                });
+              }
+              return null;
+            })
+            .filter(Boolean);
 
           if (polygons.length === 0) continue;
 
@@ -1703,23 +1722,26 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
           // Extract and filter rings
           const rings = simplifiedGeometry.rings;
-          const { exteriorRings, holeRings } = rings.reduce((acc, ring) => {
-            const ringPolygon = new Polygon({
-              rings: [ring],
-              spatialReference: mapView.spatialReference,
-              type: "polygon"
-            });
-            
-            const area = planarArea(ringPolygon);
-            const perimeter = planarLength(ringPolygon);
-            
-            if (area > 0) {
-              acc.exteriorRings.push(ring);
-            } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
-              acc.holeRings.push(ring);
-            }
-            return acc;
-          }, { exteriorRings: [], holeRings: [] });
+          const { exteriorRings, holeRings } = rings.reduce(
+            (acc, ring) => {
+              const ringPolygon = new Polygon({
+                rings: [ring],
+                spatialReference: mapView.spatialReference,
+                type: "polygon",
+              });
+
+              const area = planarArea(ringPolygon);
+              const perimeter = planarLength(ringPolygon);
+
+              if (area > 0) {
+                acc.exteriorRings.push(ring);
+              } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
+                acc.holeRings.push(ring);
+              }
+              return acc;
+            },
+            { exteriorRings: [], holeRings: [] }
+          );
 
           // Create fill graphic with exact specified styles
           const fillSymbol = {
@@ -1727,26 +1749,28 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             color: [...hexToRgb(styles.fill), styles.fillOpacity],
             outline: {
               color: [0, 0, 0, 0],
-              width: 0
-            }
+              width: 0,
+            },
           };
 
           const fillGeometry = new Polygon({
             rings: [...exteriorRings, ...holeRings],
             spatialReference: mapView.spatialReference,
-            type: "polygon"
+            type: "polygon",
           });
 
-          newGraphics.push(new Graphic({
-            geometry: fillGeometry,
-            symbol: fillSymbol,
-            attributes: {
-              marketAreaId,
-              FEATURE_TYPE: featureType,
-              isUnified: true,
-              ...maFeatures[0].attributes
-            }
-          }));
+          newGraphics.push(
+            new Graphic({
+              geometry: fillGeometry,
+              symbol: fillSymbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+                isUnified: true,
+                ...maFeatures[0].attributes,
+              },
+            })
+          );
 
           // Create outline graphics
           const outlineSymbol = {
@@ -1754,8 +1778,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             color: [0, 0, 0, 0],
             outline: {
               color: styles.outline,
-              width: styles.outlineWidth
-            }
+              width: styles.outlineWidth,
+            },
           };
 
           // Add hole outlines
@@ -1763,50 +1787,53 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             const holeGeometry = new Polygon({
               rings: [holeRing],
               spatialReference: mapView.spatialReference,
-              type: "polygon"
+              type: "polygon",
             });
 
-            newGraphics.push(new Graphic({
-              geometry: holeGeometry,
-              symbol: outlineSymbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-                isUnified: true,
-                isOutline: true,
-                isHole: true,
-                holeIndex: index,
-                ...maFeatures[0].attributes
-              }
-            }));
+            newGraphics.push(
+              new Graphic({
+                geometry: holeGeometry,
+                symbol: outlineSymbol,
+                attributes: {
+                  marketAreaId,
+                  FEATURE_TYPE: featureType,
+                  isUnified: true,
+                  isOutline: true,
+                  isHole: true,
+                  holeIndex: index,
+                  ...maFeatures[0].attributes,
+                },
+              })
+            );
           });
 
           // Add exterior outline
           const exteriorGeometry = new Polygon({
             rings: exteriorRings,
             spatialReference: mapView.spatialReference,
-            type: "polygon"
+            type: "polygon",
           });
 
-          newGraphics.push(new Graphic({
-            geometry: exteriorGeometry,
-            symbol: outlineSymbol,
-            attributes: {
-              marketAreaId,
-              FEATURE_TYPE: featureType,
-              isUnified: true,
-              isOutline: true,
-              isExterior: true,
-              ...maFeatures[0].attributes
-            }
-          }));
+          newGraphics.push(
+            new Graphic({
+              geometry: exteriorGeometry,
+              symbol: outlineSymbol,
+              attributes: {
+                marketAreaId,
+                FEATURE_TYPE: featureType,
+                isUnified: true,
+                isOutline: true,
+                isExterior: true,
+                ...maFeatures[0].attributes,
+              },
+            })
+          );
         }
 
         // Add all new graphics in one batch
         if (newGraphics.length > 0) {
           selectionGraphicsLayerRef.current.addMany(newGraphics);
         }
-
       } catch (error) {
         // Optional: You might want to add error handling logic here
       }
@@ -1814,142 +1841,173 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView, hexToRgb]
   );
 
-
   const ensureValidGeometry = async (geometry, spatialReference) => {
-    if (!geometry) return null;
-  
+    if (!geometry) {
+      console.warn("Geometry is null or undefined");
+      return null;
+    }
+
     try {
-      // First, repair the geometry
-      geometry = await repairGeometry(geometry);
-  
-      // Ensure the geometry is properly projected
-      if (geometry.spatialReference.wkid !== spatialReference.wkid) {
-        geometry = await reprojectGeometry(
-          geometry, 
-          geometry.spatialReference, 
-          spatialReference
-        );
+      const { default: Point } = await import("@arcgis/core/geometry/Point");
+      const { default: SpatialReference } = await import(
+        "@arcgis/core/geometry/SpatialReference"
+      );
+
+      // Ensure spatialReference is a valid SpatialReference object
+      const validSpatialReference =
+        spatialReference instanceof SpatialReference
+          ? spatialReference
+          : new SpatialReference(spatialReference || { wkid: 102100 });
+
+      // If geometry is a point-like object
+      if (geometry.longitude !== undefined && geometry.latitude !== undefined) {
+        return new Point({
+          longitude: geometry.longitude,
+          latitude: geometry.latitude,
+          spatialReference: validSpatialReference,
+        });
       }
-  
-      return geometry;
+
+      // If it's already a Point or other Geometry
+      if (geometry.type || geometry.spatialReference) {
+        // Ensure it has a valid spatial reference
+        if (!geometry.spatialReference) {
+          geometry.spatialReference = validSpatialReference;
+        }
+        return geometry;
+      }
+
+      console.warn("Unrecognized geometry format:", geometry);
+      return null;
     } catch (error) {
-      console.error("Error validating geometry:", error);
+      console.error("Error in ensureValidGeometry:", error);
       return null;
     }
   };
 
-  // NEW drawRadius function
+  // In MapContext.js, update the drawRadius function:
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
-      // Make sure we have a mapView, a valid layer, and valid point data
       if (
         !selectionGraphicsLayerRef.current ||
         !point?.center ||
         !point?.radii ||
         !mapView
       ) {
+        console.warn("Invalid radius point data:", {
+          point,
+          mapView: !!mapView,
+        });
         return;
       }
 
       try {
-        const { default: Graphic } = await import("@arcgis/core/Graphic");
-        const { geodesicBuffer } = await import(
-          "@arcgis/core/geometry/geometryEngine"
-        );
+        const [
+          { default: Graphic },
+          { geodesicBuffer },
+          { webMercatorToGeographic },
+          { default: Point },
+        ] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/geometryEngine"),
+          import("@arcgis/core/geometry/support/webMercatorUtils"),
+          import("@arcgis/core/geometry/Point"),
+        ]);
 
         // Use provided style or fallback
         const fillRgb = style?.fillColor
           ? hexToRgb(style.fillColor)
-          : [255, 255, 255];
+          : [0, 120, 212];
         const outlineRgb = style?.borderColor
           ? hexToRgb(style.borderColor)
-          : [0, 0, 0];
+          : [0, 120, 212];
         const fillOpacity =
-          style?.fillOpacity !== undefined ? style.fillOpacity : 0.3;
+          style?.fillOpacity !== undefined ? style.fillOpacity : 0.35;
         const borderWidth =
           style?.borderWidth !== undefined ? style.borderWidth : 2;
 
-        // Ensure geometry is valid and in the correct spatial reference
-        const center = ensureValidGeometry(
-          point.center,
-          mapView.spatialReference
-        );
-        if (!center) return;
+        // Create center point
+        let centerPoint;
+        if (point.center instanceof Point) {
+          centerPoint = point.center;
+        } else {
+          centerPoint = new Point({
+            longitude: point.center.longitude,
+            latitude: point.center.latitude,
+            spatialReference: mapView.spatialReference,
+          });
+        }
 
-        const centerPoint = webMercatorToGeographic(center);
+        // Convert to geographic for geodesic buffer
+        const geographicPoint = webMercatorToGeographic(centerPoint);
 
-        // Keep *all* polygons and radius shapes from this same MarketArea,
-        // remove ONLY radius shapes from other MarketAreas
-        const existingGraphics =
-          selectionGraphicsLayerRef.current.graphics.toArray();
+        // Remove existing radius graphics for this point if updating
+        if (marketAreaId) {
+          const existingRadiusGraphics =
+            selectionGraphicsLayerRef.current.graphics.filter(
+              (g) =>
+                g.attributes?.marketAreaId === marketAreaId &&
+                g.attributes?.FEATURE_TYPE === "radius"
+            );
+          if (existingRadiusGraphics.length > 0) {
+            selectionGraphicsLayerRef.current.removeMany(
+              existingRadiusGraphics
+            );
+          }
+        }
 
-        const keepGraphics = existingGraphics.filter((g) => {
-          // If it's not a radius shape, keep it
-          if (g.attributes?.FEATURE_TYPE !== "radius") return true;
-          // Otherwise, if it's a radius shape but belongs to THIS marketArea, keep it
-          return g.attributes.marketAreaId === marketAreaId;
-        });
-
-        // Clear and re-add only the kept graphics
-        selectionGraphicsLayerRef.current.removeAll();
-        keepGraphics.forEach((g) => selectionGraphicsLayerRef.current.add(g));
-
-        // Generate new circle polygons for each radius in point.radii
-        const newGraphics = [];
-        const effectiveMarketAreaId = marketAreaId || "tempRadiusId";
-
+        // Generate circles for each radius
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
-          const radiusMeters = radiusMiles * 1609.34; // 1 mile = 1609.34 meters
+          const radiusMeters = radiusMiles * 1609.34;
 
-          const uniqueMarketAreaId = `${effectiveMarketAreaId}-radius-${i}`;
-          const polygon = geodesicBuffer(centerPoint, radiusMeters, "meters");
+          const polygon = geodesicBuffer(
+            geographicPoint,
+            radiusMeters,
+            "meters"
+          );
+
+          // Create unique ID for this radius circle
+          const circleId = `${marketAreaId || "temp"}-radius-${i}`;
 
           const symbol = {
             type: "simple-fill",
-            color: fillOpacity > 0 ? [...fillRgb, fillOpacity] : [0, 0, 0, 0],
-            outline:
-              borderWidth > 0
-                ? { color: outlineRgb, width: borderWidth }
-                : null,
+            color: [...fillRgb, fillOpacity],
+            outline: {
+              color: outlineRgb,
+              width: borderWidth,
+            },
           };
 
-          const circleGraphic = new Graphic({
+          const graphic = new Graphic({
             geometry: polygon,
+            symbol: symbol,
             attributes: {
               FEATURE_TYPE: "radius",
-              marketAreaId: uniqueMarketAreaId,
-              originalMarketAreaId: marketAreaId,
+              marketAreaId: marketAreaId || "temp",
               radiusMiles,
               order,
+              circleId,
             },
-            symbol,
           });
 
-          newGraphics.push(circleGraphic);
+          selectionGraphicsLayerRef.current.add(graphic);
         }
 
-        // Merge the new circleGraphics with the kept graphics
-        const allGraphics = [
-          ...selectionGraphicsLayerRef.current.graphics.toArray(),
-          ...newGraphics,
-        ];
-
-        // Sort so that higher 'order' draws on top
-        allGraphics.sort(
-          (a, b) => (b.attributes.order || 0) - (a.attributes.order || 0)
-        );
-
-        // Clear & re-add in the correct order
-        selectionGraphicsLayerRef.current.removeAll();
-        allGraphics.forEach((graphic) =>
-          selectionGraphicsLayerRef.current.add(graphic)
+        // Log successful drawing
+        console.log(
+          `Drew radius rings for market area ${marketAreaId || "temp"}:`,
+          {
+            center: [centerPoint.longitude, centerPoint.latitude],
+            radii: point.radii,
+            style,
+          }
         );
       } catch (error) {
-        console.error("Error drawing radius:", error);
+        console.error("Error in drawRadius:", error);
       }
     },
-    [mapView]
+    [mapView, hexToRgb]
   );
 
   const saveMarketAreaChanges = useCallback(
@@ -2051,73 +2109,47 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   );
 
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
-    console.log('=== CLEAR MARKET AREA GRAPHICS START ===');
-    console.log('Clearing graphics for marketAreaId:', marketAreaId);
-  
+    console.log("[MapContext] Clear graphics called:", { marketAreaId });
+
+    if (!selectionGraphicsLayerRef.current) {
+      console.log("[MapContext] No graphics layer available");
+      return;
+    }
+
     try {
-      if (!marketAreaId) {
-        console.log('No marketAreaId provided - clearing ALL market area graphics');
-        
-        if (selectionGraphicsLayerRef.current) {
-          const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-          console.log('Current graphics count:', allGraphics.length);
-          
-          // Log details about radius graphics
-          const radiusGraphics = allGraphics.filter(g => g.attributes?.FEATURE_TYPE === "radius");
-          console.log('Radius graphics to remove:', {
-            count: radiusGraphics.length,
-            ids: radiusGraphics.map(g => g.attributes?.marketAreaId)
-          });
-  
-          selectionGraphicsLayerRef.current.removeMany(radiusGraphics);
-          console.log('Removed radius graphics');
-  
-          const nonMarketGraphics = allGraphics.filter(g => !g.attributes?.marketAreaId);
-          console.log('Non-market area graphics to keep:', nonMarketGraphics.length);
-  
-          selectionGraphicsLayerRef.current.removeAll();
-          nonMarketGraphics.forEach(g => selectionGraphicsLayerRef.current.add(g));
-          
-          console.log('Final graphics count:', selectionGraphicsLayerRef.current.graphics.length);
+      const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
+
+      if (marketAreaId) {
+        // Clear only specific market area
+        const graphicsToRemove = allGraphics.filter(
+          (g) => g.attributes?.marketAreaId === marketAreaId
+        );
+
+        if (graphicsToRemove.length > 0) {
+          console.log(
+            `[MapContext] Removing ${graphicsToRemove.length} graphics for market area: ${marketAreaId}`
+          );
+          selectionGraphicsLayerRef.current.removeMany(graphicsToRemove);
         }
       } else {
-        console.log(`Clearing graphics for specific market area: ${marketAreaId}`);
-        
-        if (selectionGraphicsLayerRef.current) {
-          const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-          console.log('Starting graphics count:', allGraphics.length);
-  
-          // Remove radius shapes for this market area
-          const radiusForThisMarket = allGraphics.filter(
-            g => g.attributes?.FEATURE_TYPE === "radius" && 
-                 g.attributes?.marketAreaId === marketAreaId
-          );
-          console.log('Radius graphics to remove:', {
-            count: radiusForThisMarket.length,
-            marketAreaId
-          });
-  
-          selectionGraphicsLayerRef.current.removeMany(radiusForThisMarket);
-  
-          // Remove other graphics for this market area
-          const remainingSelectionGraphics = allGraphics.filter(
-            g => g.attributes?.marketAreaId !== marketAreaId
-          );
-          console.log('Remaining graphics to keep:', remainingSelectionGraphics.length);
-  
-          selectionGraphicsLayerRef.current.removeAll();
-          remainingSelectionGraphics.forEach(g => selectionGraphicsLayerRef.current.add(g));
-          
-          console.log('Final graphics count:', selectionGraphicsLayerRef.current.graphics.length);
-        }
+        // If no marketAreaId provided, only clear temporary graphics
+        const graphicsToKeep = allGraphics.filter(
+          (g) =>
+            g.attributes?.marketAreaId &&
+            g.attributes.marketAreaId !== "temporary" &&
+            g.attributes.marketAreaId !== "current"
+        );
+
+        console.log(
+          "[MapContext] Clearing temporary graphics, keeping",
+          graphicsToKeep.length
+        );
+
+        selectionGraphicsLayerRef.current.removeAll();
+        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
       }
-  
-      console.log('=== CLEAR MARKET AREA GRAPHICS COMPLETE ===');
     } catch (error) {
-      console.error('=== CLEAR MARKET AREA GRAPHICS ERROR ===', {
-        error,
-        marketAreaId
-      });
+      console.error("[MapContext] Error clearing graphics:", error);
     }
   }, []);
 
@@ -2510,9 +2542,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         });
       }
     });
-  
+
     if (!polygons.length) return null;
-  
+
     // union them all
     try {
       const unioned = await geometryEngineAsync.union(polygons);
@@ -2525,7 +2557,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   // Create ref outside the effect
   const hasCentered = useRef(false);
-  
+
   useEffect(() => {
     let isActive = true;
 
@@ -2533,7 +2565,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       hasCentered: hasCentered.current,
       mapReady: mapView?.ready,
       layersReady,
-      hasMarketAreas: Boolean(marketAreas?.length)
+      hasMarketAreas: Boolean(marketAreas?.length),
     });
 
     if (!mapView?.ready) {
@@ -2550,11 +2582,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       if (!isActive) return;
 
       if (marketAreas?.length) {
-        console.log("[MapContext] Processing market areas:", 
-          marketAreas.map(ma => ({
+        console.log(
+          "[MapContext] Processing market areas:",
+          marketAreas.map((ma) => ({
             id: ma.id,
             name: ma.name,
-            locationsCount: ma.locations?.length || 0
+            locationsCount: ma.locations?.length || 0,
           }))
         );
 
@@ -2564,7 +2597,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             for (const loc of ma.locations) {
               if (loc.geometry) {
                 validGeometry = loc.geometry;
-                console.log("[MapContext] Found valid geometry in location of market area:", ma.id);
+                console.log(
+                  "[MapContext] Found valid geometry in location of market area:",
+                  ma.id
+                );
                 break;
               }
             }
@@ -2576,12 +2612,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           try {
             // Import required modules for extent calculation
             const [Extent, SpatialReference] = await Promise.all([
-              import('@arcgis/core/geometry/Extent').then(m => m.default),
-              import('@arcgis/core/geometry/SpatialReference').then(m => m.default)
+              import("@arcgis/core/geometry/Extent").then((m) => m.default),
+              import("@arcgis/core/geometry/SpatialReference").then(
+                (m) => m.default
+              ),
             ]);
 
             console.log("[MapContext] Creating extent from geometry");
-            
+
             // Create a spatial reference for Web Mercator
             const sr = new SpatialReference({ wkid: 102100 });
 
@@ -2590,8 +2628,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             if (validGeometry.rings) {
               const xCoords = [];
               const yCoords = [];
-              
-              validGeometry.rings[0].forEach(coord => {
+
+              validGeometry.rings[0].forEach((coord) => {
                 xCoords.push(coord[0]);
                 yCoords.push(coord[1]);
               });
@@ -2601,29 +2639,34 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 ymin: Math.min(...yCoords),
                 xmax: Math.max(...xCoords),
                 ymax: Math.max(...yCoords),
-                spatialReference: sr
+                spatialReference: sr,
               });
             }
 
             console.log("[MapContext] Centering on project extent");
             await mapView.goTo(
-              { 
+              {
                 target: extent || validGeometry,
-                zoom: 9  // Always use zoom level 9
+                zoom: 9, // Always use zoom level 9
               },
               {
                 duration: 1000,
-                easing: "ease-in-out"
+                easing: "ease-in-out",
               }
             );
 
             if (isActive) {
-              console.log("[MapContext] Successfully centered on project extent");
+              console.log(
+                "[MapContext] Successfully centered on project extent"
+              );
               hasCentered.current = true;
             }
             return;
           } catch (err) {
-            console.error("[MapContext] Error centering on project extent:", err);
+            console.error(
+              "[MapContext] Error centering on project extent:",
+              err
+            );
             if (isActive) {
               await centerOnOrangeCounty();
             }
@@ -2632,7 +2675,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       }
 
       if (isActive) {
-        console.log("[MapContext] No valid project extent found, falling back to Orange County");
+        console.log(
+          "[MapContext] No valid project extent found, falling back to Orange County"
+        );
         await centerOnOrangeCounty();
       }
     };
@@ -2642,30 +2687,36 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       console.log("[MapContext] Attempting to center on Orange County");
       try {
-        const Point = (await import('@arcgis/core/geometry/Point')).default;
+        const Point = (await import("@arcgis/core/geometry/Point")).default;
         const orangeCountyPoint = new Point({
           longitude: -117.8311,
-          latitude: 33.7175
+          latitude: 33.7175,
         });
 
-        await mapView.goTo({
-          target: orangeCountyPoint,
-          zoom: 9  // Use zoom level 9 for consistency
-        }, {
-          duration: 1000,
-          easing: "ease-in-out"
-        });
+        await mapView.goTo(
+          {
+            target: orangeCountyPoint,
+            zoom: 9, // Use zoom level 9 for consistency
+          },
+          {
+            duration: 1000,
+            easing: "ease-in-out",
+          }
+        );
 
         if (isActive) {
           const finalCenter = mapView.center;
-          console.log("[MapContext] Successfully centered on Orange County. View state:", {
-            center: {
-              latitude: finalCenter.latitude,
-              longitude: finalCenter.longitude
-            },
-            zoom: mapView.zoom,
-            scale: mapView.scale
-          });
+          console.log(
+            "[MapContext] Successfully centered on Orange County. View state:",
+            {
+              center: {
+                latitude: finalCenter.latitude,
+                longitude: finalCenter.longitude,
+              },
+              zoom: mapView.zoom,
+              scale: mapView.scale,
+            }
+          );
           hasCentered.current = true;
         }
       } catch (err) {
@@ -2679,7 +2730,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       isActive = false;
       console.log("[MapContext] Cleaning up centering effect");
     };
-}, [mapView, marketAreas]);
+  }, [mapView, marketAreas]);
 
   useEffect(() => {
     if (!mapView || !selectionGraphicsLayerRef.current) return;

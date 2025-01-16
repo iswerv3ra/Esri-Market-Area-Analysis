@@ -75,7 +75,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const maTypes = [
     { value: "radius", label: "Radius" },
-    { value: "demographics", label: "Demographics" }, // Add this line
     { value: "zip", label: "Zip Code" },
     { value: "county", label: "County" },
     { value: "place", label: "Place" },
@@ -211,17 +210,33 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     drawRadius,
   ]);
 
-  // Re-apply styles when user changes style settings
   const updateStyles = useCallback(() => {
     try {
       const { fillColor, fillOpacity, borderColor, borderWidth } =
         formState.styleSettings;
-
+  
       if (formState.maType === "radius") {
-        // Clear and re-draw all radius rings
-        clearSelection();
+        // Clear existing radius graphics first
+        if (selectionGraphicsLayer) {
+          const radiusGraphics = selectionGraphicsLayer.graphics.filter(
+            g => g.attributes?.FEATURE_TYPE === "radius"
+          );
+          selectionGraphicsLayer.removeMany(radiusGraphics);
+        }
+        
+        // Re-draw all radius rings with new style settings
         radiusPoints.forEach((point) => {
-          drawRadius(point, formState.styleSettings);
+          drawRadius(
+            point, 
+            {
+              fillColor,
+              fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
+              borderColor,
+              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth
+            },
+            editingMarketArea?.id || 'temporary',
+            editingMarketArea?.order || 0
+          );
         });
       } else if (formState.selectedLocations.length > 0) {
         const marketAreaId = editingMarketArea?.id || "current";
@@ -234,7 +249,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             order: editingMarketArea?.order || 0,
           },
         }));
-
+  
         updateFeatureStyles(
           features,
           {
@@ -257,7 +272,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     radiusPoints,
     updateFeatureStyles,
     drawRadius,
-    clearSelection,
     editingMarketArea,
   ]);
 
@@ -305,6 +319,21 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     },
     [addActiveLayer, clearSelection, removeActiveLayer, formState.maType, setError]
   );
+
+
+// In Radius component or within the MarketAreaForm's radius handling logic
+useEffect(() => {
+  if (formState.maType === 'radius' && radiusPoints.length > 0) {
+    // Immediately draw the most recent radius point
+    const latestPoint = radiusPoints[radiusPoints.length - 1];
+    drawRadius(
+      latestPoint, 
+      formState.styleSettings, 
+      editingMarketArea?.id || 'temporary', 
+      0  // Default order
+    );
+  }
+}, [radiusPoints, formState.maType, formState.styleSettings, drawRadius]);
 
   // Searching
   useEffect(() => {
@@ -540,7 +569,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   }, [editingMarketArea, clearSelection]);
 
 
-  // The main “save & exit” or “update & exit” logic
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -561,7 +589,76 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
   
       if (formState.maType === "radius") {
-        // Radius handling code remains the same...
+        const marketAreaData = {
+          ma_type: "radius",
+          name: formState.maName,
+          short_name: formState.shortName,
+          style_settings: styleSettings,
+          locations: [],
+          radius_points: radiusPoints,
+        };
+  
+        // Store existing graphics that we want to keep
+        const existingGraphics = selectionGraphicsLayer.graphics
+          .filter((g) => g.attributes?.marketAreaId && g.attributes.marketAreaId !== editingMarketArea?.id)
+          .toArray()
+          .map((g) => ({
+            geometry: g.geometry,
+            attributes: g.attributes,
+            symbol: g.symbol,
+          }));
+  
+        let savedMarketArea;
+        if (editingMarketArea) {
+          savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+          toast.success("Market area updated successfully");
+        } else {
+          savedMarketArea = await addMarketArea(projectId, marketAreaData);
+          toast.success("Market area created successfully");
+        }
+  
+        // Turn off map selection temporarily
+        setIsMapSelectionActive(false);
+  
+        // Clear all graphics
+        selectionGraphicsLayer.removeAll();
+  
+        // Re-add existing graphics
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+        existingGraphics.forEach((g) => {
+          const graphic = new Graphic({
+            geometry: g.geometry,
+            attributes: g.attributes,
+            symbol: g.symbol,
+          });
+          selectionGraphicsLayer.add(graphic);
+        });
+  
+        // Draw the radius(es) with proper styles
+        for (const point of radiusPoints) {
+          await drawRadius(
+            point,
+            styleSettings,
+            savedMarketArea.id,
+            savedMarketArea.order
+          );
+        }
+  
+        // Handle visibility
+        const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
+        let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+        const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
+  
+        if (!currentVisibleIds.includes(marketAreaId)) {
+          currentVisibleIds.push(marketAreaId);
+        }
+  
+        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+        setVisibleMarketAreaIds(currentVisibleIds);
+  
+        setEditingMarketArea(null);
+        onClose?.();
+        pressMAListButton();
       } else {
         // Non-radius scenario
         const marketAreaData = {
@@ -607,6 +704,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             ...feature.attributes,
             marketAreaId: editingMarketArea?.id || savedMarketArea.id,
             FEATURE_TYPE: formState.maType,
+            order: savedMarketArea.order,
           },
         }));
   

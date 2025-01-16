@@ -44,19 +44,32 @@ const ExportDialog = ({
     }
   }, [isOpen]);
 
-  // Build default filename
   useEffect(() => {
     if (marketAreas.length > 0) {
       const firstArea = marketAreas[0];
+      console.log('Market Area Debug:', {
+        fullFirstArea: firstArea,
+        projectNumberFromArea: firstArea?.project_number,
+        projectNumberFromProjectObj: firstArea?.project?.project_number,
+        projectObject: firstArea?.project,
+        projectId: firstArea?.project_id
+      });
+  
       const projectNumber =
-        firstArea?.project_number || firstArea?.project?.project_number || '00000.00';
-
+        firstArea?.project_number || 
+        firstArea?.project?.project_number || 
+        firstArea?.project_id || 
+        '00000.00';
+  
       const date = new Date();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       const year = String(date.getFullYear()).slice(-2);
-
-      setFileName(`${projectNumber} Esri Data ${month}.${day}.${year}`);
+  
+      const fileName = `${projectNumber} Esri Data ${month}.${day}.${year}`;
+      
+      console.log('Generated Filename:', fileName);
+      setFileName(fileName);
     } else {
       setFileName('00000.00 Esri Data 00.00.00');
     }
