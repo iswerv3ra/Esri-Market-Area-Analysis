@@ -419,10 +419,11 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
               popupEnabled: false,
               resultGraphicEnabled: false,
               searchAllEnabled: false,
+              defaultZoomScale: null,
               goToOverride: (view, params) => {
-                params.target.scale = 50000;
-                return view.goTo(params.target);
-              },
+                // Prevent the default zoom behavior
+                return null;
+              }
             });
 
             const searchInput = searchContainer.querySelector("input");
@@ -437,11 +438,15 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
               suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
             }
 
+            // Handle zoom manually only in select-result
             sw.on("select-result", (event) => {
               if (event.result && event.result.extent) {
+                // Disable animation to prevent any intermediate zoom states
                 mapView.goTo({
                   target: event.result.extent.center,
-                  zoom: 14,
+                  zoom: 10
+                }, {
+                  animate: false
                 });
               }
             });

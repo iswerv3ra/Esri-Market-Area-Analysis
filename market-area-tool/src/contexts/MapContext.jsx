@@ -2555,31 +2555,40 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-  // Create ref outside the effect
-  const hasCentered = useRef(false);
+// Create ref outside the effect
+const hasCentered = useRef(false);
 
-  useEffect(() => {
-    let isActive = true;
+useEffect(() => {
+  let isActive = true;
 
-    console.log("[MapContext] Centering effect triggered:", {
-      hasCentered: hasCentered.current,
-      mapReady: mapView?.ready,
-      layersReady,
-      hasMarketAreas: Boolean(marketAreas?.length),
-    });
+  console.log("[MapContext] Centering effect triggered:", {
+    hasCentered: hasCentered.current,
+    mapReady: mapView?.ready,
+    layersReady,
+    hasMarketAreas: Boolean(marketAreas?.length),
+  });
 
-    if (!mapView?.ready) {
-      console.log("[MapContext] Map not ready, skipping");
-      return;
-    }
+  if (!mapView?.ready) {
+    console.log("[MapContext] Map not ready, skipping");
+    return;
+  }
 
-    if (hasCentered.current) {
-      console.log("[MapContext] Already centered, skipping");
-      return;
-    }
+  const centerMap = async () => {
+    if (!isActive) return;
 
-    const centerMap = async () => {
-      if (!isActive) return;
+    try {
+      // Always reset hasCentered when starting a new project
+      const shouldResetCenter = marketAreas === undefined || marketAreas.length === 0;
+      
+      if (shouldResetCenter) {
+        hasCentered.current = false;
+      }
+
+      // If already centered and not forcibly resetting, return
+      if (hasCentered.current && !shouldResetCenter) {
+        console.log("[MapContext] Already centered, skipping");
+        return;
+      }
 
       if (marketAreas?.length) {
         console.log(
@@ -2674,63 +2683,66 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         }
       }
 
+      // Explicit fallback to Orange County if no market areas
+      console.log(
+        "[MapContext] No valid project extent found, falling back to Orange County"
+      );
+      await centerOnOrangeCounty();
+    } catch (err) {
+      console.error("[MapContext] Centering error:", err);
+      await centerOnOrangeCounty();
+    }
+  };
+
+  async function centerOnOrangeCounty() {
+    if (!isActive) return;
+
+    console.log("[MapContext] Attempting to center on Orange County");
+    try {
+      const Point = (await import("@arcgis/core/geometry/Point")).default;
+      const orangeCountyPoint = new Point({
+        longitude: -117.8311,
+        latitude: 33.7175,
+      });
+
+      await mapView.goTo(
+        {
+          target: orangeCountyPoint,
+          zoom: 9, // Use zoom level 9 for consistency
+        },
+        {
+          duration: 1000,
+          easing: "ease-in-out",
+        }
+      );
+
       if (isActive) {
+        const finalCenter = mapView.center;
         console.log(
-          "[MapContext] No valid project extent found, falling back to Orange County"
-        );
-        await centerOnOrangeCounty();
-      }
-    };
-
-    async function centerOnOrangeCounty() {
-      if (!isActive) return;
-
-      console.log("[MapContext] Attempting to center on Orange County");
-      try {
-        const Point = (await import("@arcgis/core/geometry/Point")).default;
-        const orangeCountyPoint = new Point({
-          longitude: -117.8311,
-          latitude: 33.7175,
-        });
-
-        await mapView.goTo(
+          "[MapContext] Successfully centered on Orange County. View state:",
           {
-            target: orangeCountyPoint,
-            zoom: 9, // Use zoom level 9 for consistency
-          },
-          {
-            duration: 1000,
-            easing: "ease-in-out",
+            center: {
+              latitude: finalCenter.latitude,
+              longitude: finalCenter.longitude,
+            },
+            zoom: mapView.zoom,
+            scale: mapView.scale,
           }
         );
-
-        if (isActive) {
-          const finalCenter = mapView.center;
-          console.log(
-            "[MapContext] Successfully centered on Orange County. View state:",
-            {
-              center: {
-                latitude: finalCenter.latitude,
-                longitude: finalCenter.longitude,
-              },
-              zoom: mapView.zoom,
-              scale: mapView.scale,
-            }
-          );
-          hasCentered.current = true;
-        }
-      } catch (err) {
-        console.error("[MapContext] Error in Orange County fallback:", err);
+        hasCentered.current = true;
       }
+    } catch (err) {
+      console.error("[MapContext] Error in Orange County fallback:", err);
     }
+  }
 
-    centerMap();
+  centerMap();
 
-    return () => {
-      isActive = false;
-      console.log("[MapContext] Cleaning up centering effect");
-    };
-  }, [mapView, marketAreas]);
+  return () => {
+    isActive = false;
+    console.log("[MapContext] Cleaning up centering effect");
+  };
+}, [mapView, marketAreas]);
 
   useEffect(() => {
     if (!mapView || !selectionGraphicsLayerRef.current) return;

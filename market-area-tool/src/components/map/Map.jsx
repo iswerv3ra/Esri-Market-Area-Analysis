@@ -10,262 +10,268 @@ import ScaleBar from "@arcgis/core/widgets/ScaleBar";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Legend from "@arcgis/core/widgets/Legend";
 import { useMap } from "../../contexts/MapContext";
-import LayerPropertiesEditor from './LayerPropertiesEditor';
+import LayerPropertiesEditor from "./LayerPropertiesEditor";
 
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-  const initialLayerConfigurations = {
-    population: {
-      // Population configuration remains unchanged
-      type: "dot-density",
-      field: "TOTPOP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: {
-        width: 0.5,
-        color: [50, 50, 50, 0.2]
-      },
-      legendOptions: {
-        unit: "people"
-      },
-      attributes: [{
+const initialLayerConfigurations = {
+  population: {
+    // Population configuration remains unchanged
+    type: "dot-density",
+    field: "TOTPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: {
+      width: 0.5,
+      color: [50, 50, 50, 0.2],
+    },
+    legendOptions: {
+      unit: "people",
+    },
+    attributes: [
+      {
         field: "TOTPOP_CY",
         color: "#E60049",
-        label: "Total Population"
-      }]
-    },
-    
-    income: {
-      type: "class-breaks",
-      field: "MEDHINC_CY",
-      classBreakInfos: [
-        {
-          minValue: -Infinity,
-          maxValue: 35000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "Under $35K"
+        label: "Total Population",
+      },
+    ],
+  },
+
+  income: {
+    type: "class-breaks",
+    field: "MEDHINC_CY",
+    classBreakInfos: [
+      {
+        minValue: -Infinity,
+        maxValue: 35000,
+        symbol: {
+          type: "simple-fill",
+          color: [255, 153, 153, 0.35], // Pastel red with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 35000,
-          maxValue: 65000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$35K - $65K"
+        label: "Under $35K",
+      },
+      {
+        minValue: 35000,
+        maxValue: 65000,
+        symbol: {
+          type: "simple-fill",
+          color: [255, 179, 102, 0.35], // Pastel orange with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 65000,
-          maxValue: 95000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$65K - $95K"
+        label: "$35K - $65K",
+      },
+      {
+        minValue: 65000,
+        maxValue: 95000,
+        symbol: {
+          type: "simple-fill",
+          color: [255, 255, 153, 0.35], // Pastel yellow with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 95000,
-          maxValue: 125000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$95K - $125K"
+        label: "$65K - $95K",
+      },
+      {
+        minValue: 95000,
+        maxValue: 125000,
+        symbol: {
+          type: "simple-fill",
+          color: [153, 255, 153, 0.35], // Pastel green with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 125000,
-          maxValue: 155000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$125K - $155K"
+        label: "$95K - $125K",
+      },
+      {
+        minValue: 125000,
+        maxValue: 155000,
+        symbol: {
+          type: "simple-fill",
+          color: [153, 255, 255, 0.35], // Pastel cyan with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 155000,
-          maxValue: 200000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$155K - $200K"
+        label: "$125K - $155K",
+      },
+      {
+        minValue: 155000,
+        maxValue: 200000,
+        symbol: {
+          type: "simple-fill",
+          color: [153, 153, 255, 0.35], // Pastel blue with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 200000,
-          maxValue: Infinity,
-          symbol: {
-            type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "Over $200K"
-        }
-      ]
-    },
-    
-    growth: {
-      type: "class-breaks",
-      field: "HHGRW20CY",
-      classBreakInfos: [
-        {
-          minValue: -Infinity,
-          maxValue: -3.00,
-          symbol: {
-            type: "simple-fill",
-            color: "#ff0000", // Deep red for negative growth
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "Less than -3%"
+        label: "$155K - $200K",
+      },
+      {
+        minValue: 200000,
+        maxValue: Infinity,
+        symbol: {
+          type: "simple-fill",
+          color: [204, 153, 255, 0.35], // Pastel violet with transparency
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: -3.00,
-          maxValue: -1.50,
-          symbol: {
-            type: "simple-fill",
-            color: "#ff4d4d", // Lighter red
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "-3% to 0%"
+        label: "Over $200K",
+      },
+    ],
+  },
+
+  growth: {
+    type: "class-breaks",
+    field: "HHGRW20CY",
+    classBreakInfos: [
+      {
+        minValue: -Infinity,
+        maxValue: -3.0,
+        symbol: {
+          type: "simple-fill",
+          color: "#ff0000", // Deep red for negative growth
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: -1.50,
-          maxValue: 1.00,
-          symbol: {
-            type: "simple-fill",
-            color: "#9933ff", // Purple (transition)
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "0% to 2%"
+        label: "Less than -3%",
+      },
+      {
+        minValue: -3.0,
+        maxValue: -1.5,
+        symbol: {
+          type: "simple-fill",
+          color: "#ff4d4d", // Lighter red
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 1.00,
-          maxValue: 2.00,
-          symbol: {
-            type: "simple-fill",
-            color: "#6600ff", // Blue-purple
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "2% to 5%"
+        label: "-3% to 0%",
+      },
+      {
+        minValue: -1.5,
+        maxValue: 1.0,
+        symbol: {
+          type: "simple-fill",
+          color: "#9933ff", // Purple (transition)
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 2.00,
-          maxValue: 4.00,
-          symbol: {
-            type: "simple-fill",
-            color: "#3300ff", // Light blue
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "5% to 10%"
+        label: "0% to 2%",
+      },
+      {
+        minValue: 1.0,
+        maxValue: 2.0,
+        symbol: {
+          type: "simple-fill",
+          color: "#6600ff", // Blue-purple
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
         },
-        {
-          minValue: 4.00,
-          maxValue: Infinity,
-          symbol: {
+        label: "2% to 5%",
+      },
+      {
+        minValue: 2.0,
+        maxValue: 4.0,
+        symbol: {
+          type: "simple-fill",
+          color: "#3300ff", // Light blue
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
+        },
+        label: "5% to 10%",
+      },
+      {
+        minValue: 4.0,
+        maxValue: Infinity,
+        symbol: {
+          type: "simple-fill",
+          color: "#0000ff", // Deep blue for highest growth
+          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
+        },
+        label: "More than 10%",
+      },
+    ],
+  },
+};
+
+// Function to create layers based on visualization type and optional config override
+const createLayers = (visualizationType, configOverride = null) => {
+  const config = configOverride || layerConfigurations[visualizationType];
+
+  const createRenderer = (config) => {
+    if (!config) return null;
+
+    switch (config.type) {
+      case "dot-density":
+        return {
+          type: "dot-density",
+          field: config.field,
+          dotValue: config.dotValue,
+          dotBlending: config.dotBlending,
+          dotSize: config.dotSize,
+          outline: config.outline,
+          legendOptions: config.legendOptions,
+          attributes: config.attributes,
+        };
+
+      case "class-breaks":
+        return {
+          type: "class-breaks",
+          field: config.field,
+          defaultSymbol: {
             type: "simple-fill",
-            color: "#0000ff", // Deep blue for highest growth
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            color: [0, 0, 0, 0],
+            outline: { color: [50, 50, 50, 0.2], width: 0.5 },
           },
-          label: "More than 10%"
-        }
-      ]
+          defaultLabel: "No data",
+          classBreakInfos: config.classBreakInfos,
+        };
     }
   };
 
-  // Function to create layers based on visualization type and optional config override
-  const createLayers = (visualizationType, configOverride = null) => {
-    const config = configOverride || layerConfigurations[visualizationType];
-    
-    const createRenderer = (config) => {
-      if (!config) return null;
-    
-      switch (config.type) {
-        case "dot-density":
-          return {
-            type: "dot-density",
-            field: config.field,
-            dotValue: config.dotValue,
-            dotBlending: config.dotBlending,
-            dotSize: config.dotSize,
-            outline: config.outline,
-            legendOptions: config.legendOptions,
-            attributes: config.attributes
-          };
-    
-        case "class-breaks":
-          return {
-            type: "class-breaks",
-            field: config.field,
-            defaultSymbol: {
-              type: "simple-fill",
-              color: [0, 0, 0, 0],
-              outline: { color: [50, 50, 50, 0.2], width: 0.5 }
-            },
-            defaultLabel: "No data",
-            classBreakInfos: config.classBreakInfos
-          };
-      }
-    };
-
-    const layerDefinitions = {
-      population: {
-        fieldName: "TOTPOP_CY",
-        title: "Population Distribution (2024)",
-        format: {
-          digitSeparator: true,
-          places: 0
-        }
+  const layerDefinitions = {
+    population: {
+      fieldName: "TOTPOP_CY",
+      title: "Population Distribution (2024)",
+      format: {
+        digitSeparator: true,
+        places: 0,
       },
-      income: {
-        fieldName: "MEDHINC_CY",
-        title: "Median Household Income (2024)",
-        format: {
-          digitSeparator: true,
-          places: 0,
-          type: "currency"
-        }
+    },
+    income: {
+      fieldName: "MEDHINC_CY",
+      title: "Median Household Income (2024)",
+      format: {
+        digitSeparator: true,
+        places: 0,
+        type: "currency",
       },
-      growth: {
-        fieldName: "HHGRW20CY",
-        title: "Household Growth Rate (2020-2024)",
-        format: {
-          digitSeparator: true,
-          places: 2
-        }
-      }
-    };
-
-    const layerConfig = layerDefinitions[visualizationType];
-    if (!layerConfig) return null;
-
-    return new FeatureLayer({
-      url: "https://services8.arcgis.com/peDZJliSvYims39Q/ArcGIS/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12",
-      renderer: createRenderer(config),
-      popupTemplate: {
-        title: "Census Tract {NAME}",
-        content: [{
-          type: "fields",
-          fieldInfos: [{
-            fieldName: layerConfig.fieldName,
-            label: layerConfig.title,
-            format: layerConfig.format
-          }]
-        }]
+    },
+    growth: {
+      fieldName: "HHGRW20CY",
+      title: "Household Growth Rate (2020-2024)",
+      format: {
+        digitSeparator: true,
+        places: 2,
       },
-      title: layerConfig.title,
-      minScale: 300000,
-    });
+    },
   };
+
+  const layerConfig = layerDefinitions[visualizationType];
+  if (!layerConfig) return null;
+
+  return new FeatureLayer({
+    url: "https://services8.arcgis.com/peDZJliSvYims39Q/ArcGIS/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12",
+    renderer: createRenderer(config),
+    popupTemplate: {
+      title: "Census Tract {NAME}",
+      content: [
+        {
+          type: "fields",
+          fieldInfos: [
+            {
+              fieldName: layerConfig.fieldName,
+              label: layerConfig.title,
+              format: layerConfig.format,
+            },
+          ],
+        },
+      ],
+    },
+    title: layerConfig.title,
+    minScale: 300000,
+  });
+};
 // ZoomAlert Component
 const ZoomAlert = () => {
   const { isOutsideZoomRange, zoomMessage } = useMap();
@@ -316,16 +322,18 @@ export default function MapComponent({ onToggleList }) {
       dotSize: 2,
       outline: {
         width: 0.5,
-        color: [50, 50, 50, 0.2]
+        color: [50, 50, 50, 0.2],
       },
       legendOptions: {
-        unit: "people"
+        unit: "people",
       },
-      attributes: [{
-        field: "TOTPOP_CY",
-        color: "#E60049",
-        label: "Total Population"
-      }]
+      attributes: [
+        {
+          field: "TOTPOP_CY",
+          color: "#E60049",
+          label: "Total Population",
+        },
+      ],
     },
     income: {
       type: "class-breaks",
@@ -337,9 +345,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "< $35,000"
+          label: "< $35,000",
         },
         {
           minValue: 35000,
@@ -347,9 +355,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "$35,000 - $65,000"
+          label: "$35,000 - $65,000",
         },
         {
           minValue: 65000,
@@ -357,9 +365,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "$65,000 - $95,000"
+          label: "$65,000 - $95,000",
         },
         {
           minValue: 95000,
@@ -367,9 +375,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "$95,000 - $125,000"
+          label: "$95,000 - $125,000",
         },
         {
           minValue: 125000,
@@ -377,9 +385,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "$125,000 - $155,000"
+          label: "$125,000 - $155,000",
         },
         {
           minValue: 155000,
@@ -387,9 +395,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "$155,000 - $200,000"
+          label: "$155,000 - $200,000",
         },
         {
           minValue: 200000,
@@ -397,13 +405,13 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [204, 153, 255, 0.35], // Pastel violet with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "> $200,000"
-        }
-      ]
+          label: "> $200,000",
+        },
+      ],
     },
-    
+
     growth: {
       type: "class-breaks",
       field: "HHGRW20CY",
@@ -414,9 +422,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "Less than -3%"
+          label: "Less than -3%",
         },
         {
           minValue: -3,
@@ -424,9 +432,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "-3% to -1%"
+          label: "-3% to -1%",
         },
         {
           minValue: -1.5,
@@ -434,9 +442,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "-1% to 1%"
+          label: "-1% to 1%",
         },
         {
           minValue: 0,
@@ -444,9 +452,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "1% to 3%"
+          label: "1% to 3%",
         },
         {
           minValue: 1,
@@ -454,9 +462,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "3% to 5%"
+          label: "3% to 5%",
         },
         {
           minValue: 2,
@@ -464,9 +472,9 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "5% to 10%"
+          label: "5% to 10%",
         },
         {
           minValue: 4,
@@ -474,17 +482,15 @@ export default function MapComponent({ onToggleList }) {
           symbol: {
             type: "simple-fill",
             color: [204, 153, 255, 0.35], // Pastel violet with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
           },
-          label: "More than 10%"
-        }
-      ]
-    }
+          label: "More than 10%",
+        },
+      ],
+    },
   });
 
-  const [tabs, setTabs] = useState([
-    { id: 1, name: "Core Map", active: true },
-  ]);
+  const [tabs, setTabs] = useState([{ id: 1, name: "Core Map", active: true }]);
   const [activeTab, setActiveTab] = useState(1);
   const [visualizationType, setVisualizationType] = useState(null);
 
@@ -516,156 +522,193 @@ export default function MapComponent({ onToggleList }) {
     }
   }, []);
 
-    useEffect(() => {
-      let isMounted = true;
-    
-      const initializeMap = async () => {
-        try {
-          const map = new Map({
-            basemap: "arcgis-navigation",
-          });
-    
-          const view = new MapView({
-            container: mapRef.current,
-            map: map,
-            center: [-117.8311, 33.7175],
-            zoom: 11,
-            constraints: {
-              snapToZoom: false,
-              rotationEnabled: false,
-              minZoom: 2,
-              maxZoom: 20
-            },
-            navigation: {
-              mouseWheelZoomEnabled: true,
-              browserTouchPanEnabled: true,
-              momentumEnabled: true,
-              keyboardNavigation: true
-            },
-            viewpoint: {
-              targetGeometry: null,
-              scale: null,
-              rotation: 0
-            },
-            ui: {
-              components: ["attribution"]
-            }
-          });
-    
-          // Add smooth zoom behavior
-          view.on("mouse-wheel", (event) => {
-            event.stopPropagation();
-            const delta = event.deltaY;
-            
-            // Get current zoom level
-            const currentZoom = view.zoom;
-            
-            // Calculate new zoom level with finer granularity
-            const zoomDelta = delta > 0 ? -0.2 : 0.2;
-            const newZoom = Math.min(Math.max(currentZoom + zoomDelta, view.constraints.minZoom), view.constraints.maxZoom);
-            
-            // Animate to new zoom level
-            view.goTo({
+  // First, add the deleteTab handler function inside the MapComponent
+  const deleteTab = (tabId, e) => {
+    e.stopPropagation(); // Prevent tab activation when clicking delete button
+
+    // Don't allow deletion of the core map
+    if (tabId === 1) return;
+
+    // Remove the tab
+    const newTabs = tabs.filter((tab) => tab.id !== tabId);
+
+    // If we're deleting the active tab, switch to the previous tab
+    if (activeTab === tabId) {
+      const newActiveTab = newTabs[newTabs.length - 1].id;
+      setActiveTab(newActiveTab);
+      setTabs(
+        newTabs.map((tab) =>
+          tab.id === newActiveTab
+            ? { ...tab, active: true }
+            : { ...tab, active: false }
+        )
+      );
+    } else {
+      setTabs(newTabs);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeMap = async () => {
+      try {
+        const map = new Map({
+          basemap: "arcgis-navigation",
+        });
+
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          center: [-117.8311, 33.7175], // Orange County, CA coordinates
+          zoom: 11,
+          constraints: {
+            snapToZoom: false,
+            rotationEnabled: false,
+            minZoom: 2,
+            maxZoom: 20,
+          },
+          navigation: {
+            mouseWheelZoomEnabled: true,
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
+          },
+          viewpoint: {
+            targetGeometry: null,
+            scale: null,
+            rotation: 0,
+          },
+          ui: {
+            components: ["attribution"],
+          },
+        });
+
+        // Add smooth zoom behavior
+        view.on("mouse-wheel", (event) => {
+          event.stopPropagation();
+          const delta = event.deltaY;
+
+          // Get current zoom level
+          const currentZoom = view.zoom;
+
+          // Calculate new zoom level with finer granularity
+          const zoomDelta = delta > 0 ? -0.75 : 0.75;
+          const newZoom = Math.min(
+            Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
+
+          // Animate to new zoom level
+          view.goTo(
+            {
               zoom: newZoom,
-              center: view.center
-            }, {
+              center: view.center,
+            },
+            {
               duration: 100,
-              easing: "linear"
-            });
-          });
-    
-          // Add non-legend widgets
-          const widgets = [
-            {
-              widget: new Zoom({
-                view,
-                zoomFactor: 1.2, // Smaller zoom factor for smoother transitions
-              }),
-              position: "top-left",
-            },
-            {
-              widget: new Home({ view }),
-              position: "top-left",
-            },
-            {
-              widget: new BasemapToggle({
-                view,
-                nextBasemap: "arcgis-imagery",
-              }),
-              position: "bottom-right",
-            },
-            {
-              widget: new Locate({
-                view,
-                useHeadingEnabled: false,
-                goToOverride: (view, options) => {
-                  options.target.scale = 1500;
-                  return view.goTo(options.target, {
-                    duration: 1000,
-                    easing: "ease-in-out",
-                  });
-                },
-              }),
-              position: "top-left",
-            },
-            {
-              widget: new ScaleBar({
-                view,
-                unit: "imperial",
-              }),
-              position: "bottom-right",
-            },
-          ];
-    
-          // Add all non-legend widgets
-          widgets.forEach(({ widget, position }) => {
-            view.ui.add(widget, position);
-          });
-    
-          const legendWidget = new Legend({
-            view,
-            style: {
-              type: "classic",
-              layout: "stack"
+              easing: "linear",
             }
-          });
-    
-          setLegend(legendWidget);
-    
-          // Key event listener for keyboard zoom control
-          view.container.addEventListener("keydown", (event) => {
-            if (event.key === "+" || event.key === "=") {
-              event.preventDefault();
-              const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
-              view.goTo({
+          );
+        });
+
+        // Add non-legend widgets
+        const widgets = [
+          {
+            widget: new Zoom({
+              view,
+              zoomFactor: 1.2, // Smaller zoom factor for smoother transitions
+            }),
+            position: "top-left",
+          },
+          {
+            widget: new Home({ view }),
+            position: "top-left",
+          },
+          {
+            widget: new BasemapToggle({
+              view,
+              nextBasemap: "arcgis-imagery",
+            }),
+            position: "bottom-right",
+          },
+          {
+            widget: new Locate({
+              view,
+              useHeadingEnabled: false,
+              goToOverride: (view, options) => {
+                options.target.scale = 1500;
+                return view.goTo(options.target, {
+                  duration: 1000,
+                  easing: "ease-in-out",
+                });
+              },
+            }),
+            position: "top-left",
+          },
+          {
+            widget: new ScaleBar({
+              view,
+              unit: "imperial",
+            }),
+            position: "bottom-right",
+          },
+        ];
+
+        // Add all non-legend widgets
+        widgets.forEach(({ widget, position }) => {
+          view.ui.add(widget, position);
+        });
+
+        const legendWidget = new Legend({
+          view,
+          style: {
+            type: "classic",
+            layout: "stack",
+          },
+        });
+
+        setLegend(legendWidget);
+
+        // Key event listener for keyboard zoom control
+        view.container.addEventListener("keydown", (event) => {
+          if (event.key === "+" || event.key === "=") {
+            event.preventDefault();
+            const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
+            view.goTo(
+              {
                 zoom: newZoom,
-                center: view.center
-              }, {
+                center: view.center,
+              },
+              {
                 duration: 100,
-                easing: "linear"
-              });
-            } else if (event.key === "-" || event.key === "_") {
-              event.preventDefault();
-              const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
-              view.goTo({
+                easing: "linear",
+              }
+            );
+          } else if (event.key === "-" || event.key === "_") {
+            event.preventDefault();
+            const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
+            view.goTo(
+              {
                 zoom: newZoom,
-                center: view.center
-              }, {
+                center: view.center,
+              },
+              {
                 duration: 100,
-                easing: "linear"
-              });
-            }
-          });
-    
-          if (isMounted) {
-            setMapView(view);
+                easing: "linear",
+              }
+            );
           }
-    
-        } catch (error) {
-          console.error("[Map] Error initializing map:", error);
+        });
+
+        if (isMounted) {
+          setMapView(view);
         }
-      };
-  
+      } catch (error) {
+        console.error("[Map] Error initializing map:", error);
+      }
+    };
+
     initializeMap();
     return () => {
       isMounted = false;
@@ -674,7 +717,7 @@ export default function MapComponent({ onToggleList }) {
 
   useEffect(() => {
     if (!legend) return;
-  
+
     const styleLegend = () => {
       const legendContainer = document.querySelector(".esri-legend");
       if (legendContainer) {
@@ -684,45 +727,51 @@ export default function MapComponent({ onToggleList }) {
         legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
         legendContainer.style.borderRadius = "0.375rem";
         legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-  
+
         // Style the legend title
-        const legendTitle = legendContainer.querySelector(".esri-legend__service-label");
+        const legendTitle = legendContainer.querySelector(
+          ".esri-legend__service-label"
+        );
         if (legendTitle) {
           legendTitle.style.fontWeight = "600";
           legendTitle.style.fontSize = "0.875rem";
           legendTitle.style.marginBottom = "0.75rem";
           legendTitle.style.color = "#111827";
         }
-  
+
         // Style individual legend items
-        const legendItems = legendContainer.querySelectorAll(".esri-legend__layer-row");
-        legendItems.forEach(item => {
+        const legendItems = legendContainer.querySelectorAll(
+          ".esri-legend__layer-row"
+        );
+        legendItems.forEach((item) => {
           item.style.display = "flex";
           item.style.alignItems = "center";
           item.style.marginBottom = "0.5rem";
         });
-  
+
         // Style the color swatches
-        const swatches = legendContainer.querySelectorAll(".esri-legend__symbol");
-        swatches.forEach(swatch => {
+        const swatches = legendContainer.querySelectorAll(
+          ".esri-legend__symbol"
+        );
+        swatches.forEach((swatch) => {
           swatch.style.width = "1rem";
           swatch.style.height = "1rem";
           swatch.style.marginRight = "0.5rem";
         });
-  
+
         // Style the labels
-        const labels = legendContainer.querySelectorAll(".esri-legend__layer-cell--info");
-        labels.forEach(label => {
+        const labels = legendContainer.querySelectorAll(
+          ".esri-legend__layer-cell--info"
+        );
+        labels.forEach((label) => {
           label.style.fontSize = "0.875rem";
           label.style.color = "#4B5563";
         });
       }
     };
-  
+
     styleLegend();
   }, [legend]);
-
-
 
   // Handle legend visibility based on active tab
   useEffect(() => {
@@ -733,7 +782,7 @@ export default function MapComponent({ onToggleList }) {
       mapView.ui.remove(legend);
     } else {
       // Add legend for other maps if not already present
-      if (!mapView.ui.find(widget => widget === legend)) {
+      if (!mapView.ui.find((widget) => widget === legend)) {
         mapView.ui.add(legend, "bottom-left");
       }
     }
@@ -862,15 +911,19 @@ export default function MapComponent({ onToggleList }) {
             layersToRemove.push(layer);
           }
         });
-        layersToRemove.forEach(layer => mapView.map.remove(layer));
+        layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
         // Find the active tab and its visualization type
         const activeTabData = tabs.find((tab) => tab.id === activeTab);
 
         // Only add new layer if we're not in the core map and have a selected type
         if (activeTab !== 1 && activeTabData?.visualizationType) {
-          const currentConfig = layerConfigurations[activeTabData.visualizationType];
-          const newLayer = createLayers(activeTabData.visualizationType, currentConfig);
+          const currentConfig =
+            layerConfigurations[activeTabData.visualizationType];
+          const newLayer = createLayers(
+            activeTabData.visualizationType,
+            currentConfig
+          );
 
           if (newLayer) {
             newLayer.isVisualizationLayer = true;
@@ -885,15 +938,14 @@ export default function MapComponent({ onToggleList }) {
     updateVisualizationLayer();
   }, [activeTab, tabs, mapView, layerConfigurations]);
 
-
   const handleLayerConfigChange = (newConfig) => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (activeTabData?.visualizationType) {
-      setLayerConfigurations(prev => ({
+      setLayerConfigurations((prev) => ({
         ...prev,
-        [activeTabData.visualizationType]: newConfig
+        [activeTabData.visualizationType]: newConfig,
       }));
-      
+
       // Immediately update the layer with new configuration
       if (mapView?.map) {
         // Remove existing visualization layers
@@ -903,10 +955,13 @@ export default function MapComponent({ onToggleList }) {
             layersToRemove.push(layer);
           }
         });
-        layersToRemove.forEach(layer => mapView.map.remove(layer));
+        layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
         // Create and add new layer with updated config
-        const newLayer = createLayers(activeTabData.visualizationType, newConfig);
+        const newLayer = createLayers(
+          activeTabData.visualizationType,
+          newConfig
+        );
         if (newLayer) {
           newLayer.isVisualizationLayer = true;
           mapView.map.add(newLayer, 0);
@@ -914,10 +969,10 @@ export default function MapComponent({ onToggleList }) {
       }
     }
   };
-  
+
   const handleConfigPreview = (previewConfig) => {
     if (!mapView?.map) return;
-  
+
     // Remove existing visualization layers
     const layersToRemove = [];
     mapView.map.layers.forEach((layer) => {
@@ -925,12 +980,15 @@ export default function MapComponent({ onToggleList }) {
         layersToRemove.push(layer);
       }
     });
-    layersToRemove.forEach(layer => mapView.map.remove(layer));
-  
+    layersToRemove.forEach((layer) => mapView.map.remove(layer));
+
     // Create new layer with preview config
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (activeTabData?.visualizationType) {
-      const newLayer = createLayers(activeTabData.visualizationType, previewConfig);
+      const newLayer = createLayers(
+        activeTabData.visualizationType,
+        previewConfig
+      );
       if (newLayer) {
         newLayer.isVisualizationLayer = true;
         mapView.map.add(newLayer, 0);
@@ -977,25 +1035,47 @@ export default function MapComponent({ onToggleList }) {
                     <div className="flex items-center">
                       <span>{tab.name}</span>
                       {tab.id !== 1 && (
-                        <div
-                          onClick={(e) => startEditing(tab.id, e)}
-                          className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                        <>
+                          <div
+                            onClick={(e) => startEditing(tab.id, e)}
+                            className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                            />
-                          </svg>
-                        </div>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                              />
+                            </svg>
+                          </div>
+                          <div
+                            onClick={(e) => deleteTab(tab.id, e)}
+                            className="ml-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                            title="Delete map"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
@@ -1061,16 +1141,22 @@ export default function MapComponent({ onToggleList }) {
       </div>
 
       {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-      <LayerPropertiesEditor
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        visualizationType={tabs.find((tab) => tab.id === activeTab)?.visualizationType}
-        layerConfig={layerConfigurations[tabs.find((tab) => tab.id === activeTab)?.visualizationType]}
-        onConfigChange={handleLayerConfigChange}
-        onPreview={handleConfigPreview}
-        className="right-side-drawer"
-      />
-    )}
+        <LayerPropertiesEditor
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          visualizationType={
+            tabs.find((tab) => tab.id === activeTab)?.visualizationType
+          }
+          layerConfig={
+            layerConfigurations[
+              tabs.find((tab) => tab.id === activeTab)?.visualizationType
+            ]
+          }
+          onConfigChange={handleLayerConfigChange}
+          onPreview={handleConfigPreview}
+          className="right-side-drawer"
+        />
+      )}
     </div>
   );
 }
