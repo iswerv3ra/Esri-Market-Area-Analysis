@@ -15,9 +15,8 @@ import LayerPropertiesEditor from './LayerPropertiesEditor';
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-  const initialLayerConfigurations = {
+  const layerConfigurations = {
     population: {
-      // Population configuration remains unchanged
       type: "dot-density",
       field: "TOTPOP_CY",
       dotValue: 100,
@@ -36,147 +35,135 @@ const API_KEY =
         label: "Total Population"
       }]
     },
-    
     income: {
       type: "class-breaks",
       field: "MEDHINC_CY",
       classBreakInfos: [
         {
           minValue: -Infinity,
-          maxValue: 35000,
+          maxValue: 50000,
           symbol: {
             type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
+            color: "#8083D6", // Purple
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "Under $35K"
+          label: "$50K or Less"
         },
         {
-          minValue: 35000,
-          maxValue: 65000,
+          minValue: 50000,
+          maxValue: 75000,
           symbol: {
             type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
+            color: "#90EE90", // Light green
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$35K - $65K"
+          label: "$50K - $75K"
         },
         {
-          minValue: 65000,
-          maxValue: 95000,
+          minValue: 75000,
+          maxValue: 100000,
           symbol: {
             type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
+            color: "#FFFF8F", // Light yellow
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$65K - $95K"
+          label: "$75K - $100K"
         },
         {
-          minValue: 95000,
+          minValue: 100000,
           maxValue: 125000,
           symbol: {
             type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
+            color: "#FFB6B6", // Light salmon
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$95K - $125K"
+          label: "$100K - $125K"
         },
         {
           minValue: 125000,
-          maxValue: 155000,
+          maxValue: 150000,
           symbol: {
             type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
+            color: "#FF7F7F", // Lighter red
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$125K - $155K"
+          label: "$125K - $150K"
         },
         {
-          minValue: 155000,
-          maxValue: 200000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$155K - $200K"
-        },
-        {
-          minValue: 200000,
+          minValue: 150000,
           maxValue: Infinity,
           symbol: {
             type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
+            color: "#FF4040", // Red
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "Over $200K"
+          label: "$150K or More"
         }
       ]
     },
-    
     growth: {
       type: "class-breaks",
       field: "HHGRW20CY",
       classBreakInfos: [
         {
           minValue: -Infinity,
-          maxValue: -3.00,
+          maxValue: -3,
           symbol: {
             type: "simple-fill",
-            color: "#ff0000", // Deep red for negative growth
+            color: "#8083D6", // Purple
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
           label: "Less than -3%"
         },
         {
-          minValue: -3.00,
-          maxValue: -1.50,
+          minValue: -3,
+          maxValue: -2,
           symbol: {
             type: "simple-fill",
-            color: "#ff4d4d", // Lighter red
+            color: "#90EE90", // Light green
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "-3% to 0%"
+          label: "-3% to -2%"
         },
         {
-          minValue: -1.50,
-          maxValue: 1.00,
+          minValue: -2,
+          maxValue: -1,
           symbol: {
             type: "simple-fill",
-            color: "#9933ff", // Purple (transition)
+            color: "#FFFF8F", // Light yellow
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "0% to 2%"
+          label: "-2% to -1%"
         },
         {
-          minValue: 1.00,
-          maxValue: 2.00,
+          minValue: -1,
+          maxValue: 0,
           symbol: {
             type: "simple-fill",
-            color: "#6600ff", // Blue-purple
+            color: "#FFE5CC", // Lightest orange
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "2% to 5%"
+          label: "-1% to 0%"
         },
         {
-          minValue: 2.00,
-          maxValue: 4.00,
+          minValue: 0,
+          maxValue: 1,
           symbol: {
             type: "simple-fill",
-            color: "#3300ff", // Light blue
+            color: "#FF7F7F", // Light red
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "5% to 10%"
+          label: "0% to 1%"
         },
         {
-          minValue: 4.00,
+          minValue: 1,
           maxValue: Infinity,
           symbol: {
             type: "simple-fill",
-            color: "#0000ff", // Deep blue for highest growth
+            color: "#FF4040", // Red
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "More than 10%"
+          label: "More than 1%"
         }
       ]
     }
@@ -306,7 +293,8 @@ export default function MapComponent({ onToggleList }) {
   const layersRef = useRef({});
   const [legend, setLegend] = useState(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-
+  
+  // Initialize layer configurations state
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
       type: "dot-density",
@@ -332,151 +320,110 @@ export default function MapComponent({ onToggleList }) {
       field: "MEDHINC_CY",
       classBreakInfos: [
         {
-          minValue: -Infinity,
+          minValue: 0,
           maxValue: 35000,
           symbol: {
             type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
+            color: "#fee5d9",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
           label: "< $35,000"
         },
         {
           minValue: 35000,
-          maxValue: 65000,
+          maxValue: 75000,
           symbol: {
             type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
+            color: "#fcae91",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$35,000 - $65,000"
+          label: "$35,000 - $75,000"
         },
         {
-          minValue: 65000,
-          maxValue: 95000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$65,000 - $95,000"
-        },
-        {
-          minValue: 95000,
+          minValue: 75000,
           maxValue: 125000,
           symbol: {
             type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
+            color: "#fb6a4a",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$95,000 - $125,000"
+          label: "$75,000 - $125,000"
         },
         {
           minValue: 125000,
-          maxValue: 155000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "$125,000 - $155,000"
-        },
-        {
-          minValue: 155000,
           maxValue: 200000,
           symbol: {
             type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
+            color: "#de2d26",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "$155,000 - $200,000"
+          label: "$125,000 - $200,000"
         },
         {
           minValue: 200000,
           maxValue: Infinity,
           symbol: {
             type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
+            color: "#a50f15",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
           label: "> $200,000"
         }
       ]
     },
-    
     growth: {
       type: "class-breaks",
       field: "HHGRW20CY",
       classBreakInfos: [
         {
           minValue: -Infinity,
-          maxValue: -3,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "Less than -3%"
-        },
-        {
-          minValue: -3,
-          maxValue: -1.5,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "-3% to -1%"
-        },
-        {
-          minValue: -1.5,
           maxValue: 0,
           symbol: {
             type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
+            color: "#d73027",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "-1% to 1%"
+          label: "Negative Growth"
         },
         {
           minValue: 0,
-          maxValue: 1,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          },
-          label: "1% to 3%"
-        },
-        {
-          minValue: 1,
           maxValue: 2,
           symbol: {
             type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
+            color: "#fc8d59",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "3% to 5%"
+          label: "0% - 2%"
         },
         {
           minValue: 2,
-          maxValue: 4,
+          maxValue: 5,
           symbol: {
             type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
+            color: "#fee08b",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "5% to 10%"
+          label: "2% - 5%"
         },
         {
-          minValue: 4,
+          minValue: 5,
+          maxValue: 10,
+          symbol: {
+            type: "simple-fill",
+            color: "#91cf60",
+            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+          },
+          label: "5% - 10%"
+        },
+        {
+          minValue: 10,
           maxValue: Infinity,
           symbol: {
             type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
+            color: "#1a9850",
             outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
           },
-          label: "More than 10%"
+          label: "> 10%"
         }
       ]
     }
@@ -586,12 +533,10 @@ export default function MapComponent({ onToggleList }) {
           view.ui.add(widget, position);
         });
 
+        // Create legend but don't add it yet
         const legendWidget = new Legend({
           view,
-          style: {
-            type: "classic", // Change from "card" to "classic"
-            layout: "stack"  // Stack items vertically
-          }
+          style: "card",
         });
 
         setLegend(legendWidget);
@@ -610,57 +555,49 @@ export default function MapComponent({ onToggleList }) {
     };
   }, [setMapView]);
 
+  // Style the legend whenever it changes
   useEffect(() => {
     if (!legend) return;
-  
+
     const styleLegend = () => {
       const legendContainer = document.querySelector(".esri-legend");
       if (legendContainer) {
         legendContainer.style.backgroundColor = "white";
-        legendContainer.style.padding = "1rem";
-        legendContainer.style.margin = "0.5rem";
         legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
         legendContainer.style.borderRadius = "0.375rem";
-        legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-  
-        // Style the legend title
-        const legendTitle = legendContainer.querySelector(".esri-legend__service-label");
+        legendContainer.style.padding = "0.5rem";
+        legendContainer.style.margin = "0.5rem";
+        legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+        
+        const legendTitle = legendContainer.querySelector(".esri-legend__title");
         if (legendTitle) {
           legendTitle.style.fontWeight = "600";
           legendTitle.style.fontSize = "0.875rem";
-          legendTitle.style.marginBottom = "0.75rem";
+          legendTitle.style.marginBottom = "0.5rem";
           legendTitle.style.color = "#111827";
         }
-  
-        // Style individual legend items
-        const legendItems = legendContainer.querySelectorAll(".esri-legend__layer-row");
+
+        const legendItems = legendContainer.querySelectorAll(".esri-legend__layer-cell");
         legendItems.forEach(item => {
-          item.style.display = "flex";
-          item.style.alignItems = "center";
-          item.style.marginBottom = "0.5rem";
+          const label = item.querySelector(".esri-legend__layer-cell--info");
+          if (label) {
+            label.style.fontSize = "0.75rem";
+            label.style.color = "#4B5563";
+          }
         });
-  
-        // Style the color swatches
+
         const swatches = legendContainer.querySelectorAll(".esri-legend__symbol");
         swatches.forEach(swatch => {
-          swatch.style.width = "1rem";
-          swatch.style.height = "1rem";
-          swatch.style.marginRight = "0.5rem";
-        });
-  
-        // Style the labels
-        const labels = legendContainer.querySelectorAll(".esri-legend__layer-cell--info");
-        labels.forEach(label => {
-          label.style.fontSize = "0.875rem";
-          label.style.color = "#4B5563";
+          swatch.style.width = "1.5rem";
+          swatch.style.height = "1.5rem";
+          swatch.style.margin = "0.25rem";
+          swatch.style.borderRadius = "0.25rem";
         });
       }
     };
-  
+
     styleLegend();
   }, [legend]);
-
-
 
   // Handle legend visibility based on active tab
   useEffect(() => {
@@ -999,16 +936,15 @@ export default function MapComponent({ onToggleList }) {
       </div>
 
       {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-      <LayerPropertiesEditor
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        visualizationType={tabs.find((tab) => tab.id === activeTab)?.visualizationType}
-        layerConfig={layerConfigurations[tabs.find((tab) => tab.id === activeTab)?.visualizationType]}
-        onConfigChange={handleLayerConfigChange}
-        onPreview={handleConfigPreview}
-        className="right-side-drawer"
-      />
-    )}
+        <LayerPropertiesEditor
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          visualizationType={tabs.find((tab) => tab.id === activeTab)?.visualizationType}
+          layerConfig={layerConfigurations[tabs.find((tab) => tab.id === activeTab)?.visualizationType]}
+          onConfigChange={handleLayerConfigChange}
+          onPreview={handleConfigPreview}
+        />
+      )}
     </div>
   );
 }

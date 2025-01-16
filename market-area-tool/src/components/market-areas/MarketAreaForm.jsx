@@ -75,6 +75,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
   const maTypes = [
     { value: "radius", label: "Radius" },
+    { value: "demographics", label: "Demographics" }, // Add this line
     { value: "zip", label: "Zip Code" },
     { value: "county", label: "County" },
     { value: "place", label: "Place" },
@@ -264,16 +265,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateStyles();
   }, [formState.styleSettings, radiusPoints, updateStyles]);
 
-  // Change the MA type
   const handleMATypeChange = useCallback(
     async (e) => {
       const newType = e.target.value;
+      console.log("Changing to type:", newType); // Debug log
       try {
         clearSelection();
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-
+  
         setFormState((prev) => ({
           ...prev,
           maType: newType,
@@ -281,12 +282,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           availableLocations: [],
           selectedLocations: [],
         }));
-
+  
         setRadiusPoints([]);
         setError(null);
-
+  
         if (newType && newType !== "radius") {
           try {
+            console.log("Adding active layer for:", newType); // Debug log
             await addActiveLayer(newType);
           } catch (err) {
             console.error(`Error initializing layer ${newType}:`, err);
@@ -301,13 +303,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setError(`Failed to switch to ${newType}. Please try again.`);
       }
     },
-    [
-      addActiveLayer,
-      clearSelection,
-      removeActiveLayer,
-      formState.maType,
-      setError,
-    ]
+    [addActiveLayer, clearSelection, removeActiveLayer, formState.maType, setError]
   );
 
   // Searching

@@ -76,22 +76,7 @@ export default function RootLayout() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Link
-              to="/presets"
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-            >
-              <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              <span className="hidden sm:inline">Variables</span>
-            </Link>
-
-            {/* New link for Manage Preset Colors */}
-            <Link
-              to="/manage-preset-color"
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-            >
-              <SwatchIcon className="h-5 w-5" />
-              <span className="hidden sm:inline">Colors</span>
-            </Link>
+  
 
             <button
               onClick={handleHomeClick}
