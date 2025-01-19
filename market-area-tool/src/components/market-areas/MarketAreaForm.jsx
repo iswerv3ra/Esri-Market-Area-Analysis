@@ -620,8 +620,27 @@ useEffect(() => {
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
   
-        // Clear all graphics
+        // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
+        clearSelection();
+  
+        // Reset form state
+        setFormState(prev => ({
+          ...prev,
+          maType: "",
+          maName: "",
+          shortName: "",
+          locationSearch: "",
+          availableLocations: [],
+          selectedLocations: [],
+          // Preserve style settings
+          styleSettings: {
+            ...prev.styleSettings
+          }
+        }));
+  
+        // Clear radius points
+        setRadiusPoints([]);
   
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
@@ -656,9 +675,6 @@ useEffect(() => {
         localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
         setVisibleMarketAreaIds(currentVisibleIds);
   
-        setEditingMarketArea(null);
-        onClose?.();
-        pressMAListButton();
       } else {
         // Non-radius scenario
         const marketAreaData = {
@@ -708,13 +724,29 @@ useEffect(() => {
           },
         }));
   
-        // Remove active layer
+        // Remove active layer and clear selections
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
   
-        // Clear all graphics
+        // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
+        clearSelection();
+  
+        // Reset form state
+        setFormState(prev => ({
+          ...prev,
+          maType: "",
+          maName: "",
+          shortName: "",
+          locationSearch: "",
+          availableLocations: [],
+          selectedLocations: [],
+          // Preserve style settings
+          styleSettings: {
+            ...prev.styleSettings
+          }
+        }));
   
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
@@ -751,11 +783,13 @@ useEffect(() => {
   
         localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
         setVisibleMarketAreaIds(currentVisibleIds);
-  
-        setEditingMarketArea(null);
-        onClose?.();
-        pressMAListButton();
       }
+  
+      // Common cleanup
+      setEditingMarketArea(null);
+      onClose?.();
+      pressMAListButton();
+  
     } catch (err) {
       console.error("Error saving market area:", err);
       setError(err.message || "Error saving market area");
