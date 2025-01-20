@@ -1075,12 +1075,13 @@ useEffect(() => {
                 </div>
               </div>
             ))}
-            <button
-              onClick={addNewTab}
-              className="ml-2 px-3 py-1 text-sm bg-green-500 dark:bg-green-600 text-white rounded hover:bg-green-600 dark:hover:bg-green-700 focus:outline-none transition-colors"
-            >
-              + New Map
-            </button>
+          <button
+            disabled
+            className="ml-2 px-3 py-1 text-sm bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded cursor-not-allowed"
+            title="Coming soon"
+          >
+            + New Map
+          </button>
           </div>
           {activeTab !== 1 && (
             <div className="ml-4 flex items-center space-x-2">
