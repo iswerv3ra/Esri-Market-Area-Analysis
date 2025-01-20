@@ -214,27 +214,27 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     try {
       const { fillColor, fillOpacity, borderColor, borderWidth } =
         formState.styleSettings;
-  
+
       if (formState.maType === "radius") {
         // Clear existing radius graphics first
         if (selectionGraphicsLayer) {
           const radiusGraphics = selectionGraphicsLayer.graphics.filter(
-            g => g.attributes?.FEATURE_TYPE === "radius"
+            (g) => g.attributes?.FEATURE_TYPE === "radius"
           );
           selectionGraphicsLayer.removeMany(radiusGraphics);
         }
-        
+
         // Re-draw all radius rings with new style settings
         radiusPoints.forEach((point) => {
           drawRadius(
-            point, 
+            point,
             {
               fillColor,
               fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
               borderColor,
-              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth
+              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
             },
-            editingMarketArea?.id || 'temporary',
+            editingMarketArea?.id || "temporary",
             editingMarketArea?.order || 0
           );
         });
@@ -249,7 +249,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             order: editingMarketArea?.order || 0,
           },
         }));
-  
+
         updateFeatureStyles(
           features,
           {
@@ -288,7 +288,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-  
+
         setFormState((prev) => ({
           ...prev,
           maType: newType,
@@ -296,10 +296,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           availableLocations: [],
           selectedLocations: [],
         }));
-  
+
         setRadiusPoints([]);
         setError(null);
-  
+
         if (newType && newType !== "radius") {
           try {
             console.log("Adding active layer for:", newType); // Debug log
@@ -317,24 +317,84 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setError(`Failed to switch to ${newType}. Please try again.`);
       }
     },
-    [addActiveLayer, clearSelection, removeActiveLayer, formState.maType, setError]
+    [
+      addActiveLayer,
+      clearSelection,
+      removeActiveLayer,
+      formState.maType,
+      setError,
+    ]
   );
 
-
-// In Radius component or within the MarketAreaForm's radius handling logic
-useEffect(() => {
-  if (formState.maType === 'radius' && radiusPoints.length > 0) {
-    // Immediately draw the most recent radius point
-    const latestPoint = radiusPoints[radiusPoints.length - 1];
-    drawRadius(
-      latestPoint, 
-      formState.styleSettings, 
-      editingMarketArea?.id || 'temporary', 
-      0  // Default order
-    );
-  }
-}, [radiusPoints, formState.maType, formState.styleSettings, drawRadius]);
-
+  useEffect(() => {
+    const drawRadiusPoints = async () => {
+      if (formState.maType === "radius" && radiusPoints.length > 0) {
+        const latestPoint = radiusPoints[radiusPoints.length - 1];
+        console.log("Drawing radius point:", latestPoint);
+  
+        try {
+          // Normalize the center coordinates
+          let centerCoords = {};
+          if (latestPoint.center?.longitude !== undefined && latestPoint.center?.latitude !== undefined) {
+            centerCoords = {
+              x: Number(latestPoint.center.longitude),
+              y: Number(latestPoint.center.latitude)
+            };
+          } else if (latestPoint.center?.x !== undefined && latestPoint.center?.y !== undefined) {
+            centerCoords = {
+              x: typeof latestPoint.center.x === "function" 
+                ? latestPoint.center.x() 
+                : Number(latestPoint.center.x),
+              y: typeof latestPoint.center.y === "function" 
+                ? latestPoint.center.y() 
+                : Number(latestPoint.center.y)
+            };
+          }
+  
+          // Validate coordinates
+          if (isNaN(centerCoords.x) || isNaN(centerCoords.y)) {
+            console.error("Invalid radius point coordinates:", centerCoords);
+            return;
+          }
+  
+          // Prepare radii
+          const radii = Array.isArray(latestPoint.radii) 
+            ? latestPoint.radii.map(Number) 
+            : [Number(latestPoint.radius || 10)];
+  
+          const radiusPoint = {
+            center: {
+              x: centerCoords.x,
+              y: centerCoords.y,
+              spatialReference: latestPoint.center.spatialReference || { wkid: 102100 }
+            },
+            radii: radii.filter(r => !isNaN(r) && r > 0),
+            units: latestPoint.units || 'miles'
+          };
+  
+          console.log("Transformed radius point for drawing:", radiusPoint);
+  
+          // Draw the radius
+          await drawRadius(
+            radiusPoint,
+            formState.styleSettings,
+            editingMarketArea?.id || "temporary",
+            editingMarketArea?.order || 0
+          );
+        } catch (error) {
+          console.error("Comprehensive error drawing radius point:", error);
+        }
+      }
+    };
+  
+    drawRadiusPoints();
+  }, [
+    radiusPoints, 
+    formState.maType, 
+    formState.styleSettings, 
+    drawRadius, 
+    editingMarketArea
+  ]);
   // Searching
   useEffect(() => {
     const searchTimer = setTimeout(async () => {
@@ -543,13 +603,12 @@ useEffect(() => {
     }
   };
 
-
   useEffect(() => {
     if (!editingMarketArea) {
       clearSelection();
-      
+
       // Reset form state but preserve style settings
-      setFormState(prev => ({
+      setFormState((prev) => ({
         ...prev,
         maType: "",
         maName: "",
@@ -559,73 +618,146 @@ useEffect(() => {
         selectedLocations: [],
         // Keep existing style settings instead of reverting to default
         styleSettings: {
-          ...prev.styleSettings
-        }
+          ...prev.styleSettings,
+        },
       }));
-      
+
       // Clear radius points
       setRadiusPoints([]);
     }
   }, [editingMarketArea, clearSelection]);
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-  
+
     try {
       // Build styleSettings from user's final picks
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
-        fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+        fillOpacity: formState.styleSettings.noFill
+          ? 0
+          : formState.styleSettings.fillOpacity,
         borderColor: formState.styleSettings.borderColor,
-        borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
+        borderWidth: formState.styleSettings.noBorder
+          ? 0
+          : formState.styleSettings.borderWidth,
         excelFill: formState.styleSettings.excelFill,
         excelText: formState.styleSettings.excelText,
       };
-  
+
       // If they picked "md" as a type, treat it as "place"
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
-  
+
+      console.log("Form state on submit:", formState);
+      console.log("Current radius points:", radiusPoints);
+
       if (formState.maType === "radius") {
+        // Validate radius points
+        if (!radiusPoints || radiusPoints.length === 0) {
+          throw new Error("No radius points defined");
+        }
+
+        // Update the transformedRadiusPoints logic in handleSubmit
+        const transformedRadiusPoints = radiusPoints.map((point, index) => {
+          try {
+            // For points with longitude/latitude
+            if (point.center?.longitude !== undefined && point.center?.latitude !== undefined) {
+              const longitude = Number(point.center.longitude);
+              const latitude = Number(point.center.latitude);
+              
+              if (isNaN(longitude) || isNaN(latitude)) {
+                throw new Error(`Invalid coordinates for radius point ${index}`);
+              }
+
+              return {
+                center: {
+                  longitude,
+                  latitude,
+                  spatialReference: point.center.spatialReference || { wkid: 102100 }
+                },
+                radii: Array.isArray(point.radii) ? point.radii.map(Number) : [Number(point.radius || 1)],
+                units: point.units || 'miles'
+              };
+            }
+
+            // For points with x/y coordinates
+            const x = typeof point.center.x === "function" ? point.center.x() : Number(point.center.x);
+            const y = typeof point.center.y === "function" ? point.center.y() : Number(point.center.y);
+
+            if (isNaN(x) || isNaN(y)) {
+              throw new Error(`Invalid coordinates for radius point ${index}`);
+            }
+
+            return {
+              center: {
+                x,
+                y,
+                spatialReference: point.center.spatialReference || { wkid: 102100 }
+              },
+              radii: Array.isArray(point.radii) ? point.radii.map(Number) : [Number(point.radius || 1)],
+              units: point.units || 'miles'
+            };
+          } catch (error) {
+            console.error(`Error transforming point ${index}:`, error);
+            throw error;
+          }
+        });
+
+        console.log("Transformed radius points:", transformedRadiusPoints);
+
         const marketAreaData = {
           ma_type: "radius",
           name: formState.maName,
           short_name: formState.shortName,
           style_settings: styleSettings,
           locations: [],
-          radius_points: radiusPoints,
+          radius_points: transformedRadiusPoints,
         };
-  
+
+        console.log("Market area data to save:", marketAreaData);
+
         // Store existing graphics that we want to keep
         const existingGraphics = selectionGraphicsLayer.graphics
-          .filter((g) => g.attributes?.marketAreaId && g.attributes.marketAreaId !== editingMarketArea?.id)
+          .filter(
+            (g) =>
+              g.attributes?.marketAreaId &&
+              g.attributes.marketAreaId !== editingMarketArea?.id
+          )
           .toArray()
           .map((g) => ({
             geometry: g.geometry,
             attributes: g.attributes,
             symbol: g.symbol,
           }));
-  
+
         let savedMarketArea;
         if (editingMarketArea) {
-          savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+          console.log("Updating existing market area:", editingMarketArea.id);
+          savedMarketArea = await updateMarketArea(
+            projectId,
+            editingMarketArea.id,
+            marketAreaData
+          );
           toast.success("Market area updated successfully");
         } else {
+          console.log("Creating new market area");
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-  
+
+        console.log("Saved market area:", savedMarketArea);
+
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
-  
+
         // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
         clearSelection();
-  
-        // Reset form state
-        setFormState(prev => ({
+
+        // Reset form state while preserving style settings
+        setFormState((prev) => ({
           ...prev,
           maType: "",
           maName: "",
@@ -633,15 +765,14 @@ useEffect(() => {
           locationSearch: "",
           availableLocations: [],
           selectedLocations: [],
-          // Preserve style settings
           styleSettings: {
-            ...prev.styleSettings
-          }
+            ...prev.styleSettings,
+          },
         }));
-  
+
         // Clear radius points
         setRadiusPoints([]);
-  
+
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
@@ -652,9 +783,11 @@ useEffect(() => {
           });
           selectionGraphicsLayer.add(graphic);
         });
-  
+
         // Draw the radius(es) with proper styles
-        for (const point of radiusPoints) {
+        console.log("Drawing radius points:", marketAreaData.radius_points);
+        for (const point of marketAreaData.radius_points) {
+          console.log("Drawing radius point:", point);
           await drawRadius(
             point,
             styleSettings,
@@ -662,19 +795,25 @@ useEffect(() => {
             savedMarketArea.order
           );
         }
-  
+
         // Handle visibility
-        const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-        let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+        const storedVisibleIds = localStorage.getItem(
+          `marketAreas.${projectId}.visible`
+        );
+        let currentVisibleIds = storedVisibleIds
+          ? JSON.parse(storedVisibleIds)
+          : [];
         const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-  
+
         if (!currentVisibleIds.includes(marketAreaId)) {
           currentVisibleIds.push(marketAreaId);
         }
-  
-        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`,
+          JSON.stringify(currentVisibleIds)
+        );
         setVisibleMarketAreaIds(currentVisibleIds);
-  
       } else {
         // Non-radius scenario
         const marketAreaData = {
@@ -690,29 +829,37 @@ useEffect(() => {
           radius_points: [],
           original_type: formState.maType,
         };
-  
+
         // Store existing graphics that we want to keep
         const existingGraphics = selectionGraphicsLayer.graphics
-          .filter((g) => g.attributes?.marketAreaId && g.attributes.marketAreaId !== editingMarketArea?.id)
+          .filter(
+            (g) =>
+              g.attributes?.marketAreaId &&
+              g.attributes.marketAreaId !== editingMarketArea?.id
+          )
           .toArray()
           .map((g) => ({
             geometry: g.geometry,
             attributes: g.attributes,
             symbol: g.symbol,
           }));
-  
+
         let savedMarketArea;
         if (editingMarketArea) {
-          savedMarketArea = await updateMarketArea(projectId, editingMarketArea.id, marketAreaData);
+          savedMarketArea = await updateMarketArea(
+            projectId,
+            editingMarketArea.id,
+            marketAreaData
+          );
           toast.success("Market area updated successfully");
         } else {
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-  
+
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
-  
+
         // Prepare current selections with proper styling
         const currentSelections = selectedFeatures.map((feature) => ({
           ...feature,
@@ -723,18 +870,18 @@ useEffect(() => {
             order: savedMarketArea.order,
           },
         }));
-  
+
         // Remove active layer and clear selections
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-  
+
         // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
         clearSelection();
-  
-        // Reset form state
-        setFormState(prev => ({
+
+        // Reset form state while preserving style settings
+        setFormState((prev) => ({
           ...prev,
           maType: "",
           maName: "",
@@ -742,12 +889,11 @@ useEffect(() => {
           locationSearch: "",
           availableLocations: [],
           selectedLocations: [],
-          // Preserve style settings
           styleSettings: {
-            ...prev.styleSettings
-          }
+            ...prev.styleSettings,
+          },
         }));
-  
+
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
@@ -758,7 +904,7 @@ useEffect(() => {
           });
           selectionGraphicsLayer.add(graphic);
         });
-  
+
         // Immediately apply proper styles to new/updated features
         await updateFeatureStyles(
           currentSelections,
@@ -771,25 +917,31 @@ useEffect(() => {
           formState.maType,
           true // Add immediate flag to ensure styles are applied right away
         );
-  
+
         // Handle visibility
-        const storedVisibleIds = localStorage.getItem(`marketAreas.${projectId}.visible`);
-        let currentVisibleIds = storedVisibleIds ? JSON.parse(storedVisibleIds) : [];
+        const storedVisibleIds = localStorage.getItem(
+          `marketAreas.${projectId}.visible`
+        );
+        let currentVisibleIds = storedVisibleIds
+          ? JSON.parse(storedVisibleIds)
+          : [];
         const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-  
+
         if (!currentVisibleIds.includes(marketAreaId)) {
           currentVisibleIds.push(marketAreaId);
         }
-  
-        localStorage.setItem(`marketAreas.${projectId}.visible`, JSON.stringify(currentVisibleIds));
+
+        localStorage.setItem(
+          `marketAreas.${projectId}.visible`,
+          JSON.stringify(currentVisibleIds)
+        );
         setVisibleMarketAreaIds(currentVisibleIds);
       }
-  
+
       // Common cleanup
       setEditingMarketArea(null);
       onClose?.();
       pressMAListButton();
-  
     } catch (err) {
       console.error("Error saving market area:", err);
       setError(err.message || "Error saving market area");

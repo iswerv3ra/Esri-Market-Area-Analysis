@@ -1885,7 +1885,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-  // In MapContext.js, update the drawRadius function:
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
       if (
@@ -1900,7 +1899,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         });
         return;
       }
-
+  
       try {
         const [
           { default: Graphic },
@@ -1913,7 +1912,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           import("@arcgis/core/geometry/support/webMercatorUtils"),
           import("@arcgis/core/geometry/Point"),
         ]);
-
+  
         // Use provided style or fallback
         const fillRgb = style?.fillColor
           ? hexToRgb(style.fillColor)
@@ -1925,22 +1924,23 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           style?.fillOpacity !== undefined ? style.fillOpacity : 0.35;
         const borderWidth =
           style?.borderWidth !== undefined ? style.borderWidth : 2;
-
-        // Create center point
-        let centerPoint;
-        if (point.center instanceof Point) {
-          centerPoint = point.center;
-        } else {
-          centerPoint = new Point({
-            longitude: point.center.longitude,
-            latitude: point.center.latitude,
-            spatialReference: mapView.spatialReference,
-          });
-        }
-
+  
+        // Explicitly create point using longitude and latitude
+        const centerPoint = new Point({
+          longitude: point.center.x,  // Use x as longitude
+          latitude: point.center.y,   // Use y as latitude
+          spatialReference: mapView.spatialReference,
+        });
+  
+        console.log('DrawRadius centerPoint:', {
+          longitude: point.center.x,
+          latitude: point.center.y,
+          spatialReference: centerPoint.spatialReference
+        });
+  
         // Convert to geographic for geodesic buffer
         const geographicPoint = webMercatorToGeographic(centerPoint);
-
+  
         // Remove existing radius graphics for this point if updating
         if (marketAreaId) {
           const existingRadiusGraphics =
@@ -1950,26 +1950,29 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 g.attributes?.FEATURE_TYPE === "radius"
             );
           if (existingRadiusGraphics.length > 0) {
+            console.log(
+              `[MapContext] Removing ${existingRadiusGraphics.length} existing radius graphics`
+            );
             selectionGraphicsLayerRef.current.removeMany(
               existingRadiusGraphics
             );
           }
         }
-
+  
         // Generate circles for each radius
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
-
+  
           const polygon = geodesicBuffer(
             geographicPoint,
             radiusMeters,
             "meters"
           );
-
+  
           // Create unique ID for this radius circle
           const circleId = `${marketAreaId || "temp"}-radius-${i}`;
-
+  
           const symbol = {
             type: "simple-fill",
             color: [...fillRgb, fillOpacity],
@@ -1978,7 +1981,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               width: borderWidth,
             },
           };
-
+  
           const graphic = new Graphic({
             geometry: polygon,
             symbol: symbol,
@@ -1990,10 +1993,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               circleId,
             },
           });
-
+  
           selectionGraphicsLayerRef.current.add(graphic);
         }
-
+  
         // Log successful drawing
         console.log(
           `Drew radius rings for market area ${marketAreaId || "temp"}:`,
@@ -2110,43 +2113,26 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     console.log("[MapContext] Clear graphics called:", { marketAreaId });
-
+  
     if (!selectionGraphicsLayerRef.current) {
       console.log("[MapContext] No graphics layer available");
       return;
     }
-
+  
     try {
-      const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-
-      if (marketAreaId) {
-        // Clear only specific market area
-        const graphicsToRemove = allGraphics.filter(
-          (g) => g.attributes?.marketAreaId === marketAreaId
-        );
-
-        if (graphicsToRemove.length > 0) {
-          console.log(
-            `[MapContext] Removing ${graphicsToRemove.length} graphics for market area: ${marketAreaId}`
-          );
-          selectionGraphicsLayerRef.current.removeMany(graphicsToRemove);
-        }
-      } else {
-        // If no marketAreaId provided, only clear temporary graphics
-        const graphicsToKeep = allGraphics.filter(
-          (g) =>
-            g.attributes?.marketAreaId &&
-            g.attributes.marketAreaId !== "temporary" &&
-            g.attributes.marketAreaId !== "current"
-        );
-
+      // Find and remove ALL graphics associated with this market area
+      const graphicsToRemove = selectionGraphicsLayerRef.current.graphics.filter(
+        (graphic) => 
+          graphic.attributes?.marketAreaId === marketAreaId ||
+          (graphic.attributes?.FEATURE_TYPE === 'radius' && 
+           graphic.attributes?.marketAreaId === marketAreaId)
+      );
+  
+      if (graphicsToRemove.length > 0) {
         console.log(
-          "[MapContext] Clearing temporary graphics, keeping",
-          graphicsToKeep.length
+          `[MapContext] Removing ${graphicsToRemove.length} graphics for market area: ${marketAreaId}`
         );
-
-        selectionGraphicsLayerRef.current.removeAll();
-        graphicsToKeep.forEach((g) => selectionGraphicsLayerRef.current.add(g));
+        selectionGraphicsLayerRef.current.removeMany(graphicsToRemove);
       }
     } catch (error) {
       console.error("[MapContext] Error clearing graphics:", error);
