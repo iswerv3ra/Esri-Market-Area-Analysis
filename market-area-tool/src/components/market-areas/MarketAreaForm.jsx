@@ -950,30 +950,40 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       setIsSaving(false);
     }
   };
-
-  // “Cancel” logic
   const handleCancel = useCallback(async () => {
     try {
+      // Clear active layer if exists
+      if (formState.maType) {
+        await removeActiveLayer(formState.maType);
+      }
+  
+      // Store existing graphics that we want to keep (market area graphics only)
       const existingGraphics = selectionGraphicsLayer.graphics
-        .filter(
-          (g) =>
+        .filter((g) => {
+          // Keep only if:
+          // 1. Has a marketAreaId
+          // 2. Not from the currently editing market area
+          // 3. Not a temporary graphic
+          return (
             g.attributes?.marketAreaId &&
-            g.attributes.marketAreaId !== editingMarketArea?.id
-        )
+            g.attributes.marketAreaId !== editingMarketArea?.id &&
+            !g.attributes?.isTemporary &&
+            g.attributes.marketAreaId !== "temporary" &&
+            g.attributes.marketAreaId !== "temp"
+          );
+        })
         .toArray()
         .map((g) => ({
           geometry: g.geometry,
           attributes: g.attributes,
           symbol: g.symbol,
         }));
-
-      if (formState.maType) {
-        await removeActiveLayer(formState.maType);
-      }
-
+  
+      // Clear ALL graphics first
       if (selectionGraphicsLayer) {
         selectionGraphicsLayer.removeAll();
-
+        
+        // Restore only the filtered graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
           const graphic = new Graphic({
@@ -984,8 +994,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           selectionGraphicsLayer.add(graphic);
         });
       }
-
-      // If we were editing, re-draw that area’s original style
+  
+      // If we were editing, re-draw that area's original style
       if (editingMarketArea) {
         if (
           editingMarketArea.ma_type === "radius" &&
@@ -1014,7 +1024,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               FEATURE_TYPE: editingMarketArea.ma_type,
             },
           }));
-
           await updateFeatureStyles(
             features,
             {
@@ -1027,21 +1036,21 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
         }
       }
-
-      // Clear selected
+  
+      // Clear form state
       setFormState((prev) => ({
         ...prev,
         selectedLocations: [],
         locationSearch: "",
         availableLocations: [],
       }));
-
+  
+      // Clear any active selections and editing state
       clearSelection();
       setEditingMarketArea(null);
-
       onClose?.();
-
-      // Go back to the MA list
+  
+      // Navigate back to MA list
       const maListBtn = document.getElementById("maListButton");
       if (maListBtn) {
         maListBtn.click();
@@ -1059,7 +1068,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateFeatureStyles,
     setEditingMarketArea,
     onClose,
-    selectionGraphicsLayer,
+    selectionGraphicsLayer // Changed from selectionGraphicsLayerRef
   ]);
 
   return (

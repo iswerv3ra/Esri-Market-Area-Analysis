@@ -33,7 +33,7 @@ const MapContext = createContext();
 
 const FEATURE_LAYERS = {
   md: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Census2020/MapServer/74",
+    url: "https://services2.arcgis.com/FiaPA4ga0iQKduv3/ArcGIS/rest/services/Metropolitan_Divisions_v1/FeatureServer/0",
     outFields: [
       "OBJECTID",
       "GEOID",
@@ -78,7 +78,6 @@ const FEATURE_LAYERS = {
       "STATE",
       "STATE_FIPS",
       "STATE_NAME",
-      "STATE_ABBR",
       "FID",
     ],
     uniqueIdField: "FID",
@@ -93,13 +92,11 @@ const FEATURE_LAYERS = {
             { fieldName: "ZIP", label: "ZIP Code" },
             { fieldName: "PO_NAME", label: "Post Office Name" },
             { fieldName: "STATE_NAME", label: "State" },
-            { fieldName: "STATE_ABBR", label: "State Abbreviation" },
           ],
         },
       ],
     },
   },
-
   county: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/82",
     layerId: 82,
@@ -134,7 +131,6 @@ const FEATURE_LAYERS = {
     minScale: 12000000,
     maxScale: 100,
   },
-
   place: {
     urls: [
       "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/28",
@@ -258,20 +254,23 @@ const FEATURE_LAYERS = {
     },
   },
   state: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/80",
+    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/80",
     outFields: [
       "OBJECTID",
-      "GEOID",
-      "STATE",
-      "NAME",
-      "BASENAME",
-      "STUSAB",
-      "REGION",
-      "DIVISION",
+      "GEOID",     // State FIPS code
+      "STUSAB",    // State abbreviation
+      "NAME",      // State name
+      "BASENAME",  // Base name
+      "REGION",    // Census region
+      "DIVISION",  // Census division
+      "AREALAND",  // Land area
+      "AREAWATER", // Water area
+      "CENTLAT",   // Centroid latitude
+      "CENTLON"    // Centroid longitude
     ],
     uniqueIdField: "OBJECTID",
     title: "States",
-    geometryType: "polygon",
+    geometryType: "esriGeometryPolygon",
     popupTemplate: {
       title: "{NAME}",
       content: [
@@ -280,15 +279,48 @@ const FEATURE_LAYERS = {
           fieldInfos: [
             { fieldName: "NAME", label: "State Name" },
             { fieldName: "STUSAB", label: "State Abbreviation" },
-            { fieldName: "REGION", label: "Region" },
-            { fieldName: "DIVISION", label: "Division" },
-            { fieldName: "GEOID", label: "GEOID" },
-          ],
-        },
-      ],
+            { fieldName: "GEOID", label: "State FIPS Code" },
+            { fieldName: "REGION", label: "Census Region" },
+            { fieldName: "DIVISION", label: "Census Division" },
+            { fieldName: "AREALAND", label: "Land Area (sq m)" },
+            { fieldName: "AREAWATER", label: "Water Area (sq m)" }
+          ]
+        }
+      ]
     },
-    minScale: 591657527.591555,
+    labelingInfo: [{
+      labelExpressionInfo: {
+        expression: "$feature.NAME"
+      },
+      labelPlacement: "always-horizontal",
+      symbol: {
+        type: "text",
+        color: [0, 0, 0, 1],
+        haloColor: [255, 255, 255, 1],
+        haloSize: 2,
+        font: {
+          size: 14,
+          family: "Noto Sans",
+          weight: "bold"
+        }
+      }
+    }],
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        color: [0, 0, 0, 0],
+        outline: {
+          color: [110, 110, 110, 255],
+          width: 3
+        }
+      }
+    },
+    minScale: 5.91657527591555E8,
     maxScale: 100,
+    spatialReference: {
+      wkid: 102100
+    }
   },
   cbsa: {
     // TWO sub-layer URLs: 91 (Micropolitan), 93 (Metropolitan)
@@ -2541,21 +2573,23 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-// Create ref outside the effect
+// Create ref outside your effects
 const hasCentered = useRef(false);
 
+// Updated centering effect
 useEffect(() => {
   let isActive = true;
 
-  console.log("[MapContext] Centering effect triggered:", {
+  console.log('[MapContext] Centering effect triggered:', {
     hasCentered: hasCentered.current,
     mapReady: mapView?.ready,
-    layersReady,
     hasMarketAreas: Boolean(marketAreas?.length),
+    marketAreasCount: marketAreas?.length,
+    firstMarketArea: marketAreas?.[0]?.id
   });
 
   if (!mapView?.ready) {
-    console.log("[MapContext] Map not ready, skipping");
+    console.log('[MapContext] Map not ready, skipping');
     return;
   }
 
@@ -2563,39 +2597,46 @@ useEffect(() => {
     if (!isActive) return;
 
     try {
+      // Wait a moment for market areas to be fully processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Always reset hasCentered when starting a new project
-      const shouldResetCenter = marketAreas === undefined || marketAreas.length === 0;
+      const shouldResetCenter = !marketAreas || marketAreas.length === 0;
       
       if (shouldResetCenter) {
+        console.log('[MapContext] Resetting center state - no market areas');
         hasCentered.current = false;
       }
 
       // If already centered and not forcibly resetting, return
       if (hasCentered.current && !shouldResetCenter) {
-        console.log("[MapContext] Already centered, skipping");
+        console.log('[MapContext] Already centered, skipping');
         return;
       }
 
-      if (marketAreas?.length) {
-        console.log(
-          "[MapContext] Processing market areas:",
-          marketAreas.map((ma) => ({
-            id: ma.id,
-            name: ma.name,
-            locationsCount: ma.locations?.length || 0,
-          }))
-        );
+      if (marketAreas?.length > 0) {
+        console.log('[MapContext] Found market areas:', marketAreas.map(ma => ({
+          id: ma.id,
+          name: ma.name,
+          locationsCount: ma.locations?.length || 0,
+          hasGeometry: Boolean(ma.locations?.[0]?.geometry)
+        })));
 
+        // Find first market area with valid geometry
         let validGeometry = null;
+        let maWithGeometry = null;
+
         for (const ma of marketAreas) {
           if (ma.locations?.length) {
             for (const loc of ma.locations) {
-              if (loc.geometry) {
+              if (loc.geometry?.rings?.length > 0) {
                 validGeometry = loc.geometry;
-                console.log(
-                  "[MapContext] Found valid geometry in location of market area:",
-                  ma.id
-                );
+                maWithGeometry = ma;
+                console.log('[MapContext] Found valid geometry in market area:', {
+                  id: ma.id,
+                  name: ma.name,
+                  geometryRings: loc.geometry.rings.length
+                });
                 break;
               }
             }
@@ -2605,26 +2646,21 @@ useEffect(() => {
 
         if (validGeometry && isActive) {
           try {
-            // Import required modules for extent calculation
             const [Extent, SpatialReference] = await Promise.all([
-              import("@arcgis/core/geometry/Extent").then((m) => m.default),
-              import("@arcgis/core/geometry/SpatialReference").then(
-                (m) => m.default
-              ),
+              import("@arcgis/core/geometry/Extent").then(m => m.default),
+              import("@arcgis/core/geometry/SpatialReference").then(m => m.default)
             ]);
 
-            console.log("[MapContext] Creating extent from geometry");
+            console.log('[MapContext] Creating extent from geometry for:', maWithGeometry?.name);
 
-            // Create a spatial reference for Web Mercator
             const sr = new SpatialReference({ wkid: 102100 });
 
-            // Create an extent from the geometry
             let extent;
             if (validGeometry.rings) {
               const xCoords = [];
               const yCoords = [];
 
-              validGeometry.rings[0].forEach((coord) => {
+              validGeometry.rings[0].forEach(coord => {
                 xCoords.push(coord[0]);
                 yCoords.push(coord[1]);
               });
@@ -2634,48 +2670,54 @@ useEffect(() => {
                 ymin: Math.min(...yCoords),
                 xmax: Math.max(...xCoords),
                 ymax: Math.max(...yCoords),
-                spatialReference: sr,
+                spatialReference: sr
+              });
+
+              console.log('[MapContext] Created extent:', {
+                xmin: Math.min(...xCoords),
+                ymin: Math.min(...yCoords),
+                xmax: Math.max(...xCoords),
+                ymax: Math.max(...yCoords)
               });
             }
 
-            console.log("[MapContext] Centering on project extent");
-            await mapView.goTo(
-              {
-                target: extent || validGeometry,
-                zoom: 9, // Always use zoom level 9
-              },
-              {
-                duration: 1000,
-                easing: "ease-in-out",
-              }
-            );
+            console.log('[MapContext] Centering on market area:', maWithGeometry?.name);
+            await mapView.goTo({
+              target: extent || validGeometry,
+              zoom: 9
+            }, {
+              duration: 1000,
+              easing: "ease-in-out"
+            });
 
             if (isActive) {
-              console.log(
-                "[MapContext] Successfully centered on project extent"
-              );
+              console.log('[MapContext] Successfully centered on market area:', maWithGeometry?.name);
               hasCentered.current = true;
             }
             return;
           } catch (err) {
-            console.error(
-              "[MapContext] Error centering on project extent:",
-              err
-            );
+            console.error('[MapContext] Error centering on market area:', err);
             if (isActive) {
               await centerOnOrangeCounty();
             }
           }
+        } else {
+          console.log('[MapContext] No valid geometry found in market areas:', 
+            marketAreas.map(ma => ({
+              id: ma.id,
+              name: ma.name,
+              locationsCount: ma.locations?.length,
+              firstLocGeometry: Boolean(ma.locations?.[0]?.geometry)
+            }))
+          );
         }
       }
 
-      // Explicit fallback to Orange County if no market areas
-      console.log(
-        "[MapContext] No valid project extent found, falling back to Orange County"
-      );
+      console.log('[MapContext] No valid project extent found, falling back to Orange County');
       await centerOnOrangeCounty();
+
     } catch (err) {
-      console.error("[MapContext] Centering error:", err);
+      console.error('[MapContext] Centering error:', err);
       await centerOnOrangeCounty();
     }
   };
@@ -2683,42 +2725,36 @@ useEffect(() => {
   async function centerOnOrangeCounty() {
     if (!isActive) return;
 
-    console.log("[MapContext] Attempting to center on Orange County");
+    console.log('[MapContext] Attempting to center on Orange County');
     try {
       const Point = (await import("@arcgis/core/geometry/Point")).default;
       const orangeCountyPoint = new Point({
         longitude: -117.8311,
-        latitude: 33.7175,
+        latitude: 33.7175
       });
 
-      await mapView.goTo(
-        {
-          target: orangeCountyPoint,
-          zoom: 9, // Use zoom level 9 for consistency
-        },
-        {
-          duration: 1000,
-          easing: "ease-in-out",
-        }
-      );
+      await mapView.goTo({
+        target: orangeCountyPoint,
+        zoom: 9
+      }, {
+        duration: 1000,
+        easing: "ease-in-out"
+      });
 
       if (isActive) {
         const finalCenter = mapView.center;
-        console.log(
-          "[MapContext] Successfully centered on Orange County. View state:",
-          {
-            center: {
-              latitude: finalCenter.latitude,
-              longitude: finalCenter.longitude,
-            },
-            zoom: mapView.zoom,
-            scale: mapView.scale,
-          }
-        );
+        console.log('[MapContext] Successfully centered on Orange County. View state:', {
+          center: {
+            latitude: finalCenter.latitude,
+            longitude: finalCenter.longitude
+          },
+          zoom: mapView.zoom,
+          scale: mapView.scale
+        });
         hasCentered.current = true;
       }
     } catch (err) {
-      console.error("[MapContext] Error in Orange County fallback:", err);
+      console.error('[MapContext] Error in Orange County fallback:', err);
     }
   }
 
@@ -2726,7 +2762,7 @@ useEffect(() => {
 
   return () => {
     isActive = false;
-    console.log("[MapContext] Cleaning up centering effect");
+    console.log('[MapContext] Cleaning up centering effect');
   };
 }, [mapView, marketAreas]);
 

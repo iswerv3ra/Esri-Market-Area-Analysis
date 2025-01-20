@@ -548,58 +548,123 @@ export default function MapComponent({ onToggleList }) {
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
+useEffect(() => {
+  let isMounted = true;
 
-    const initializeMap = async () => {
-      try {
-        const map = new Map({
-          basemap: "arcgis-navigation",
-        });
+  const initializeMap = async () => {
+    try {
+      const map = new Map({
+        basemap: "arcgis-navigation",
+      });
 
-        const view = new MapView({
-          container: mapRef.current,
-          map: map,
-          center: [-117.8311, 33.7175], // Orange County, CA coordinates
-          zoom: 11,
-          constraints: {
-            snapToZoom: false,
-            rotationEnabled: false,
-            minZoom: 2,
-            maxZoom: 20,
+      const view = new MapView({
+        container: mapRef.current,
+        map: map,
+        constraints: {
+          snapToZoom: false,
+          rotationEnabled: false,
+          minZoom: 2,
+          maxZoom: 20,
+        },
+        navigation: {
+          mouseWheelZoomEnabled: true,
+          browserTouchPanEnabled: true,
+          momentumEnabled: true,
+          keyboardNavigation: true,
+        },
+        ui: {
+          components: ["attribution"],
+        },
+      });
+
+      // Wait for the view to be ready before proceeding
+      await view.when();
+
+      // Add smooth zoom behavior
+      view.on("mouse-wheel", (event) => {
+        event.stopPropagation();
+        const delta = event.deltaY;
+        const currentZoom = view.zoom;
+        const zoomDelta = delta > 0 ? -0.75 : 0.75;
+        const newZoom = Math.min(
+          Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
+          view.constraints.maxZoom
+        );
+
+        view.goTo(
+          {
+            zoom: newZoom,
+            center: view.center,
           },
-          navigation: {
-            mouseWheelZoomEnabled: true,
-            browserTouchPanEnabled: true,
-            momentumEnabled: true,
-            keyboardNavigation: true,
-          },
-          viewpoint: {
-            targetGeometry: null,
-            scale: null,
-            rotation: 0,
-          },
-          ui: {
-            components: ["attribution"],
-          },
-        });
+          {
+            duration: 100,
+            easing: "linear",
+          }
+        );
+      });
 
-        // Add smooth zoom behavior
-        view.on("mouse-wheel", (event) => {
-          event.stopPropagation();
-          const delta = event.deltaY;
+      // Add non-legend widgets after view is ready
+      const widgets = [
+        {
+          widget: new Zoom({
+            view,
+            zoomFactor: 1.2,
+          }),
+          position: "top-left",
+        },
+        {
+          widget: new Home({ view }),
+          position: "top-left",
+        },
+        {
+          widget: new BasemapToggle({
+            view,
+            nextBasemap: "arcgis-imagery",
+          }),
+          position: "bottom-right",
+        },
+        {
+          widget: new Locate({
+            view,
+            useHeadingEnabled: false,
+            goToOverride: (view, options) => {
+              options.target.scale = 1500;
+              return view.goTo(options.target, {
+                duration: 1000,
+                easing: "ease-in-out",
+              });
+            },
+          }),
+          position: "top-left",
+        },
+        {
+          widget: new ScaleBar({
+            view,
+            unit: "imperial",
+          }),
+          position: "bottom-right",
+        },
+      ];
 
-          // Get current zoom level
-          const currentZoom = view.zoom;
+      widgets.forEach(({ widget, position }) => {
+        view.ui.add(widget, position);
+      });
 
-          // Calculate new zoom level with finer granularity
-          const zoomDelta = delta > 0 ? -0.75 : 0.75;
-          const newZoom = Math.min(
-            Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
-            view.constraints.maxZoom
-          );
+      const legendWidget = new Legend({
+        view,
+        style: {
+          type: "classic",
+          layout: "stack",
+        },
+      });
 
-          // Animate to new zoom level
+      setLegend(legendWidget);
+
+      // Key event listener for keyboard zoom control
+      view.container.addEventListener("keydown", (event) => {
+        if (event.key === "+" || event.key === "=") {
+          event.preventDefault();
+          const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
           view.goTo(
             {
               zoom: newZoom,
@@ -610,110 +675,38 @@ export default function MapComponent({ onToggleList }) {
               easing: "linear",
             }
           );
-        });
-
-        // Add non-legend widgets
-        const widgets = [
-          {
-            widget: new Zoom({
-              view,
-              zoomFactor: 1.2, // Smaller zoom factor for smoother transitions
-            }),
-            position: "top-left",
-          },
-          {
-            widget: new Home({ view }),
-            position: "top-left",
-          },
-          {
-            widget: new BasemapToggle({
-              view,
-              nextBasemap: "arcgis-imagery",
-            }),
-            position: "bottom-right",
-          },
-          {
-            widget: new Locate({
-              view,
-              useHeadingEnabled: false,
-              goToOverride: (view, options) => {
-                options.target.scale = 1500;
-                return view.goTo(options.target, {
-                  duration: 1000,
-                  easing: "ease-in-out",
-                });
-              },
-            }),
-            position: "top-left",
-          },
-          {
-            widget: new ScaleBar({
-              view,
-              unit: "imperial",
-            }),
-            position: "bottom-right",
-          },
-        ];
-
-        // Add all non-legend widgets
-        widgets.forEach(({ widget, position }) => {
-          view.ui.add(widget, position);
-        });
-
-        const legendWidget = new Legend({
-          view,
-          style: {
-            type: "classic",
-            layout: "stack",
-          },
-        });
-
-        setLegend(legendWidget);
-
-        // Key event listener for keyboard zoom control
-        view.container.addEventListener("keydown", (event) => {
-          if (event.key === "+" || event.key === "=") {
-            event.preventDefault();
-            const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
-            view.goTo(
-              {
-                zoom: newZoom,
-                center: view.center,
-              },
-              {
-                duration: 100,
-                easing: "linear",
-              }
-            );
-          } else if (event.key === "-" || event.key === "_") {
-            event.preventDefault();
-            const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
-            view.goTo(
-              {
-                zoom: newZoom,
-                center: view.center,
-              },
-              {
-                duration: 100,
-                easing: "linear",
-              }
-            );
-          }
-        });
-
-        if (isMounted) {
-          setMapView(view);
+        } else if (event.key === "-" || event.key === "_") {
+          event.preventDefault();
+          const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
+          view.goTo(
+            {
+              zoom: newZoom,
+              center: view.center,
+            },
+            {
+              duration: 100,
+              easing: "linear",
+            }
+          );
         }
-      } catch (error) {
-        console.error("[Map] Error initializing map:", error);
-      }
-    };
+      });
 
-    initializeMap();
-    return () => {
-      isMounted = false;
-    };
-  }, [setMapView]);
+      if (isMounted) {
+        // Set map readiness flag and view in context
+        view.ready = true;
+        setMapView(view);
+        console.log('[MapContext] Map view initialized and ready');
+      }
+    } catch (error) {
+      console.error("[Map] Error initializing map:", error);
+    }
+  };
+
+  initializeMap();
+  return () => {
+    isMounted = false;
+  };
+}, [setMapView]);
 
   useEffect(() => {
     if (!legend) return;

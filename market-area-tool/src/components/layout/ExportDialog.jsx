@@ -29,32 +29,16 @@ const ExportDialog = ({
   isExporting = false,
 }) => {
   // State management
-  const [selectedPresetId, setSelectedPresetId] = useState('');
-  const [exportOption, setExportOption] = useState('selected-preset');
   const [fileName, setFileName] = useState('');
   const [includeUSAData, setIncludeUSAData] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
-
-  // Reset selected preset when dialog closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedPresetId('');
-    }
-  }, [isOpen]);
+  const [selectedTier, setSelectedTier] = useState('');
 
   useEffect(() => {
     if (marketAreas.length > 0) {
       const firstArea = marketAreas[0];
-      console.log('Market Area Debug:', {
-        fullFirstArea: firstArea,
-        projectNumberFromArea: firstArea?.project_number,
-        projectNumberFromProjectObj: firstArea?.project?.project_number,
-        projectObject: firstArea?.project,
-        projectId: firstArea?.project_id
-      });
-  
       const projectNumber =
         firstArea?.project_number || 
         firstArea?.project?.project_number || 
@@ -67,8 +51,6 @@ const ExportDialog = ({
       const year = String(date.getFullYear()).slice(-2);
   
       const fileName = `${projectNumber} Esri Data ${month}.${day}.${year}`;
-      
-      console.log('Generated Filename:', fileName);
       setFileName(fileName);
     } else {
       setFileName('00000.00 Esri Data 00.00.00');
@@ -79,15 +61,6 @@ const ExportDialog = ({
   useEffect(() => {
     setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
   }, [marketAreas]);
-
-  // Compute total variables
-  const totalVariables = useMemo(() => {
-    if (exportOption === 'selected-preset') {
-      const chosenPreset = variablePresets.find((p) => p.id === selectedPresetId);
-      return chosenPreset ? chosenPreset.variables.length : 0;
-    }
-    return variablePresets.reduce((sum, preset) => sum + preset.variables.length, 0);
-  }, [exportOption, selectedPresetId, variablePresets]);
 
   // Handler functions
   const handleSelectAllAreas = (e) => {
@@ -114,6 +87,10 @@ const ExportDialog = ({
     setIncludeUSAData(e.target.checked);
   };
 
+  const handleTierSelection = (tier) => {
+    setSelectedTier(tier);
+  };
+
   const handleSubmitExport = async (e) => {
     e.preventDefault();
     
@@ -122,20 +99,20 @@ const ExportDialog = ({
     }
 
     try {
-      let variables = [];
-      if (exportOption === 'selected-preset' && selectedPresetId) {
-        const preset = variablePresets.find((p) => p.id === selectedPresetId);
-        variables = preset?.variables || [];
-      } else if (exportOption === 'all-variables') {
-        variables = variablePresets.reduce(
-          (allVars, preset) => [...allVars, ...(preset?.variables || [])],
-          []
-        );
-      }
-
       const selectedMarketAreas = marketAreas.filter((area) =>
         selectedAreas.has(area.id)
       );
+
+      // Logic to get variables based on selected tiers
+      const variables = variablePresets.reduce((acc, preset) => {
+        if (
+          (selectedTier === 'tier1' && preset.name.toLowerCase().includes('tier 1')) ||
+          (selectedTier === 'tier2' && preset.name.toLowerCase().includes('tier 2'))
+        ) {
+          return [...acc, ...(preset.variables || [])];
+        }
+        return acc;
+      }, []);
 
       await onExport({
         variables,
@@ -144,7 +121,6 @@ const ExportDialog = ({
         includeUSAData: Boolean(includeUSAData)
       });
       
-      // Close dialog on successful export
       onClose();
     } catch (error) {
       console.error('Export failed:', error);
@@ -153,7 +129,7 @@ const ExportDialog = ({
 
   const isExportDisabled = 
     isExporting || 
-    (exportOption === 'selected-preset' && !selectedPresetId) ||
+    !selectedTier ||
     selectedAreas.size === 0;
 
   const exportButtonText = isExporting ? 'Exporting...' : 'Export';
@@ -255,68 +231,44 @@ const ExportDialog = ({
               </div>
             </div>
 
-            {/* Export Options */}
+            {/* Variable Tier Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Export Options
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select Variables
               </label>
-              <div className="mt-2 space-y-2">
+              <div className="space-y-2">
                 <label className="flex items-center">
                   <input
                     type="radio"
-                    value="selected-preset"
-                    checked={exportOption === 'selected-preset'}
-                    onChange={(e) => setExportOption(e.target.value)}
+                    name="tierSelection"
+                    value="tier1"
+                    checked={selectedTier === 'tier1'}
+                    onChange={(e) => handleTierSelection(e.target.value)}
                     disabled={isExporting}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
                              disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Use Selected Preset
+                    Tier 1 Core Variables
                   </span>
                 </label>
                 <label className="flex items-center">
                   <input
                     type="radio"
-                    value="all-variables"
-                    checked={exportOption === 'all-variables'}
-                    onChange={(e) => setExportOption(e.target.value)}
+                    name="tierSelection"
+                    value="tier2"
+                    checked={selectedTier === 'tier2'}
+                    onChange={(e) => handleTierSelection(e.target.value)}
                     disabled={isExporting}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
                              disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Use All Variables
+                    Tier 2 Variables
                   </span>
                 </label>
               </div>
             </div>
-
-            {/* Preset Selection */}
-            {exportOption === 'selected-preset' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select Variable Preset
-                </label>
-                <select
-                  value={selectedPresetId}
-                  onChange={(e) => setSelectedPresetId(e.target.value)}
-                  disabled={isExporting}
-                  className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                           bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
-                           focus:outline-none focus:ring-blue-500 dark:text-white
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select a preset...</option>
-                  {variablePresets.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name} ({preset.variables?.length || 0} variables)
-                      {preset.is_global ? ' (Global)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
           {/* Footer */}
