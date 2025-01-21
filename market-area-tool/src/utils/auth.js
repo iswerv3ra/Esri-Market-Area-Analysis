@@ -1,5 +1,13 @@
 import axios from 'axios';
 
+// Configurable retry settings
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelay: 500, // Initial delay in milliseconds
+  backoffFactor: 2,  // Exponential backoff factor
+  jitter: 0.1        // Random jitter to prevent thundering herd problem
+};
+
 // Helper to determine environment
 const isDevelopment = () => {
   return import.meta.env.VITE_APP_ENV === 'development';
@@ -68,6 +76,62 @@ const clearTokens = () => {
   
   console.log('Tokens removed from localStorage and axios defaults');
   console.groupEnd();
+};
+
+// Enhanced token refresh with exponential backoff and retry
+const refreshTokenWithRetry = async (refreshToken, baseUrl, navigate) => {
+  const retryOperation = async (retriesLeft, delay) => {
+    try {
+      console.group('Token Refresh Attempt');
+      console.log(`Retries left: ${retriesLeft}, Current delay: ${delay}ms`);
+
+      const response = await axios.post(
+        `${baseUrl}/api/token/refresh/`,
+        { refresh: refreshToken },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 5000 // 5-second timeout
+        }
+      );
+
+      console.log('Token refresh successful');
+      console.groupEnd();
+
+      return response.data.access;
+    } catch (error) {
+      console.error('Token refresh attempt failed', error);
+
+      if (retriesLeft > 0) {
+        // Calculate next delay with jitter
+        const jitteredDelay = delay * (1 + (Math.random() * RETRY_CONFIG.jitter));
+        
+        console.log(`Waiting ${jitteredDelay}ms before next retry`);
+        
+        // Wait before next retry
+        await new Promise(resolve => setTimeout(resolve, jitteredDelay));
+
+        // Recursive retry with exponential backoff
+        return retryOperation(
+          retriesLeft - 1, 
+          delay * RETRY_CONFIG.backoffFactor
+        );
+      }
+
+      console.groupEnd();
+      
+      // If all retries fail, clear tokens and navigate to login
+      clearTokens();
+      navigateToLogin(navigate);
+      throw error;
+    }
+  };
+
+  return retryOperation(
+    RETRY_CONFIG.maxRetries, 
+    RETRY_CONFIG.initialDelay
+  );
 };
 
 export const setupAxiosInterceptors = (navigate) => {
@@ -146,28 +210,18 @@ export const setupAxiosInterceptors = (navigate) => {
 
           console.log('Attempting token refresh');
           const baseUrl = getApiUrl();
-          const response = await axios.post(
-            `${baseUrl}/api/token/refresh/`,
-            { refresh: refreshToken },
-            {
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          const { access } = response.data;
+          const newAccessToken = await refreshTokenWithRetry(refreshToken, baseUrl, navigate);
           
           console.log('Token refresh successful');
-          localStorage.setItem('accessToken', access);
-          setAuthToken(access);
+          localStorage.setItem('accessToken', newAccessToken);
+          setAuthToken(newAccessToken);
 
-          originalRequest.headers.Authorization = `Bearer ${access}`;
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           console.groupEnd();
           return axios(originalRequest);
           
         } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
+          console.error('Token refresh completely failed:', refreshError);
           clearTokens();
           navigateToLogin(navigate);
           console.groupEnd();
