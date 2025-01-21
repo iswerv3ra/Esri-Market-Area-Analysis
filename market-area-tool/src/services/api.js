@@ -1,5 +1,3 @@
-// src/services/api.js
-
 import axios from 'axios';
 import { getApiUrl, setAuthToken } from '../utils/auth';
 
@@ -7,11 +5,13 @@ const baseURL = getApiUrl();
 
 // Debug configuration in development
 if (import.meta.env.DEV) {
+  console.group('API Service Initialization');
   console.log('API Service Configuration:', {
     baseURL,
     mode: import.meta.env.MODE,
     isDev: import.meta.env.DEV
   });
+  console.groupEnd();
 }
 
 const api = axios.create({
@@ -19,16 +19,30 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10-second timeout
 });
 
-// Request interceptor
+// Enhanced Request Interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
     const isTokenRefreshUrl = config.url.includes('/api/token/refresh/');
+    const isTokenVerifyUrl = config.url.includes('/api/token/verify/');
 
-    // Exclude Authorization header for token refresh requests
-    if (token && !isTokenRefreshUrl) {
+    // Comprehensive logging for request
+    if (import.meta.env.DEV) {
+      console.group('API Request');
+      console.log('Request URL:', `${config.baseURL}${config.url}`);
+      console.log('Method:', config.method);
+      console.log('Access Token Exists:', !!token);
+      console.log('Is Token Refresh URL:', isTokenRefreshUrl);
+      console.log('Is Token Verify URL:', isTokenVerifyUrl);
+      console.groupEnd();
+    }
+
+    // Attach Authorization header for non-refresh requests
+    if (token && !isTokenRefreshUrl && !isTokenVerifyUrl) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -37,52 +51,50 @@ api.interceptors.request.use(
       config.url = `${config.url}/`;
     }
 
-    // Debug logging in development
-    if (import.meta.env.DEV) {
-      console.log('Making request:', {
-        url: `${config.baseURL}${config.url}`,
-        method: config.method,
-        headers: config.headers,
-        data: config.data
-      });
-    }
-
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('Request Interceptor Error:', error);
+    return Promise.reject(error);
+  }
 );
 
-// Response interceptor
+// Enhanced Response Interceptor
 api.interceptors.response.use(
   (response) => {
     if (import.meta.env.DEV) {
-      console.log('Response received:', {
-        status: response.status,
-        data: response.data
-      });
+      console.group('API Response');
+      console.log('Status:', response.status);
+      console.log('Data:', response.data);
+      console.groupEnd();
     }
     return response;
   },
   async (error) => {
-    console.error('API Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-
     const originalRequest = error.config;
 
-    // Handle token refresh logic if we get 401
+    console.group('API Error Handling');
+    console.log('Error Details:', {
+      status: error.response?.status,
+      url: originalRequest?.url,
+      method: originalRequest?.method
+    });
+
+    // Token refresh logic for 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
         const refreshToken = localStorage.getItem('refreshToken');
+        
         if (!refreshToken) {
-          throw new Error('No refresh token available');
+          console.log('No refresh token available, redirecting to login');
+          localStorage.clear();
+          window.location.href = '/login';
+          return Promise.reject(error);
         }
 
-        // Exclude Authorization header when refreshing token
+        console.log('Attempting token refresh');
         const response = await axios.post(
           `${baseURL}/api/token/refresh/`,
           { refresh: refreshToken },
@@ -94,6 +106,8 @@ api.interceptors.response.use(
         );
 
         const { access } = response.data;
+        
+        console.log('Token refresh successful');
         localStorage.setItem('accessToken', access);
         setAuthToken(access);
 
@@ -101,14 +115,28 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        delete api.defaults.headers.common['Authorization'];
+        localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
 
+    // Handle other error scenarios
+    if (error.response) {
+      switch (error.response.status) {
+        case 403:
+          console.log('Forbidden: Insufficient permissions');
+          break;
+        case 404:
+          console.log('Resource Not Found:', originalRequest?.url);
+          break;
+        case 500:
+          console.log('Internal Server Error');
+          break;
+      }
+    }
+
+    console.groupEnd();
     return Promise.reject(error);
   }
 );
