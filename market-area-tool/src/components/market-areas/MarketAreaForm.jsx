@@ -631,8 +631,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-
+  
     try {
+      // Comprehensive pre-submission validation
+      if (!formState.maName || formState.maName.trim() === '') {
+        throw new Error("Market Area Name is required");
+      }
+  
       // Build styleSettings from user's final picks
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
@@ -646,19 +651,26 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         excelFill: formState.styleSettings.excelFill,
         excelText: formState.styleSettings.excelText,
       };
-
+  
       // If they picked "md" as a type, treat it as "place"
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
-
+  
+      // Validate market area type
+      if (!formState.maType) {
+        throw new Error("Market Area Type must be selected");
+      }
+  
+      // Detailed logging of submission state
+      console.group('Market Area Submission');
       console.log("Form state on submit:", formState);
       console.log("Current radius points:", radiusPoints);
-
+  
       if (formState.maType === "radius") {
         // Validate radius points
         if (!radiusPoints || radiusPoints.length === 0) {
           throw new Error("No radius points defined");
         }
-
+  
         // Update the transformedRadiusPoints logic in handleSubmit
         const transformedRadiusPoints = radiusPoints.map((point, index) => {
           try {
@@ -670,7 +682,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               if (isNaN(longitude) || isNaN(latitude)) {
                 throw new Error(`Invalid coordinates for radius point ${index}`);
               }
-
+  
               return {
                 center: {
                   longitude,
@@ -681,15 +693,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 units: point.units || 'miles'
               };
             }
-
+  
             // For points with x/y coordinates
             const x = typeof point.center.x === "function" ? point.center.x() : Number(point.center.x);
             const y = typeof point.center.y === "function" ? point.center.y() : Number(point.center.y);
-
+  
             if (isNaN(x) || isNaN(y)) {
               throw new Error(`Invalid coordinates for radius point ${index}`);
             }
-
+  
             return {
               center: {
                 x,
@@ -704,9 +716,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             throw error;
           }
         });
-
+  
         console.log("Transformed radius points:", transformedRadiusPoints);
-
+  
         const marketAreaData = {
           ma_type: "radius",
           name: formState.maName,
@@ -715,9 +727,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           locations: [],
           radius_points: transformedRadiusPoints,
         };
-
+  
         console.log("Market area data to save:", marketAreaData);
-
+  
         // Store existing graphics that we want to keep
         const existingGraphics = selectionGraphicsLayer.graphics
           .filter(
@@ -731,7 +743,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             attributes: g.attributes,
             symbol: g.symbol,
           }));
-
+  
         let savedMarketArea;
         if (editingMarketArea) {
           console.log("Updating existing market area:", editingMarketArea.id);
@@ -746,16 +758,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-
+  
         console.log("Saved market area:", savedMarketArea);
-
+  
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
-
+  
         // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
         clearSelection();
-
+  
         // Reset form state while preserving style settings
         setFormState((prev) => ({
           ...prev,
@@ -769,10 +781,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             ...prev.styleSettings,
           },
         }));
-
+  
         // Clear radius points
         setRadiusPoints([]);
-
+  
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
@@ -783,7 +795,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           });
           selectionGraphicsLayer.add(graphic);
         });
-
+  
         // Draw the radius(es) with proper styles
         console.log("Drawing radius points:", marketAreaData.radius_points);
         for (const point of marketAreaData.radius_points) {
@@ -795,7 +807,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             savedMarketArea.order
           );
         }
-
+  
         // Handle visibility
         const storedVisibleIds = localStorage.getItem(
           `marketAreas.${projectId}.visible`
@@ -804,11 +816,11 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           ? JSON.parse(storedVisibleIds)
           : [];
         const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-
+  
         if (!currentVisibleIds.includes(marketAreaId)) {
           currentVisibleIds.push(marketAreaId);
         }
-
+  
         localStorage.setItem(
           `marketAreas.${projectId}.visible`,
           JSON.stringify(currentVisibleIds)
@@ -829,7 +841,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           radius_points: [],
           original_type: formState.maType,
         };
-
+  
         // Store existing graphics that we want to keep
         const existingGraphics = selectionGraphicsLayer.graphics
           .filter(
@@ -843,7 +855,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             attributes: g.attributes,
             symbol: g.symbol,
           }));
-
+  
         let savedMarketArea;
         if (editingMarketArea) {
           savedMarketArea = await updateMarketArea(
@@ -856,10 +868,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-
+  
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
-
+  
         // Prepare current selections with proper styling
         const currentSelections = selectedFeatures.map((feature) => ({
           ...feature,
@@ -870,16 +882,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             order: savedMarketArea.order,
           },
         }));
-
+  
         // Remove active layer and clear selections
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-
+  
         // Clear all graphics and selection state
         selectionGraphicsLayer.removeAll();
         clearSelection();
-
+  
         // Reset form state while preserving style settings
         setFormState((prev) => ({
           ...prev,
@@ -893,7 +905,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             ...prev.styleSettings,
           },
         }));
-
+  
         // Re-add existing graphics
         const { default: Graphic } = await import("@arcgis/core/Graphic");
         existingGraphics.forEach((g) => {
@@ -904,7 +916,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           });
           selectionGraphicsLayer.add(graphic);
         });
-
+  
         // Immediately apply proper styles to new/updated features
         await updateFeatureStyles(
           currentSelections,
@@ -917,7 +929,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           formState.maType,
           true // Add immediate flag to ensure styles are applied right away
         );
-
+  
         // Handle visibility
         const storedVisibleIds = localStorage.getItem(
           `marketAreas.${projectId}.visible`
@@ -926,18 +938,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           ? JSON.parse(storedVisibleIds)
           : [];
         const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-
+  
         if (!currentVisibleIds.includes(marketAreaId)) {
           currentVisibleIds.push(marketAreaId);
         }
-
+  
         localStorage.setItem(
           `marketAreas.${projectId}.visible`,
           JSON.stringify(currentVisibleIds)
         );
         setVisibleMarketAreaIds(currentVisibleIds);
       }
-
+  
       // Common cleanup
       setEditingMarketArea(null);
       onClose?.();

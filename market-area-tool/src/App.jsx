@@ -1,5 +1,3 @@
-// src/App.jsx
-
 import React, { useEffect, useState } from "react";
 import {
   Routes,
@@ -21,7 +19,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CreateProject from "./pages/CreateProject";
 import Presets from "./pages/Presets";
-import ManagePresetColor from "./pages/ManagePresetColor"; // Import your ManagePresetColor component
+import ManagePresetColor from "./pages/ManagePresetColor";
 
 // Providers
 import { MarketAreaProvider, useMarketAreas } from "./contexts/MarketAreaContext";
@@ -52,20 +50,41 @@ const ProtectedRoute = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        setIsChecking(false);
-        return;
-      }
-
       try {
+        const token = localStorage.getItem("accessToken");
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        // More comprehensive authentication check
+        if (!token || !refreshToken) {
+          setIsChecking(false);
+          setIsValid(false);
+          return;
+        }
+
+        // Set auth token for verification
         setAuthToken(token);
+
+        // Verify token
         const valid = await verifyToken(token);
+        
+        console.group('Authentication Check');
+        console.log('Token Verification Result:', valid);
+        console.log('Access Token:', !!token);
+        console.log('Refresh Token:', !!refreshToken);
+        console.groupEnd();
+
         setIsValid(valid);
       } catch (error) {
-        console.error("Auth check failed:", error);
+        console.error("Comprehensive Auth Check Error:", {
+          error,
+          accessToken: !!localStorage.getItem("accessToken"),
+          refreshToken: !!localStorage.getItem("refreshToken")
+        });
+        
+        // Clear tokens on verification failure
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        setIsValid(false);
       } finally {
         setIsChecking(false);
       }
@@ -85,29 +104,47 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
-// This is the outermost parent that sets up interceptors, checks token, etc.
+// Main App Component
 function App() {
   const navigate = useNavigate();
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     const initializeApp = async () => {
+      // Setup axios interceptors
       const cleanup = setupAxiosInterceptors(navigate);
 
       try {
         const token = localStorage.getItem("accessToken");
-        if (token) {
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        // More robust initialization check
+        if (token && refreshToken) {
           setAuthToken(token);
+          
+          console.group('App Initialization');
+          console.log('Attempting Token Verification');
+          
           const isValid = await verifyToken(token);
+          
+          console.log('Token Verification Result:', isValid);
+          console.groupEnd();
 
           if (!isValid) {
+            console.log('Token Invalid - Clearing credentials');
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
             navigate("/login");
           }
         }
       } catch (error) {
-        console.error("Initialization error:", error);
+        console.error("Comprehensive Initialization Error:", {
+          error,
+          accessToken: !!localStorage.getItem("accessToken"),
+          refreshToken: !!localStorage.getItem("refreshToken")
+        });
+        
+        // Comprehensive error handling
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         navigate("/login");
@@ -125,7 +162,6 @@ function App() {
     return <LoadingSpinner />;
   }
 
-  // Wrap everything in MarketAreaProvider (so it can fetch MarketAreas)
   return (
     <MarketAreaProvider>
       <InnerApp />
@@ -133,7 +169,7 @@ function App() {
   );
 }
 
-// This component reads marketAreas from context and passes them to MapProvider
+// Inner App Component
 function InnerApp() {
   const { marketAreas } = useMarketAreas();
 
@@ -158,7 +194,6 @@ function InnerApp() {
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<RootLayout />}>
-              {/* Nested Routes */}
               <Route index element={<ProjectsList />} />
               <Route path="projects/create" element={<CreateProject />} />
               <Route
@@ -166,8 +201,6 @@ function InnerApp() {
                 element={<MarketAreasLayout />}
               />
               <Route path="presets" element={<Presets />} />
-
-              {/* NEW ROUTE FOR MANAGE PRESET COLOR */}
               <Route path="manage-preset-color" element={<ManagePresetColor />} />
 
               {/* Catch-all Redirect */}
@@ -180,11 +213,11 @@ function InnerApp() {
   );
 }
 
-// Error boundary
+// Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -192,17 +225,33 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("Error caught by boundary:", error, errorInfo);
+    console.error("Comprehensive Error Boundary Catch:", {
+      error,
+      errorInfo,
+      location: window.location.href
+    });
+    this.setState({ 
+      error, 
+      errorInfo 
+    });
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <div className="text-center px-4 py-8">
+          <div className="text-center px-4 py-8 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
               Something went wrong
             </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              An unexpected error occurred. Please try again.
+            </p>
+            <div className="mb-4">
+              <pre className="text-red-500 text-sm overflow-x-auto">
+                {this.state.error && this.state.error.toString()}
+              </pre>
+            </div>
             <button
               onClick={() => {
                 localStorage.removeItem("accessToken");

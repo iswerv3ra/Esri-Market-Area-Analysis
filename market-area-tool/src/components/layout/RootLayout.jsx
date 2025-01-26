@@ -48,7 +48,7 @@ export default function RootLayout() {
   // In RootLayout.jsx, simplify the handleHomeClick:
   const handleHomeClick = (e) => {
     e.preventDefault();
-    navigate("/projects");
+    navigate("/");
   };
 
   return (

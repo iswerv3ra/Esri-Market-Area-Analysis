@@ -22,19 +22,37 @@ export default function ProjectsList() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await projectsAPI.getAll();
-        const projectsData = Array.isArray(response.data) ? response.data : [];
-        console.log('Projects received:', projectsData);
-        setProjects(projectsData);
+        console.group('Fetching Projects');
+        console.log('Starting project fetch...');
+    
+        setIsLoading(true);
         setError(null);
+    
+        console.log('Making API request to /api/projects/');
+        const response = await projectsAPI.getAll();
+    
+        if (response.data && Array.isArray(response.data)) {
+          console.log('Project data received:', response.data);
+          setProjects(response.data);
+        } else {
+          console.error('Invalid response format:', response.data);
+          throw new Error('Invalid response format');
+        }
       } catch (err) {
-        console.error('Error details:', err.response || err);
-        setError(
-          err.response?.data?.detail || 
-          'Failed to load projects. Please try again later.'
-        );
+        console.error('Error fetching projects:', err);
+    
+        // Provide a more user-friendly error message
+        setError({
+          message: 'Failed to load projects',
+          details: err.toString()
+        });
+    
+        // Optional: Show a toast notification
+        toast.error('Unable to load projects. Please try again later.');
       } finally {
+        console.log('Project fetch complete.');
         setIsLoading(false);
+        console.groupEnd();
       }
     };
 
