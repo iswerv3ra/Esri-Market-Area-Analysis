@@ -1664,20 +1664,23 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType, immediate = false) => {
       if (!selectionGraphicsLayerRef.current || !mapView) {
+        console.log("[MapContext] Cannot update styles: missing graphics layer or map view");
         return;
       }
-
+  
       try {
         const [
           { default: Graphic },
           { default: Polygon },
           { union, simplify, planarArea, planarLength },
+          { default: Query }
         ] = await Promise.all([
           import("@arcgis/core/Graphic"),
           import("@arcgis/core/geometry/Polygon"),
           import("@arcgis/core/geometry/geometryEngine"),
+          import("@arcgis/core/rest/support/Query")
         ]);
-
+  
         // Group features by their marketAreaId
         const featuresByMarketArea = {};
         features.forEach((feature) => {
@@ -1685,192 +1688,245 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           if (!featuresByMarketArea[id]) featuresByMarketArea[id] = [];
           featuresByMarketArea[id].push(feature);
         });
-
+  
         // Handle existing graphics with more precision
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
-        let existingGraphics = [];
-
-        if (!immediate) {
-          // Normal flow - keep other market areas' graphics
-          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-            (g) => !marketAreaIds.has(g.attributes?.marketAreaId)
-          );
-        } else {
-          // Immediate mode - only keep graphics that aren't related to this update
-          existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-            (g) =>
-              !marketAreaIds.has(g.attributes?.marketAreaId) &&
-              g.attributes?.FEATURE_TYPE !== featureType
-          );
-        }
-
+        let existingGraphics = immediate 
+          ? selectionGraphicsLayerRef.current.graphics.filter(g => 
+              !marketAreaIds.has(g.attributes?.marketAreaId) && 
+              g.attributes?.FEATURE_TYPE !== featureType)
+          : selectionGraphicsLayerRef.current.graphics.filter(g => 
+              !marketAreaIds.has(g.attributes?.marketAreaId));
+  
         // Clear and restore in one batch
         selectionGraphicsLayerRef.current.removeAll();
         if (existingGraphics.length > 0) {
           selectionGraphicsLayerRef.current.addMany(existingGraphics);
         }
-
-        // Prepare all new graphics before adding
+  
         const newGraphics = [];
-
+  
         // Process each market area's features
-        for (const [marketAreaId, maFeatures] of Object.entries(
-          featuresByMarketArea
-        )) {
-          // Convert all features to Polygon geometries
-          const polygons = maFeatures
-            .map((feature) => {
-              const geomConfig = {
-                spatialReference: mapView.spatialReference,
-                type: "polygon",
-              };
-
-              if (feature.geometry.rings) {
-                return new Polygon({
-                  ...geomConfig,
-                  rings: feature.geometry.rings,
+        for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          // Get high resolution features for any layer type
+          let highResPolygons = [];
+          
+          try {
+            const layer = featureLayersRef.current[featureType];
+            if (layer) {
+              // Handle both single and group layers
+              const layersToQuery = layer.featureLayers || [layer];
+              
+              for (const queryLayer of layersToQuery) {
+                const query = new Query({
+                  where: maFeatures.map(f => 
+                    `${queryLayer.objectIdField || 'OBJECTID'} = ${f.attributes.OBJECTID || f.attributes.FID}`
+                  ).join(' OR '),
+                  returnGeometry: true,
+                  outSpatialReference: mapView.spatialReference,
+                  maxAllowableOffset: 0,  // Force highest resolution
+                  geometryPrecision: 8,
+                  resultType: "standard",
+                  multipatchOption: "xyFootprint"
                 });
-              } else if (feature.geometry.type === "polygon") {
-                return new Polygon({
-                  ...geomConfig,
-                  rings: feature.geometry.rings || feature.geometry.coordinates,
-                });
+  
+                try {
+                  const result = await queryLayer.queryFeatures(query);
+                  if (result?.features) {
+                    const polygons = result.features.map(feature => {
+                      if (!feature.geometry?.rings) return null;
+                      return new Polygon({
+                        rings: feature.geometry.rings,
+                        spatialReference: mapView.spatialReference,
+                        type: "polygon"
+                      });
+                    }).filter(Boolean);
+                    highResPolygons.push(...polygons);
+                  }
+                } catch (queryError) {
+                  console.warn(`Error querying layer for high-res features:`, queryError);
+                }
               }
-              return null;
-            })
-            .filter(Boolean);
-
-          if (polygons.length === 0) continue;
-
-          // Create unified boundary
-          const unifiedGeometry = union(polygons);
-          if (!unifiedGeometry) {
+            }
+          } catch (error) {
+            console.warn('Error fetching high-res features:', error);
+          }
+  
+          // Fall back to original geometries if high-res query failed
+          if (highResPolygons.length === 0) {
+            highResPolygons = maFeatures
+              .map((feature) => {
+                if (!feature.geometry) {
+                  console.warn('Feature missing geometry:', feature);
+                  return null;
+                }
+  
+                const geomConfig = {
+                  spatialReference: mapView.spatialReference,
+                  type: "polygon",
+                };
+  
+                try {
+                  if (feature.geometry.rings) {
+                    return new Polygon({
+                      ...geomConfig,
+                      rings: feature.geometry.rings,
+                    });
+                  } else if (feature.geometry.type === "polygon") {
+                    return new Polygon({
+                      ...geomConfig,
+                      rings: feature.geometry.rings || feature.geometry.coordinates,
+                    });
+                  }
+                } catch (error) {
+                  console.error('Error creating polygon:', error);
+                  return null;
+                }
+                return null;
+              })
+              .filter(Boolean);
+          }
+  
+          if (highResPolygons.length === 0) {
+            console.warn(`No valid polygons for market area ${marketAreaId}`);
             continue;
           }
-
-          const simplifiedGeometry = simplify(unifiedGeometry);
-          const totalArea = Math.abs(planarArea(simplifiedGeometry));
-          const minHoleArea = totalArea * 0.001;
-
-          // Extract and filter rings
-          const rings = simplifiedGeometry.rings;
-          const { exteriorRings, holeRings } = rings.reduce(
-            (acc, ring) => {
-              const ringPolygon = new Polygon({
-                rings: [ring],
-                spatialReference: mapView.spatialReference,
-                type: "polygon",
-              });
-
-              const area = planarArea(ringPolygon);
-              const perimeter = planarLength(ringPolygon);
-
-              if (area > 0) {
-                acc.exteriorRings.push(ring);
-              } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
-                acc.holeRings.push(ring);
-              }
-              return acc;
-            },
-            { exteriorRings: [], holeRings: [] }
-          );
-
-          // Create fill graphic with exact specified styles
-          const fillSymbol = {
-            type: "simple-fill",
-            color: [...hexToRgb(styles.fill), styles.fillOpacity],
-            outline: {
-              color: [0, 0, 0, 0],
-              width: 0,
-            },
-          };
-
-          const fillGeometry = new Polygon({
-            rings: [...exteriorRings, ...holeRings],
-            spatialReference: mapView.spatialReference,
-            type: "polygon",
-          });
-
-          newGraphics.push(
-            new Graphic({
-              geometry: fillGeometry,
-              symbol: fillSymbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-                isUnified: true,
-                ...maFeatures[0].attributes,
+  
+          try {
+            // Create unified boundary
+            const unifiedGeometry = union(highResPolygons);
+            if (!unifiedGeometry) {
+              console.warn(`Union failed for market area ${marketAreaId}`);
+              continue;
+            }
+  
+            const simplifiedGeometry = simplify(unifiedGeometry);
+            const totalArea = Math.abs(planarArea(simplifiedGeometry));
+            const minHoleArea = totalArea * 0.001;
+  
+            // Extract and filter rings
+            const rings = simplifiedGeometry.rings;
+            const { exteriorRings, holeRings } = rings.reduce(
+              (acc, ring) => {
+                const ringPolygon = new Polygon({
+                  rings: [ring],
+                  spatialReference: mapView.spatialReference,
+                  type: "polygon",
+                });
+  
+                const area = planarArea(ringPolygon);
+                const perimeter = planarLength(ringPolygon);
+  
+                if (area > 0) {
+                  acc.exteriorRings.push(ring);
+                } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
+                  acc.holeRings.push(ring);
+                }
+                return acc;
               },
-            })
-          );
-
-          // Create outline graphics
-          const outlineSymbol = {
-            type: "simple-fill",
-            color: [0, 0, 0, 0],
-            outline: {
-              color: styles.outline,
-              width: styles.outlineWidth,
-            },
-          };
-
-          // Add hole outlines
-          holeRings.forEach((holeRing, index) => {
-            const holeGeometry = new Polygon({
-              rings: [holeRing],
+              { exteriorRings: [], holeRings: [] }
+            );
+  
+            // Create fill graphic with exact specified styles
+            const fillSymbol = {
+              type: "simple-fill",
+              color: [...hexToRgb(styles.fill), styles.fillOpacity],
+              outline: {
+                color: [0, 0, 0, 0],
+                width: 0,
+              },
+            };
+  
+            const fillGeometry = new Polygon({
+              rings: [...exteriorRings, ...holeRings],
               spatialReference: mapView.spatialReference,
               type: "polygon",
             });
-
+  
             newGraphics.push(
               new Graphic({
-                geometry: holeGeometry,
+                geometry: fillGeometry,
+                symbol: fillSymbol,
+                attributes: {
+                  marketAreaId,
+                  FEATURE_TYPE: featureType,
+                  isUnified: true,
+                  ...maFeatures[0].attributes,
+                },
+              })
+            );
+  
+            // Create outline graphics
+            const outlineSymbol = {
+              type: "simple-fill",
+              color: [0, 0, 0, 0],
+              outline: {
+                color: styles.outline,
+                width: styles.outlineWidth,
+              },
+            };
+  
+            // Add hole outlines
+            holeRings.forEach((holeRing, index) => {
+              const holeGeometry = new Polygon({
+                rings: [holeRing],
+                spatialReference: mapView.spatialReference,
+                type: "polygon",
+              });
+  
+              newGraphics.push(
+                new Graphic({
+                  geometry: holeGeometry,
+                  symbol: outlineSymbol,
+                  attributes: {
+                    marketAreaId,
+                    FEATURE_TYPE: featureType,
+                    isUnified: true,
+                    isOutline: true,
+                    isHole: true,
+                    holeIndex: index,
+                    ...maFeatures[0].attributes,
+                  },
+                })
+              );
+            });
+  
+            // Add exterior outline
+            const exteriorGeometry = new Polygon({
+              rings: exteriorRings,
+              spatialReference: mapView.spatialReference,
+              type: "polygon",
+            });
+  
+            newGraphics.push(
+              new Graphic({
+                geometry: exteriorGeometry,
                 symbol: outlineSymbol,
                 attributes: {
                   marketAreaId,
                   FEATURE_TYPE: featureType,
                   isUnified: true,
                   isOutline: true,
-                  isHole: true,
-                  holeIndex: index,
+                  isExterior: true,
                   ...maFeatures[0].attributes,
                 },
               })
             );
-          });
-
-          // Add exterior outline
-          const exteriorGeometry = new Polygon({
-            rings: exteriorRings,
-            spatialReference: mapView.spatialReference,
-            type: "polygon",
-          });
-
-          newGraphics.push(
-            new Graphic({
-              geometry: exteriorGeometry,
-              symbol: outlineSymbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-                isUnified: true,
-                isOutline: true,
-                isExterior: true,
-                ...maFeatures[0].attributes,
-              },
-            })
-          );
+          } catch (error) {
+            console.error(`Error processing market area ${marketAreaId}:`, error);
+            continue;
+          }
         }
-
+  
         // Add all new graphics in one batch
         if (newGraphics.length > 0) {
           selectionGraphicsLayerRef.current.addMany(newGraphics);
         }
       } catch (error) {
-        // Optional: You might want to add error handling logic here
+        console.error('Error updating feature styles:', error);
       }
     },
-    [mapView, hexToRgb]
+    [mapView, hexToRgb, featureLayersRef]
   );
 
   const ensureValidGeometry = async (geometry, spatialReference) => {
