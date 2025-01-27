@@ -22,10 +22,14 @@ export const MarketAreaProvider = ({ children }) => {
   const initialFetchDone = useRef(false);
 
   const fetchMarketAreas = useCallback(async (projectId) => {
-    if (!projectId) return;
+    if (!projectId) {
+      console.warn('No project ID provided');
+      return [];
+    }
+  
     if (fetchInProgress.current) {
       console.log('Fetch already in progress, skipping');
-      return;
+      return marketAreas;
     }
   
     if (initialFetchDone.current && marketAreas.length > 0) {
@@ -35,50 +39,103 @@ export const MarketAreaProvider = ({ children }) => {
   
     fetchInProgress.current = true;
     setIsLoading(true);
-   
+     
     try {
       console.log('Fetching market areas for project:', projectId);
       const response = await api.get(`/api/projects/${projectId}/market-areas/`);
+      
+      // Robust array checking and transformation
       let areas = Array.isArray(response.data) ? response.data : [];
   
-      // Add the type property to geometry objects if they exist
-      areas = areas.map(area => {
-        if (area.locations && area.locations.length > 0) {
-          area.locations = area.locations.map(loc => {
-            if (loc.geometry && !loc.geometry.type && loc.geometry.rings) {
-              loc.geometry.type = "Polygon";
-            }
-            return loc;
-          });
+      // Enhanced validation and transformation
+      const validatedAreas = areas.filter(area => {
+        // Validate basic structure
+        if (!area || typeof area !== 'object') {
+          console.warn('Invalid market area structure:', area);
+          return false;
         }
   
-        // If you have radius_points, check and set type as needed
-        // if (area.radius_points && area.radius_points.length > 0) {
-        //   // Here you would set type for point geometries if needed
-        // }
+        // Check and transform locations
+        if (area.locations && Array.isArray(area.locations)) {
+          area.locations = area.locations.filter(loc => {
+            // Validate location geometry
+            if (!loc.geometry) {
+              console.warn(`Market area ${area.id} has location without geometry`);
+              return false;
+            }
   
-        return area;
+            // Add type to geometry if missing
+            if (!loc.geometry.type && loc.geometry.rings) {
+              loc.geometry.type = "Polygon";
+            }
+  
+            // Additional geometry validation
+            if (loc.geometry.type === "Polygon" && 
+                (!loc.geometry.rings || loc.geometry.rings.length === 0)) {
+              console.warn(`Market area ${area.id} has Polygon geometry without rings`);
+              return false;
+            }
+  
+            return true;
+          });
+  
+          // Ensure at least one valid location remains
+          if (area.locations.length === 0) {
+            console.warn(`Market area ${area.id} has no valid locations`);
+            return false;
+          }
+        } else {
+          // Handle radius market areas or other types
+          if (area.ma_type === 'radius' && (!area.radius_points || area.radius_points.length === 0)) {
+            console.warn(`Radius market area ${area.id} missing radius points`);
+            return false;
+          }
+        }
+  
+        return true;
       });
   
+      // Sort based on existing order or create new order
       if (order.length > 0) {
-        areas.sort((a, b) => {
+        validatedAreas.sort((a, b) => {
           const aIndex = order.indexOf(a.id);
           const bIndex = order.indexOf(b.id);
           return aIndex - bIndex;
         });
       } else {
-        setOrder(areas.map(area => area.id));
+        setOrder(validatedAreas.map(area => area.id));
       }
   
-      setMarketAreas(areas);
+      // Log validation results
+      console.log('Market Areas Validation:', {
+        totalReceived: areas.length,
+        validCount: validatedAreas.length
+      });
+  
+      // Update state
+      setMarketAreas(validatedAreas);
       setError(null);
       initialFetchDone.current = true;
-      return areas;
+  
+      return validatedAreas;
     } catch (err) {
-      console.error('Error fetching market areas:', err);
-      setError('Failed to fetch market areas');
-      setMarketAreas([]); 
+      console.error('Comprehensive error fetching market areas:', {
+        error: err,
+        projectId,
+        errorMessage: err.response?.data?.detail || err.message
+      });
+  
+      // More detailed error handling
+      setError({
+        message: 'Failed to fetch market areas',
+        details: err.response?.data?.detail || err.message
+      });
+  
+      // Reset states
+      setMarketAreas([]);
       setOrder([]);
+  
+      // Rethrow to allow caller to handle
       throw err;
     } finally {
       setIsLoading(false);

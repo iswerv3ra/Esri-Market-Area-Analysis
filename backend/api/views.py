@@ -1,18 +1,16 @@
-# views.py
-
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models import Count
 from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme
 from .serializers import (
-    UserSerializer, ProjectSerializer, MarketAreaSerializer,
-    StylePresetSerializer, VariablePresetSerializer, ColorKeySerializer, TcgThemeSerializer
+    UserSerializer, ProjectListSerializer, ProjectDetailSerializer, 
+    MarketAreaSerializer, StylePresetSerializer, 
+    VariablePresetSerializer, ColorKeySerializer, TcgThemeSerializer
 )
-from django.db.models import Q
-
 
 class ColorKeyViewSet(viewsets.ModelViewSet):
     queryset = ColorKey.objects.all().order_by('key_number')  # Ensure ordering
@@ -29,15 +27,26 @@ class CreateUserView(generics.CreateAPIView):
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
 
-class ProjectList(generics.ListCreateAPIView):
-    serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticated]
-
+class ProjectViewSet(viewsets.ModelViewSet):
+    queryset = Project.objects.all().order_by('-last_modified')
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ProjectListSerializer
+        return ProjectDetailSerializer
+    
     def get_queryset(self):
-        return Project.objects.all()
-
+        # Optimize list query
+        if self.action == 'list':
+            return self.queryset.only(
+                'id', 'project_number', 'client', 
+                'location', 'last_modified'
+            ).annotate(
+                market_areas_count=Count('market_areas')
+            )
+        return self.queryset
 class ProjectDetail(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = ProjectSerializer
+    serializer_class = ProjectDetailSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):

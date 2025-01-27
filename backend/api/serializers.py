@@ -1,7 +1,6 @@
-# serializers.py
-
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.db.models import Count
 from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme
 
 class ColorKeySerializer(serializers.ModelSerializer):
@@ -40,6 +39,7 @@ class TcgThemeSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -67,7 +67,6 @@ class MarketAreaSerializer(serializers.ModelSerializer):
             'id', 'name', 'short_name', 'ma_type', 'geometry',
             'style_settings', 'locations', 'radius_points',
             'created_at', 'last_modified',
-            # Add project_number here
             'project_number',
         ]
         read_only_fields = ['created_at', 'last_modified']
@@ -84,30 +83,27 @@ class MarketAreaSerializer(serializers.ModelSerializer):
             )
         return data
 
-class ProjectSerializer(serializers.ModelSerializer):
+class ProjectListSerializer(serializers.ModelSerializer):
+    market_areas_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Project
+        fields = [
+            'id', 'project_number', 'client', 'location', 
+            'last_modified', 'market_areas_count'
+        ]
+class ProjectDetailSerializer(serializers.ModelSerializer):
     market_areas = MarketAreaSerializer(many=True, read_only=True)
-    market_areas_count = serializers.IntegerField(source='market_areas.count', read_only=True)
     users = UserSerializer(many=True, read_only=True)
+    market_areas_count = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Project
         fields = [
             'id', 'project_number', 'client', 'location', 'description',
-            'created_at', 'last_modified', 'market_areas', 'market_areas_count',
-            'users'
+            'created_at', 'last_modified', 'market_areas', 
+            'market_areas_count', 'users'
         ]
-        read_only_fields = ['id', 'created_at', 'last_modified']
-
-    def create(self, validated_data):
-        project = Project.objects.create(
-            project_number=validated_data['project_number'],
-            client=validated_data['client'],
-            location=validated_data['location'],
-            description=validated_data.get('description', '')
-        )
-        all_users = User.objects.all()
-        project.users.set(all_users)
-        return project
 
 class StylePresetSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
@@ -160,7 +156,6 @@ class VariablePresetSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Variables list cannot be empty")
         return value
 
-    # If always global, you could remove is_global or just default it
     def validate(self, data):
         # If you want to force is_global always True:
         data['is_global'] = True

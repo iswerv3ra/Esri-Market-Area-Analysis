@@ -8,7 +8,7 @@ import {
   XCircleIcon,
   TrashIcon
 } from '@heroicons/react/24/outline';
-import { projectsAPI } from '../services/api';
+import { projectsAPI } from '../services/api';  // Keep this import
 
 export default function ProjectsList() {
   const navigate = useNavigate();
@@ -18,51 +18,46 @@ export default function ProjectsList() {
   const [error, setError] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, projectId: null, projectName: '' });
   
-  // Fetch projects from API
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        console.group('Fetching Projects');
-        console.log('Starting project fetch...');
-    
-        setIsLoading(true);
-        setError(null);
-    
-        console.log('Making API request to /api/projects/');
+        // Use projectsAPI.getAll() instead of api.get()
         const response = await projectsAPI.getAll();
-    
-        if (response.data && Array.isArray(response.data)) {
-          console.log('Project data received:', response.data);
+        if (response.data && response.data.length > 0) {
           setProjects(response.data);
+          setIsLoading(false);  // Add this to mark loading as complete
         } else {
-          console.error('Invalid response format:', response.data);
-          throw new Error('Invalid response format');
+          setProjects([]);
+          setError('No projects found');
+          setIsLoading(false);
         }
-      } catch (err) {
-        console.error('Error fetching projects:', err);
-    
-        // Provide a more user-friendly error message
-        setError({
-          message: 'Failed to load projects',
-          details: err.toString()
-        });
-    
-        // Optional: Show a toast notification
-        toast.error('Unable to load projects. Please try again later.');
-      } finally {
-        console.log('Project fetch complete.');
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+        setError('Failed to load projects');
         setIsLoading(false);
-        console.groupEnd();
+
+        // Handle different error scenarios
+        if (error.response) {
+          if (error.response.status === 401) {
+            // Handle unauthorized access
+            // Potentially redirect to login or refresh token
+          }
+        } else if (error.request) {
+          // The request was made but no response was received
+          setError('No response from server');
+        } else {
+          // Something happened in setting up the request
+          setError('Error setting up project request');
+        }
       }
     };
-
+  
     fetchProjects();
   }, []);
 
   // Filter projects based on search term
   const filteredProjects = useMemo(() => {
     if (!Array.isArray(projects)) {
-      console.warn('Projects is not an array:', projects);
       return [];
     }
     return projects.filter(project => {
@@ -70,20 +65,30 @@ export default function ProjectsList() {
       const searchString = [
         project.project_number,
         project.client,
-        project.location,
-        project.description
+        project.location
       ].filter(Boolean).join(' ').toLowerCase();
       
       return searchString.includes(searchTerm.toLowerCase());
     });
   }, [projects, searchTerm]);
 
-  // Navigation handlers
-  const handleProjectClick = (projectId) => {
-    if (projectId) {
-      window.location.href = `/projects/${projectId}/market-areas`;
-    }
-  };
+// OR Option 2: Using navigate with a replace and reload
+const handleProjectClick = async (projectId) => {
+  try {
+    const response = await projectsAPI.retrieve(projectId);
+    console.log('Full project response:', response.data);
+    
+    // Navigate with replace to clear the history
+    navigate(`/projects/${projectId}/market-areas`, { replace: true });
+    // Then force a reload
+    window.location.reload();
+  } catch (error) {
+    console.error('Full error object:', error);
+    console.error('Error response:', error.response);
+    const errorMessage = error.response?.data?.detail || 'Failed to load project details';
+    alert(errorMessage);
+  }
+};
 
   const handleCreateProject = () => {
     navigate('/projects/create');
@@ -111,7 +116,6 @@ export default function ProjectsList() {
   }
 
   return (
-    // Added classes h-screen and overflow-y-auto to enable scrolling
     <div className="h-screen overflow-y-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
@@ -162,7 +166,7 @@ export default function ProjectsList() {
             <div className="flex">
               <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                <h3 className="text-sm font-medium text-red-800">{error.message}</h3>
               </div>
             </div>
           </div>
@@ -190,11 +194,6 @@ export default function ProjectsList() {
                     <p className="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
                       {project.location}
                     </p>
-                    {project.description && (
-                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        {project.description}
-                      </p>
-                    )}
                     <div className="mt-4 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <CalendarIcon className="h-4 w-4" />

@@ -747,13 +747,26 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [mapView]);
 
-  // Add effect to monitor graphics layer state
   useEffect(() => {
     if (mapView && !layersReady) {
-      console.log("[MapContext] Initializing graphics layer");
-      initializeGraphicsLayers();
+      const initLayers = async () => {
+        try {
+          await initializeGraphicsLayers();
+          // Only proceed with market area display after graphics layer is confirmed ready
+          if (marketAreas?.length > 0) {
+            const marketArea = marketAreas[0];
+            if (marketArea?.locations?.length > 0) {
+              // Now safe to display features
+              await displayFeatures(marketArea.locations);
+            }
+          }
+        } catch (error) {
+          console.error("[MapContext] Error initializing layers:", error);
+        }
+      };
+      initLayers();
     }
-  }, [mapView, layersReady, initializeGraphicsLayers]);
+  }, [mapView, layersReady, marketAreas]);
 
   const getLabelingInfo = (type) => {
     let label;
@@ -1596,68 +1609,116 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [marketAreas]
   );
 
-  const displayFeatures = useCallback(
-    async (featuresToDraw) => {
-      if (!mapView || !selectionGraphicsLayerRef.current) return;
+  const ensureValidGeometry = async (geometry, spatialReference) => {
+    if (!geometry) {
+      console.warn("Geometry is null or undefined");
+      return null;
+    }
 
-      try {
-        console.log(
-          `[MapContext] Displaying ${featuresToDraw.length
-          } features for layers: ${activeLayers.join(", ")}`
-        );
+    try {
+      const { default: Point } = await import("@arcgis/core/geometry/Point");
+      const { default: SpatialReference } = await import(
+        "@arcgis/core/geometry/SpatialReference"
+      );
 
-        // Preserve market area graphics
-        const existingMarketAreaGraphics =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (graphic) => graphic.attributes?.marketAreaId
-          );
+      // Ensure spatialReference is a valid SpatialReference object
+      const validSpatialReference =
+        spatialReference instanceof SpatialReference
+          ? spatialReference
+          : new SpatialReference(spatialReference || { wkid: 102100 });
 
-        // Get existing selection graphics that we want to keep (ones not being toggled)
-        const existingSelectionGraphics =
-          selectionGraphicsLayerRef.current.graphics.filter(
-            (graphic) =>
-              !graphic.attributes?.marketAreaId &&
-              !featuresToDraw.some(
-                (f) => f.attributes.FID === graphic.attributes.FID
-              )
-          );
-
-        // Clear the graphics layer
-        selectionGraphicsLayerRef.current.removeAll();
-
-        // Add back existing market area graphics
-        existingMarketAreaGraphics.forEach((g) =>
-          selectionGraphicsLayerRef.current.add(g)
-        );
-
-        // Add back existing selection graphics we're keeping
-        existingSelectionGraphics.forEach((g) =>
-          selectionGraphicsLayerRef.current.add(g)
-        );
-
-        const { default: Graphic } = await import("@arcgis/core/Graphic");
-        for (const feat of featuresToDraw) {
-          // Make sure geometry is valid & define your symbol
-          const geometry = ensureValidGeometry(
-            feat.geometry,
-            mapView.spatialReference
-          );
-          if (!geometry) continue;
-
-          const symbol = SYMBOLS.selectedPolygon; // or pick based on geometry.type
-          const graphic = new Graphic({
-            geometry,
-            attributes: feat.attributes,
-            symbol,
-          });
-          selectionGraphicsLayerRef.current.add(graphic);
-        }
-      } catch (err) {
-        console.error("[MapContext] Error displaying features:", err);
+      // If geometry is a point-like object
+      if (geometry.longitude !== undefined && geometry.latitude !== undefined) {
+        return new Point({
+          longitude: geometry.longitude,
+          latitude: geometry.latitude,
+          spatialReference: validSpatialReference,
+        });
       }
-    },
-    [mapView]
-  );
+
+      // If it's already a Point or other Geometry
+      if (geometry.type || geometry.spatialReference) {
+        // Ensure it has a valid spatial reference
+        if (!geometry.spatialReference) {
+          geometry.spatialReference = validSpatialReference;
+        }
+        return geometry;
+      }
+
+      console.warn("Unrecognized geometry format:", geometry);
+      return null;
+    } catch (error) {
+      console.error("Error in ensureValidGeometry:", error);
+      return null;
+    }
+  };
+  
+  const displayFeatures = useCallback(async (featuresToDraw) => {
+    if (!mapView || !selectionGraphicsLayerRef.current || !layersReady) {
+      console.log("[MapContext] Cannot display features - prerequisites not met", {
+        hasMapView: !!mapView,
+        hasGraphicsLayer: !!selectionGraphicsLayerRef.current,
+        layersReady
+      });
+      return;
+    }
+  
+    try {
+      console.log(
+        `[MapContext] Displaying ${featuresToDraw.length} features for layers: ${activeLayers.join(", ")}`
+      );
+  
+      // Preserve market area graphics
+      const existingMarketAreaGraphics =
+        selectionGraphicsLayerRef.current.graphics.filter(
+          (graphic) => graphic.attributes?.marketAreaId
+        );
+  
+      // Get existing selection graphics that we want to keep (ones not being toggled)
+      const existingSelectionGraphics =
+        selectionGraphicsLayerRef.current.graphics.filter(
+          (graphic) =>
+            !graphic.attributes?.marketAreaId &&
+            !featuresToDraw.some(
+              (f) => f.attributes.FID === graphic.attributes.FID
+            )
+        );
+  
+      // Clear the graphics layer
+      selectionGraphicsLayerRef.current.removeAll();
+  
+      // Add back existing market area graphics
+      existingMarketAreaGraphics.forEach((g) =>
+        selectionGraphicsLayerRef.current.add(g)
+      );
+  
+      // Add back existing selection graphics we're keeping
+      existingSelectionGraphics.forEach((g) =>
+        selectionGraphicsLayerRef.current.add(g)
+      );
+  
+      const { default: Graphic } = await import("@arcgis/core/Graphic");
+      for (const feat of featuresToDraw) {
+        // Make sure geometry is valid & define your symbol
+        const geometry = ensureValidGeometry(
+          feat.geometry,
+          mapView.spatialReference
+        );
+        if (!geometry) continue;
+  
+        const symbol = SYMBOLS.selectedPolygon; // or pick based on geometry.type
+        const graphic = new Graphic({
+          geometry,
+          attributes: feat.attributes,
+          symbol,
+        });
+        selectionGraphicsLayerRef.current.add(graphic);
+      }
+    } catch (err) {
+      console.error("[MapContext] Error displaying features:", err);
+    }
+  }, [mapView, layersReady, activeLayers, ensureValidGeometry]);
+
 
   function debounce(func, wait) {
     let timeout;
@@ -2024,49 +2085,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [updateFeatureStyles]
   );
 
-  const ensureValidGeometry = async (geometry, spatialReference) => {
-    if (!geometry) {
-      console.warn("Geometry is null or undefined");
-      return null;
-    }
-
-    try {
-      const { default: Point } = await import("@arcgis/core/geometry/Point");
-      const { default: SpatialReference } = await import(
-        "@arcgis/core/geometry/SpatialReference"
-      );
-
-      // Ensure spatialReference is a valid SpatialReference object
-      const validSpatialReference =
-        spatialReference instanceof SpatialReference
-          ? spatialReference
-          : new SpatialReference(spatialReference || { wkid: 102100 });
-
-      // If geometry is a point-like object
-      if (geometry.longitude !== undefined && geometry.latitude !== undefined) {
-        return new Point({
-          longitude: geometry.longitude,
-          latitude: geometry.latitude,
-          spatialReference: validSpatialReference,
-        });
-      }
-
-      // If it's already a Point or other Geometry
-      if (geometry.type || geometry.spatialReference) {
-        // Ensure it has a valid spatial reference
-        if (!geometry.spatialReference) {
-          geometry.spatialReference = validSpatialReference;
-        }
-        return geometry;
-      }
-
-      console.warn("Unrecognized geometry format:", geometry);
-      return null;
-    } catch (error) {
-      console.error("Error in ensureValidGeometry:", error);
-      return null;
-    }
-  };
 
   const drawRadius = useCallback(
     async (point, style = null, marketAreaId = null, order = 0) => {
@@ -2724,8 +2742,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   useEffect(() => {
     let isActive = true;
-    const MAX_WAIT_TIME = 5000; // Maximum wait time of 5 seconds
-    const INITIAL_WAIT_TIME = 1500; // Increased initial wait time
+    const MAX_WAIT_TIME = 4000; // Maximum wait time of 7 seconds
+    const INITIAL_WAIT_TIME = 2000; // Increased initial wait time
   
     console.log('[MapContext] Centering effect triggered:', {
       hasCentered: hasCentered.current,

@@ -184,9 +184,16 @@ export const authAPI = {
 // Projects API endpoints
 // ---------------------------------------------------------
 export const projectsAPI = {
-  getAll: async () => {
+  getAll: async (params = {}) => {
     try {
-      const response = await api.get('/api/projects/');
+      const response = await api.get('/api/projects/', {
+        params: {
+          page: params.page || 1,
+          page_size: params.page_size || 20,
+          search: params.search || '',
+          ordering: params.ordering || '-last_modified'
+        }
+      });
       return response;
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -194,6 +201,17 @@ export const projectsAPI = {
     }
   },
 
+  retrieve: async (id) => {
+    try {
+      const response = await api.get(`/api/projects/${id}/`);
+      return response;
+    } catch (error) {
+      console.error(`Error fetching project ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Rest of the methods remain the same
   create: async (projectData) => {
     try {
       const response = await api.post('/api/projects/', projectData);
