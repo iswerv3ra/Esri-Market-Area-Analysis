@@ -263,81 +263,92 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       toast.error("No market areas selected");
       return;
     }
-
+  
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting KML files...");
-
-      await projection.load();
+  
       const zip = new JSZip();
-
+  
       const toKmlCoordinates = (rings) => {
         return rings
-          .map((ring) =>
-            ring.map((coord) => `${coord[0]},${coord[1]},0`).join(" ")
-          )
+          .map((ring) => {
+            // Convert each coordinate to longitude,latitude,altitude format
+            return ring.map((coord) => {
+              // Convert Web Mercator to WGS84 (ensure proper precision)
+              const lng = (coord[0] * 180) / 20037508.34;
+              const lat = (Math.atan(Math.exp((coord[1] * Math.PI) / 20037508.34)) * 360) / Math.PI - 90;
+              // Use fixed precision to avoid floating point errors
+              return `${lng.toFixed(6)},${lat.toFixed(6)},0`;
+            }).join(" ");
+          })
           .join(" ");
       };
-
+  
       // Process each selected market area
       for (const maId of selectedMAIds) {
         const area = marketAreas.find((m) => m.id === maId);
         if (!area) continue;
-
+  
         let kmlPlacemarks = "";
-
-        // Process radius points
+        const geometries = [];
+  
+        // Collect all geometries from both radius points and locations
         if (area.ma_type === "radius" && Array.isArray(area.radius_points)) {
-          for (const pt of area.radius_points) {
-            if (!pt.geometry) continue;
-
-            const projectedGeom = projection.project(pt.geometry, { wkid: 4326 });
-            if (!projectedGeom || !projectedGeom.rings) continue;
-
-            const coords = toKmlCoordinates(projectedGeom.rings);
-            kmlPlacemarks += `
-  <Placemark>
-    <name>${area.name}</name>
-    <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
-    <styleUrl>#polygonStyle</styleUrl>
-    <Polygon>
-      <outerBoundaryIs>
-        <LinearRing>
-          <coordinates>${coords}</coordinates>
-        </LinearRing>
-      </outerBoundaryIs>
-    </Polygon>
-  </Placemark>`;
-          }
+          geometries.push(...area.radius_points.filter(pt => pt.geometry));
         }
-        // Process other locations
-        else if (area.locations && Array.isArray(area.locations)) {
-          for (const loc of area.locations) {
-            if (!loc.geometry) continue;
-
-            const projectedGeom = projection.project(loc.geometry, { wkid: 4326 });
-            if (!projectedGeom || !projectedGeom.rings) continue;
-
-            const coords = toKmlCoordinates(projectedGeom.rings);
-            kmlPlacemarks += `
-  <Placemark>
-    <name>${area.name}</name>
-    <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
-    <styleUrl>#polygonStyle</styleUrl>
-    <Polygon>
-      <outerBoundaryIs>
-        <LinearRing>
-          <coordinates>${coords}</coordinates>
-        </LinearRing>
-      </outerBoundaryIs>
-    </Polygon>
-  </Placemark>`;
-          }
+        if (area.locations && Array.isArray(area.locations)) {
+          geometries.push(...area.locations.filter(loc => loc.geometry));
         }
-
-        // Create KML content for this market area
+  
+        // Process all geometries for this market area
+        for (const geom of geometries) {
+          const sourceGeom = geom.geometry;
+          if (!sourceGeom || !sourceGeom.rings) continue;
+  
+          // Sort rings by area to identify outer and inner boundaries
+          const rings = sourceGeom.rings.map(ring => ({
+            coordinates: ring,
+            area: Math.abs(ring.reduce((area, coord, i) => {
+              const next = ring[(i + 1) % ring.length];
+              return area + (coord[0] * next[1] - next[0] * coord[1]);
+            }, 0) / 2)
+          })).sort((a, b) => b.area - a.area);
+  
+          const outerRing = rings[0];
+          const innerRings = rings.slice(1);
+  
+          const outerCoords = toKmlCoordinates([outerRing.coordinates]);
+          const innerBoundaries = innerRings.map(ring => {
+            const coords = toKmlCoordinates([ring.coordinates]);
+            return `
+            <innerBoundaryIs>
+              <LinearRing>
+                <coordinates>${coords}</coordinates>
+              </LinearRing>
+            </innerBoundaryIs>`;
+          }).join("");
+  
+          // Create individual placemark for each shape
+          kmlPlacemarks += `
+    <Placemark>
+      <name>${geom.name || area.name}</name>
+      <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
+      <styleUrl>#polygonStyle</styleUrl>
+      <Polygon>
+        <tessellate>1</tessellate>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${outerCoords}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>${innerBoundaries}
+      </Polygon>
+    </Placemark>`;
+        }
+  
+        // Create KML content for this market area, containing all its shapes
         const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-  <kml xmlns="http://earth.google.com/kml/2.2">
+  <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${area.name}</name>
     <description>${area.description || ""}</description>
@@ -348,29 +359,31 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       </LineStyle>
       <PolyStyle>
         <color>7dff0000</color>
+        <fill>1</fill>
+        <outline>1</outline>
       </PolyStyle>
     </Style>
     ${kmlPlacemarks}
   </Document>
   </kml>`;
-
+  
         // Create sanitized filename
         const fileName = `${area.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.kml`;
         
-        // Add KML file directly to the ZIP root
+        // Add KML file to the ZIP
         zip.file(fileName, kmlContent);
       }
-
+  
       // Generate the ZIP file
       const content = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
         compressionOptions: { level: 6 },
       });
-
+  
       // Save the ZIP file
       saveAs(content, `${folderName}.zip`);
-
+  
       toast.dismiss(loadingToast);
       toast.success("KML files exported successfully");
     } catch (error) {

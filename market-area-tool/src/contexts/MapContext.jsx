@@ -1708,12 +1708,29 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
+          console.log('[MapContext] Processing features:', {
+            marketAreaId,
+            featureCount: maFeatures.length,
+            featureGeometries: maFeatures.map(f => ({
+              hasGeometry: !!f.geometry,
+              type: f.geometry?.type,
+              rings: f.geometry?.rings?.length,
+              coordinates: f.geometry?.coordinates?.length
+            }))
+          });
+  
           // Get high resolution features for any layer type
           let highResPolygons = [];
           
           try {
             const layer = featureLayersRef.current[featureType];
             if (layer) {
+              console.log(`[MapContext] Found layer for type ${featureType}:`, {
+                title: layer.title,
+                hasFeatureLayers: !!layer.featureLayers,
+                layerCount: layer.featureLayers?.length || 1
+              });
+              
               // Handle both single and group layers
               const layersToQuery = layer.featureLayers || [layer];
               
@@ -1731,7 +1748,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 });
   
                 try {
+                  console.log(`[MapContext] Querying layer with:`, {
+                    where: query.where,
+                    outSpatialReference: query.outSpatialReference.wkid
+                  });
                   const result = await queryLayer.queryFeatures(query);
+                  console.log(`[MapContext] Query result:`, {
+                    hasFeatures: !!result?.features,
+                    featureCount: result?.features?.length || 0
+                  });
                   if (result?.features) {
                     const polygons = result.features.map(feature => {
                       if (!feature.geometry?.rings) return null;
@@ -1754,6 +1779,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   
           // Fall back to original geometries if high-res query failed
           if (highResPolygons.length === 0) {
+            console.log('[MapContext] Falling back to original geometries');
             highResPolygons = maFeatures
               .map((feature) => {
                 if (!feature.geometry) {
@@ -2600,11 +2626,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [marketAreas]);
 
-  useEffect(() => {
-    if (marketAreas.length > 0) {
-      setVisibleMarketAreaIds(marketAreas.map((ma) => ma.id));
-    }
-  }, [marketAreas]);
 
   const unionAllMarketAreas = async (marketAreas) => {
     // Gather all polygons

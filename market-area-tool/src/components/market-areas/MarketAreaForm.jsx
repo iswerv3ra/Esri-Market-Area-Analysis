@@ -25,24 +25,26 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const { projectId } = useParams();
   const { addMarketArea, updateMarketArea, deleteMarketArea } =
     useMarketAreas();
-  const {
-    isLayerLoading,
-    queryFeatures,
-    addToSelection,
-    removeFromSelection,
-    clearSelection,
-    updateFeatureStyles,
-    drawRadius,
-    addActiveLayer,
-    removeActiveLayer,
-    selectedFeatures,
-    isMapSelectionActive,
-    setIsMapSelectionActive,
-    formatLocationName,
-    setVisibleMarketAreaIds,
-    setEditingMarketArea,
-    selectionGraphicsLayer,
-  } = useMap();
+    const {
+      isLayerLoading,
+      queryFeatures,
+      addToSelection,
+      removeFromSelection,
+      clearSelection,
+      updateFeatureStyles,
+      drawRadius,
+      addActiveLayer,
+      removeActiveLayer,
+      selectedFeatures,
+      isMapSelectionActive,
+      setIsMapSelectionActive,
+      formatLocationName,
+      setVisibleMarketAreaIds,
+      setEditingMarketArea,
+      selectionGraphicsLayer,
+      mapView,
+      featureLayers: featureLayersRef,  // Alias featureLayers as featureLayersRef
+    } = useMap();
 
   const initializationDone = useRef(false);
   const locationsInitialized = useRef(false);
@@ -627,6 +629,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }
   }, [editingMarketArea, clearSelection]);
 
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -717,8 +721,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }
         });
   
-        console.log("Transformed radius points:", transformedRadiusPoints);
-  
         const marketAreaData = {
           ma_type: "radius",
           name: formState.maName,
@@ -727,8 +729,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           locations: [],
           radius_points: transformedRadiusPoints,
         };
-  
-        console.log("Market area data to save:", marketAreaData);
   
         // Store existing graphics that we want to keep
         const existingGraphics = selectionGraphicsLayer.graphics
@@ -746,7 +746,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   
         let savedMarketArea;
         if (editingMarketArea) {
-          console.log("Updating existing market area:", editingMarketArea.id);
           savedMarketArea = await updateMarketArea(
             projectId,
             editingMarketArea.id,
@@ -754,12 +753,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
           toast.success("Market area updated successfully");
         } else {
-          console.log("Creating new market area");
           savedMarketArea = await addMarketArea(projectId, marketAreaData);
           toast.success("Market area created successfully");
         }
-  
-        console.log("Saved market area:", savedMarketArea);
   
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
@@ -797,9 +793,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         });
   
         // Draw the radius(es) with proper styles
-        console.log("Drawing radius points:", marketAreaData.radius_points);
         for (const point of marketAreaData.radius_points) {
-          console.log("Drawing radius point:", point);
           await drawRadius(
             point,
             styleSettings,
@@ -828,12 +822,52 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setVisibleMarketAreaIds(currentVisibleIds);
       } else {
         // Non-radius scenario
+        const { default: Query } = await import("@arcgis/core/rest/support/Query");
+        const layer = featureLayersRef[formState.maType]; // Remove .current since featureLayersRef is already the current value
+  
+        // Get high resolution geometries first
+        const highResLocations = await Promise.all(
+          formState.selectedLocations.map(async (loc) => {
+            if (!layer) return loc;
+  
+            try {
+              const query = new Query({
+                where: `${layer.objectIdField || 'OBJECTID'} = ${loc.id}`,
+                returnGeometry: true,
+                outSpatialReference: mapView.spatialReference,
+                maxAllowableOffset: 0,
+                geometryPrecision: 8
+              });
+  
+              let result;
+              if (Array.isArray(layer.featureLayers)) {
+                const results = await Promise.all(
+                  layer.featureLayers.map(subLayer => subLayer.queryFeatures(query))
+                );
+                result = results.find(r => r.features.length > 0);
+              } else {
+                result = await layer.queryFeatures(query);
+              }
+  
+              if (result?.features[0]) {
+                return {
+                  ...loc,
+                  geometry: result.features[0].geometry
+                };
+              }
+            } catch (error) {
+              console.warn('Failed to get high res geometry:', error);
+            }
+            return loc;
+          })
+        );
+  
         const marketAreaData = {
           ma_type: mappedType,
           name: formState.maName,
           short_name: formState.shortName,
           style_settings: styleSettings,
-          locations: formState.selectedLocations.map((loc) => ({
+          locations: highResLocations.map((loc) => ({
             id: loc.id,
             name: loc.name,
             geometry: loc.geometry || loc.feature?.geometry,
@@ -872,11 +906,11 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         // Turn off map selection temporarily
         setIsMapSelectionActive(false);
   
-        // Prepare current selections with proper styling
-        const currentSelections = selectedFeatures.map((feature) => ({
-          ...feature,
+        // Prepare current selections with proper styling using high res geometries
+        const currentSelections = highResLocations.map((loc) => ({
+          geometry: loc.geometry || loc.feature?.geometry,
           attributes: {
-            ...feature.attributes,
+            id: loc.id,
             marketAreaId: editingMarketArea?.id || savedMarketArea.id,
             FEATURE_TYPE: formState.maType,
             order: savedMarketArea.order,
@@ -927,7 +961,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             outlineWidth: styleSettings.borderWidth,
           },
           formState.maType,
-          true // Add immediate flag to ensure styles are applied right away
+          true
         );
   
         // Handle visibility
@@ -962,6 +996,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       setIsSaving(false);
     }
   };
+
+
   const handleCancel = useCallback(async () => {
     try {
       // Clear active layer if exists
