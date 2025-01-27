@@ -418,16 +418,29 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             }
           );
 
-          // In the search effect, modify the mapping:
-          const mappedResults = results.map((feature) => {
+          const mappedResults = results
+          .map((feature) => {
             const locationName = formatLocationName(feature, formState.maType);
-            // Remove the extra state append
             return {
               id: feature.attributes.FID,
-              name: locationName, // Just use the formatted name directly
+              name: locationName,
               feature,
               geometry: feature.geometry,
             };
+          })
+          .sort((a, b) => {
+            const searchTerm = formState.locationSearch.toLowerCase();
+            const aStartsWith = a.name.toLowerCase().startsWith(searchTerm);
+            const bStartsWith = b.name.toLowerCase().startsWith(searchTerm);
+            
+            // If both names start with the search term or neither do,
+            // sort alphabetically
+            if (aStartsWith === bStartsWith) {
+              return a.name.localeCompare(b.name);
+            }
+            
+            // Prioritize names that start with the search term
+            return aStartsWith ? -1 : 1;
           });
 
           setFormState((prev) => ({
