@@ -432,10 +432,10 @@ const hexToRgb = (hex) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16),
-      ]
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16),
+    ]
     : [0, 0, 0];
 };
 
@@ -892,8 +892,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               type === "block"
                 ? 10
                 : type === "tract" || type === "blockgroup"
-                ? 12
-                : 14,
+                  ? 12
+                  : 14,
             family: "Noto Sans",
             weight: "bold",
           },
@@ -903,20 +903,20 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           type === "state" || type === "usa"
             ? 0
             : type === "cbsa" || type === "md"
-            ? 0
-            : type === "county"
-            ? 2000000
-            : type === "place"
-            ? 1000000
-            : type === "zip"
-            ? 300000
-            : type === "tract"
-            ? 100000
-            : type === "blockgroup"
-            ? 50000
-            : type === "block"
-            ? 25000
-            : 300000,
+              ? 0
+              : type === "county"
+                ? 2000000
+                : type === "place"
+                  ? 1000000
+                  : type === "zip"
+                    ? 300000
+                    : type === "tract"
+                      ? 100000
+                      : type === "blockgroup"
+                        ? 50000
+                        : type === "block"
+                          ? 25000
+                          : 300000,
         maxScale: 0,
         where: null,
         labelExpressionInfo: label.expressionInfo,
@@ -1377,9 +1377,8 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             STATE_ABBR: validAttributes.STATE_ABBR || "CA",
             STCOFIPS:
               validAttributes.STCOFIPS ||
-              `${validAttributes.STATE_FIPS || "06"}${
-                validAttributes.COUNTY_FIPS || validAttributes.COUNTY || ""
-              }`.padEnd(5, "0"),
+              `${validAttributes.STATE_FIPS || "06"}${validAttributes.COUNTY_FIPS || validAttributes.COUNTY || ""
+                }`.padEnd(5, "0"),
             FEATURE_TYPE: layerType,
             NAME:
               validAttributes.NAME ||
@@ -1420,7 +1419,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             !normalizedFeature.attributes?.marketAreaId ||
             (editingMarketArea &&
               normalizedFeature.attributes.marketAreaId ===
-                editingMarketArea.id)
+              editingMarketArea.id)
           ) {
             setSelectedFeatures((prev) => {
               const newSelectedFeatures = [...prev];
@@ -1603,8 +1602,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
       try {
         console.log(
-          `[MapContext] Displaying ${
-            featuresToDraw.length
+          `[MapContext] Displaying ${featuresToDraw.length
           } features for layers: ${activeLayers.join(", ")}`
         );
 
@@ -1661,13 +1659,34 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     [mapView]
   );
 
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType, immediate = false) => {
+      // Prevent multiple simultaneous calls
+      if (updateFeatureStyles.isProcessing) {
+        console.log("[MapContext] Update already in progress, skipping");
+        return;
+      }
+
       if (!selectionGraphicsLayerRef.current || !mapView) {
         console.log("[MapContext] Cannot update styles: missing graphics layer or map view");
         return;
       }
-  
+
+      // Set processing flag
+      updateFeatureStyles.isProcessing = true;
+
       try {
         const [
           { default: Graphic },
@@ -1680,7 +1699,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           import("@arcgis/core/geometry/geometryEngine"),
           import("@arcgis/core/rest/support/Query")
         ]);
-  
+
         // Group features by their marketAreaId
         const featuresByMarketArea = {};
         features.forEach((feature) => {
@@ -1688,24 +1707,63 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           if (!featuresByMarketArea[id]) featuresByMarketArea[id] = [];
           featuresByMarketArea[id].push(feature);
         });
-  
+
+        // Check if these features are already displayed with the same styles
+        const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(g =>
+          g.attributes?.marketAreaId === Object.keys(featuresByMarketArea)[0] &&
+          g.attributes?.FEATURE_TYPE === featureType
+        );
+
+        if (existingGraphics.length > 0) {
+          const graphicsItems = existingGraphics.items || existingGraphics;
+
+          if (graphicsItems && graphicsItems.length > 0) {
+            const firstGraphic = graphicsItems[0];
+
+            const symbolJSON = firstGraphic.symbol?.toJSON ? firstGraphic.symbol.toJSON() : null;
+
+            let currentFill = symbolJSON?.color || [0, 0, 0, 0];
+            let currentOutline = symbolJSON?.outline?.color ?
+              {
+                color: symbolJSON.outline.color,
+                width: symbolJSON.outline.width || 0
+              } :
+              { color: [0, 0, 0, 0], width: 0 };
+
+            const stylesMatch =
+              currentFill[0] === styles.fill[0] &&
+              currentFill[1] === styles.fill[1] &&
+              currentFill[2] === styles.fill[2] &&
+              (currentFill[3] || 0) === styles.fillOpacity &&
+              currentOutline.color[0] === styles.outline[0] &&
+              currentOutline.color[1] === styles.outline[1] &&
+              currentOutline.color[2] === styles.outline[2] &&
+              currentOutline.width === styles.outlineWidth;
+
+            if (stylesMatch && !immediate) {
+              console.log("[MapContext] Features already displayed with same styles, skipping update");
+              return;
+            }
+          }
+        }
+
         // Handle existing graphics with more precision
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
-        let existingGraphics = immediate 
-          ? selectionGraphicsLayerRef.current.graphics.filter(g => 
-              !marketAreaIds.has(g.attributes?.marketAreaId) && 
-              g.attributes?.FEATURE_TYPE !== featureType)
-          : selectionGraphicsLayerRef.current.graphics.filter(g => 
-              !marketAreaIds.has(g.attributes?.marketAreaId));
-  
+        let remainingGraphics = immediate
+          ? selectionGraphicsLayerRef.current.graphics.filter(g =>
+            !marketAreaIds.has(g.attributes?.marketAreaId) &&
+            g.attributes?.FEATURE_TYPE !== featureType)
+          : selectionGraphicsLayerRef.current.graphics.filter(g =>
+            !marketAreaIds.has(g.attributes?.marketAreaId));
+
         // Clear and restore in one batch
         selectionGraphicsLayerRef.current.removeAll();
-        if (existingGraphics.length > 0) {
-          selectionGraphicsLayerRef.current.addMany(existingGraphics);
+        if (remainingGraphics.length > 0) {
+          selectionGraphicsLayerRef.current.addMany(remainingGraphics);
         }
-  
+
         const newGraphics = [];
-  
+
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
           console.log('[MapContext] Processing features:', {
@@ -1718,10 +1776,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               coordinates: f.geometry?.coordinates?.length
             }))
           });
-  
+
           // Get high resolution features for any layer type
           let highResPolygons = [];
-          
+
           try {
             const layer = featureLayersRef.current[featureType];
             if (layer) {
@@ -1730,13 +1788,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 hasFeatureLayers: !!layer.featureLayers,
                 layerCount: layer.featureLayers?.length || 1
               });
-              
+
               // Handle both single and group layers
               const layersToQuery = layer.featureLayers || [layer];
-              
+
               for (const queryLayer of layersToQuery) {
                 const query = new Query({
-                  where: maFeatures.map(f => 
+                  where: maFeatures.map(f =>
                     `${queryLayer.objectIdField || 'OBJECTID'} = ${f.attributes.OBJECTID || f.attributes.FID}`
                   ).join(' OR '),
                   returnGeometry: true,
@@ -1746,7 +1804,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   resultType: "standard",
                   multipatchOption: "xyFootprint"
                 });
-  
+
                 try {
                   console.log(`[MapContext] Querying layer with:`, {
                     where: query.where,
@@ -1776,7 +1834,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           } catch (error) {
             console.warn('Error fetching high-res features:', error);
           }
-  
+
           // Fall back to original geometries if high-res query failed
           if (highResPolygons.length === 0) {
             console.log('[MapContext] Falling back to original geometries');
@@ -1786,12 +1844,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   console.warn('Feature missing geometry:', feature);
                   return null;
                 }
-  
+
                 const geomConfig = {
                   spatialReference: mapView.spatialReference,
                   type: "polygon",
                 };
-  
+
                 try {
                   if (feature.geometry.rings) {
                     return new Polygon({
@@ -1812,12 +1870,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               })
               .filter(Boolean);
           }
-  
+
           if (highResPolygons.length === 0) {
             console.warn(`No valid polygons for market area ${marketAreaId}`);
             continue;
           }
-  
+
           try {
             // Create unified boundary
             const unifiedGeometry = union(highResPolygons);
@@ -1825,11 +1883,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               console.warn(`Union failed for market area ${marketAreaId}`);
               continue;
             }
-  
+
             const simplifiedGeometry = simplify(unifiedGeometry);
             const totalArea = Math.abs(planarArea(simplifiedGeometry));
             const minHoleArea = totalArea * 0.001;
-  
+
             // Extract and filter rings
             const rings = simplifiedGeometry.rings;
             const { exteriorRings, holeRings } = rings.reduce(
@@ -1839,10 +1897,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   spatialReference: mapView.spatialReference,
                   type: "polygon",
                 });
-  
+
                 const area = planarArea(ringPolygon);
                 const perimeter = planarLength(ringPolygon);
-  
+
                 if (area > 0) {
                   acc.exteriorRings.push(ring);
                 } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
@@ -1852,7 +1910,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               },
               { exteriorRings: [], holeRings: [] }
             );
-  
+
             // Create fill graphic with exact specified styles
             const fillSymbol = {
               type: "simple-fill",
@@ -1862,13 +1920,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: 0,
               },
             };
-  
+
             const fillGeometry = new Polygon({
               rings: [...exteriorRings, ...holeRings],
               spatialReference: mapView.spatialReference,
               type: "polygon",
             });
-  
+
             newGraphics.push(
               new Graphic({
                 geometry: fillGeometry,
@@ -1881,7 +1939,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 },
               })
             );
-  
+
             // Create outline graphics
             const outlineSymbol = {
               type: "simple-fill",
@@ -1891,7 +1949,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: styles.outlineWidth,
               },
             };
-  
+
             // Add hole outlines
             holeRings.forEach((holeRing, index) => {
               const holeGeometry = new Polygon({
@@ -1899,7 +1957,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 spatialReference: mapView.spatialReference,
                 type: "polygon",
               });
-  
+
               newGraphics.push(
                 new Graphic({
                   geometry: holeGeometry,
@@ -1916,14 +1974,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 })
               );
             });
-  
+
             // Add exterior outline
             const exteriorGeometry = new Polygon({
               rings: exteriorRings,
               spatialReference: mapView.spatialReference,
               type: "polygon",
             });
-  
+
             newGraphics.push(
               new Graphic({
                 geometry: exteriorGeometry,
@@ -1943,16 +2001,27 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             continue;
           }
         }
-  
         // Add all new graphics in one batch
         if (newGraphics.length > 0) {
           selectionGraphicsLayerRef.current.addMany(newGraphics);
         }
       } catch (error) {
         console.error('Error updating feature styles:', error);
+      } finally {
+        // Ensure processing flag is always reset
+        updateFeatureStyles.isProcessing = false;
       }
     },
     [mapView, hexToRgb, featureLayersRef]
+  );
+
+  // Initialize the processing flag
+  updateFeatureStyles.isProcessing = false;
+
+  // Debounce the function
+  const debouncedUpdateFeatureStyles = useCallback(
+    debounce(updateFeatureStyles, 300), // 300ms delay
+    [updateFeatureStyles]
   );
 
   const ensureValidGeometry = async (geometry, spatialReference) => {
@@ -2013,7 +2082,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         });
         return;
       }
-  
+
       try {
         const [
           { default: Graphic },
@@ -2026,7 +2095,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           import("@arcgis/core/geometry/support/webMercatorUtils"),
           import("@arcgis/core/geometry/Point"),
         ]);
-  
+
         // Use provided style or fallback
         const fillRgb = style?.fillColor
           ? hexToRgb(style.fillColor)
@@ -2038,23 +2107,23 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           style?.fillOpacity !== undefined ? style.fillOpacity : 0.35;
         const borderWidth =
           style?.borderWidth !== undefined ? style.borderWidth : 2;
-  
+
         // Explicitly create point using longitude and latitude
         const centerPoint = new Point({
           longitude: point.center.x,  // Use x as longitude
           latitude: point.center.y,   // Use y as latitude
           spatialReference: mapView.spatialReference,
         });
-  
+
         console.log('DrawRadius centerPoint:', {
           longitude: point.center.x,
           latitude: point.center.y,
           spatialReference: centerPoint.spatialReference
         });
-  
+
         // Convert to geographic for geodesic buffer
         const geographicPoint = webMercatorToGeographic(centerPoint);
-  
+
         // Remove existing radius graphics for this point if updating
         if (marketAreaId) {
           const existingRadiusGraphics =
@@ -2072,21 +2141,21 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             );
           }
         }
-  
+
         // Generate circles for each radius
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
-  
+
           const polygon = geodesicBuffer(
             geographicPoint,
             radiusMeters,
             "meters"
           );
-  
+
           // Create unique ID for this radius circle
           const circleId = `${marketAreaId || "temp"}-radius-${i}`;
-  
+
           const symbol = {
             type: "simple-fill",
             color: [...fillRgb, fillOpacity],
@@ -2095,7 +2164,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               width: borderWidth,
             },
           };
-  
+
           const graphic = new Graphic({
             geometry: polygon,
             symbol: symbol,
@@ -2107,10 +2176,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               circleId,
             },
           });
-  
+
           selectionGraphicsLayerRef.current.add(graphic);
         }
-  
+
         // Log successful drawing
         console.log(
           `Drew radius rings for market area ${marketAreaId || "temp"}:`,
@@ -2227,21 +2296,21 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     console.log("[MapContext] Clear graphics called:", { marketAreaId });
-  
+
     if (!selectionGraphicsLayerRef.current) {
       console.log("[MapContext] No graphics layer available");
       return;
     }
-  
+
     try {
       // Find and remove ALL graphics associated with this market area
       const graphicsToRemove = selectionGraphicsLayerRef.current.graphics.filter(
-        (graphic) => 
+        (graphic) =>
           graphic.attributes?.marketAreaId === marketAreaId ||
-          (graphic.attributes?.FEATURE_TYPE === 'radius' && 
-           graphic.attributes?.marketAreaId === marketAreaId)
+          (graphic.attributes?.FEATURE_TYPE === 'radius' &&
+            graphic.attributes?.marketAreaId === marketAreaId)
       );
-  
+
       if (graphicsToRemove.length > 0) {
         console.log(
           `[MapContext] Removing ${graphicsToRemove.length} graphics for market area: ${marketAreaId}`
@@ -2650,198 +2719,198 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   };
 
-// Create ref outside your effects
-const hasCentered = useRef(false);
+  // Create ref outside your effects
+  const hasCentered = useRef(false);
 
-// Updated centering effect
-useEffect(() => {
-  let isActive = true;
+  // Updated centering effect
+  useEffect(() => {
+    let isActive = true;
 
-  console.log('[MapContext] Centering effect triggered:', {
-    hasCentered: hasCentered.current,
-    mapReady: mapView?.ready,
-    hasMarketAreas: Boolean(marketAreas?.length),
-    marketAreasCount: marketAreas?.length,
-    firstMarketArea: marketAreas?.[0]?.id
-  });
+    console.log('[MapContext] Centering effect triggered:', {
+      hasCentered: hasCentered.current,
+      mapReady: mapView?.ready,
+      hasMarketAreas: Boolean(marketAreas?.length),
+      marketAreasCount: marketAreas?.length,
+      firstMarketArea: marketAreas?.[0]?.id
+    });
 
-  if (!mapView?.ready) {
-    console.log('[MapContext] Map not ready, skipping');
-    return;
-  }
+    if (!mapView?.ready) {
+      console.log('[MapContext] Map not ready, skipping');
+      return;
+    }
 
-  const centerMap = async () => {
-    if (!isActive) return;
+    const centerMap = async () => {
+      if (!isActive) return;
 
-    try {
-      // Wait a moment for market areas to be fully processed
-      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        // Wait a moment for market areas to be fully processed
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Always reset hasCentered when starting a new project
-      const shouldResetCenter = !marketAreas || marketAreas.length === 0;
-      
-      if (shouldResetCenter) {
-        console.log('[MapContext] Resetting center state - no market areas');
-        hasCentered.current = false;
-      }
+        // Always reset hasCentered when starting a new project
+        const shouldResetCenter = !marketAreas || marketAreas.length === 0;
 
-      // If already centered and not forcibly resetting, return
-      if (hasCentered.current && !shouldResetCenter) {
-        console.log('[MapContext] Already centered, skipping');
-        return;
-      }
+        if (shouldResetCenter) {
+          console.log('[MapContext] Resetting center state - no market areas');
+          hasCentered.current = false;
+        }
 
-      if (marketAreas?.length > 0) {
-        console.log('[MapContext] Found market areas:', marketAreas.map(ma => ({
-          id: ma.id,
-          name: ma.name,
-          locationsCount: ma.locations?.length || 0,
-          hasGeometry: Boolean(ma.locations?.[0]?.geometry)
-        })));
+        // If already centered and not forcibly resetting, return
+        if (hasCentered.current && !shouldResetCenter) {
+          console.log('[MapContext] Already centered, skipping');
+          return;
+        }
 
-        // Find first market area with valid geometry
-        let validGeometry = null;
-        let maWithGeometry = null;
+        if (marketAreas?.length > 0) {
+          console.log('[MapContext] Found market areas:', marketAreas.map(ma => ({
+            id: ma.id,
+            name: ma.name,
+            locationsCount: ma.locations?.length || 0,
+            hasGeometry: Boolean(ma.locations?.[0]?.geometry)
+          })));
 
-        for (const ma of marketAreas) {
-          if (ma.locations?.length) {
-            for (const loc of ma.locations) {
-              if (loc.geometry?.rings?.length > 0) {
-                validGeometry = loc.geometry;
-                maWithGeometry = ma;
-                console.log('[MapContext] Found valid geometry in market area:', {
-                  id: ma.id,
-                  name: ma.name,
-                  geometryRings: loc.geometry.rings.length
+          // Find first market area with valid geometry
+          let validGeometry = null;
+          let maWithGeometry = null;
+
+          for (const ma of marketAreas) {
+            if (ma.locations?.length) {
+              for (const loc of ma.locations) {
+                if (loc.geometry?.rings?.length > 0) {
+                  validGeometry = loc.geometry;
+                  maWithGeometry = ma;
+                  console.log('[MapContext] Found valid geometry in market area:', {
+                    id: ma.id,
+                    name: ma.name,
+                    geometryRings: loc.geometry.rings.length
+                  });
+                  break;
+                }
+              }
+              if (validGeometry) break;
+            }
+          }
+
+          if (validGeometry && isActive) {
+            try {
+              const [Extent, SpatialReference] = await Promise.all([
+                import("@arcgis/core/geometry/Extent").then(m => m.default),
+                import("@arcgis/core/geometry/SpatialReference").then(m => m.default)
+              ]);
+
+              console.log('[MapContext] Creating extent from geometry for:', maWithGeometry?.name);
+
+              const sr = new SpatialReference({ wkid: 102100 });
+
+              let extent;
+              if (validGeometry.rings) {
+                const xCoords = [];
+                const yCoords = [];
+
+                validGeometry.rings[0].forEach(coord => {
+                  xCoords.push(coord[0]);
+                  yCoords.push(coord[1]);
                 });
-                break;
+
+                extent = new Extent({
+                  xmin: Math.min(...xCoords),
+                  ymin: Math.min(...yCoords),
+                  xmax: Math.max(...xCoords),
+                  ymax: Math.max(...yCoords),
+                  spatialReference: sr
+                });
+
+                console.log('[MapContext] Created extent:', {
+                  xmin: Math.min(...xCoords),
+                  ymin: Math.min(...yCoords),
+                  xmax: Math.max(...xCoords),
+                  ymax: Math.max(...yCoords)
+                });
+              }
+
+              console.log('[MapContext] Centering on market area:', maWithGeometry?.name);
+              await mapView.goTo({
+                target: extent || validGeometry,
+                zoom: 9
+              }, {
+                duration: 1000,
+                easing: "ease-in-out"
+              });
+
+              if (isActive) {
+                console.log('[MapContext] Successfully centered on market area:', maWithGeometry?.name);
+                hasCentered.current = true;
+              }
+              return;
+            } catch (err) {
+              console.error('[MapContext] Error centering on market area:', err);
+              if (isActive) {
+                await centerOnOrangeCounty();
               }
             }
-            if (validGeometry) break;
+          } else {
+            console.log('[MapContext] No valid geometry found in market areas:',
+              marketAreas.map(ma => ({
+                id: ma.id,
+                name: ma.name,
+                locationsCount: ma.locations?.length,
+                firstLocGeometry: Boolean(ma.locations?.[0]?.geometry)
+              }))
+            );
           }
         }
 
-        if (validGeometry && isActive) {
-          try {
-            const [Extent, SpatialReference] = await Promise.all([
-              import("@arcgis/core/geometry/Extent").then(m => m.default),
-              import("@arcgis/core/geometry/SpatialReference").then(m => m.default)
-            ]);
+        console.log('[MapContext] No valid project extent found, falling back to Orange County');
+        await centerOnOrangeCounty();
 
-            console.log('[MapContext] Creating extent from geometry for:', maWithGeometry?.name);
-
-            const sr = new SpatialReference({ wkid: 102100 });
-
-            let extent;
-            if (validGeometry.rings) {
-              const xCoords = [];
-              const yCoords = [];
-
-              validGeometry.rings[0].forEach(coord => {
-                xCoords.push(coord[0]);
-                yCoords.push(coord[1]);
-              });
-
-              extent = new Extent({
-                xmin: Math.min(...xCoords),
-                ymin: Math.min(...yCoords),
-                xmax: Math.max(...xCoords),
-                ymax: Math.max(...yCoords),
-                spatialReference: sr
-              });
-
-              console.log('[MapContext] Created extent:', {
-                xmin: Math.min(...xCoords),
-                ymin: Math.min(...yCoords),
-                xmax: Math.max(...xCoords),
-                ymax: Math.max(...yCoords)
-              });
-            }
-
-            console.log('[MapContext] Centering on market area:', maWithGeometry?.name);
-            await mapView.goTo({
-              target: extent || validGeometry,
-              zoom: 9
-            }, {
-              duration: 1000,
-              easing: "ease-in-out"
-            });
-
-            if (isActive) {
-              console.log('[MapContext] Successfully centered on market area:', maWithGeometry?.name);
-              hasCentered.current = true;
-            }
-            return;
-          } catch (err) {
-            console.error('[MapContext] Error centering on market area:', err);
-            if (isActive) {
-              await centerOnOrangeCounty();
-            }
-          }
-        } else {
-          console.log('[MapContext] No valid geometry found in market areas:', 
-            marketAreas.map(ma => ({
-              id: ma.id,
-              name: ma.name,
-              locationsCount: ma.locations?.length,
-              firstLocGeometry: Boolean(ma.locations?.[0]?.geometry)
-            }))
-          );
-        }
+      } catch (err) {
+        console.error('[MapContext] Centering error:', err);
+        await centerOnOrangeCounty();
       }
+    };
 
-      console.log('[MapContext] No valid project extent found, falling back to Orange County');
-      await centerOnOrangeCounty();
+    async function centerOnOrangeCounty() {
+      if (!isActive) return;
 
-    } catch (err) {
-      console.error('[MapContext] Centering error:', err);
-      await centerOnOrangeCounty();
-    }
-  };
-
-  async function centerOnOrangeCounty() {
-    if (!isActive) return;
-
-    console.log('[MapContext] Attempting to center on Orange County');
-    try {
-      const Point = (await import("@arcgis/core/geometry/Point")).default;
-      const orangeCountyPoint = new Point({
-        longitude: -117.8311,
-        latitude: 33.7175
-      });
-
-      await mapView.goTo({
-        target: orangeCountyPoint,
-        zoom: 9
-      }, {
-        duration: 1000,
-        easing: "ease-in-out"
-      });
-
-      if (isActive) {
-        const finalCenter = mapView.center;
-        console.log('[MapContext] Successfully centered on Orange County. View state:', {
-          center: {
-            latitude: finalCenter.latitude,
-            longitude: finalCenter.longitude
-          },
-          zoom: mapView.zoom,
-          scale: mapView.scale
+      console.log('[MapContext] Attempting to center on Orange County');
+      try {
+        const Point = (await import("@arcgis/core/geometry/Point")).default;
+        const orangeCountyPoint = new Point({
+          longitude: -117.8311,
+          latitude: 33.7175
         });
-        hasCentered.current = true;
+
+        await mapView.goTo({
+          target: orangeCountyPoint,
+          zoom: 9
+        }, {
+          duration: 1000,
+          easing: "ease-in-out"
+        });
+
+        if (isActive) {
+          const finalCenter = mapView.center;
+          console.log('[MapContext] Successfully centered on Orange County. View state:', {
+            center: {
+              latitude: finalCenter.latitude,
+              longitude: finalCenter.longitude
+            },
+            zoom: mapView.zoom,
+            scale: mapView.scale
+          });
+          hasCentered.current = true;
+        }
+      } catch (err) {
+        console.error('[MapContext] Error in Orange County fallback:', err);
       }
-    } catch (err) {
-      console.error('[MapContext] Error in Orange County fallback:', err);
     }
-  }
 
-  centerMap();
+    centerMap();
 
-  return () => {
-    isActive = false;
-    console.log('[MapContext] Cleaning up centering effect');
-  };
-}, [mapView, marketAreas]);
+    return () => {
+      isActive = false;
+      console.log('[MapContext] Cleaning up centering effect');
+    };
+  }, [mapView, marketAreas]);
 
   useEffect(() => {
     if (!mapView || !selectionGraphicsLayerRef.current) return;
