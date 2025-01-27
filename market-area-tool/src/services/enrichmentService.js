@@ -34,7 +34,6 @@ const usaDataRowsTier1 = [
   "",
   "",
   "",
-  "",
   "337,363,227",
   "130,230,713",
   "2.53",
@@ -258,7 +257,6 @@ const usaDataRowsTier2 = [
   "",
   "",
   "",
-  "",
   "3,533,478",
   "3,598,283",
   "3,695,092",
@@ -428,21 +426,78 @@ const usaDataRowsTier2 = [
   "1,997,447",
   "1,851,822",
   "1,765,003",
-  "1,593,546",
-  "52,764,060",
-  "9,509,171",
-  "40,838,437",
-  "21,990,930",
-  "52,056,767",
-  "33,009,565",
-  "232,052,504",
-  "4,453,766",
-  "18,983,824",
-  "23,379,694",
-  "22,396,544",
-  "22,110,723",
-  "22,466,489",
-  "19,470,442"
+  "1,593,546", 
+  "52,764,060", 
+  "9,509,171", 
+  "40,838,437", 
+  "21,990,930", 
+  "52,056,767", 
+  "33,009,565", 
+  "232,052,504", 
+  "4,453,766", 
+  "18,983,824", 
+  "23,379,694", 
+  "22,396,544", 
+  "22,110,723", 
+  "22,466,489", 
+  "19,470,442", 
+  "45,096",
+  "79,583", 
+  "101,321", 
+  "103,644", 
+  "86,893", 
+  "65,022",
+  "45,226", 
+  "856,411", 
+  "462,406", 
+  "491,181", 
+  "696,611", 
+  "899,175", 
+  "565,253", 
+  "469,133", 
+  "127,503", 
+  "81,755", 
+  "2,118,176", 
+  "1,282,309", 
+  "1,267,763", 
+  "1,994,725", 
+  "3,506,124", 
+  "3,060,416", 
+  "4,297,854", 
+  "2,506,117", 
+  "3,632,547", 
+  "1,998,146", 
+  "1,634,107", 
+  "1,733,975", 
+  "2,700,497", 
+  "3,721,145", 
+  "2,771,862", 
+  "3,168,281", 
+  "1,537,374", 
+  "1,966,643", 
+  "2,086,276", 
+  "2,252,724", 
+  "2,078,948", 
+  "2,369,483", 
+  "2,658,777", 
+  "1,586,360", 
+  "1,580,063", 
+  "846,468", 
+  "910,044", 
+  "13,622", 
+  "62,208", 
+  "144,820", 
+  "262,716", 
+  "390,845", 
+  "435,044", 
+  "353,746", 
+  "11,358", 
+  "395,458", 
+  "2,944,421", 
+  "4,531,117", 
+  "7,317,525", 
+  "6,510,152", 
+  "4,142,121"
 ];
 
 export const analysisCategories = {
@@ -453,7 +508,7 @@ export const analysisCategories = {
       { id: "AtRisk.TOTPOP_CY", label: "2024 Total Population" },
       { id: "AtRisk.TOTHH_CY", label: "2024 Total Households" },
       { id: "AtRisk.AVGHHSZ_CY", label: "2024 Average Household Size" },
-      
+
       // Current Year Population by Age
       { id: "5yearincrements.POP0_CY", label: "2024 Population Age 0-4" },
       { id: "5yearincrements.POP5_CY", label: "2024 Population Age 5-9" },
@@ -474,10 +529,10 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80_CY", label: "2024 Population Age 80-84" },
       { id: "5yearincrements.POP85_CY", label: "2024 Population Age 85+" },
       { id: "5yearincrements.MEDAGE_CY", label: "2024 Median Age" },
-      
+
       // Current Year Daytime Population
       { id: "DaytimePopulation.DPOPWRK_CY", label: "2024 Daytime Pop: Workers" },
-      
+
       // Current Year Household Income
       { id: "householdincome.HINC0_CY", label: "2024 HH Income <$15000" },
       { id: "householdincome.HINC15_CY", label: "2024 HH Income $15000-24999" },
@@ -490,10 +545,10 @@ export const analysisCategories = {
       { id: "householdincome.HINC200_CY", label: "2024 HH Income $200000+" },
       { id: "householdincome.MEDHINC_CY", label: "2024 Median Household Income" },
       { id: "householdincome.AVGHINC_CY", label: "2024 Average Household Income" },
-      
+
       // Current Year Income by Age Groups - Organized with base before details
       { id: "incomebyage.IA15BASECY", label: "2024 HH Income Base: HHr 15-24" },
-      
+
       // Age 25-34 Income
       { id: "incomebyage.A25I0_CY", label: "2024 HH Inc <$15000/HHr 25-34" },
       { id: "incomebyage.A25I15_CY", label: "2024 HH Inc $15K-24999/HHr 25-34" },
@@ -505,7 +560,7 @@ export const analysisCategories = {
       { id: "incomebyage.A25I150_CY", label: "2024 HH Inc 150K-199999/HHr 25-34" },
       { id: "incomebyage.A25I200_CY", label: "2024 HH Inc $200000+/HHr 25-34" },
       { id: "incomebyage.IA25BASECY", label: "2024 HH Income Base: HHr 25-34" },
-      
+
       // Age 35-44 Income
       { id: "incomebyage.A35I0_CY", label: "2024 HH Inc <$15000/HHr 35-44" },
       { id: "incomebyage.A35I15_CY", label: "2024 HH Inc $15K-24999/HHr 35-44" },
@@ -517,7 +572,7 @@ export const analysisCategories = {
       { id: "incomebyage.A35I150_CY", label: "2024 HH Inc 150K-199999/HHr 35-44" },
       { id: "incomebyage.A35I200_CY", label: "2024 HH Inc $200000+/HHr 35-44" },
       { id: "incomebyage.IA35BASECY", label: "2024 HH Income Base: HHr 35-44" },
-      
+
       // Age 45-54 Income
       { id: "incomebyage.A45I0_CY", label: "2024 HH Inc <$15000/HHr 45-54" },
       { id: "incomebyage.A45I15_CY", label: "2024 HH Inc $15K-24999/HHr 45-54" },
@@ -581,7 +636,7 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80_FY", label: "2029 Population Age 80-84" },
       { id: "5yearincrements.POP85_FY", label: "2029 Population Age 85+" },
       { id: "5yearincrements.MEDAGE_FY", label: "2029 Median Age" },
-      
+
       // Future Year Household Income
       { id: "householdincome.HINC0_FY", label: "2029 HH Income <$15000" },
       { id: "householdincome.HINC15_FY", label: "2029 HH Income $15000-24999" },
@@ -594,13 +649,13 @@ export const analysisCategories = {
       { id: "householdincome.HINC200_FY", label: "2029 HH Income $200000+" },
       { id: "householdincome.MEDHINC_FY", label: "2029 Median Household Income" },
       { id: "householdincome.AVGHINC_FY", label: "2029 Average Household Income" },
-      
+
       // Future Year Housing
       { id: "KeyUSFacts.TOTHU_FY", label: "2029 Total Housing Units" },
       { id: "KeyUSFacts.OWNER_FY", label: "2029 Owner Occupied HUs" },
       { id: "KeyUSFacts.RENTER_FY", label: "2029 Renter Occupied HUs" },
       { id: "KeyUSFacts.VACANT_FY", label: "2029 Vacant Housing Units" },
-      
+
       // Historical (2010) Population
       { id: "HistoricalPopulation.TSPOP10_CY", label: "2010 Total Population" },
       { id: "HistoricalHouseholds.TSHH10_CY", label: "2010 Total Households" },
@@ -623,12 +678,12 @@ export const analysisCategories = {
       { id: "5yearincrements.POP80C10", label: "2010 Population Age 80-84" },
       { id: "5yearincrements.POP85C10", label: "2010 Population Age 85+" },
       { id: "5yearincrements.MEDAGE10", label: "2010 Median Age" },
-      
+
       // Historical (2010) Households
       { id: "householdsbysize.FAM2PERS10", label: "2010 Family HHs: 2-Person" },
       { id: "householdsbysize.NF1PERS10", label: "2010 Nonfamily HHs: 1-Person" },
       { id: "householdsbysize.NF2PERS10", label: "2010 Nonfamily HHs: 2-Person" },
-      
+
       // Tapestry Segments
       { id: "tapestryhouseholdsNEW.THH01", label: "2024 HHs in Tapestry Seg 1A" },
       { id: "tapestryhouseholdsNEW.THH02", label: "2024 HHs in Tapestry Seg 1B" },
@@ -788,7 +843,7 @@ export const analysisCategories = {
       { id: "1yearincrements.AGE82_CY", label: "2024 Population Age 82" },
       { id: "1yearincrements.AGE83_CY", label: "2024 Population Age 83" },
       { id: "1yearincrements.AGE84_CY", label: "2024 Population Age 84" },
-      
+
       // Future Year 1-Year Age Increments
       { id: "1yearincrements.AGE0_FY", label: "2029 Population Age <1" },
       { id: "1yearincrements.AGE1_FY", label: "2029 Population Age 1" },
@@ -894,31 +949,67 @@ export const analysisCategories = {
       { id: "incomebyage.IA55BASEFY", label: "2029 HH Income Base: HHr 55-64" },
       { id: "incomebyage.IA65BASEFY", label: "2029 HH Income Base: HHr 65-74" },
       { id: "incomebyage.IA75BASEFY", label: "2029 HH Income Base: HHr 75+" },
+
+      { id: "incomebyage.MEDIA15_CY", label: "2024 Median HH Inc: HHr 15-24" },
+      { id: "incomebyage.MEDIA25_CY", label: "2024 Median HH Inc: HHr 25-34" },
+      { id: "incomebyage.MEDIA35_CY", label: "2024 Median HH Inc: HHr 35-44" },
+      { id: "incomebyage.MEDIA45_CY", label: "2024 Median HH Inc: HHr 45-54" },
+      { id: "incomebyage.MEDIA55_CY", label: "2024 Median HH Inc: HHr 55-64" },
+      { id: "incomebyage.MEDIA65_CY", label: "2024 Median HH Inc: HHr 65-74" },
+      { id: "incomebyage.MEDIA75_CY", label: "2024 Median HH Inc: HHr 75+" },
+      { id: "incomebyage.A15I0_CY", label: "2024 HH Inc <$15000/HHr 15-24" },
+      { id: "incomebyage.A15I15_CY", label: "2024 HH Inc $15K-24999/HHr 15-24" },
+      { id: "incomebyage.A15I25_CY", label: "2024 HH Inc $25K-34999/HHr 15-24" },
+      { id: "incomebyage.A15I35_CY", label: "2024 HH Inc $35K-49999/HHr 15-24" },
+      { id: "incomebyage.A15I50_CY", label: "2024 HH Inc $50K-74999/HHr 15-24" },
+      { id: "incomebyage.A15I75_CY", label: "2024 HH Inc $75K-99999/HHr 15-24" },
+      { id: "incomebyage.A15I100_CY", label: "2024 HH Inc 100K-149999/HHr 15-24" },
+      { id: "incomebyage.A15I150_CY", label: "2024 HH Inc 150K-199999/HHr 15-24" },
+      { id: "incomebyage.A15I200_CY", label: "2024 HH Inc $200000+/HHr 15-24" },
+      { id: "incomebyage.A55I0_CY", label: "2024 HH Inc <$15000/HHr 55-64" },
+      { id: "incomebyage.A55I15_CY", label: "2024 HH Inc $15K-24999/HHr 55-64" },
+      { id: "incomebyage.A55I25_CY", label: "2024 HH Inc $25K-34999/HHr 55-64" },
+      { id: "incomebyage.A55I35_CY", label: "2024 HH Inc $35K-49999/HHr 55-64" },
+      { id: "incomebyage.A55I50_CY", label: "2024 HH Inc $50K-74999/HHr 55-64" },
+      { id: "incomebyage.A55I75_CY", label: "2024 HH Inc $75K-99999/HHr 55-64" },
+      { id: "incomebyage.A55I100_CY", label: "2024 HH Inc 100K-149999/HHr 55-64" },
+      { id: "incomebyage.A55I150_CY", label: "2024 HH Inc 150K-199999/HHr 55-64" },
+      { id: "incomebyage.A55I200_CY", label: "2024 HH Inc $200000+/HHr 55-64" },
+      { id: "incomebyage.A65I0_CY", label: "2024 HH Inc <$15000/HHr 65-74" },
+      { id: "incomebyage.A65I15_CY", label: "2024 HH Inc $15K-24999/HHr 65-74" },
+      { id: "incomebyage.A65I25_CY", label: "2024 HH Inc $25K-34999/HHr 65-74" },
+      { id: "incomebyage.A65I35_CY", label: "2024 HH Inc $35K-49999/HHr 65-74" },
+      { id: "incomebyage.A65I50_CY", label: "2024 HH Inc $50K-74999/HHr 65-74" },
+      { id: "incomebyage.A65I75_CY", label: "2024 HH Inc $75K-99999/HHr 65-74" },
+      { id: "incomebyage.A65I100_CY", label: "2024 HH Inc 100K-149999/HHr 65-74" },
+      { id: "incomebyage.A65I150_CY", label: "2024 HH Inc 150K-199999/HHr 65-74" },
+      { id: "incomebyage.A65I200_CY", label: "2024 HH Inc $200000+/HHr 65-74" },
+      { id: "incomebyage.A75I0_CY", label: "2024 HH Inc <$15000/HHr 75+" },
+      { id: "incomebyage.A75I15_CY", label: "2024 HH Inc $15K-24999/HHr 75+" },
+      { id: "incomebyage.A75I25_CY", label: "2024 HH Inc $25K-34999/HHr 75+" },
+      { id: "incomebyage.A75I35_CY", label: "2024 HH Inc $35K-49999/HHr 75+" },
+      { id: "incomebyage.A75I50_CY", label: "2024 HH Inc $50K-74999/HHr 75+" },
+      { id: "incomebyage.A75I75_CY", label: "2024 HH Inc $75K-99999/HHr 75+" },
+      { id: "incomebyage.A75I100_CY", label: "2024 HH Inc 100K-149999/HHr 75+" },
+      { id: "incomebyage.A75I150_CY", label: "2024 HH Inc 150K-199999/HHr 75+" },
+      { id: "incomebyage.A75I200_CY", label: "2024 HH Inc $200000+/HHr 75+" },
+      { id: "networth.MEDNWA15CY", label: "2024 Median Net Worth: HHr 15-24" },
+      { id: "networth.MEDNWA25CY", label: "2024 Median Net Worth: HHr 25-34" },
+      { id: "networth.MEDNWA35CY", label: "2024 Median Net Worth: HHr 35-44" },
+      { id: "networth.MEDNWA45CY", label: "2024 Median Net Worth: HHr 45-54" },
+      { id: "networth.MEDNWA55CY", label: "2024 Median Net Worth: HHr 55-64" },
+      { id: "networth.MEDNWA65CY", label: "2024 Median Net Worth: HHr 65-74" },
+      { id: "networth.MEDNWA75CY", label: "2024 Median Net Worth: HHr 75+" },
+      { id: "networth.A15NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 15-24" },
+      { id: "networth.A25NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 25-34" },
+      { id: "networth.A35NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 35-44" },
+      { id: "networth.A45NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 45-54" },
+      { id: "networth.A55NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 55-64" },
+      { id: "networth.A65NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 65-74" },
+      { id: "networth.A75NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 75+" },
     ]
   }
 };
-
-// Helper functions
-export const getAllVariables = () => {
-  const tier1Vars = analysisCategories.tier1.variables.map(v => v.id);
-  const tier2Vars = analysisCategories.tier2.variables.map(v => v.id);
-  return [...tier1Vars, ...tier2Vars];
-};
-
-const shortKeyToLabelMap = {};
-Object.values(analysisCategories).forEach(tier => {
-  tier.variables.forEach(variable => {
-    const shortKey = variable.id.split(".").pop();
-    shortKeyToLabelMap[shortKey] = variable.label;
-  });
-});
-
-export { shortKeyToLabelMap };
-
-// Provide a trivial label function; just returns shortKey if no context:
-function getVariableLabelFromShortKey(shortKey) {
-  return shortKey;
-}
 
 // Create a mapping of variable IDs to their human-readable labels
 const variableLabels = {};
@@ -928,12 +1019,24 @@ function initializeVariableLabels(categories) {
   Object.values(categories).forEach(category => {
     category.variables.forEach(variable => {
       variableLabels[variable.id] = variable.label;
+      const shortKey = variable.id.split(".").pop();
+      variableLabels[shortKey] = variable.label;
     });
   });
 }
 
+// Helper functions
+export const getAllVariables = () => {
+  const tier1Vars = analysisCategories.tier1.variables.map(v => v.id);
+  const tier2Vars = analysisCategories.tier2.variables.map(v => v.id);
+  return [...tier1Vars, ...tier2Vars];
+};
+
 // Initialize labels when the service is created
 initializeVariableLabels(analysisCategories);
+
+// Export variableLabels for use in other parts of the application
+export { variableLabels };
 
 
 export default class EnrichmentService {
@@ -1217,44 +1320,44 @@ export default class EnrichmentService {
   }
 
   async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = false) {
-    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
-        ? includeUSAData 
-        : false;
-    
+    const shouldIncludeUSA = typeof includeUSAData === "boolean"
+      ? includeUSAData
+      : false;
+
     console.log('enrichAreas called with:', {
       marketAreasCount: marketAreas?.length,
       variablesCount: selectedVariables?.length,
       includeUSAData: shouldIncludeUSA // Log the boolean value
     });
-  
+
     if (!marketAreas?.length) {
       throw new Error("No market areas provided for enrichment");
     }
-  
+
     const studyAreas = await this.prepareGeometryForEnrichment(marketAreas);
     if (!studyAreas?.length) {
       throw new Error("No valid study areas generated from market areas");
     }
-  
+
     const chunks = this.chunkArray(studyAreas, CHUNK_SIZE);
     const results = [];
-  
+
     for (const chunk of chunks) {
       const response = await this.enrichChunk(chunk, selectedVariables);
       if (response?.results) {
         results.push(...response.results);
       }
     }
-  
+
     if (!results.length) {
       throw new Error("No enrichment results returned");
     }
-  
+
     const idToIndexMap = {};
     studyAreas.forEach((sa) => {
       idToIndexMap[sa.attributes.ObjectID] = sa.originalIndex;
     });
-  
+
     // Return with the explicit boolean flag
     return {
       results,
@@ -1297,12 +1400,20 @@ export default class EnrichmentService {
     if (this.variableLabels[variableId]) {
       return this.variableLabels[variableId];
     }
+  
+    // If not found with full path, try with the normalized ID
+    const normalizedId = variableId.includes(".") ? variableId : `*.${variableId}`;
     
-    // If not found, try to get just the short key's label
+    // Then try to get just the short key's label
     const shortKey = variableId.split(".").pop();
-    return this.variableLabels[shortKey] || shortKey;
+    
+    // Look through all categories to find a match
+    const matchingVariable = Object.values(analysisCategories)
+      .flatMap(category => category.variables)
+      .find(variable => variable.id.endsWith(shortKey));
+  
+    return matchingVariable ? matchingVariable.label : shortKey;
   }
-
   exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
     const shouldIncludeUSAData = typeof includeUSAData === "boolean"
       ? includeUSAData
@@ -1324,7 +1435,7 @@ export default class EnrichmentService {
       const attrs = featureSet.features[0].attributes;
       const objId = attrs.ObjectID;
       const originalIndex = idToIndexMap[objId];
-      
+
       if (originalIndex !== undefined) {
         enrichmentLookup[originalIndex] = attrs;
       }
@@ -1370,40 +1481,6 @@ export default class EnrichmentService {
       })
     ]);
 
-    // State row
-    csvRows.push([
-      "State",
-      ...marketAreas.map(ma => {
-        const maType = ma.ma_type?.toLowerCase();
-        const firstLocationName = ma.locations?.[0]?.name || "";
-        
-        if (!firstLocationName && maType !== "radius") return "";
-        
-        switch (maType) {
-          case "cbsa": {
-            const stateMatch = firstLocationName.match(/,\s*([A-Z]{2})\s+Metro Area/i);
-            return stateMatch ? this.getStateFullName(stateMatch[1]) : "";
-          }
-          case "county": {
-            const stateMatch = firstLocationName.match(/,\s*(\w[\w\s]+)$/);
-            return stateMatch ? this.getStateFullName(stateMatch[1].trim()) : "";
-          }
-          case "zip": {
-            const stateMatch = firstLocationName.match(/,\s*([A-Z]{2})$/i);
-            return stateMatch ? this.getStateFullName(stateMatch[1]) : "";
-          }
-          case "place": {
-            const parts = firstLocationName.split(",").map(p => p.trim());
-            return parts.length > 1 ? this.getStateFullName(parts[parts.length - 1]) : "";
-          }
-          case "state":
-            return this.getStateFullName(firstLocationName);
-          default:
-            return "";
-        }
-      })
-    ]);
-
     // Add a blank row after headers
     csvRows.push(Array(marketAreas.length + 1).fill(""));
 
@@ -1423,32 +1500,55 @@ export default class EnrichmentService {
       csvRows.push([label, ...values]);
     });
 
-    // Add USA data if requested
+    
     if (shouldIncludeUSAData) {
-      // Determine which tier of USA data to use
-      const hasTier2Variables = selectedVariables.some(variable => 
-        variable.startsWith("1yearincrements.") ||
-        variable.startsWith("educationalattainment.") ||
-        variable.includes("BASEFY")
-      );
+      // Add USA column headers
+      csvRows[0].push("United States of America");
+      csvRows[1].push("USA");
+      csvRows[2].push("");
+      csvRows[3].push("");
+      csvRows[4].push("");
+
+      // Track positions in USA data
+      const variableToUSAIndex = new Map();
       
-      const usaDataRows = hasTier2Variables ? usaDataRowsTier2 : usaDataRowsTier1;
+      // First, map all Tier 1 variables
+      let currentIndex = 5; // Starting after header rows
+      analysisCategories.tier1.variables.forEach(v => {
+        const shortKey = v.id.split(".").pop();
+        variableToUSAIndex.set(shortKey, currentIndex++);
+      });
 
-      if (usaDataRows?.length) {
-        // Add USA column to headers
-        csvRows[0].push("United States of America");
-        csvRows[1].push("USA");
-        csvRows[2].push("");
-        csvRows[3].push("");
-        csvRows[4].push("");
+      // Then map Tier 2 variables
+      // Reset index for Tier 2 data
+      currentIndex = 5; // Reset to start of Tier 2 data
+      analysisCategories.tier2.variables.forEach(v => {
+        const shortKey = v.id.split(".").pop();
+        variableToUSAIndex.set(shortKey, currentIndex++);
+      });
 
-        // Add USA data to variable rows
-        const SHIFT = 5;
-        for (let i = 5; i < csvRows.length; i++) {
-          const usaDataIndex = (i - 5) + SHIFT;
-          const usaValue = usaDataIndex < usaDataRows.length ? usaDataRows[usaDataIndex] : "";
-          csvRows[i].push(usaValue);
+      // Add USA data in the same order as the selected variables
+      for (let i = 5; i < csvRows.length; i++) {
+        const variableId = selectedVariables[i - 5];
+        const shortKey = variableId.split(".").pop();
+        
+        let usaValue = "";
+        const isTier2 = variableId.startsWith("1yearincrements.") || 
+                        variableId.startsWith("educationalattainment.") || 
+                        variableId.includes("BASEFY") ||
+                        variableId.includes("MEDIA") ||  // Added for median income
+                        (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) || // Income by age
+                        (variableId.includes("networth.") && variableId.includes("A")); // Net worth by age
+        
+        const position = variableToUSAIndex.get(shortKey);
+        
+        if (isTier2) {
+          usaValue = position < usaDataRowsTier2.length ? usaDataRowsTier2[position] : "";
+        } else {
+          usaValue = position < usaDataRowsTier1.length ? usaDataRowsTier1[position] : "";
         }
+        
+        csvRows[i].push(usaValue);
       }
     }
 
@@ -1464,15 +1564,15 @@ export default class EnrichmentService {
 
   formatBigNumberAsText(value) {
     if (!value) return "";
-    
+
     const numVal = parseFloat(value);
     if (Number.isNaN(numVal)) return value;
-    
+
     const noDecimal = numVal.toLocaleString("fullwide", {
       useGrouping: false,
       maximumFractionDigits: 0
     });
-    
+
     return noDecimal.length >= 12 ? `="${noDecimal}"` : noDecimal;
   }
 
@@ -1534,8 +1634,8 @@ export default class EnrichmentService {
     };
 
     return stateMap[stateAbbr.trim().toUpperCase()] || stateAbbr;
-    }
   }
+}
 
 // Export an instance for direct usage
 export const enrichmentService = new EnrichmentService();

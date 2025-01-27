@@ -34,7 +34,19 @@ const ExportDialog = ({
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
-  const [selectedTier, setSelectedTier] = useState('');
+  const [selectedTiers, setSelectedTiers] = useState(() => new Set(['tier1']));
+
+  // Calculate variable counts for each tier
+  const { tier1Count, tier2Count } = useMemo(() => {
+    return variablePresets.reduce((acc, preset) => {
+      if (preset.name.toLowerCase().includes('tier 1')) {
+        acc.tier1Count += preset.variables?.length || 0;
+      } else if (preset.name.toLowerCase().includes('tier 2')) {
+        acc.tier2Count += preset.variables?.length || 0;
+      }
+      return acc;
+    }, { tier1Count: 0, tier2Count: 0 });
+  }, [variablePresets]);
 
   useEffect(() => {
     if (marketAreas.length > 0) {
@@ -88,7 +100,15 @@ const ExportDialog = ({
   };
 
   const handleTierSelection = (tier) => {
-    setSelectedTier(tier);
+    setSelectedTiers((prev) => {
+      const next = new Set(prev);
+      if (next.has(tier)) {
+        next.delete(tier);
+      } else {
+        next.add(tier);
+      }
+      return next;
+    });
   };
 
   const handleSubmitExport = async (e) => {
@@ -97,23 +117,30 @@ const ExportDialog = ({
     if (isExporting) {
       return;
     }
-
+  
     try {
       const selectedMarketAreas = marketAreas.filter((area) =>
         selectedAreas.has(area.id)
       );
-
-      // Logic to get variables based on selected tiers
-      const variables = variablePresets.reduce((acc, preset) => {
-        if (
-          (selectedTier === 'tier1' && preset.name.toLowerCase().includes('tier 1')) ||
-          (selectedTier === 'tier2' && preset.name.toLowerCase().includes('tier 2'))
-        ) {
-          return [...acc, ...(preset.variables || [])];
-        }
-        return acc;
-      }, []);
-
+  
+      let variables = [];  // Changed from const to let and moved declaration up
+  
+      // Add Tier 1 variables first if selected
+      if (selectedTiers.has('tier1')) {
+        const tier1Variables = variablePresets
+          .find(preset => preset.name.toLowerCase().includes('tier 1'))
+          ?.variables || [];
+        variables = [...variables, ...tier1Variables];
+      }
+      
+      // Then add Tier 2 variables if selected
+      if (selectedTiers.has('tier2')) {
+        const tier2Variables = variablePresets
+          .find(preset => preset.name.toLowerCase().includes('tier 2'))
+          ?.variables || [];
+        variables = [...variables, ...tier2Variables];
+      }
+  
       await onExport({
         variables,
         selectedMarketAreas,
@@ -129,7 +156,7 @@ const ExportDialog = ({
 
   const isExportDisabled = 
     isExporting || 
-    !selectedTier ||
+    selectedTiers.size === 0 ||
     selectedAreas.size === 0;
 
   const exportButtonText = isExporting ? 'Exporting...' : 'Export';
@@ -239,32 +266,28 @@ const ExportDialog = ({
               <div className="space-y-2">
                 <label className="flex items-center">
                   <input
-                    type="radio"
-                    name="tierSelection"
-                    value="tier1"
-                    checked={selectedTier === 'tier1'}
-                    onChange={(e) => handleTierSelection(e.target.value)}
+                    type="checkbox"
+                    checked={selectedTiers.has('tier1')}
+                    onChange={() => handleTierSelection('tier1')}
                     disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
                              disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Tier 1 Core Variables
+                    Tier 1 Core Variables ({tier1Count} variables)
                   </span>
                 </label>
                 <label className="flex items-center">
                   <input
-                    type="radio"
-                    name="tierSelection"
-                    value="tier2"
-                    checked={selectedTier === 'tier2'}
-                    onChange={(e) => handleTierSelection(e.target.value)}
+                    type="checkbox"
+                    checked={selectedTiers.has('tier2')}
+                    onChange={() => handleTierSelection('tier2')}
                     disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
                              disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Tier 2 Variables
+                    Tier 2 Variables ({tier2Count} variables)
                   </span>
                 </label>
               </div>
