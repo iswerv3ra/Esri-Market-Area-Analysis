@@ -2722,10 +2722,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   // Create ref outside your effects
   const hasCentered = useRef(false);
 
-  // Updated centering effect
   useEffect(() => {
     let isActive = true;
-
+    const MAX_WAIT_TIME = 5000; // Maximum wait time of 5 seconds
+    const INITIAL_WAIT_TIME = 1500; // Increased initial wait time
+  
     console.log('[MapContext] Centering effect triggered:', {
       hasCentered: hasCentered.current,
       mapReady: mapView?.ready,
@@ -2733,33 +2734,44 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       marketAreasCount: marketAreas?.length,
       firstMarketArea: marketAreas?.[0]?.id
     });
-
+  
     if (!mapView?.ready) {
       console.log('[MapContext] Map not ready, skipping');
       return;
     }
-
+  
     const centerMap = async () => {
       if (!isActive) return;
-
+  
       try {
-        // Wait a moment for market areas to be fully processed
-        await new Promise(resolve => setTimeout(resolve, 500));
-
+        // Enhanced waiting mechanism
+        const startTime = Date.now();
+        while (
+          isActive && 
+          (!marketAreas || marketAreas.length === 0) && 
+          (Date.now() - startTime) < MAX_WAIT_TIME
+        ) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          console.log('[MapContext] Waiting for market areas to load...');
+        }
+  
+        // Wait an additional initial time to ensure rendering
+        await new Promise(resolve => setTimeout(resolve, INITIAL_WAIT_TIME));
+  
         // Always reset hasCentered when starting a new project
         const shouldResetCenter = !marketAreas || marketAreas.length === 0;
-
+  
         if (shouldResetCenter) {
           console.log('[MapContext] Resetting center state - no market areas');
           hasCentered.current = false;
         }
-
+  
         // If already centered and not forcibly resetting, return
         if (hasCentered.current && !shouldResetCenter) {
           console.log('[MapContext] Already centered, skipping');
           return;
         }
-
+  
         if (marketAreas?.length > 0) {
           console.log('[MapContext] Found market areas:', marketAreas.map(ma => ({
             id: ma.id,
@@ -2767,11 +2779,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             locationsCount: ma.locations?.length || 0,
             hasGeometry: Boolean(ma.locations?.[0]?.geometry)
           })));
-
+  
           // Find first market area with valid geometry
           let validGeometry = null;
           let maWithGeometry = null;
-
+  
           for (const ma of marketAreas) {
             if (ma.locations?.length) {
               for (const loc of ma.locations) {
@@ -2789,28 +2801,28 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               if (validGeometry) break;
             }
           }
-
+  
           if (validGeometry && isActive) {
             try {
               const [Extent, SpatialReference] = await Promise.all([
                 import("@arcgis/core/geometry/Extent").then(m => m.default),
                 import("@arcgis/core/geometry/SpatialReference").then(m => m.default)
               ]);
-
+  
               console.log('[MapContext] Creating extent from geometry for:', maWithGeometry?.name);
-
+  
               const sr = new SpatialReference({ wkid: 102100 });
-
+  
               let extent;
               if (validGeometry.rings) {
                 const xCoords = [];
                 const yCoords = [];
-
+  
                 validGeometry.rings[0].forEach(coord => {
                   xCoords.push(coord[0]);
                   yCoords.push(coord[1]);
                 });
-
+  
                 extent = new Extent({
                   xmin: Math.min(...xCoords),
                   ymin: Math.min(...yCoords),
@@ -2818,7 +2830,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   ymax: Math.max(...yCoords),
                   spatialReference: sr
                 });
-
+  
                 console.log('[MapContext] Created extent:', {
                   xmin: Math.min(...xCoords),
                   ymin: Math.min(...yCoords),
@@ -2826,7 +2838,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   ymax: Math.max(...yCoords)
                 });
               }
-
+  
               console.log('[MapContext] Centering on market area:', maWithGeometry?.name);
               await mapView.goTo({
                 target: extent || validGeometry,
@@ -2835,7 +2847,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 duration: 1000,
                 easing: "ease-in-out"
               });
-
+  
               if (isActive) {
                 console.log('[MapContext] Successfully centered on market area:', maWithGeometry?.name);
                 hasCentered.current = true;
@@ -2858,19 +2870,19 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             );
           }
         }
-
+  
         console.log('[MapContext] No valid project extent found, falling back to Orange County');
         await centerOnOrangeCounty();
-
+  
       } catch (err) {
         console.error('[MapContext] Centering error:', err);
         await centerOnOrangeCounty();
       }
     };
-
+  
     async function centerOnOrangeCounty() {
       if (!isActive) return;
-
+  
       console.log('[MapContext] Attempting to center on Orange County');
       try {
         const Point = (await import("@arcgis/core/geometry/Point")).default;
@@ -2878,7 +2890,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           longitude: -117.8311,
           latitude: 33.7175
         });
-
+  
         await mapView.goTo({
           target: orangeCountyPoint,
           zoom: 9
@@ -2886,7 +2898,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           duration: 1000,
           easing: "ease-in-out"
         });
-
+  
         if (isActive) {
           const finalCenter = mapView.center;
           console.log('[MapContext] Successfully centered on Orange County. View state:', {
@@ -2903,9 +2915,9 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         console.error('[MapContext] Error in Orange County fallback:', err);
       }
     }
-
+  
     centerMap();
-
+  
     return () => {
       isActive = false;
       console.log('[MapContext] Cleaning up centering effect');
