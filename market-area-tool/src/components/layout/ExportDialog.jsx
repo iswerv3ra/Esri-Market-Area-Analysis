@@ -35,6 +35,7 @@ const ExportDialog = ({
     () => new Set(marketAreas.map((area) => area.id))
   );
   const [selectedTiers, setSelectedTiers] = useState(() => new Set(['tier1']));
+  const [exportFormat, setExportFormat] = useState('excel'); // New state for format selection
 
   // Calculate variable counts for each tier
   const { tier1Count, tier2Count } = useMemo(() => {
@@ -123,7 +124,7 @@ const ExportDialog = ({
         selectedAreas.has(area.id)
       );
   
-      let variables = [];  // Changed from const to let and moved declaration up
+      let variables = [];
   
       // Add Tier 1 variables first if selected
       if (selectedTiers.has('tier1')) {
@@ -141,12 +142,28 @@ const ExportDialog = ({
         variables = [...variables, ...tier2Variables];
       }
   
-      await onExport({
+      // Add file extension based on format
+      const fileNameWithExt = fileName + (exportFormat === 'excel' ? '.xlsx' : '.csv');
+  
+      const result = await onExport({
         variables,
         selectedMarketAreas,
-        fileName,
-        includeUSAData: Boolean(includeUSAData)
+        fileName: fileNameWithExt,
+        includeUSAData: Boolean(includeUSAData),
+        format: exportFormat
       });
+
+      // Create a download link for the exported file
+      if (result instanceof Blob) {
+        const url = window.URL.createObjectURL(result);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileNameWithExt;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
       
       onClose();
     } catch (error) {
@@ -183,6 +200,43 @@ const ExportDialog = ({
 
           {/* Body */}
           <div className="px-4 py-4 space-y-4">
+            {/* Format Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Export Format
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="excel"
+                    checked={exportFormat === 'excel'}
+                    onChange={(e) => setExportFormat(e.target.value)}
+                    disabled={isExporting}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                    Excel (.xlsx)
+                  </span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="csv"
+                    checked={exportFormat === 'csv'}
+                    onChange={(e) => setExportFormat(e.target.value)}
+                    disabled={isExporting}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                    CSV (.csv)
+                  </span>
+                </label>
+              </div>
+            </div>
+
             {/* Include USA Data Checkbox */}
             <div>
               <label className="flex items-center space-x-2">

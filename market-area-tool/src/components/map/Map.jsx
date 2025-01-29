@@ -269,9 +269,12 @@ const createLayers = (visualizationType, configOverride = null) => {
       ],
     },
     title: layerConfig.title,
-    minScale: 300000,
+    minScale: 2500000, // Increased minScale to allow visualization at higher zoom levels
   });
 };
+
+
+
 // ZoomAlert Component
 const ZoomAlert = () => {
   const { isOutsideZoomRange, zoomMessage } = useMap();
@@ -708,6 +711,7 @@ useEffect(() => {
   };
 }, [setMapView]);
 
+  // Style legend whenever it changes
   useEffect(() => {
     if (!legend) return;
 
@@ -766,20 +770,44 @@ useEffect(() => {
     styleLegend();
   }, [legend]);
 
-  // Handle legend visibility based on active tab
+  // Handle legend visibility based on active tab and visualization
   useEffect(() => {
     if (!mapView || !legend) return;
 
-    if (activeTab === 1) {
-      // Remove legend for core map
+    const activeTabData = tabs.find((tab) => tab.id === activeTab);
+    const hasVisualization = activeTabData?.visualizationType;
+    const shouldShowLegend = activeTab !== 1 && hasVisualization && !isEditorOpen;
+    
+    const existingLegend = mapView.ui.find((widget) => widget === legend);
+    
+    if (shouldShowLegend && !existingLegend) {
+      mapView.ui.add(legend, "bottom-left");
+    } else if (!shouldShowLegend && existingLegend) {
       mapView.ui.remove(legend);
-    } else {
-      // Add legend for other maps if not already present
-      if (!mapView.ui.find((widget) => widget === legend)) {
-        mapView.ui.add(legend, "bottom-left");
-      }
     }
-  }, [activeTab, mapView, legend]);
+  }, [activeTab, mapView, legend, tabs, isEditorOpen]);
+
+  // Update legend visibility when visualization changes
+  useEffect(() => {
+    if (!mapView?.map || !legend) return;
+
+    const updateLegendForLayer = async () => {
+      try {
+        const activeTabData = tabs.find((tab) => tab.id === activeTab);
+        if (activeTab !== 1 && activeTabData?.visualizationType && !isEditorOpen) {
+          const existingLegend = mapView.ui.find((widget) => widget === legend);
+          if (!existingLegend) {
+            mapView.ui.add(legend, "bottom-left");
+          }
+        }
+      } catch (error) {
+        console.error("Error updating legend:", error);
+      }
+    };
+
+    updateLegendForLayer();
+  }, [activeTab, mapView, legend, tabs, layerConfigurations]);
+
 
   useEffect(() => {
     if (!mapView?.map) return;
@@ -1075,13 +1103,12 @@ useEffect(() => {
                 </div>
               </div>
             ))}
-          <button
-            disabled
-            className="ml-2 px-3 py-1 text-sm bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded cursor-not-allowed"
-            title="Coming soon"
-          >
-            + New Map
-          </button>
+            <button
+              onClick={addNewTab}
+              className="ml-2 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200 ease-in-out"
+            >
+              + New Map
+            </button>
           </div>
           {activeTab !== 1 && (
             <div className="ml-4 flex items-center space-x-2">
@@ -1127,30 +1154,45 @@ useEffect(() => {
           )}
         </div>
       </div>
-
-      <div className="flex-grow relative">
-        <div ref={mapRef} className="w-full h-full relative">
-          <ZoomAlert />
+  
+      <div className="flex flex-1 overflow-hidden">
+        {/* Map container */}
+        <div className="flex-1 relative">
+          <div ref={mapRef} className="w-full h-full">
+            <ZoomAlert />
+          </div>
+        </div>
+  
+        {/* Right panel container */}
+        <div className="relative">
+          {/* Layer Properties Editor */}
+          {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+            <div 
+              className={`
+                w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200 
+                dark:border-gray-700 transform transition-all duration-300 ease-in-out
+                absolute top-0 right-0 h-full
+                ${isEditorOpen ? 'translate-x-0' : 'translate-x-full'}
+              `}
+            >
+              <LayerPropertiesEditor
+                isOpen={isEditorOpen}
+                onClose={() => setIsEditorOpen(false)}
+                visualizationType={
+                  tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                }
+                layerConfig={
+                  layerConfigurations[
+                    tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                  ]
+                }
+                onConfigChange={handleLayerConfigChange}
+                onPreview={handleConfigPreview}
+              />
+            </div>
+          )}
         </div>
       </div>
-
-      {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-        <LayerPropertiesEditor
-          isOpen={isEditorOpen}
-          onClose={() => setIsEditorOpen(false)}
-          visualizationType={
-            tabs.find((tab) => tab.id === activeTab)?.visualizationType
-          }
-          layerConfig={
-            layerConfigurations[
-              tabs.find((tab) => tab.id === activeTab)?.visualizationType
-            ]
-          }
-          onConfigChange={handleLayerConfigChange}
-          onPreview={handleConfigPreview}
-          className="right-side-drawer"
-        />
-      )}
     </div>
   );
 }

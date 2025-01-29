@@ -524,7 +524,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800">
+    <div className="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow">
       <div className="p-2 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={handleToggleAll}

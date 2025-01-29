@@ -1,6 +1,8 @@
 import esriConfig from "@arcgis/core/config";
 import * as projection from "@arcgis/core/geometry/projection";
 import Polygon from "@arcgis/core/geometry/Polygon";
+import * as XLSX from 'xlsx';
+
 
 const ARCGIS_CLIENT_ID = import.meta.env.VITE_ARCGIS_CLIENT_ID;
 const ARCGIS_CLIENT_SECRET = import.meta.env.VITE_ARCGIS_CLIENT_SECRET;
@@ -426,77 +428,77 @@ const usaDataRowsTier2 = [
   "1,997,447",
   "1,851,822",
   "1,765,003",
-  "1,593,546", 
-  "52,764,060", 
-  "9,509,171", 
-  "40,838,437", 
-  "21,990,930", 
-  "52,056,767", 
-  "33,009,565", 
-  "232,052,504", 
-  "4,453,766", 
-  "18,983,824", 
-  "23,379,694", 
-  "22,396,544", 
-  "22,110,723", 
-  "22,466,489", 
-  "19,470,442", 
+  "1,593,546",
+  "52,764,060",
+  "9,509,171",
+  "40,838,437",
+  "21,990,930",
+  "52,056,767",
+  "33,009,565",
+  "232,052,504",
+  "4,453,766",
+  "18,983,824",
+  "23,379,694",
+  "22,396,544",
+  "22,110,723",
+  "22,466,489",
+  "19,470,442",
   "45,096",
-  "79,583", 
-  "101,321", 
-  "103,644", 
-  "86,893", 
+  "79,583",
+  "101,321",
+  "103,644",
+  "86,893",
   "65,022",
-  "45,226", 
-  "856,411", 
-  "462,406", 
-  "491,181", 
-  "696,611", 
-  "899,175", 
-  "565,253", 
-  "469,133", 
-  "127,503", 
-  "81,755", 
-  "2,118,176", 
-  "1,282,309", 
-  "1,267,763", 
-  "1,994,725", 
-  "3,506,124", 
-  "3,060,416", 
-  "4,297,854", 
-  "2,506,117", 
-  "3,632,547", 
-  "1,998,146", 
-  "1,634,107", 
-  "1,733,975", 
-  "2,700,497", 
-  "3,721,145", 
-  "2,771,862", 
-  "3,168,281", 
-  "1,537,374", 
-  "1,966,643", 
-  "2,086,276", 
-  "2,252,724", 
-  "2,078,948", 
-  "2,369,483", 
-  "2,658,777", 
-  "1,586,360", 
-  "1,580,063", 
-  "846,468", 
-  "910,044", 
-  "13,622", 
-  "62,208", 
-  "144,820", 
-  "262,716", 
-  "390,845", 
-  "435,044", 
-  "353,746", 
-  "11,358", 
-  "395,458", 
-  "2,944,421", 
-  "4,531,117", 
-  "7,317,525", 
-  "6,510,152", 
+  "45,226",
+  "856,411",
+  "462,406",
+  "491,181",
+  "696,611",
+  "899,175",
+  "565,253",
+  "469,133",
+  "127,503",
+  "81,755",
+  "2,118,176",
+  "1,282,309",
+  "1,267,763",
+  "1,994,725",
+  "3,506,124",
+  "3,060,416",
+  "4,297,854",
+  "2,506,117",
+  "3,632,547",
+  "1,998,146",
+  "1,634,107",
+  "1,733,975",
+  "2,700,497",
+  "3,721,145",
+  "2,771,862",
+  "3,168,281",
+  "1,537,374",
+  "1,966,643",
+  "2,086,276",
+  "2,252,724",
+  "2,078,948",
+  "2,369,483",
+  "2,658,777",
+  "1,586,360",
+  "1,580,063",
+  "846,468",
+  "910,044",
+  "13,622",
+  "62,208",
+  "144,820",
+  "262,716",
+  "390,845",
+  "435,044",
+  "353,746",
+  "11,358",
+  "395,458",
+  "2,944,421",
+  "4,531,117",
+  "7,317,525",
+  "6,510,152",
   "4,142,121"
 ];
 
@@ -1011,19 +1013,21 @@ export const analysisCategories = {
   }
 };
 
-// Create a mapping of variable IDs to their human-readable labels
-const variableLabels = {};
-
-// Helper function to initialize the variable labels mapping
-function initializeVariableLabels(categories) {
+// Helper function to initialize variable labels
+function createVariableLabels(categories) {
+  const labels = {};
   Object.values(categories).forEach(category => {
     category.variables.forEach(variable => {
-      variableLabels[variable.id] = variable.label;
+      labels[variable.id] = variable.label;
       const shortKey = variable.id.split(".").pop();
-      variableLabels[shortKey] = variable.label;
+      labels[shortKey] = variable.label;
     });
   });
+  return labels;
 }
+
+// Initialize variable labels once
+const variableLabels = createVariableLabels(analysisCategories);
 
 // Helper functions
 export const getAllVariables = () => {
@@ -1032,20 +1036,65 @@ export const getAllVariables = () => {
   return [...tier1Vars, ...tier2Vars];
 };
 
-// Initialize labels when the service is created
-initializeVariableLabels(analysisCategories);
-
-// Export variableLabels for use in other parts of the application
 export { variableLabels };
 
-
-export default class EnrichmentService {
+export class EnrichmentService {
   constructor() {
     this.clientId = ARCGIS_CLIENT_ID;
     this.clientSecret = ARCGIS_CLIENT_SECRET;
     this.token = null;
     this.tokenExpiration = null;
     this.variableLabels = variableLabels;
+  }
+
+  formatNumberValue(value) {
+    if (typeof value !== "number") return value;
+    return value.toLocaleString("en-US", {
+      maximumFractionDigits: 2,
+    });
+  }
+
+  formatBigNumberAsText(value) {
+    if (!value) return "";
+    const numVal = parseFloat(value);
+    if (Number.isNaN(numVal)) return value;
+    return numVal.toLocaleString("fullwide", {
+      useGrouping: false,
+      maximumFractionDigits: 0
+    });
+  }
+
+  getVariableLabel(variableId) {
+    // First try to get the full label from our mapping
+    if (this.variableLabels[variableId]) {
+      return this.variableLabels[variableId];
+    }
+  
+    // If not found with full path, try with just the short key
+    const shortKey = variableId.split(".").pop();
+    if (this.variableLabels[shortKey]) {
+      return this.variableLabels[shortKey];
+    }
+
+    // Look through categories for a match
+    const matchingVariable = Object.values(analysisCategories)
+      .flatMap(category => category.variables)
+      .find(variable => variable.id === variableId || variable.id.endsWith(shortKey));
+
+    if (matchingVariable) {
+      return matchingVariable.label;
+    }
+
+    // If all else fails, return the shortKey
+    return shortKey;
+  }
+
+  chunkArray(array, size) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
   }
 
   async getToken() {
@@ -1055,7 +1104,6 @@ export default class EnrichmentService {
 
     try {
       const tokenUrl = "https://www.arcgis.com/sharing/rest/oauth2/token";
-
       const params = new URLSearchParams({
         client_id: this.clientId,
         client_secret: this.clientSecret,
@@ -1080,9 +1128,7 @@ export default class EnrichmentService {
           statusText: response.statusText,
           error: errorText,
         });
-        throw new Error(
-          `Token request failed: ${response.status} - ${errorText}`
-        );
+        throw new Error(`Token request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -1097,41 +1143,21 @@ export default class EnrichmentService {
       }
 
       this.token = data.access_token;
-      // Set expiration 60 seconds before actual expiration for safety
       this.tokenExpiration = Date.now() + (data.expires_in - 60) * 1000;
 
       return this.token;
     } catch (error) {
       console.error("Token generation failed:", error);
-      const maskedId = this.clientId
-        ? `${this.clientId.slice(0, 6)}...`
-        : "not set";
-      throw new Error(
-        `Token generation failed. Client ID: ${maskedId}. Error: ${error.message}`
-      );
+      const maskedId = this.clientId ? `${this.clientId.slice(0, 6)}...` : "not set";
+      throw new Error(`Token generation failed. Client ID: ${maskedId}. Error: ${error.message}`);
     }
-  }
-
-  chunkArray(array, size) {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
-  }
-
-  formatNumberValue(value) {
-    if (typeof value !== "number") return value;
-    return value.toLocaleString("en-US", {
-      maximumFractionDigits: 2,
-    });
   }
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
 
     const expandedAreas = [];
-    let areaIndex = 0; // Use a numeric index for stable ObjectIDs
+    let areaIndex = 0;
 
     for (const area of marketAreas) {
       console.log("Processing market area for enrichment:", {
@@ -1142,7 +1168,6 @@ export default class EnrichmentService {
       });
 
       if (area.ma_type === "radius") {
-        // For radius types, use the largest radius polygon
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
 
@@ -1194,9 +1219,7 @@ export default class EnrichmentService {
           console.warn(`No radius_points found for radius MA: ${area.name}`);
         }
       } else {
-        // Non-radius areas: union all rings from locations
-        const allRings =
-          area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
+        const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
 
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
@@ -1249,16 +1272,14 @@ export default class EnrichmentService {
       points.push([centerX + dx, centerY + dy]);
     }
 
-    // Close the ring
-    points.push(points[0]);
+    points.push(points[0]); // Close the ring
     return [points];
   }
 
   async enrichChunk(studyAreas, selectedVariables = []) {
     try {
       const token = await this.getToken();
-      const enrichmentUrl =
-        "https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich";
+      const enrichmentUrl = "https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich";
 
       console.log("Enriching chunk with variables:", selectedVariables);
       console.log("Study areas for enrichment:", studyAreas);
@@ -1267,13 +1288,11 @@ export default class EnrichmentService {
         throw new Error("Invalid study area geometry");
       }
 
-      // Prepare the study areas payload for the enrich request
       const studyAreasPayload = studyAreas.map((s) => ({
         geometry: s.geometry,
         attributes: s.attributes,
       }));
 
-      // Set the parameters
       const params = new URLSearchParams();
       params.append("f", "json");
       params.append("token", token);
@@ -1292,21 +1311,16 @@ export default class EnrichmentService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Enrichment Error Response:", errorText);
-        throw new Error(
-          `Enrichment request failed: ${response.status} - ${errorText}`
-        );
+        throw new Error(`Enrichment request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
 
       if (data.error) {
         console.error("Enrichment API Error:", data.error);
-        throw new Error(
-          `Enrichment API Error: ${data.error.message || JSON.stringify(data.error)}`
-        );
+        throw new Error(`Enrichment API Error: ${data.error.message || JSON.stringify(data.error)}`);
       }
 
-      // Validate response data
       if (!data.results || !Array.isArray(data.results)) {
         console.error("Invalid response format:", data);
         throw new Error("Invalid response format from enrichment service");
@@ -1320,14 +1334,12 @@ export default class EnrichmentService {
   }
 
   async enrichAreas(marketAreas, selectedVariables = [], includeUSAData = false) {
-    const shouldIncludeUSA = typeof includeUSAData === "boolean"
-      ? includeUSAData
-      : false;
+    const shouldIncludeUSA = typeof includeUSAData === "boolean" ? includeUSAData : false;
 
     console.log('enrichAreas called with:', {
       marketAreasCount: marketAreas?.length,
       variablesCount: selectedVariables?.length,
-      includeUSAData: shouldIncludeUSA // Log the boolean value
+      includeUSAData: shouldIncludeUSA
     });
 
     if (!marketAreas?.length) {
@@ -1358,7 +1370,6 @@ export default class EnrichmentService {
       idToIndexMap[sa.attributes.ObjectID] = sa.originalIndex;
     });
 
-    // Return with the explicit boolean flag
     return {
       results,
       studyAreas,
@@ -1374,7 +1385,6 @@ export default class EnrichmentService {
     };
   }
 
-
   aggregateResults(groupedResults, area) {
     const aggregated = {};
     groupedResults.forEach((attributes) => {
@@ -1389,31 +1399,6 @@ export default class EnrichmentService {
     return aggregated;
   }
 
-  // Simplified getVariableLabel (no categories):
-  getVariableLabel(shortKey) {
-    return getVariableLabelFromShortKey(shortKey);
-  }
-
-
-  getVariableLabel(variableId) {
-    // First try to get the full label from our mapping
-    if (this.variableLabels[variableId]) {
-      return this.variableLabels[variableId];
-    }
-  
-    // If not found with full path, try with the normalized ID
-    const normalizedId = variableId.includes(".") ? variableId : `*.${variableId}`;
-    
-    // Then try to get just the short key's label
-    const shortKey = variableId.split(".").pop();
-    
-    // Look through all categories to find a match
-    const matchingVariable = Object.values(analysisCategories)
-      .flatMap(category => category.variables)
-      .find(variable => variable.id.endsWith(shortKey));
-  
-    return matchingVariable ? matchingVariable.label : shortKey;
-  }
   exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
     const shouldIncludeUSAData = typeof includeUSAData === "boolean"
       ? includeUSAData
@@ -1453,7 +1438,6 @@ export default class EnrichmentService {
         return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
       })
     ]);
-
     // Areas Included row
     csvRows.push([
       "Areas Included",
@@ -1487,7 +1471,6 @@ export default class EnrichmentService {
     // Data rows with proper labels
     selectedVariables.forEach(variableId => {
       const shortKey = variableId.split(".").pop();
-      // Use the full variable label from our mapping
       const label = this.getVariableLabel(variableId);
 
       const values = marketAreas.map((_, idx) => {
@@ -1500,56 +1483,8 @@ export default class EnrichmentService {
       csvRows.push([label, ...values]);
     });
 
-    
     if (shouldIncludeUSAData) {
-      // Add USA column headers
-      csvRows[0].push("United States of America");
-      csvRows[1].push("USA");
-      csvRows[2].push("");
-      csvRows[3].push("");
-      csvRows[4].push("");
-
-      // Track positions in USA data
-      const variableToUSAIndex = new Map();
-      
-      // First, map all Tier 1 variables
-      let currentIndex = 5; // Starting after header rows
-      analysisCategories.tier1.variables.forEach(v => {
-        const shortKey = v.id.split(".").pop();
-        variableToUSAIndex.set(shortKey, currentIndex++);
-      });
-
-      // Then map Tier 2 variables
-      // Reset index for Tier 2 data
-      currentIndex = 5; // Reset to start of Tier 2 data
-      analysisCategories.tier2.variables.forEach(v => {
-        const shortKey = v.id.split(".").pop();
-        variableToUSAIndex.set(shortKey, currentIndex++);
-      });
-
-      // Add USA data in the same order as the selected variables
-      for (let i = 5; i < csvRows.length; i++) {
-        const variableId = selectedVariables[i - 5];
-        const shortKey = variableId.split(".").pop();
-        
-        let usaValue = "";
-        const isTier2 = variableId.startsWith("1yearincrements.") || 
-                        variableId.startsWith("educationalattainment.") || 
-                        variableId.includes("BASEFY") ||
-                        variableId.includes("MEDIA") ||  // Added for median income
-                        (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) || // Income by age
-                        (variableId.includes("networth.") && variableId.includes("A")); // Net worth by age
-        
-        const position = variableToUSAIndex.get(shortKey);
-        
-        if (isTier2) {
-          usaValue = position < usaDataRowsTier2.length ? usaDataRowsTier2[position] : "";
-        } else {
-          usaValue = position < usaDataRowsTier1.length ? usaDataRowsTier1[position] : "";
-        }
-        
-        csvRows[i].push(usaValue);
-      }
+      this.addUSADataToRows(csvRows, selectedVariables);
     }
 
     // Generate CSV string
@@ -1562,18 +1497,219 @@ export default class EnrichmentService {
     return csvRows.map(row => row.map(processField).join(",")).join("\n");
   }
 
-  formatBigNumberAsText(value) {
-    if (!value) return "";
+  addUSADataToRows(rows, selectedVariables) {
+    // Add USA column headers
+    rows[0].push("United States of America");
+    rows[1].push("USA");
+    rows[2].push("");
+    rows[3].push("");
+    rows[4].push("");
 
-    const numVal = parseFloat(value);
-    if (Number.isNaN(numVal)) return value;
-
-    const noDecimal = numVal.toLocaleString("fullwide", {
-      useGrouping: false,
-      maximumFractionDigits: 0
+    // Track positions in USA data
+    const variableToUSAIndex = new Map();
+    
+    // Map Tier 1 variables
+    let currentIndex = 5;
+    analysisCategories.tier1.variables.forEach(v => {
+      const shortKey = v.id.split(".").pop();
+      variableToUSAIndex.set(shortKey, currentIndex++);
     });
 
-    return noDecimal.length >= 12 ? `="${noDecimal}"` : noDecimal;
+    // Map Tier 2 variables
+    currentIndex = 5;
+    analysisCategories.tier2.variables.forEach(v => {
+      const shortKey = v.id.split(".").pop();
+      variableToUSAIndex.set(shortKey, currentIndex++);
+    });
+
+    // Add USA data
+    for (let i = 5; i < rows.length; i++) {
+      const variableId = selectedVariables[i - 5];
+      const shortKey = variableId.split(".").pop();
+      
+      let usaValue = "";
+      const isTier2 = variableId.startsWith("1yearincrements.") || 
+                      variableId.startsWith("educationalattainment.") || 
+                      variableId.includes("BASEFY") ||
+                      variableId.includes("MEDIA") ||
+                      (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
+                      (variableId.includes("networth.") && variableId.includes("A"));
+      
+      const position = variableToUSAIndex.get(shortKey);
+      
+      if (isTier2 && position < usaDataRowsTier2.length) {
+        usaValue = usaDataRowsTier2[position];
+      } else if (!isTier2 && position < usaDataRowsTier1.length) {
+        usaValue = usaDataRowsTier1[position];
+      }
+      
+      rows[i].push(usaValue);
+    }
+  }
+
+  exportToExcel(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
+    const shouldIncludeUSAData = typeof includeUSAData === "boolean"
+      ? includeUSAData
+      : Boolean(enrichmentData?.includeUSAData);
+
+    console.log("Starting exportToExcel with params:", {
+      marketAreasCount: marketAreas?.length,
+      selectedVariablesCount: selectedVariables?.length,
+      includeUSAData: shouldIncludeUSAData
+    });
+
+    const { results, studyAreas, idToIndexMap } = enrichmentData;
+
+    // Prepare enrichment lookup
+    const enrichmentLookup = {};
+    results.forEach((res) => {
+      const featureSet = res.value?.FeatureSet?.[0];
+      if (!featureSet?.features?.[0]?.attributes) return;
+      const attrs = featureSet.features[0].attributes;
+      const objId = attrs.ObjectID;
+      const originalIndex = idToIndexMap[objId];
+
+      if (originalIndex !== undefined) {
+        enrichmentLookup[originalIndex] = attrs;
+      }
+    });
+
+    const rows = [];
+
+    // Header rows
+    rows.push(["Market Area Name", ...marketAreas.map(ma => ma.name || "")]);
+    rows.push(["Short Name", ...marketAreas.map(ma => ma.short_name || "")]);
+    rows.push([
+      "Definition Type",
+      ...marketAreas.map(ma => {
+        const maType = ma.ma_type?.toLowerCase();
+        const MA_TYPE_MAPPING = {
+          radius: "RADIUS",
+          place: "PLACE",
+          block: "BLOCK",
+          blockgroup: "BLOCKGROUP",
+          cbsa: "CBSA",
+          state: "STATE",
+          zip: "ZIP",
+          tract: "TRACT",
+          county: "COUNTY",
+        };
+        return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
+      })
+    ]);
+
+    // Areas Included row
+    rows.push([
+      "Areas Included",
+      ...marketAreas.map(ma => {
+        const maType = ma.ma_type?.toLowerCase();
+        switch (maType) {
+          case "zip":
+            return ma.locations?.map(loc => this.formatBigNumberAsText(loc.name)).join(", ") || "";
+            case "radius":
+            if (ma.radius_points?.length > 0) {
+              const allRadii = ma.radius_points.flatMap(p => p.radii || []);
+              if (allRadii.length > 0) {
+                const largestRadius = Math.max(...allRadii);
+                return `${largestRadius} miles`;
+              }
+            }
+            return "";
+          case "block":
+          case "blockgroup":
+          case "tract":
+            return ma.locations?.map(loc => formatBigNumberAsText(loc.name)).join(", ") || "";
+          default:
+            return ma.locations?.map(loc => loc.name).join(", ") || "";
+        }
+      })
+    ]);
+
+    // Add a blank row after headers
+    rows.push(Array(marketAreas.length + 1).fill(""));
+
+    // Data rows with proper labels
+    selectedVariables.forEach(variableId => {
+      const shortKey = variableId.split(".").pop();
+      const label = this.getVariableLabel(variableId);
+
+      const values = marketAreas.map((_, idx) => {
+        const attrs = enrichmentLookup[idx];
+        if (!attrs) return "";
+        const value = attrs[shortKey];
+        return this.formatNumberValue(value);
+      });
+
+      rows.push([label, ...values]);
+    });
+
+    if (shouldIncludeUSAData) {
+      // Add USA column
+      rows[0].push("United States of America");
+      rows[1].push("USA");
+      rows[2].push("");
+      rows[3].push("");
+      rows[4].push("");
+
+      // Track positions in USA data
+      const variableToUSAIndex = new Map();
+
+      // Map Tier 1 variables
+      let currentIndex = 5;
+      analysisCategories.tier1.variables.forEach(v => {
+        const shortKey = v.id.split(".").pop();
+        variableToUSAIndex.set(shortKey, currentIndex++);
+      });
+
+      // Map Tier 2 variables
+      currentIndex = 5;
+      analysisCategories.tier2.variables.forEach(v => {
+        const shortKey = v.id.split(".").pop();
+        variableToUSAIndex.set(shortKey, currentIndex++);
+      });
+
+      // Add USA data
+      for (let i = 5; i < rows.length; i++) {
+        const variableId = selectedVariables[i - 5];
+        const shortKey = variableId.split(".").pop();
+
+        let usaValue = "";
+        const isTier2 = variableId.startsWith("1yearincrements.") ||
+          variableId.startsWith("educationalattainment.") ||
+          variableId.includes("BASEFY") ||
+          variableId.includes("MEDIA") ||
+          (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
+          (variableId.includes("networth.") && variableId.includes("A"));
+
+        const position = variableToUSAIndex.get(shortKey);
+
+        if (isTier2) {
+          usaValue = position < usaDataRowsTier2.length ? usaDataRowsTier2[position] : "";
+        } else {
+          usaValue = position < usaDataRowsTier1.length ? usaDataRowsTier1[position] : "";
+        }
+
+        rows[i].push(usaValue);
+      }
+    }
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Set column widths
+    const colWidths = {};
+    rows[0].forEach((_, idx) => {
+      colWidths[XLSX.utils.encode_col(idx)] = { width: 20 };  // Set default width
+    });
+    ws['!cols'] = Object.values(colWidths);
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Market Area Analysis");
+
+    // Generate Excel file
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
   getStateFullName(stateAbbr) {
