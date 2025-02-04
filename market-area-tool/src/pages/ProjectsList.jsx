@@ -6,9 +6,13 @@ import {
   CalendarIcon,
   MapIcon,
   XCircleIcon,
-  TrashIcon
+  TrashIcon,
+  PencilIcon,
+  BuildingOfficeIcon,
+  MapPinIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import { projectsAPI } from '../services/api';  // Keep this import
+import { projectsAPI } from '../services/api';
 
 export default function ProjectsList() {
   const navigate = useNavigate();
@@ -16,46 +20,48 @@ export default function ProjectsList() {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, projectId: null, projectName: '' });
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ 
+    isOpen: false, 
+    projectId: null, 
+    projectName: '' 
+  });
+  const [editModal, setEditModal] = useState({ 
+    isOpen: false, 
+    projectId: null, 
+    projectData: null,
+    isSubmitting: false
+  });
   
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        // Use projectsAPI.getAll() instead of api.get()
         const response = await projectsAPI.getAll();
         if (response.data && response.data.length > 0) {
           setProjects(response.data);
-          setIsLoading(false);  // Add this to mark loading as complete
         } else {
           setProjects([]);
           setError('No projects found');
-          setIsLoading(false);
         }
       } catch (error) {
         console.error('Failed to load projects:', error);
         setError('Failed to load projects');
-        setIsLoading(false);
 
-        // Handle different error scenarios
-        if (error.response) {
-          if (error.response.status === 401) {
-            // Handle unauthorized access
-            // Potentially redirect to login or refresh token
-          }
+        if (error.response?.status === 401) {
+          // Handle unauthorized access
+          // You might want to redirect to login or refresh token
         } else if (error.request) {
-          // The request was made but no response was received
           setError('No response from server');
         } else {
-          // Something happened in setting up the request
           setError('Error setting up project request');
         }
+      } finally {
+        setIsLoading(false);
       }
     };
   
     fetchProjects();
   }, []);
 
-  // Filter projects based on search term
   const filteredProjects = useMemo(() => {
     if (!Array.isArray(projects)) {
       return [];
@@ -72,29 +78,24 @@ export default function ProjectsList() {
     });
   }, [projects, searchTerm]);
 
-// OR Option 2: Using navigate with a replace and reload
-const handleProjectClick = async (projectId) => {
-  try {
-    const response = await projectsAPI.retrieve(projectId);
-    console.log('Full project response:', response.data);
-    
-    // Navigate with replace to clear the history
-    navigate(`/projects/${projectId}/market-areas`, { replace: true });
-    // Then force a reload
-    window.location.reload();
-  } catch (error) {
-    console.error('Full error object:', error);
-    console.error('Error response:', error.response);
-    const errorMessage = error.response?.data?.detail || 'Failed to load project details';
-    alert(errorMessage);
-  }
-};
+  const handleProjectClick = async (projectId) => {
+    try {
+      const response = await projectsAPI.retrieve(projectId);
+      console.log('Full project response:', response.data);
+      navigate(`/projects/${projectId}/market-areas`, { replace: true });
+      window.location.reload();
+    } catch (error) {
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      const errorMessage = error.response?.data?.detail || 'Failed to load project details';
+      alert(errorMessage);
+    }
+  };
 
   const handleCreateProject = () => {
     navigate('/projects/create');
   };
 
-  // Handle project deletion
   const handleDeleteProject = async () => {
     try {
       await projectsAPI.delete(deleteConfirmation.projectId);
@@ -104,6 +105,40 @@ const handleProjectClick = async (projectId) => {
     } catch (err) {
       console.error('Error deleting project:', err);
       alert(err.response?.data?.detail || 'Failed to delete project');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (editModal.isSubmitting) return; // Prevent double submission
+    
+    setEditModal(prev => ({ ...prev, isSubmitting: true }));
+    
+    try {
+      await projectsAPI.update(editModal.projectId, editModal.projectData);
+      
+      // Update the projects list with edited data
+      setProjects(projects.map(project => 
+        project.id === editModal.projectId 
+          ? { ...project, ...editModal.projectData }
+          : project
+      ));
+      
+      // Close modal and reset state
+      setEditModal({ 
+        isOpen: false, 
+        projectId: null, 
+        projectData: null, 
+        isSubmitting: false 
+      });
+      
+      // Show success message
+      alert('Project updated successfully');
+    } catch (err) {
+      console.error('Error updating project:', err);
+      alert(err.response?.data?.detail || 'Failed to update project');
+    } finally {
+      setEditModal(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
@@ -166,7 +201,7 @@ const handleProjectClick = async (projectId) => {
             <div className="flex">
               <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">{error.message}</h3>
+                <h3 className="text-sm font-medium text-red-800">{error}</h3>
               </div>
             </div>
           </div>
@@ -178,13 +213,15 @@ const handleProjectClick = async (projectId) => {
             filteredProjects.map((project) => (
               <div
                 key={project.id}
-                onClick={() => handleProjectClick(project.id)}
-                className="group cursor-pointer rounded-lg bg-white dark:bg-gray-800 p-6 shadow 
+                className="group rounded-lg bg-white dark:bg-gray-800 p-6 shadow 
                          hover:shadow-md transition-all duration-200 border border-gray-100
                          dark:border-gray-700 hover:border-green-100 dark:hover:border-green-900"
               >
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => handleProjectClick(project.id)}
+                  >
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white 
                                  group-hover:text-green-600 dark:group-hover:text-green-400 
                                  flex items-center gap-2"
@@ -205,21 +242,44 @@ const handleProjectClick = async (projectId) => {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirmation({ 
-                        isOpen: true, 
-                        projectId: project.id,
-                        projectName: `${project.project_number} - ${project.client}`
-                      });
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-600 rounded-full 
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditModal({ 
+                          isOpen: true, 
+                          projectId: project.id,
+                          projectData: {
+                            project_number: project.project_number,
+                            client: project.client,
+                            location: project.location,
+                            description: project.description || ''
+                          },
+                          isSubmitting: false
+                        });
+                      }}
+                      className="p-2 text-gray-400 hover:text-blue-600 rounded-full 
+                              hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      title="Edit project"
+                    >
+                      <PencilIcon className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirmation({ 
+                          isOpen: true, 
+                          projectId: project.id,
+                          projectName: `${project.project_number} - ${project.client}`
+                        });
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-600 rounded-full 
                               hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title="Delete project"
-                  >
-                    <TrashIcon className="h-5 w-5" />
-                  </button>
+                      title="Delete project"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -260,6 +320,164 @@ const handleProjectClick = async (projectId) => {
             </div>
           )}
         </div>
+
+        {/* Edit Project Modal */}
+        {editModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Edit Project
+              </h3>
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <BuildingOfficeIcon className="h-5 w-5" />
+                      Project Number
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={editModal.projectData?.project_number || ''}
+                    onChange={(e) => setEditModal(prev => ({
+                      ...prev,
+                      projectData: { ...prev.projectData, project_number: e.target.value }
+                    }))}
+                    disabled={editModal.isSubmitting}
+                    className="mt-1 block w-full rounded-md border border-gray-300 
+                             dark:border-gray-600 shadow-sm py-2 px-3 
+                             focus:border-green-500 focus:ring-green-500 
+                             bg-gray-50 dark:bg-gray-700 text-gray-900 
+                             dark:text-white sm:text-sm
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <BuildingOfficeIcon className="h-5 w-5" />
+                      Client
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={editModal.projectData?.client || ''}
+                    onChange={(e) => setEditModal(prev => ({
+                      ...prev,
+                      projectData: { ...prev.projectData, client: e.target.value }
+                    }))}
+                    disabled={editModal.isSubmitting}
+                    className="mt-1 block w-full rounded-md border border-gray-300 
+                             dark:border-gray-600 shadow-sm py-2 px-3 
+                             focus:border-green-500 focus:ring-green-500 
+                             bg-gray-50 dark:bg-gray-700 text-gray-900 
+                             dark:text-white sm:text-sm
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <MapPinIcon className="h-5 w-5" />
+                      Location
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    value={editModal.projectData?.location || ''}
+                    onChange={(e) => setEditModal(prev => ({
+                      ...prev,
+                      projectData: { ...prev.projectData, location: e.target.value }
+                    }))}
+                    disabled={editModal.isSubmitting}
+                    className="mt-1 block w-full rounded-md border border-gray-300 
+                             dark:border-gray-600 shadow-sm py-2 px-3 
+                             focus:border-green-500 focus:ring-green-500 
+                             bg-gray-50 dark:bg-gray-700 text-gray-900 
+                             dark:text-white sm:text-sm
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <DocumentTextIcon className="h-5 w-5" />
+                      Description
+                    </div>
+                  </label>
+                  <textarea
+                    value={editModal.projectData?.description || ''}
+                    onChange={(e) => setEditModal(prev => ({
+                      ...prev,
+                      projectData: { ...prev.projectData, description: e.target.value }
+                    }))}
+                    disabled={editModal.isSubmitting}
+                    rows={4}
+                    className="mt-1 block w-full rounded-md border border-gray-300 
+                             dark:border-gray-600 shadow-sm py-2 px-3 
+                             focus:border-green-500 focus:ring-green-500 
+                             bg-gray-50 dark:bg-gray-700 text-gray-900 
+                             dark:text-white sm:text-sm
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEditModal({ 
+                      isOpen: false, 
+                      projectId: null, 
+                      projectData: null,
+                      isSubmitting: false
+                    })}
+                    disabled={editModal.isSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 
+                             bg-white border border-gray-300 rounded-md 
+                             hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 
+                             dark:border-gray-600 dark:hover:bg-gray-600
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editModal.isSubmitting}
+                    className="relative px-4 py-2 text-sm font-medium text-white 
+                             bg-green-600 rounded-md hover:bg-green-700 
+                             focus:outline-none focus:ring-2 focus:ring-offset-2 
+                             focus:ring-green-500 min-w-[100px]
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             flex items-center justify-center"
+                  >
+                    {editModal.isSubmitting ? (
+                      <>
+                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        </span>
+                        <span className="opacity-0">Save Changes</span>
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {deleteConfirmation.isOpen && (

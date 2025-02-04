@@ -751,7 +751,7 @@ export default function MapComponent({ onToggleList }) {
           event.stopPropagation();
           const delta = event.deltaY;
           const currentZoom = view.zoom;
-          const zoomDelta = delta > 0 ? -0.75 : 0.75;
+          const zoomDelta = delta > 0 ? -0.20 : 0.20;
           const newZoom = Math.min(
             Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
             view.constraints.maxZoom
