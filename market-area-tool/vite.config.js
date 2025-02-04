@@ -34,6 +34,7 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist',
       sourcemap: true,
       rollupOptions: {
+        external: ['xlsx'], // Add this line
         output: {
           manualChunks: (id) => {
             if (id.includes('@arcgis/core')) {
