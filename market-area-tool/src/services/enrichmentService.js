@@ -1,8 +1,7 @@
 import esriConfig from "@arcgis/core/config";
 import * as projection from "@arcgis/core/geometry/projection";
 import Polygon from "@arcgis/core/geometry/Polygon";
-import * as XLSX from 'xlsx';
-
+import * as XLSX from 'xlsx/xlsx.mjs';
 
 const ARCGIS_CLIENT_ID = import.meta.env.VITE_ARCGIS_CLIENT_ID;
 const ARCGIS_CLIENT_SECRET = import.meta.env.VITE_ARCGIS_CLIENT_SECRET;
