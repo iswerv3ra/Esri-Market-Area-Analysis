@@ -1399,102 +1399,34 @@ export class EnrichmentService {
     return aggregated;
   }
 
-  exportToCSV(enrichmentData, marketAreas, selectedVariables = [], includeUSAData = false) {
-    const shouldIncludeUSAData = typeof includeUSAData === "boolean"
-      ? includeUSAData
-      : Boolean(enrichmentData?.includeUSAData);
-
-    console.log("Starting exportToCSV with params:", {
-      marketAreasCount: marketAreas?.length,
-      selectedVariablesCount: selectedVariables?.length,
-      includeUSAData: shouldIncludeUSAData
-    });
-
-    const { results, studyAreas, idToIndexMap } = enrichmentData;
-
-    // Prepare enrichment lookup
-    const enrichmentLookup = {};
-    results.forEach((res) => {
-      const featureSet = res.value?.FeatureSet?.[0];
-      if (!featureSet?.features?.[0]?.attributes) return;
-      const attrs = featureSet.features[0].attributes;
-      const objId = attrs.ObjectID;
-      const originalIndex = idToIndexMap[objId];
-
-      if (originalIndex !== undefined) {
-        enrichmentLookup[originalIndex] = attrs;
-      }
-    });
-
-    const csvRows = [];
-
-    // Header rows
-    csvRows.push(["Market Area Name", ...marketAreas.map(ma => ma.name || "")]);
-    csvRows.push(["Short Name", ...marketAreas.map(ma => ma.short_name || "")]);
-    csvRows.push([
-      "Definition Type",
-      ...marketAreas.map(ma => {
-        const maType = ma.ma_type?.toLowerCase();
-        return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
-      })
-    ]);
-    // Areas Included row
-    csvRows.push([
-      "Areas Included",
-      ...marketAreas.map(ma => {
-        const maType = ma.ma_type?.toLowerCase();
-        switch (maType) {
-          case "zip":
-            return ma.locations?.map(loc => loc.name?.split(" - ")?.[0] || "").join(", ") || "";
-          case "radius":
-            if (ma.radius_points?.length > 0) {
-              const allRadii = ma.radius_points.flatMap(p => p.radii || []);
-              if (allRadii.length > 0) {
-                const largestRadius = Math.max(...allRadii);
-                return `${largestRadius} miles`;
-              }
-            }
-            return "";
-          case "block":
-          case "blockgroup":
-          case "tract":
-            return ma.locations?.map(loc => this.formatBigNumberAsText(loc.name)).join(", ") || "";
-          default:
-            return ma.locations?.map(loc => loc.name).join(", ") || "";
-        }
-      })
-    ]);
-
-    // Add a blank row after headers
-    csvRows.push(Array(marketAreas.length + 1).fill(""));
-
-    // Data rows with proper labels
-    selectedVariables.forEach(variableId => {
-      const shortKey = variableId.split(".").pop();
-      const label = this.getVariableLabel(variableId);
-
-      const values = marketAreas.map((_, idx) => {
-        const attrs = enrichmentLookup[idx];
-        if (!attrs) return "";
-        const value = attrs[shortKey];
-        return this.formatNumberValue(value);
-      });
-
-      csvRows.push([label, ...values]);
-    });
-
-    if (shouldIncludeUSAData) {
-      this.addUSADataToRows(csvRows, selectedVariables);
+  async handleExport(enrichmentData, marketAreas, selectedVariables, options = {}) {
+    const { includeUSAData = false } = options;
+    
+    if (!enrichmentData || !marketAreas || !selectedVariables) {
+      throw new Error('Missing required export parameters');
     }
-
-    // Generate CSV string
-    const processField = (field) => {
-      if (field === null || field === undefined) return '""';
-      const stringField = String(field).trim();
-      return `"${stringField.replace(/"/g, '""')}"`;
-    };
-
-    return csvRows.map(row => row.map(processField).join(",")).join("\n");
+  
+    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
+      ? includeUSAData 
+      : Boolean(enrichmentData?.includeUSAData);
+  
+    console.log('Processing export:', {
+      includeUSAData: shouldIncludeUSA,
+      marketAreasCount: marketAreas?.length,
+      variablesCount: selectedVariables?.length
+    });
+  
+    try {
+      return await this.exportToExcel(
+        enrichmentData, 
+        marketAreas, 
+        selectedVariables, 
+        shouldIncludeUSA
+      );
+    } catch (error) {
+      console.error('Export failed:', error);
+      throw new Error(`Export failed: ${error.message}`);
+    }
   }
 
   addUSADataToRows(rows, selectedVariables) {

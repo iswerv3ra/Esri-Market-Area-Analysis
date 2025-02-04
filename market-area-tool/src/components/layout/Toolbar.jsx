@@ -56,12 +56,11 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
   const handleExportData = async ({
     variables,
-    formattedMarketAreas,
     selectedMarketAreas,
     fileName,
-    includeUSAData  // Add this
+    includeUSAData
   }) => {
-    if (!variables || variables.length === 0) {
+    if (!variables?.length) {
       setIsExportDialogOpen(true);
       return;
     }
@@ -73,18 +72,19 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       const enrichedData = await enrichmentService.enrichAreas(
         selectedMarketAreas,
         variables,
-        includeUSAData  // Pass it here
+        includeUSAData
       );
   
-      const csvContent = enrichmentService.exportToCSV(
+      const result = await enrichmentService.handleExport(
         enrichedData,
         selectedMarketAreas,
         variables,
-        includeUSAData  // And here
+        { includeUSAData }
       );
   
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      saveAs(blob, `${fileName}.csv`);
+      if (result instanceof Blob) {
+        saveAs(result, fileName);
+      }
   
       toast.dismiss(loadingToast);
       toast.success("Export completed successfully");

@@ -2,24 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
 import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-const MA_TYPE_MAPPING = {
-  radius: 'RADIUS',
-  place: 'PLACE',
-  block: 'BLOCK',
-  blockgroup: 'BLOCKGROUP',
-  cbsa: 'CBSA',
-  state: 'STATE',
-  zip: 'ZIP',
-  tract: 'TRACT',
-  county: 'COUNTY',
-  cb: 'CENSUS BLOCK',
-  cbg: 'CENSUS BLOCK GROUP',
-  caa: 'CUSTOM ANALYSIS AREA',
-  project: 'PROJECT',
-  rt: 'RADIUS TARGET',
-  usa: 'USA',
-};
-
 const ExportDialog = ({
   isOpen = false,
   onClose = () => {},
@@ -28,16 +10,13 @@ const ExportDialog = ({
   marketAreas = [],
   isExporting = false,
 }) => {
-  // State management
   const [fileName, setFileName] = useState('');
   const [includeUSAData, setIncludeUSAData] = useState(false);
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
   const [selectedTiers, setSelectedTiers] = useState(() => new Set(['tier1']));
-  const [exportFormat, setExportFormat] = useState('excel'); // New state for format selection
 
-  // Calculate variable counts for each tier
   const { tier1Count, tier2Count } = useMemo(() => {
     return variablePresets.reduce((acc, preset) => {
       if (preset.name.toLowerCase().includes('tier 1')) {
@@ -70,12 +49,10 @@ const ExportDialog = ({
     }
   }, [marketAreas]);
 
-  // Sync selected areas when marketAreas changes
   useEffect(() => {
     setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
   }, [marketAreas]);
 
-  // Handler functions
   const handleSelectAllAreas = (e) => {
     if (e.target.checked) {
       setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
@@ -115,9 +92,7 @@ const ExportDialog = ({
   const handleSubmitExport = async (e) => {
     e.preventDefault();
     
-    if (isExporting) {
-      return;
-    }
+    if (isExporting) return;
   
     try {
       const selectedMarketAreas = marketAreas.filter((area) =>
@@ -126,7 +101,6 @@ const ExportDialog = ({
   
       let variables = [];
   
-      // Add Tier 1 variables first if selected
       if (selectedTiers.has('tier1')) {
         const tier1Variables = variablePresets
           .find(preset => preset.name.toLowerCase().includes('tier 1'))
@@ -134,7 +108,6 @@ const ExportDialog = ({
         variables = [...variables, ...tier1Variables];
       }
       
-      // Then add Tier 2 variables if selected
       if (selectedTiers.has('tier2')) {
         const tier2Variables = variablePresets
           .find(preset => preset.name.toLowerCase().includes('tier 2'))
@@ -142,18 +115,16 @@ const ExportDialog = ({
         variables = [...variables, ...tier2Variables];
       }
   
-      // Add file extension based on format
-      const fileNameWithExt = fileName + (exportFormat === 'excel' ? '.xlsx' : '.csv');
+      const baseFileName = fileName.replace(/\.(xlsx|csv)$/i, '').trim();
+      const fileNameWithExt = `${baseFileName}.xlsx`;
   
       const result = await onExport({
         variables,
         selectedMarketAreas,
         fileName: fileNameWithExt,
         includeUSAData: Boolean(includeUSAData),
-        format: exportFormat
       });
-
-      // Create a download link for the exported file
+  
       if (result instanceof Blob) {
         const url = window.URL.createObjectURL(result);
         const link = document.createElement('a');
@@ -183,7 +154,6 @@ const ExportDialog = ({
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-          {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
               <TableCellsIcon className="h-5 w-5" />
@@ -198,46 +168,7 @@ const ExportDialog = ({
             </button>
           </div>
 
-          {/* Body */}
           <div className="px-4 py-4 space-y-4">
-            {/* Format Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Export Format
-              </label>
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="excel"
-                    checked={exportFormat === 'excel'}
-                    onChange={(e) => setExportFormat(e.target.value)}
-                    disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
-                             disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Excel (.xlsx)
-                  </span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="csv"
-                    checked={exportFormat === 'csv'}
-                    onChange={(e) => setExportFormat(e.target.value)}
-                    disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300
-                             disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    CSV (.csv)
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Include USA Data Checkbox */}
             <div>
               <label className="flex items-center space-x-2">
                 <input
@@ -254,9 +185,8 @@ const ExportDialog = ({
               </label>
             </div>
 
-            {/* File Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                 Export File Name
               </label>
               <input
@@ -272,9 +202,8 @@ const ExportDialog = ({
               />
             </div>
 
-            {/* Market Areas Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Market Areas to Include
               </label>
               <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 max-h-40 overflow-y-auto">
@@ -312,9 +241,8 @@ const ExportDialog = ({
               </div>
             </div>
 
-            {/* Variable Tier Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Select Variables
               </label>
               <div className="space-y-2">
@@ -348,14 +276,13 @@ const ExportDialog = ({
             </div>
           </div>
 
-          {/* Footer */}
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <button
               onClick={onClose}
               disabled={isExporting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border 
+              className="px-4 py-2 text-sm font-medium text-gray-900 bg-white border 
                        border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 
-                       dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600
+                       dark:text-white dark:border-gray-600 dark:hover:bg-gray-600
                        disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
