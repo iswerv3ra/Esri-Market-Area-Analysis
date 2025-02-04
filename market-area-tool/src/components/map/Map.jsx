@@ -1328,8 +1328,8 @@ const renderAreaTypeDropdown = () => (
               </div>
             ))}
             <button
-              onClick={addNewTab}
-              className="ml-2 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors duration-200 ease-in-out"
+              disabled={true}
+              className="ml-2 px-3 py-1 text-sm bg-gray-300 text-gray-500 rounded cursor-not-allowed transition-colors duration-200 ease-in-out"
             >
               + New Map
             </button>
