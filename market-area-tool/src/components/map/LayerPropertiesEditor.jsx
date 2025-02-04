@@ -68,17 +68,58 @@ const LayerPropertiesEditor = ({
   visualizationType,
   layerConfig,
   onConfigChange,
-  onPreview,
+  onPreview
 }) => {
   const [currentConfig, setCurrentConfig] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Define value formats for all visualization types
+  const valueFormats = {
+    income: {
+      prefix: '$',
+      decimals: 0,
+      multiplier: 1
+    },
+    homeValue: {
+      prefix: '$',
+      decimals: 0,
+      multiplier: 1
+    },
+    growth: {
+      prefix: '',
+      suffix: '%',
+      decimals: 2,
+      multiplier: 1
+    },
+    density: {
+      prefix: '',
+      suffix: ' per sq mi',
+      decimals: 0,
+      multiplier: 1
+    },
+    age: {
+      prefix: '',
+      suffix: ' years',
+      decimals: 1,
+      multiplier: 1
+    },
+    unemployment: {
+      prefix: '',
+      suffix: '%',
+      decimals: 1,
+      multiplier: 1
+    },
+    affordability: {
+      prefix: '',
+      decimals: 1,
+      multiplier: 1
+    }
+  };
+
   useEffect(() => {
-    // Handle visualization type changes
     setIsTransitioning(true);
     setCurrentConfig(layerConfig);
     
-    // Short delay to ensure smooth transition
     const timer = setTimeout(() => {
       setIsTransitioning(false);
     }, 150);
@@ -102,6 +143,55 @@ const LayerPropertiesEditor = ({
     onClose();
   };
 
+  const renderEditor = () => {
+    if (!currentConfig || isTransitioning) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-gray-500 dark:text-gray-400">
+            Loading configuration...
+          </div>
+        </div>
+      );
+    }
+
+    if (visualizationType === 'population') {
+      return (
+        <DotDensityEditor
+          config={currentConfig}
+          onChange={handleConfigChange}
+        />
+      );
+    }
+
+    // Handle all class break visualizations
+    const classBreakTypes = [
+      'income', 'growth', 'density', 'age', 
+      'unemployment', 'homeValue', 'affordability'
+    ];
+    
+    if (classBreakTypes.includes(visualizationType)) {
+      return (
+        <ColorBreakEditor
+          breaks={currentConfig.classBreakInfos || []}
+          onBreaksChange={(newBreaks) => 
+            handleConfigChange({
+              ...currentConfig,
+              classBreakInfos: newBreaks
+            })
+          }
+          visualizationType={visualizationType}
+          valueFormat={valueFormats[visualizationType]}
+        />
+      );
+    }
+
+    return (
+      <div className="p-4 text-gray-600 dark:text-gray-400">
+        No editor available for this visualization type.
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -118,37 +208,7 @@ const LayerPropertiesEditor = ({
       </div>
 
       <div className={`flex-1 overflow-y-auto p-6 ${isTransitioning ? 'opacity-0' : 'opacity-100'} transition-opacity duration-150`}>
-        {!isTransitioning && currentConfig && (
-          <>
-            {visualizationType === 'population' && (
-              <DotDensityEditor
-                config={currentConfig}
-                onChange={handleConfigChange}
-              />
-            )}
-            
-            {(visualizationType === 'income' || visualizationType === 'growth') && (
-              <ColorBreakEditor
-                breaks={currentConfig.classBreakInfos || []}
-                onBreaksChange={(newBreaks) => 
-                  handleConfigChange({
-                    ...currentConfig,
-                    classBreakInfos: newBreaks
-                  })
-                }
-                visualizationType={visualizationType}
-              />
-            )}
-          </>
-        )}
-
-        {(!currentConfig || isTransitioning) && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-gray-500 dark:text-gray-400">
-              Loading configuration...
-            </div>
-          </div>
-        )}
+        {renderEditor()}
       </div>
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">

@@ -15,9 +15,34 @@ import LayerPropertiesEditor from "./LayerPropertiesEditor";
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
+  const colorScheme = {
+    level1: [255, 99, 71, 0.45],    // Salmon red
+    level2: [255, 165, 0, 0.45],    // Orange
+    level3: [255, 255, 144, 0.45],  // Light yellow
+    level4: [144, 238, 144, 0.45],  // Light green
+    level5: [135, 206, 235, 0.45],  // Sky blue
+    level6: [0, 0, 139, 0.45],      // Dark blue
+    level7: [128, 0, 128, 0.45]     // Purple
+  };
+  
+  // Update the createClassBreaks function accordingly
+  const createClassBreaks = (breakPoints, labels) => {
+    return breakPoints.map((point, index) => ({
+      minValue: point.min === undefined ? -Infinity : point.min,
+      maxValue: point.max === undefined ? Infinity : point.max,
+      symbol: {
+        type: "simple-fill",
+        color: colorScheme[`level${index + 1}`],
+        outline: { 
+          color: [50, 50, 50, 0.2], 
+          width: "0.5px" 
+        }
+      },
+      label: labels[index]
+    }));
+  };
 const initialLayerConfigurations = {
   population: {
-    // Population configuration remains unchanged
     type: "dot-density",
     field: "TOTPOP_CY",
     dotValue: 100,
@@ -38,155 +63,205 @@ const initialLayerConfigurations = {
       },
     ],
   },
-
   income: {
     type: "class-breaks",
     field: "MEDHINC_CY",
-    classBreakInfos: [
-      {
-        minValue: -Infinity,
-        maxValue: 35000,
-        symbol: {
-          type: "simple-fill",
-          color: [255, 153, 153, 0.35], // Pastel red with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "Under $35K",
-      },
-      {
-        minValue: 35000,
-        maxValue: 65000,
-        symbol: {
-          type: "simple-fill",
-          color: [255, 179, 102, 0.35], // Pastel orange with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "$35K - $65K",
-      },
-      {
-        minValue: 65000,
-        maxValue: 95000,
-        symbol: {
-          type: "simple-fill",
-          color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "$65K - $95K",
-      },
-      {
-        minValue: 95000,
-        maxValue: 125000,
-        symbol: {
-          type: "simple-fill",
-          color: [153, 255, 153, 0.35], // Pastel green with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "$95K - $125K",
-      },
-      {
-        minValue: 125000,
-        maxValue: 155000,
-        symbol: {
-          type: "simple-fill",
-          color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "$125K - $155K",
-      },
-      {
-        minValue: 155000,
-        maxValue: 200000,
-        symbol: {
-          type: "simple-fill",
-          color: [153, 153, 255, 0.35], // Pastel blue with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "$155K - $200K",
-      },
-      {
-        minValue: 200000,
-        maxValue: Infinity,
-        symbol: {
-          type: "simple-fill",
-          color: [204, 153, 255, 0.35], // Pastel violet with transparency
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "Over $200K",
-      },
-    ],
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 35000 },
+        { min: 35000, max: 65000 },
+        { min: 65000, max: 95000 },
+        { min: 95000, max: 125000 },
+        { min: 125000, max: 155000 },
+        { min: 155000, max: 200000 },
+        { min: 200000 }
+      ],
+      [
+        "Less than $35,000",
+        "$35,000 - $65,000",
+        "$65,000 - $95,000",
+        "$95,000 - $125,000",
+        "$125,000 - $155,000",
+        "$155,000 - $200,000",
+        "$200,000 or more"
+      ]
+    )
   },
-
   growth: {
     type: "class-breaks",
     field: "HHGRW20CY",
-    classBreakInfos: [
-      {
-        minValue: -Infinity,
-        maxValue: -3.0,
-        symbol: {
-          type: "simple-fill",
-          color: "#ff0000", // Deep red for negative growth
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "Less than -3%",
-      },
-      {
-        minValue: -3.0,
-        maxValue: -1.5,
-        symbol: {
-          type: "simple-fill",
-          color: "#ff4d4d", // Lighter red
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "-3% to 0%",
-      },
-      {
-        minValue: -1.5,
-        maxValue: 1.0,
-        symbol: {
-          type: "simple-fill",
-          color: "#9933ff", // Purple (transition)
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "0% to 2%",
-      },
-      {
-        minValue: 1.0,
-        maxValue: 2.0,
-        symbol: {
-          type: "simple-fill",
-          color: "#6600ff", // Blue-purple
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "2% to 5%",
-      },
-      {
-        minValue: 2.0,
-        maxValue: 4.0,
-        symbol: {
-          type: "simple-fill",
-          color: "#3300ff", // Light blue
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "5% to 10%",
-      },
-      {
-        minValue: 4.0,
-        maxValue: Infinity,
-        symbol: {
-          type: "simple-fill",
-          color: "#0000ff", // Deep blue for highest growth
-          outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-        },
-        label: "More than 10%",
-      },
-    ],
+    classBreakInfos: createClassBreaks(
+      [
+        { max: -3 },
+        { min: -3, max: -2 },
+        { min: -2, max: -1 },
+        { min: -1, max: 0 },
+        { min: 0, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2 }
+      ],
+      [
+        "Less than -3%",
+        "-3% to -2%",
+        "-2% to -1%",
+        "-1% to 0%",
+        "0% to 1%",
+        "1% to 2%",
+        "2% or more"
+      ]
+    )
   },
+  density: {
+    type: "class-breaks",
+    field: "POPDENS_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 7500 },
+        { min: 7500, max: 10000 },
+        { min: 10000, max: 15000 },
+        { min: 15000 }
+      ],
+      [
+        "Less than 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 7,500",
+        "7,500 - 10,000",
+        "10,000 - 15,000",
+        "15,000 or more"
+      ]
+    )
+  },
+  age: {
+    type: "class-breaks",
+    field: "MEDAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 },
+        { min: 55 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years",
+        "55 years or more"
+      ]
+    )
+  },
+  unemployment: {
+    type: "class-breaks",
+    field: "UNEMPRT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 9 },
+        { min: 9, max: 11 },
+        { min: 11, max: 13 },
+        { min: 13 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 9%",
+        "9% - 11%",
+        "11% - 13%",
+        "13% or more"
+      ]
+    )
+  },
+  homeValue: {
+    type: "class-breaks",
+    field: "MEDVAL_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200000 },
+        { min: 200000, max: 350000 },
+        { min: 350000, max: 500000 },
+        { min: 500000, max: 750000 },
+        { min: 750000, max: 1000000 },
+        { min: 1000000, max: 1500000 },
+        { min: 1500000 }
+      ],
+      [
+        "Less than $200,000",
+        "$200,000 - $350,000",
+        "$350,000 - $500,000",
+        "$500,000 - $750,000",
+        "$750,000 - $1,000,000",
+        "$1,000,000 - $1,500,000",
+        "$1,500,000 or more"
+      ]
+    )
+  },
+  affordability: {
+    type: "class-breaks",
+    field: "HAI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 150 },
+        { min: 150, max: 175 },
+        { min: 175 }
+      ],
+      [
+        "Less than 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 150",
+        "150 - 175",
+        "175 or more"
+      ]
+    )
+  }
 };
+// Update the visualization options in the dropdown
+const visualizationOptions = [
+  { value: "population", label: "Population Distribution" },
+  { value: "income", label: "Median Household Income" },
+  { value: "growth", label: "Household Growth Rate" },
+  { value: "affordability", label: "Housing Affordability Index" },
+  { value: "density", label: "Population Density" },
+  { value: "age", label: "Median Age" },
+  { value: "unemployment", label: "Unemployment Rate" },
+  { value: "homeValue", label: "Median Home Value" }
+];
 
-// Function to create layers based on visualization type and optional config override
-const createLayers = (visualizationType, configOverride = null) => {
-  const config = configOverride || layerConfigurations[visualizationType];
+const createLayers = (
+  visualizationType, 
+  configOverride = null, 
+  layerConfigs = initialLayerConfigurations, 
+  selectedAreaType = areaTypes[0]
+) => {
+  // Validate inputs
+  if (!visualizationType) {
+    console.error('No visualization type provided');
+    return null;
+  }
+
+  if (!selectedAreaType) {
+    console.error('No area type provided, using default');
+    selectedAreaType = areaTypes[0];
+  }
+
+  const config = configOverride || layerConfigs[visualizationType];
 
   const createRenderer = (config) => {
     if (!config) return null;
@@ -216,6 +291,10 @@ const createLayers = (visualizationType, configOverride = null) => {
           defaultLabel: "No data",
           classBreakInfos: config.classBreakInfos,
         };
+      
+      default:
+        console.error('Unsupported renderer type:', config.type);
+        return null;
     }
   };
 
@@ -245,16 +324,74 @@ const createLayers = (visualizationType, configOverride = null) => {
         places: 2,
       },
     },
+    affordability: {
+      fieldName: "HAI_CY",
+      title: "Housing Affordability Index (2024)",
+      format: {
+        digitSeparator: true,
+        places: 1,
+      },
+    },
+    density: {
+      fieldName: "POPDENS_CY",
+      title: "Population Density (2024)",
+      format: {
+        digitSeparator: true,
+        places: 0,
+      },
+    },
+    age: {
+      fieldName: "MEDAGE_CY",
+      title: "Median Age (2024)",
+      format: {
+        digitSeparator: true,
+        places: 1,
+      },
+    },
+    unemployment: {
+      fieldName: "UNEMPRT_CY",
+      title: "Unemployment Rate (2024)",
+      format: {
+        digitSeparator: true,
+        places: 1,
+      },
+    },
+    homeValue: {
+      fieldName: "MEDVAL_CY",
+      title: "Median Home Value (2024)",
+      format: {
+        digitSeparator: true,
+        places: 0,
+        type: "currency",
+      },
+    },
   };
 
   const layerConfig = layerDefinitions[visualizationType];
-  if (!layerConfig) return null;
+  
+  // Validate layer configuration
+  if (!layerConfig) {
+    console.error(`No layer configuration found for visualization type: ${visualizationType}`);
+    return null;
+  }
 
+  if (!config) {
+    console.error(`No configuration found for visualization type: ${visualizationType}`);
+    return null;
+  }
+
+  // Validate URL
+  if (!selectedAreaType.url) {
+    console.error('Invalid area type: No URL provided', selectedAreaType);
+    return null;
+  }
+
+  // Create and return the FeatureLayer
   return new FeatureLayer({
-    url: "https://services8.arcgis.com/peDZJliSvYims39Q/ArcGIS/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12",
+    url: selectedAreaType.url,
     renderer: createRenderer(config),
     popupTemplate: {
-      title: "Census Tract {NAME}",
+      title: `${selectedAreaType.label} {NAME}`,
       content: [
         {
           type: "fields",
@@ -269,11 +406,9 @@ const createLayers = (visualizationType, configOverride = null) => {
       ],
     },
     title: layerConfig.title,
-    minScale: 2500000, // Increased minScale to allow visualization at higher zoom levels
+    minScale: selectedAreaType.value === 12 ? 2500000 : 25000000, // Adjust scale based on area type
   });
 };
-
-
 
 // ZoomAlert Component
 const ZoomAlert = () => {
@@ -308,6 +443,11 @@ const ZoomAlert = () => {
   );
 };
 
+const areaTypes = [
+  { value: 12, label: "Census Tract", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12" },
+  { value: 11, label: "County", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/11" }
+];
+
 export default function MapComponent({ onToggleList }) {
   const mapRef = useRef(null);
   const { setMapView, mapView } = useMap();
@@ -315,7 +455,8 @@ export default function MapComponent({ onToggleList }) {
   const layersRef = useRef({});
   const [legend, setLegend] = useState(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-
+  const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
+  // First, update the initial state
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
       type: "dot-density",
@@ -341,160 +482,182 @@ export default function MapComponent({ onToggleList }) {
     income: {
       type: "class-breaks",
       field: "MEDHINC_CY",
-      classBreakInfos: [
-        {
-          minValue: -Infinity,
-          maxValue: 35000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "< $35,000",
-        },
-        {
-          minValue: 35000,
-          maxValue: 65000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "$35,000 - $65,000",
-        },
-        {
-          minValue: 65000,
-          maxValue: 95000,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "$65,000 - $95,000",
-        },
-        {
-          minValue: 95000,
-          maxValue: 125000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "$95,000 - $125,000",
-        },
-        {
-          minValue: 125000,
-          maxValue: 155000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "$125,000 - $155,000",
-        },
-        {
-          minValue: 155000,
-          maxValue: 200000,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "$155,000 - $200,000",
-        },
-        {
-          minValue: 200000,
-          maxValue: Infinity,
-          symbol: {
-            type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "> $200,000",
-        },
-      ],
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 35000 },
+          { min: 35000, max: 65000 },
+          { min: 65000, max: 95000 },
+          { min: 95000, max: 125000 },
+          { min: 125000, max: 155000 },
+          { min: 155000, max: 200000 },
+          { min: 200000 }
+        ],
+        [
+          "Less than $35,000",
+          "$35,000 - $65,000",
+          "$65,000 - $95,000",
+          "$95,000 - $125,000",
+          "$125,000 - $155,000",
+          "$155,000 - $200,000",
+          "$200,000 or more"
+        ]
+      )
     },
-
     growth: {
       type: "class-breaks",
       field: "HHGRW20CY",
-      classBreakInfos: [
-        {
-          minValue: -Infinity,
-          maxValue: -3,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 153, 153, 0.35], // Pastel red with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "Less than -3%",
-        },
-        {
-          minValue: -3,
-          maxValue: -1.5,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 179, 102, 0.35], // Pastel orange with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "-3% to -1%",
-        },
-        {
-          minValue: -1.5,
-          maxValue: 0,
-          symbol: {
-            type: "simple-fill",
-            color: [255, 255, 153, 0.35], // Pastel yellow with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "-1% to 1%",
-        },
-        {
-          minValue: 0,
-          maxValue: 1,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 153, 0.35], // Pastel green with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "1% to 3%",
-        },
-        {
-          minValue: 1,
-          maxValue: 2,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 255, 255, 0.35], // Pastel cyan with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "3% to 5%",
-        },
-        {
-          minValue: 2,
-          maxValue: 4,
-          symbol: {
-            type: "simple-fill",
-            color: [153, 153, 255, 0.35], // Pastel blue with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "5% to 10%",
-        },
-        {
-          minValue: 4,
-          maxValue: Infinity,
-          symbol: {
-            type: "simple-fill",
-            color: [204, 153, 255, 0.35], // Pastel violet with transparency
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" },
-          },
-          label: "More than 10%",
-        },
-      ],
+      classBreakInfos: createClassBreaks(
+        [
+          { max: -3 },
+          { min: -3, max: -2 },
+          { min: -2, max: -1 },
+          { min: -1, max: 0 },
+          { min: 0, max: 1 },
+          { min: 1, max: 2 },
+          { min: 2 }
+        ],
+        [
+          "Less than -3%",
+          "-3% to -2%",
+          "-2% to -1%",
+          "-1% to 0%",
+          "0% to 1%",
+          "1% to 2%",
+          "2% or more"
+        ]
+      )
     },
+    density: {
+      type: "class-breaks",
+      field: "POPDENS_CY",
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 1000 },
+          { min: 1000, max: 2500 },
+          { min: 2500, max: 5000 },
+          { min: 5000, max: 7500 },
+          { min: 7500, max: 10000 },
+          { min: 10000, max: 15000 },
+          { min: 15000 }
+        ],
+        [
+          "Less than 1,000",
+          "1,000 - 2,500",
+          "2,500 - 5,000",
+          "5,000 - 7,500",
+          "7,500 - 10,000",
+          "10,000 - 15,000",
+          "15,000 or more"
+        ]
+      )
+    },
+    age: {
+      type: "class-breaks",
+      field: "MEDAGE_CY",
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 30 },
+          { min: 30, max: 35 },
+          { min: 35, max: 40 },
+          { min: 40, max: 45 },
+          { min: 45, max: 50 },
+          { min: 50, max: 55 },
+          { min: 55 }
+        ],
+        [
+          "Less than 30 years",
+          "30 - 35 years",
+          "35 - 40 years",
+          "40 - 45 years",
+          "45 - 50 years",
+          "50 - 55 years",
+          "55 years or more"
+        ]
+      )
+    },
+    unemployment: {
+      type: "class-breaks",
+      field: "UNEMPRT_CY",
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 3 },
+          { min: 3, max: 5 },
+          { min: 5, max: 7 },
+          { min: 7, max: 9 },
+          { min: 9, max: 11 },
+          { min: 11, max: 13 },
+          { min: 13 }
+        ],
+        [
+          "Less than 3%",
+          "3% - 5%",
+          "5% - 7%",
+          "7% - 9%",
+          "9% - 11%",
+          "11% - 13%",
+          "13% or more"
+        ]
+      )
+    },
+    homeValue: {
+      type: "class-breaks",
+      field: "MEDVAL_CY",
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 200000 },
+          { min: 200000, max: 350000 },
+          { min: 350000, max: 500000 },
+          { min: 500000, max: 750000 },
+          { min: 750000, max: 1000000 },
+          { min: 1000000, max: 1500000 },
+          { min: 1500000 }
+        ],
+        [
+          "Less than $200,000",
+          "$200,000 - $350,000",
+          "$350,000 - $500,000",
+          "$500,000 - $750,000",
+          "$750,000 - $1,000,000",
+          "$1,000,000 - $1,500,000",
+          "$1,500,000 or more"
+        ]
+      )
+    },
+    affordability: {
+      type: "class-breaks",
+      field: "HAI_CY",
+      classBreakInfos: createClassBreaks(
+        [
+          { max: 50 },
+          { min: 50, max: 75 },
+          { min: 75, max: 100 },
+          { min: 100, max: 125 },
+          { min: 125, max: 150 },
+          { min: 150, max: 175 },
+          { min: 175 }
+        ],
+        [
+          "Less than 50",
+          "50 - 75",
+          "75 - 100",
+          "100 - 125",
+          "125 - 150",
+          "150 - 175",
+          "175 or more"
+        ]
+      )
+    }
   });
 
-  const [tabs, setTabs] = useState([{ id: 1, name: "Core Map", active: true }]);
-  const [activeTab, setActiveTab] = useState(1);
+  const [tabs, setTabs] = useState([
+    { 
+      id: 1, 
+      name: "Core Map", 
+      active: true, 
+      visualizationType: null,
+      layerConfiguration: null  // New field to store tab-specific layer config
+    }
+  ]);  const [activeTab, setActiveTab] = useState(1);
   const [visualizationType, setVisualizationType] = useState(null);
 
   useEffect(() => {
@@ -551,165 +714,164 @@ export default function MapComponent({ onToggleList }) {
     }
   };
 
-useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  const initializeMap = async () => {
-    try {
-      const map = new Map({
-        basemap: "arcgis-navigation",
-      });
+    const initializeMap = async () => {
+      try {
+        const map = new Map({
+          basemap: "arcgis-navigation",
+        });
 
-      const view = new MapView({
-        container: mapRef.current,
-        map: map,
-        constraints: {
-          snapToZoom: false,
-          rotationEnabled: false,
-          minZoom: 2,
-          maxZoom: 20,
-        },
-        navigation: {
-          mouseWheelZoomEnabled: true,
-          browserTouchPanEnabled: true,
-          momentumEnabled: true,
-          keyboardNavigation: true,
-        },
-        ui: {
-          components: ["attribution"],
-        },
-      });
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          constraints: {
+            snapToZoom: false,
+            rotationEnabled: false,
+            minZoom: 2,
+            maxZoom: 20,
+          },
+          navigation: {
+            mouseWheelZoomEnabled: true,
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
+          },
+          ui: {
+            components: ["attribution"],
+          },
+        });
 
-      // Wait for the view to be ready before proceeding
-      await view.when();
+        // Wait for the view to be ready before proceeding
+        await view.when();
 
-      // Add smooth zoom behavior
-      view.on("mouse-wheel", (event) => {
-        event.stopPropagation();
-        const delta = event.deltaY;
-        const currentZoom = view.zoom;
-        const zoomDelta = delta > 0 ? -0.75 : 0.75;
-        const newZoom = Math.min(
-          Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
-          view.constraints.maxZoom
-        );
+        // Add smooth zoom behavior
+        view.on("mouse-wheel", (event) => {
+          event.stopPropagation();
+          const delta = event.deltaY;
+          const currentZoom = view.zoom;
+          const zoomDelta = delta > 0 ? -0.75 : 0.75;
+          const newZoom = Math.min(
+            Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
 
-        view.goTo(
+          view.goTo(
+            {
+              zoom: newZoom,
+              center: view.center,
+            },
+            {
+              duration: 100,
+              easing: "linear",
+            }
+          );
+        });
+
+        // Add non-legend widgets after view is ready
+        const widgets = [
           {
-            zoom: newZoom,
-            center: view.center,
+            widget: new Zoom({
+              view,
+              zoomFactor: 1.2,
+            }),
+            position: "top-left",
           },
           {
-            duration: 100,
-            easing: "linear",
+            widget: new Home({ view }),
+            position: "top-left",
+          },
+          {
+            widget: new BasemapToggle({
+              view,
+              nextBasemap: "arcgis-imagery",
+            }),
+            position: "bottom-right",
+          },
+          {
+            widget: new Locate({
+              view,
+              useHeadingEnabled: false,
+              goToOverride: (view, options) => {
+                options.target.scale = 1500;
+                return view.goTo(options.target, {
+                  duration: 1000,
+                  easing: "ease-in-out",
+                });
+              },
+            }),
+            position: "top-left",
+          },
+          {
+            widget: new ScaleBar({
+              view,
+              unit: "imperial",
+            }),
+            position: "bottom-right",
+          },
+        ];
+
+        widgets.forEach(({ widget, position }) => {
+          view.ui.add(widget, position);
+        });
+
+        const legendWidget = new Legend({
+          view,
+          container: document.createElement("div"),
+          layerInfos: [], // We'll update this dynamically
+        });
+
+        view.ui.add(legendWidget, "bottom-left");
+        setLegend(legendWidget);
+
+        // Key event listener for keyboard zoom control
+        view.container.addEventListener("keydown", (event) => {
+          if (event.key === "+" || event.key === "=") {
+            event.preventDefault();
+            const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
+            view.goTo(
+              {
+                zoom: newZoom,
+                center: view.center,
+              },
+              {
+                duration: 100,
+                easing: "linear",
+              }
+            );
+          } else if (event.key === "-" || event.key === "_") {
+            event.preventDefault();
+            const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
+            view.goTo(
+              {
+                zoom: newZoom,
+                center: view.center,
+              },
+              {
+                duration: 100,
+                easing: "linear",
+              }
+            );
           }
-        );
-      });
+        });
 
-      // Add non-legend widgets after view is ready
-      const widgets = [
-        {
-          widget: new Zoom({
-            view,
-            zoomFactor: 1.2,
-          }),
-          position: "top-left",
-        },
-        {
-          widget: new Home({ view }),
-          position: "top-left",
-        },
-        {
-          widget: new BasemapToggle({
-            view,
-            nextBasemap: "arcgis-imagery",
-          }),
-          position: "bottom-right",
-        },
-        {
-          widget: new Locate({
-            view,
-            useHeadingEnabled: false,
-            goToOverride: (view, options) => {
-              options.target.scale = 1500;
-              return view.goTo(options.target, {
-                duration: 1000,
-                easing: "ease-in-out",
-              });
-            },
-          }),
-          position: "top-left",
-        },
-        {
-          widget: new ScaleBar({
-            view,
-            unit: "imperial",
-          }),
-          position: "bottom-right",
-        },
-      ];
-
-      widgets.forEach(({ widget, position }) => {
-        view.ui.add(widget, position);
-      });
-
-      const legendWidget = new Legend({
-        view,
-        style: {
-          type: "classic",
-          layout: "stack",
-        },
-      });
-
-      setLegend(legendWidget);
-
-      // Key event listener for keyboard zoom control
-      view.container.addEventListener("keydown", (event) => {
-        if (event.key === "+" || event.key === "=") {
-          event.preventDefault();
-          const newZoom = Math.min(view.zoom + 0.2, view.constraints.maxZoom);
-          view.goTo(
-            {
-              zoom: newZoom,
-              center: view.center,
-            },
-            {
-              duration: 100,
-              easing: "linear",
-            }
-          );
-        } else if (event.key === "-" || event.key === "_") {
-          event.preventDefault();
-          const newZoom = Math.max(view.zoom - 0.2, view.constraints.minZoom);
-          view.goTo(
-            {
-              zoom: newZoom,
-              center: view.center,
-            },
-            {
-              duration: 100,
-              easing: "linear",
-            }
-          );
+        if (isMounted) {
+          // Set map readiness flag and view in context
+          view.ready = true;
+          setMapView(view);
+          console.log('[MapContext] Map view initialized and ready');
         }
-      });
-
-      if (isMounted) {
-        // Set map readiness flag and view in context
-        view.ready = true;
-        setMapView(view);
-        console.log('[MapContext] Map view initialized and ready');
+      } catch (error) {
+        console.error("[Map] Error initializing map:", error);
       }
-    } catch (error) {
-      console.error("[Map] Error initializing map:", error);
-    }
-  };
+    };
 
-  initializeMap();
-  return () => {
-    isMounted = false;
-  };
-}, [setMapView]);
+    initializeMap();
+    return () => {
+      isMounted = false;
+    };
+  }, [setMapView]);
 
   // Style legend whenever it changes
   useEffect(() => {
@@ -777,9 +939,9 @@ useEffect(() => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     const hasVisualization = activeTabData?.visualizationType;
     const shouldShowLegend = activeTab !== 1 && hasVisualization && !isEditorOpen;
-    
+
     const existingLegend = mapView.ui.find((widget) => widget === legend);
-    
+
     if (shouldShowLegend && !existingLegend) {
       mapView.ui.add(legend, "bottom-left");
     } else if (!shouldShowLegend && existingLegend) {
@@ -808,36 +970,69 @@ useEffect(() => {
     updateLegendForLayer();
   }, [activeTab, mapView, legend, tabs, layerConfigurations]);
 
-
-  useEffect(() => {
+  const updateVisualizationLayer = (visualizationType, newConfig) => {
     if (!mapView?.map) return;
 
-    const updateVisualizationLayer = async () => {
-      try {
-        // Remove existing visualization layers
-        mapView.map.layers.forEach((layer) => {
-          if (layer.get("isVisualizationLayer")) {
-            mapView.map.remove(layer);
-          }
-        });
+    try {
+      // Remove existing visualization layers
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        if (layer.get("isVisualizationLayer")) {
+          layersToRemove.push(layer);
+        }
+      });
+      layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
-        // Only add new layer if we're not in the core map and have a selected type
-        if (activeTab !== 1 && visualizationType) {
-          const newLayer = createLayers(visualizationType);
+      // Find the active tab and its visualization type
+      const activeTabData = tabs.find((tab) => tab.id === activeTab);
 
-          if (newLayer) {
-            newLayer.set("isVisualizationLayer", true);
-            // Add the new layer at index 0 to ensure it's at the bottom
-            mapView.map.add(newLayer, 0);
+      // Only add new layer if we're not in the core map and have a selected type
+      if (activeTab !== 1 && activeTabData?.visualizationType) {
+        const layerConfig = newConfig || activeTabData.layerConfiguration;
+        
+        const newLayer = createLayers(
+          activeTabData.visualizationType,
+          layerConfig,
+          initialLayerConfigurations,
+          selectedAreaType
+        );
+
+        if (newLayer) {
+          // Set the visualization flag
+          newLayer.set("isVisualizationLayer", true);
+
+          // Add the layer to the map
+          mapView.map.add(newLayer, 0);
+
+          // Update the legend configuration for this layer
+          if (legend) {
+            legend.layerInfos = [{
+              layer: newLayer,
+              title: newLayer.title || activeTabData.visualizationType,
+              hideLayersNotInCurrentView: false
+            }];
           }
         }
-      } catch (error) {
-        console.error("Error updating visualization layer:", error);
       }
-    };
+    } catch (error) {
+      console.error("Error updating visualization layer:", error);
+    }
+  };
 
+
+  // Use the tab-specific configuration when switching tabs or rendering
+  useEffect(() => {
+    if (!mapView?.map || !legend) return;
     updateVisualizationLayer();
-  }, [visualizationType, mapView, activeTab]);
+  }, [
+    activeTab, 
+    tabs,  // Added tabs to the dependency array
+    mapView, 
+    legend, 
+    isEditorOpen, 
+    selectedAreaType
+  ]);
+
 
   const handleTabClick = (tabId) => {
     setActiveTab(tabId);
@@ -850,15 +1045,95 @@ useEffect(() => {
     );
   };
 
+  // Update the visualization change handler
+  // Modify handleVisualizationChange to save configuration to the specific tab
   const handleVisualizationChange = (newValue) => {
+    if (!newValue) {
+      setTabs(
+        tabs.map((tab) =>
+          tab.id === activeTab
+            ? { 
+                ...tab, 
+                visualizationType: null, 
+                layerConfiguration: null 
+              }
+            : tab
+        )
+      );
+      return;
+    }
+
+    // Get the initial configuration for the new visualization type
+    const initialConfig = initialLayerConfigurations[newValue];
+
+    // Update the tabs state with the new visualization type
     setTabs(
       tabs.map((tab) =>
         tab.id === activeTab
-          ? { ...tab, visualizationType: newValue || null }
+          ? { ...tab, visualizationType: newValue }
           : tab
       )
     );
+
+    // Update the layer configurations if needed
+    setLayerConfigurations((prev) => {
+      // Only add the configuration if it doesn't exist
+      if (!prev[newValue]) {
+        return {
+          ...prev,
+          [newValue]: initialConfig
+        };
+      }
+      return prev;
+    });
   };
+
+
+  // Add this to your JSX near the visualization type dropdown
+const renderAreaTypeDropdown = () => (
+  <select
+    value={selectedAreaType.value}
+    onChange={(e) => {
+      const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
+      setSelectedAreaType(newAreaType);
+      
+      // Trigger layer update when area type changes
+      const activeTabData = tabs.find(tab => tab.id === activeTab);
+      if (activeTabData?.visualizationType) {
+        const currentConfig = layerConfigurations[activeTabData.visualizationType];
+        const newLayer = createLayers(
+          activeTabData.visualizationType,
+          currentConfig,
+          initialLayerConfigurations
+        );
+        if (newLayer && mapView?.map) {
+          // Remove existing visualization layers
+          const layersToRemove = [];
+          mapView.map.layers.forEach((layer) => {
+            if (layer.get("isVisualizationLayer")) {
+              layersToRemove.push(layer);
+            }
+          });
+          layersToRemove.forEach((layer) => mapView.map.remove(layer));
+          
+          // Add new layer
+          newLayer.set("isVisualizationLayer", true);
+          mapView.map.add(newLayer, 0);
+        }
+      }
+    }}
+    className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+        bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+        text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+        focus:ring-blue-500 focus:border-blue-500"
+  >
+    {areaTypes.map(type => (
+      <option key={type.value} value={type.value}>
+        {type.label}
+      </option>
+    ))}
+  </select>
+);
 
   const startEditing = (tabId, e) => {
     e.stopPropagation(); // Prevent tab activation when clicking edit button
@@ -905,6 +1180,7 @@ useEffect(() => {
     }
   };
 
+  // Update addNewTab to include layerConfiguration
   const addNewTab = () => {
     const newTabId = tabs.length + 1;
     setTabs([
@@ -914,86 +1190,33 @@ useEffect(() => {
         name: `Map ${newTabId}`,
         active: false,
         visualizationType: null,
+        layerConfiguration: null,  // Initialize with null
         isEditing: false,
       },
     ]);
   };
-
-  // Effect for updating visualization layer
-  useEffect(() => {
-    if (!mapView?.map) return;
-
-    const updateVisualizationLayer = async () => {
-      try {
-        // Remove existing visualization layers
-        const layersToRemove = [];
-        mapView.map.layers.forEach((layer) => {
-          if (layer?.isVisualizationLayer) {
-            layersToRemove.push(layer);
-          }
-        });
-        layersToRemove.forEach((layer) => mapView.map.remove(layer));
-
-        // Find the active tab and its visualization type
-        const activeTabData = tabs.find((tab) => tab.id === activeTab);
-
-        // Only add new layer if we're not in the core map and have a selected type
-        if (activeTab !== 1 && activeTabData?.visualizationType) {
-          const currentConfig =
-            layerConfigurations[activeTabData.visualizationType];
-          const newLayer = createLayers(
-            activeTabData.visualizationType,
-            currentConfig
-          );
-
-          if (newLayer) {
-            newLayer.isVisualizationLayer = true;
-            mapView.map.add(newLayer, 0);
-          }
-        }
-      } catch (error) {
-        console.error("Error updating visualization layer:", error);
-      }
-    };
-
-    updateVisualizationLayer();
-  }, [activeTab, tabs, mapView, layerConfigurations]);
-
+  // Update handleLayerConfigChange to save to the specific tab
   const handleLayerConfigChange = (newConfig) => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (activeTabData?.visualizationType) {
-      setLayerConfigurations((prev) => ({
-        ...prev,
-        [activeTabData.visualizationType]: newConfig,
-      }));
+      setTabs(
+        tabs.map((tab) =>
+          tab.id === activeTab
+            ? { 
+                ...tab, 
+                layerConfiguration: newConfig  // Save config to the specific tab
+              }
+            : tab
+        )
+      );
 
-      // Immediately update the layer with new configuration
-      if (mapView?.map) {
-        // Remove existing visualization layers
-        const layersToRemove = [];
-        mapView.map.layers.forEach((layer) => {
-          if (layer?.isVisualizationLayer) {
-            layersToRemove.push(layer);
-          }
-        });
-        layersToRemove.forEach((layer) => mapView.map.remove(layer));
-
-        // Create and add new layer with updated config
-        const newLayer = createLayers(
-          activeTabData.visualizationType,
-          newConfig
-        );
-        if (newLayer) {
-          newLayer.isVisualizationLayer = true;
-          mapView.map.add(newLayer, 0);
-        }
-      }
+      updateVisualizationLayer(activeTabData.visualizationType, newConfig);
     }
   };
-
+  // Handler for configuration previews
   const handleConfigPreview = (previewConfig) => {
     if (!mapView?.map) return;
-
+  
     // Remove existing visualization layers
     const layersToRemove = [];
     mapView.map.layers.forEach((layer) => {
@@ -1002,13 +1225,15 @@ useEffect(() => {
       }
     });
     layersToRemove.forEach((layer) => mapView.map.remove(layer));
-
+  
     // Create new layer with preview config
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (activeTabData?.visualizationType) {
       const newLayer = createLayers(
         activeTabData.visualizationType,
-        previewConfig
+        previewConfig,
+        initialLayerConfigurations,
+        selectedAreaType  // Explicitly pass selectedAreaType
       );
       if (newLayer) {
         newLayer.isVisualizationLayer = true;
@@ -1026,11 +1251,10 @@ useEffect(() => {
               <div key={tab.id} className="flex items-center">
                 <div
                   onClick={() => handleTabClick(tab.id)}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
-                    tab.active
-                      ? "bg-blue-500 dark:bg-blue-600 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
+                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${tab.active
+                    ? "bg-blue-500 dark:bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    }`}
                 >
                   {tab.isEditing ? (
                     <input
@@ -1111,50 +1335,98 @@ useEffect(() => {
             </button>
           </div>
           {activeTab !== 1 && (
-            <div className="ml-4 flex items-center space-x-2">
-              <select
-                value={
-                  tabs.find((tab) => tab.id === activeTab)?.visualizationType ||
-                  ""
-                }
-                onChange={(e) => handleVisualizationChange(e.target.value)}
-                className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
-                         bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-                         text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-                         focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select visualization</option>
-                <option value="population">Population Density</option>
-                <option value="income">Median Income</option>
-                <option value="growth">Household Growth</option>
-              </select>
-              {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-                <button
-                  onClick={() => setIsEditorOpen(true)}
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
-                  title="Edit layer properties"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
+  <div className="ml-4 flex items-center space-x-2">
+    {/* Area Type Dropdown */}
+    <select
+      value={selectedAreaType.value}
+      onChange={(e) => {
+        const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
+        setSelectedAreaType(newAreaType);
+        
+        // Trigger layer update when area type changes
+        const activeTabData = tabs.find(tab => tab.id === activeTab);
+        if (activeTabData?.visualizationType) {
+          const currentConfig = layerConfigurations[activeTabData.visualizationType];
+          const newLayer = createLayers(
+            activeTabData.visualizationType,
+            currentConfig,
+            initialLayerConfigurations,
+            selectedAreaType
+          );
+          if (newLayer && mapView?.map) {
+            // Remove existing visualization layers
+            const layersToRemove = [];
+            mapView.map.layers.forEach((layer) => {
+              if (layer.get("isVisualizationLayer")) {
+                layersToRemove.push(layer);
+              }
+            });
+            layersToRemove.forEach((layer) => mapView.map.remove(layer));
+            
+            // Add new layer
+            newLayer.set("isVisualizationLayer", true);
+            mapView.map.add(newLayer, 0);
+          }
+        }
+      }}
+      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+          focus:ring-blue-500 focus:border-blue-500"
+    >
+      {areaTypes.map(type => (
+        <option key={type.value} value={type.value}>
+          {type.label}
+        </option>
+      ))}
+    </select>
+
+    {/* Visualization Type Dropdown */}
+    <select
+      value={tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""}
+      onChange={(e) => handleVisualizationChange(e.target.value)}
+      className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
+          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+          focus:ring-blue-500 focus:border-blue-500"
+    >
+      <option value="">Select visualization</option>
+      {visualizationOptions.map(option => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+
+    {/* Edit Button */}
+    {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+      <button
+        onClick={() => setIsEditorOpen(true)}
+        className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
+                 dark:hover:text-gray-300 focus:outline-none"
+        title="Edit layer properties"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+          />
+        </svg>
+      </button>
+    )}
+  </div>
+)}
         </div>
       </div>
-  
+
       <div className="flex flex-1 overflow-hidden">
         {/* Map container */}
         <div className="flex-1 relative">
@@ -1162,12 +1434,12 @@ useEffect(() => {
             <ZoomAlert />
           </div>
         </div>
-  
+
         {/* Right panel container */}
         <div className="relative">
           {/* Layer Properties Editor */}
           {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-            <div 
+            <div
               className={`
                 w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200 
                 dark:border-gray-700 transform transition-all duration-300 ease-in-out
@@ -1175,20 +1447,21 @@ useEffect(() => {
                 ${isEditorOpen ? 'translate-x-0' : 'translate-x-full'}
               `}
             >
-              <LayerPropertiesEditor
-                isOpen={isEditorOpen}
-                onClose={() => setIsEditorOpen(false)}
-                visualizationType={
-                  tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                }
-                layerConfig={
-                  layerConfigurations[
-                    tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                  ]
-                }
-                onConfigChange={handleLayerConfigChange}
-                onPreview={handleConfigPreview}
-              />
+          <LayerPropertiesEditor
+            isOpen={isEditorOpen}
+            onClose={() => setIsEditorOpen(false)}
+            visualizationType={
+              tabs.find((tab) => tab.id === activeTab)?.visualizationType
+            }
+            layerConfig={
+              tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
+              (tabs.find((tab) => tab.id === activeTab)?.visualizationType 
+                ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType] 
+                : null)
+            }
+            onConfigChange={handleLayerConfigChange}
+            onPreview={handleConfigPreview}
+          />
             </div>
           )}
         </div>

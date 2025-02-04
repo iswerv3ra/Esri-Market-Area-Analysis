@@ -313,10 +313,13 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         </div>
       </div>
 
+      {/* Distribution slider */}
       <div className="space-y-2 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Color Distribution
+            {visualizationType === 'income' || visualizationType === 'homeValue' 
+              ? 'Value Distribution' 
+              : 'Color Distribution'}
           </label>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {distribution === 1 ? 'Linear' : distribution < 1 ? 'Highlight Low Values' : 'Highlight High Values'}
