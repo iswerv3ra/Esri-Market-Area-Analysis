@@ -1514,17 +1514,6 @@ export class EnrichmentService {
       "Definition Type",
       ...marketAreas.map(ma => {
         const maType = ma.ma_type?.toLowerCase();
-        const MA_TYPE_MAPPING = {
-          radius: "RADIUS",
-          place: "PLACE",
-          block: "BLOCK",
-          blockgroup: "BLOCKGROUP",
-          cbsa: "CBSA",
-          state: "STATE",
-          zip: "ZIP",
-          tract: "TRACT",
-          county: "COUNTY",
-        };
         return MA_TYPE_MAPPING[maType] || ma.ma_type?.toUpperCase() || "";
       })
     ]);
@@ -1537,7 +1526,7 @@ export class EnrichmentService {
         switch (maType) {
           case "zip":
             return ma.locations?.map(loc => this.formatBigNumberAsText(loc.name)).join(", ") || "";
-            case "radius":
+          case "radius":
             if (ma.radius_points?.length > 0) {
               const allRadii = ma.radius_points.flatMap(p => p.radii || []);
               if (allRadii.length > 0) {
@@ -1548,17 +1537,27 @@ export class EnrichmentService {
             return "";
           case "block":
           case "blockgroup":
-          case "tract":
-            return ma.locations?.map(loc => formatBigNumberAsText(loc.name)).join(", ") || "";
-          default:
-            return ma.locations?.map(loc => loc.name).join(", ") || "";
-        }
+            case "tract":
+              // Added error handling and proper this reference
+              return ma.locations?.map(loc => {
+                try {
+                  return this.formatBigNumberAsText(loc.name);
+                } catch (e) {
+                  console.error(`Error formatting location name: ${loc.name}`, e);
+                  return loc.name || "";
+                }
+              }).join(", ") || "";
+            default:
+              return ma.locations?.map(loc => loc.name).join(", ") || "";
+          }
       })
     ]);
 
     // Add a blank row after headers
     rows.push(Array(marketAreas.length + 1).fill(""));
 
+    // Rest of the exportToExcel method remains the same...
+    
     // Data rows with proper labels
     selectedVariables.forEach(variableId => {
       const shortKey = variableId.split(".").pop();
@@ -1575,53 +1574,7 @@ export class EnrichmentService {
     });
 
     if (shouldIncludeUSAData) {
-      // Add USA column
-      rows[0].push("United States of America");
-      rows[1].push("USA");
-      rows[2].push("");
-      rows[3].push("");
-      rows[4].push("");
-
-      // Track positions in USA data
-      const variableToUSAIndex = new Map();
-
-      // Map Tier 1 variables
-      let currentIndex = 5;
-      analysisCategories.tier1.variables.forEach(v => {
-        const shortKey = v.id.split(".").pop();
-        variableToUSAIndex.set(shortKey, currentIndex++);
-      });
-
-      // Map Tier 2 variables
-      currentIndex = 5;
-      analysisCategories.tier2.variables.forEach(v => {
-        const shortKey = v.id.split(".").pop();
-        variableToUSAIndex.set(shortKey, currentIndex++);
-      });
-
-      // Add USA data
-      for (let i = 5; i < rows.length; i++) {
-        const variableId = selectedVariables[i - 5];
-        const shortKey = variableId.split(".").pop();
-
-        let usaValue = "";
-        const isTier2 = variableId.startsWith("1yearincrements.") ||
-          variableId.startsWith("educationalattainment.") ||
-          variableId.includes("BASEFY") ||
-          variableId.includes("MEDIA") ||
-          (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
-          (variableId.includes("networth.") && variableId.includes("A"));
-
-        const position = variableToUSAIndex.get(shortKey);
-
-        if (isTier2) {
-          usaValue = position < usaDataRowsTier2.length ? usaDataRowsTier2[position] : "";
-        } else {
-          usaValue = position < usaDataRowsTier1.length ? usaDataRowsTier1[position] : "";
-        }
-
-        rows[i].push(usaValue);
-      }
+      this.addUSADataToRows(rows, selectedVariables);
     }
 
     // Create workbook and worksheet
@@ -1642,6 +1595,7 @@ export class EnrichmentService {
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
+
 
   getStateFullName(stateAbbr) {
     if (!stateAbbr) return "";
