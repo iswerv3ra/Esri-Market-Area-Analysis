@@ -145,7 +145,8 @@ const ExportDialog = ({
   const isExportDisabled = 
     isExporting || 
     selectedTiers.size === 0 ||
-    selectedAreas.size === 0;
+    selectedAreas.size === 0 ||
+    selectedAreas.size > 50;
 
   const exportButtonText = isExporting ? 'Exporting...' : 'Export';
 
@@ -204,7 +205,9 @@ const ExportDialog = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Market Areas to Include
+                Market Areas to Include {selectedAreas.size > 50 && 
+                  <span className="text-red-500 ml-1">(Maximum 50 areas allowed)</span>
+                }
               </label>
               <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 max-h-40 overflow-y-auto">
                 <label className="flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700">
