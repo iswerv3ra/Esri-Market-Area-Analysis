@@ -260,7 +260,7 @@ const ExportDialog = ({
             {/* Additional Variables Section */}
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Additional Variables
+                Add Additional Variables
               </label>
               <div className="space-y-2">
                 {additionalPresets.map((preset) => (

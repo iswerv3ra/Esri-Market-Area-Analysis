@@ -230,7 +230,7 @@ const AdminPanel = ({ isOpen, onClose }) => {
                   </p>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
-                  <h3 className="text-sm font-medium text-green-800 dark:text-green-200">Total Enrichments</h3>
+                  <h3 className="text-sm font-medium text-green-800 dark:text-green-200">Total Exports</h3>
                   <p className="text-2xl font-bold text-green-900 dark:text-green-100">
                     {usage.total_enrichments}
                   </p>
