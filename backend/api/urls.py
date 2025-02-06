@@ -4,7 +4,8 @@ from .views import (
     ColorKeyViewSet, TcgThemeViewSet, StylePresetViewSet,
     VariablePresetViewSet, CreateUserView, ProjectViewSet,
     MarketAreaList, MarketAreaReorder, MarketAreaDetail,
-    AdminUserViewSet, EnrichmentUsageViewSet  # Make sure this is imported
+    AdminUserViewSet, EnrichmentUsageViewSet, MapConfigurationViewSet,  # Add this line
+  # Make sure this is imported
 )
 
 router = DefaultRouter()
@@ -15,7 +16,7 @@ router.register(r'color-keys', ColorKeyViewSet, basename='color-key')
 router.register(r'tcg-themes', TcgThemeViewSet, basename='tcg-theme')
 router.register(r'admin/users', AdminUserViewSet, basename='admin-user')
 router.register(r'enrichment', EnrichmentUsageViewSet, basename='enrichment')
-
+router.register(r'map-configurations', MapConfigurationViewSet, basename='map-configuration')
 urlpatterns = [
     # User registration
     path('users/', CreateUserView.as_view(), name='user-create'),

@@ -8,12 +8,30 @@ from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage
+from .models import (
+    Project, 
+    MarketArea, 
+    StylePreset, 
+    VariablePreset, 
+    ColorKey, 
+    TcgTheme, 
+    EnrichmentUsage,
+    MapConfiguration  # Add this line
+)
 from .serializers import (
-    UserSerializer, ProjectListSerializer, ProjectDetailSerializer, 
-    MarketAreaSerializer, StylePresetSerializer, VariablePresetSerializer, 
-    ColorKeySerializer, TcgThemeSerializer, AdminUserSerializer,
-    AdminUserUpdateSerializer, PasswordResetSerializer, EnrichmentUsageSerializer
+    UserSerializer, 
+    ProjectListSerializer, 
+    ProjectDetailSerializer, 
+    MarketAreaSerializer, 
+    StylePresetSerializer, 
+    VariablePresetSerializer, 
+    ColorKeySerializer, 
+    TcgThemeSerializer, 
+    AdminUserSerializer,
+    AdminUserUpdateSerializer, 
+    PasswordResetSerializer, 
+    EnrichmentUsageSerializer,
+    MapConfigurationSerializer  # Add this line
 )
 from decimal import Decimal, ROUND_HALF_UP  # Add at top of file
 
@@ -397,3 +415,22 @@ class VariablePresetViewSet(viewsets.ModelViewSet):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+
+class MapConfigurationViewSet(viewsets.ModelViewSet):
+    serializer_class = MapConfigurationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            return MapConfiguration.objects.filter(project_id=project_id).order_by('order')
+        return MapConfiguration.objects.none()
+
+    def perform_create(self, serializer):
+        project_id = self.request.query_params.get('project')
+        if not project_id:
+            raise serializers.ValidationError("Project ID is required")
+        
+        project = Project.objects.get(id=project_id)
+        serializer.save(project=project)

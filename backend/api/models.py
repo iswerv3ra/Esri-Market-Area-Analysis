@@ -23,7 +23,6 @@ class Project(models.Model):
     class Meta:
         ordering = ['-last_modified']
 
-
 class ColorKey(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     key_number = models.CharField(max_length=10, unique=True)
@@ -51,7 +50,6 @@ class EnrichmentUsage(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - ${self.cost} on {self.timestamp.date()}"
-    
 
 class TcgTheme(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -70,7 +68,6 @@ class TcgTheme(models.Model):
 
     def __str__(self):
         return f"{self.theme_key} - {self.theme_name}"
-
 
 
 class MarketArea(models.Model):
@@ -160,3 +157,22 @@ class VariablePreset(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class MapConfiguration(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="map_configurations")
+    tab_name = models.CharField(max_length=100)
+    visualization_type = models.CharField(max_length=50, null=True, blank=True)
+    area_type = models.CharField(max_length=20, choices=MarketArea.MARKET_AREA_TYPES)
+    layer_configuration = models.JSONField(null=True, blank=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', '-last_modified']
+        unique_together = ['project', 'tab_name']
+
+    def __str__(self):
+        return f"{self.tab_name} - {self.project.project_number}"

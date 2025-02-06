@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Count
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage, MapConfiguration  
 
 class ColorKeySerializer(serializers.ModelSerializer):
     class Meta:
@@ -187,3 +187,14 @@ class VariablePresetSerializer(serializers.ModelSerializer):
     def validate(self, data):
         data['is_global'] = True
         return data
+    
+
+class MapConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MapConfiguration
+        fields = [
+            'id', 'tab_name', 'visualization_type', 
+            'area_type', 'layer_configuration', 
+            'order', 'created_at', 'last_modified'
+        ]
+        read_only_fields = ['id', 'created_at', 'last_modified']

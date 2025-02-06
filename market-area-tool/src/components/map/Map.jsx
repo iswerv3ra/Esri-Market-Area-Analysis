@@ -457,7 +457,8 @@ export default function MapComponent({ onToggleList }) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   // First, update the initial state
-
+  const AUTO_SAVE_KEY = 'autoSavedMapConfigurations';
+  const MANUAL_SAVE_KEY = 'mapConfigurations';
   
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
@@ -1027,52 +1028,33 @@ export default function MapComponent({ onToggleList }) {
   // Modify handleVisualizationChange to save configuration to the specific tab
   const handleVisualizationChange = (tabId, newValue) => {
     if (!newValue) {
-      setTabs(
-        tabs.map((tab) =>
-          tab.id === tabId
-            ? { 
-                ...tab, 
-                visualizationType: null, 
-                layerConfiguration: null 
-              }
-            : tab
-        )
-      );
-      return;
-    }
-
-    const handleAreaTypeChange = (tabId, newAreaType) => {
-      setTabs(
-        tabs.map((tab) =>
-          tab.id === tabId
-            ? { 
-                ...tab, 
-                areaType: newAreaType 
-              }
-            : tab
-        )
-      );
-    };    
-
-    // Get the initial configuration for the new visualization type
-    const initialConfig = initialLayerConfigurations[newValue];
-
-    // Update the tabs state with the new visualization type
-    setTabs(
-      tabs.map((tab) =>
+      const newTabs = tabs.map((tab) =>
         tab.id === tabId
           ? { 
               ...tab, 
-              visualizationType: newValue,
-              layerConfiguration: initialConfig  // Set initial config
+              visualizationType: null, 
+              layerConfiguration: null 
             }
           : tab
-      )
+      );
+      setTabs(newTabs);
+      autoSaveMapConfigurations();
+      return;
+    }
+  
+    const initialConfig = initialLayerConfigurations[newValue];
+    const newTabs = tabs.map((tab) =>
+      tab.id === tabId
+        ? { 
+            ...tab, 
+            visualizationType: newValue,
+            layerConfiguration: initialConfig
+          }
+        : tab
     );
-
-    // Update layer configurations if needed
+  
+    setTabs(newTabs);
     setLayerConfigurations((prev) => {
-      // Only add the configuration if it doesn't exist
       if (!prev[newValue]) {
         return {
           ...prev,
@@ -1081,6 +1063,7 @@ export default function MapComponent({ onToggleList }) {
       }
       return prev;
     });
+    autoSaveMapConfigurations();
   };
 
 
@@ -1178,7 +1161,6 @@ const renderAreaTypeDropdown = () => (
 // Updated tab management functions
 
 const addNewTab = () => {
-  // Find the next available tab number
   const existingTabNumbers = tabs
     .filter(tab => tab.id !== 1)
     .map(tab => {
@@ -1192,8 +1174,8 @@ const addNewTab = () => {
 
   const newTabId = Math.max(...tabs.map(tab => tab.id)) + 1;
 
-  setTabs(prevTabs => [
-    ...prevTabs.map(tab => ({ ...tab, active: false })),
+  const newTabs = [
+    ...tabs.map(tab => ({ ...tab, active: false })),
     {
       id: newTabId,
       name: `Map ${nextTabNumber}`,
@@ -1203,78 +1185,143 @@ const addNewTab = () => {
       layerConfiguration: null,
       isEditing: false,
     }
-  ]);
+  ];
 
+  setTabs(newTabs);
   setActiveTab(newTabId);
+  autoSaveMapConfigurations();
 };
 
 const deleteTab = (tabId, e) => {
-  e.stopPropagation(); // Prevent tab activation when clicking delete button
-
-  // Don't allow deletion of the core map
+  e.stopPropagation();
   if (tabId === 1) return;
 
-  // Determine the new active tab
   const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
-  let newActiveTab;
+  const newActiveTab = activeTab === tabId 
+    ? remainingTabs[remainingTabs.length - 1].id 
+    : activeTab;
 
-  if (remainingTabs.length === 0) {
-    // This shouldn't happen due to core map, but just in case
-    return;
-  }
+  const newTabs = remainingTabs.map((tab) => ({
+    ...tab,
+    active: tab.id === newActiveTab,
+  }));
 
-  // If the active tab is being deleted, find a new active tab
-  if (activeTab === tabId) {
-    // Prefer the last remaining tab, or the core map
-    newActiveTab = remainingTabs[remainingTabs.length - 1].id;
-  } else {
-    // Keep the current active tab
-    newActiveTab = activeTab;
-  }
-
-  // Update tabs state
-  setTabs(
-    remainingTabs.map((tab) => ({
-      ...tab,
-      active: tab.id === newActiveTab,
-    }))
-  );
-
-  // Update active tab
+  setTabs(newTabs);
   setActiveTab(newActiveTab);
+  autoSaveMapConfigurations();
 };
 
-const handleAreaTypeChange = (tabId, newAreaType) => {
-  // Update the tabs state with the new area type for the specific tab
-  setTabs(
-    tabs.map((tab) =>
-      tab.id === tabId
-        ? { 
-            ...tab, 
-            areaType: newAreaType 
-          }
-        : tab
-    )
-  );
+const saveMapConfigurations = () => {
+  const mapConfigs = tabs
+    .filter(tab => tab.id !== 1)
+    .map((tab, index) => ({
+      tab_name: tab.name,
+      visualization_type: tab.visualizationType,
+      area_type: tab.areaType?.value,
+      layer_configuration: tab.layerConfiguration,
+      order: index
+    }));
+
+  try {
+    localStorage.setItem(MANUAL_SAVE_KEY, JSON.stringify(mapConfigs));
+    alert('Map configurations saved successfully');
+  } catch (error) {
+    console.error('Failed to save map configurations', error);
+    alert('Failed to save map configurations');
+  }
 };
+
+const autoSaveMapConfigurations = () => {
+  const mapConfigs = tabs
+    .filter(tab => tab.id !== 1)
+    .map((tab, index) => ({
+      tab_name: tab.name,
+      visualization_type: tab.visualizationType,
+      area_type: tab.areaType?.value,
+      layer_configuration: tab.layerConfiguration,
+      order: index
+    }));
+
+  try {
+    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(mapConfigs));
+  } catch (error) {
+    console.error('Failed to auto-save map configurations', error);
+  }
+};
+
+const loadMapConfigurations = (key = MANUAL_SAVE_KEY, showAlert = true) => {
+  try {
+    const savedConfigs = localStorage.getItem(key);
+    if (!savedConfigs) {
+      if (showAlert) {
+        alert('No saved configurations found');
+      }
+      return false;
+    }
+
+    const mapConfigs = JSON.parse(savedConfigs);
+    const newTabs = [tabs[0]]; // Keep the core map
+
+    mapConfigs.forEach(config => {
+      const newTabId = Math.max(...newTabs.map(tab => tab.id)) + 1;
+      const areaType = areaTypes.find(type => type.value === config.area_type) || areaTypes[0];
+
+      newTabs.push({
+        id: newTabId,
+        name: config.tab_name,
+        active: false,
+        visualizationType: config.visualization_type,
+        areaType: areaType,
+        layerConfiguration: config.layer_configuration,
+        isEditing: false
+      });
+    });
+
+    if (newTabs.length > 1) {
+      newTabs[newTabs.length - 1].active = true;
+      setActiveTab(newTabs[newTabs.length - 1].id);
+    }
+
+    setTabs(newTabs);
+    if (showAlert) {
+      alert('Map configurations loaded successfully');
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to load map configurations', error);
+    if (showAlert) {
+      alert('Failed to load map configurations');
+    }
+    return false;
+  }
+};
+
+// Add these useEffects after your existing ones
+useEffect(() => {
+  // Load auto-saved configurations on mount
+  loadMapConfigurations(AUTO_SAVE_KEY, false);
+}, []);
+
+useEffect(() => {
+  // Auto-save whenever tabs change
+  if (tabs.length > 1) {
+    autoSaveMapConfigurations();
+  }
+}, [tabs]);
   
   // Update handleLayerConfigChange to save to the specific tab
   const handleLayerConfigChange = (newConfig) => {
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    if (activeTabData?.visualizationType) {
-      setTabs(
-        tabs.map((tab) =>
-          tab.id === activeTab
-            ? { 
-                ...tab, 
-                layerConfiguration: newConfig  // Save config to the specific tab
-              }
-            : tab
-        )
-      );
-
-      updateVisualizationLayer(activeTabData.visualizationType, newConfig);
-    }
+    const newTabs = tabs.map((tab) =>
+      tab.id === activeTab && tab.visualizationType
+        ? { 
+            ...tab, 
+            layerConfiguration: newConfig
+          }
+        : tab
+    );
+    setTabs(newTabs);
+    updateVisualizationLayer(tabs.find(tab => tab.id === activeTab)?.visualizationType, newConfig);
+    autoSaveMapConfigurations();
   };
   // Handler for configuration previews
   const handleConfigPreview = (previewConfig) => {
@@ -1305,212 +1352,197 @@ const handleAreaTypeChange = (tabId, newAreaType) => {
     }
   };
 
+// Add these useEffects after your existing ones
+useEffect(() => {
+  // Load auto-saved configurations on mount
+  loadMapConfigurations(AUTO_SAVE_KEY, false);
+}, []);
+
+useEffect(() => {
+  // Auto-save whenever tabs change
+  if (tabs.length > 1) {
+    autoSaveMapConfigurations();
+  }
+}, [tabs]);
+
   return (
     <div className="flex flex-col h-full">
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          <div className="flex space-x-2 overflow-x-auto">
-            {tabs.map((tab) => (
-              <div key={tab.id} className="flex items-center">
-                <div
-                  onClick={() => handleTabClick(tab.id)}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
-                    tab.active
-                      ? "bg-blue-500 dark:bg-blue-600 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {tab.isEditing ? (
-                    <input
-                      type="text"
-                      value={tab.name}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      onChange={(e) =>
-                        setTabs(
-                          tabs.map((t) =>
-                            t.id === tab.id ? { ...t, name: e.target.value } : t
-                          )
-                        )
-                      }
-                      onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
-                      onBlur={(e) => handleNameChange(tab.id, e.target.value)}
-                      className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
-                      autoFocus
-                    />
-                  ) : (
-                    <div className="flex items-center">
-                      <span>{tab.name}</span>
-                      {tab.id !== 1 && (
-                        <>
-                          <div
-                            onClick={(e) => startEditing(tab.id, e)}
-                            className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                              />
-                            </svg>
-                          </div>
-                          <div
-                            onClick={(e) => deleteTab(tab.id, e)}
-                            className="ml-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
-                            title="Delete map"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            <button
-              onClick={addNewTab}
-              className="ml-2 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
-            >
-              + New Map
-            </button>
-          </div>
-          {activeTab !== 1 && (
-            <div className="ml-4 flex items-center space-x-2">
-              {/* Area Type Dropdown */}
-              <select
-                value={
-                  tabs.find((tab) => tab.id === activeTab)?.areaType?.value || 
-                  areaTypes[0].value
-                }
-                onChange={(e) => {
-                  const newAreaType = areaTypes.find(
-                    type => type.value === parseInt(e.target.value)
-                  );
-                  
-                  handleAreaTypeChange(activeTab, newAreaType);
-                  
-                  // Trigger layer update when area type changes
-                  const activeTabData = tabs.find(tab => tab.id === activeTab);
-                  if (activeTabData?.visualizationType) {
-                    const currentConfig = activeTabData.layerConfiguration;
-                    const newLayer = createLayers(
-                      activeTabData.visualizationType,
-                      currentConfig,
-                      initialLayerConfigurations,
-                      newAreaType
-                    );
-                    
-                    if (newLayer && mapView?.map) {
-                      // Remove existing visualization layers
-                      const layersToRemove = [];
-                      mapView.map.layers.forEach((layer) => {
-                        if (layer.get("isVisualizationLayer")) {
-                          layersToRemove.push(layer);
-                        }
-                      });
-                      layersToRemove.forEach((layer) => mapView.map.remove(layer));
-                      
-                      // Add new layer
-                      newLayer.set("isVisualizationLayer", true);
-                      mapView.map.add(newLayer, 0);
-                    }
-                  }
-                }}
-                className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-                    focus:ring-blue-500 focus:border-blue-500"
-              >
-                {areaTypes.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-  
-              {/* Visualization Type Dropdown */}
-              <select
-                value={
-                  tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""
-                }
-                onChange={(e) => handleVisualizationChange(activeTab, e.target.value)}
-                className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
-                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-                    focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select visualization</option>
-                {visualizationOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-  
-              {/* Edit Button */}
-              {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-                <button
-                  onClick={() => setIsEditorOpen(true)}
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
-                       dark:hover:text-gray-300 focus:outline-none"
-                  title="Edit layer properties"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+          {/* Tabs and New Map button on the left */}
+          <div className="flex items-center space-x-2">
+            <div className="flex space-x-2 overflow-x-auto">
+              {tabs.map((tab) => (
+                <div key={tab.id} className="flex items-center">
+                  <div
+                    onClick={() => handleTabClick(tab.id)}
+                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
+                      tab.active
+                        ? "bg-blue-500 dark:bg-blue-600 text-white"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    }`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
-                </button>
-              )}
+                    {tab.isEditing ? (
+                      <input
+                        type="text"
+                        value={tab.name}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                        onChange={(e) =>
+                          setTabs(
+                            tabs.map((t) =>
+                              t.id === tab.id ? { ...t, name: e.target.value } : t
+                            )
+                          )
+                        }
+                        onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
+                        onBlur={(e) => handleNameChange(tab.id, e.target.value)}
+                        className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="flex items-center">
+                        <span>{tab.name}</span>
+                        {tab.id !== 1 && (
+                          <>
+                            <div
+                              onClick={(e) => startEditing(tab.id, e)}
+                              className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
+                              </svg>
+                            </div>
+                            <div
+                              onClick={(e) => deleteTab(tab.id, e)}
+                              className="ml-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                              title="Delete map"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={addNewTab}
+                className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
+              >
+                + New Map
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* Dropdowns and Save/Load buttons on the right */}
+          <div className="flex items-center space-x-2">
+            {activeTab !== 1 && (
+              <>
+                <select
+                  value={
+                    tabs.find((tab) => tab.id === activeTab)?.areaType?.value || 
+                    areaTypes[0].value
+                  }
+                  onChange={(e) => {
+                    const newAreaType = areaTypes.find(
+                      type => type.value === parseInt(e.target.value)
+                    );
+                    handleAreaTypeChange(activeTab, newAreaType);
+                  }}
+                  className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+                      bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                      text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                      focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {areaTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={
+                    tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""
+                  }
+                  onChange={(e) => handleVisualizationChange(activeTab, e.target.value)}
+                  className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
+                      bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                      text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                      focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select visualization</option>
+                  {visualizationOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+                  <button
+                    onClick={() => setIsEditorOpen(true)}
+                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
+                         dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit layer properties"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
-  
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Map container */}
         <div className="flex-1 relative">
           <div ref={mapRef} className="w-full h-full">
             <ZoomAlert />
           </div>
         </div>
-  
-        {/* Right panel container */}
+
         <div className="relative">
-          {/* Layer Properties Editor */}
           {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
             <div
               className={`
