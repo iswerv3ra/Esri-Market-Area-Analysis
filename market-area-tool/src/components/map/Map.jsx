@@ -795,12 +795,15 @@ export default function MapComponent({ onToggleList }) {
           view.ui.add(widget, position);
         });
 
+        // Create a single legend instance
         const legendWidget = new Legend({
           view,
           container: document.createElement("div"),
-          layerInfos: [], // We'll update this dynamically
+          layerInfos: [],
+          visible: false // Start with legend hidden
         });
 
+        // Add legend to the view but keep it hidden initially
         view.ui.add(legendWidget, "bottom-left");
         setLegend(legendWidget);
 
@@ -911,22 +914,89 @@ export default function MapComponent({ onToggleList }) {
     styleLegend();
   }, [legend]);
 
-  // Handle legend visibility based on active tab and visualization
+
+  // Updated initialization effect
   useEffect(() => {
-    if (!mapView || !legend) return;
+    // Load auto-saved configurations on mount
+    const initConfigs = async () => {
+      await loadMapConfigurations(AUTO_SAVE_KEY, false);
+      
+      // Force update visualization layers and legend for all loaded tabs
+      const loadedTabs = tabs.filter(tab => tab.id !== 1 && tab.visualizationType);
+      for (const tab of loadedTabs) {
+        const newLayer = createLayers(
+          tab.visualizationType,
+          tab.layerConfiguration,
+          initialLayerConfigurations,
+          tab.areaType
+        );
+        
+        if (newLayer && mapView?.map) {
+          newLayer.set("isVisualizationLayer", true);
+          mapView.map.add(newLayer, 0);
+          
+          if (legend && tab.active) {
+            legend.layerInfos = [{
+              layer: newLayer,
+              title: newLayer.title || tab.visualizationType,
+              hideLayersNotInCurrentView: false
+            }];
+            legend.visible = true;
+          }
+        }
+      }
+    };
+    
+    initConfigs();
+  }, [mapView, legend]);
+
+  // Updated legend visibility effect
+  useEffect(() => {
+    if (!legend) return;
 
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     const hasVisualization = activeTabData?.visualizationType;
     const shouldShowLegend = activeTab !== 1 && hasVisualization && !isEditorOpen;
 
-    const existingLegend = mapView.ui.find((widget) => widget === legend);
+    // Update legend visibility
+    legend.visible = shouldShowLegend;
 
-    if (shouldShowLegend && !existingLegend) {
-      mapView.ui.add(legend, "bottom-left");
-    } else if (!shouldShowLegend && existingLegend) {
-      mapView.ui.remove(legend);
+    if (shouldShowLegend) {
+      // Ensure legend is properly styled
+      requestAnimationFrame(() => {
+        const styleLegend = () => {
+          const legendContainer = legend.container;
+          if (legendContainer) {
+            legendContainer.style.backgroundColor = "white";
+            legendContainer.style.padding = "1rem";
+            legendContainer.style.margin = "0.5rem";
+            legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
+            legendContainer.style.borderRadius = "0.375rem";
+            legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+
+            // Style legend title
+            const legendTitle = legendContainer.querySelector(".esri-legend__service-label");
+            if (legendTitle) {
+              legendTitle.style.fontWeight = "600";
+              legendTitle.style.fontSize = "0.875rem";
+              legendTitle.style.marginBottom = "0.75rem";
+              legendTitle.style.color = "#111827";
+            }
+
+            // Style legend items
+            const legendItems = legendContainer.querySelectorAll(".esri-legend__layer-row");
+            legendItems.forEach((item) => {
+              item.style.display = "flex";
+              item.style.alignItems = "center";
+              item.style.marginBottom = "0.5rem";
+            });
+          }
+        };
+
+        styleLegend();
+      });
     }
-  }, [activeTab, mapView, legend, tabs, isEditorOpen]);
+  }, [activeTab, legend, tabs, isEditorOpen]);
 
   // Update legend visibility when visualization changes
   useEffect(() => {
@@ -949,9 +1019,9 @@ export default function MapComponent({ onToggleList }) {
     updateLegendForLayer();
   }, [activeTab, mapView, legend, tabs, layerConfigurations]);
 
-  const updateVisualizationLayer = (visualizationType, newConfig) => {
-    if (!mapView?.map) return;
 
+  
+  const updateVisualizationLayer = async () => {
     try {
       // Remove existing visualization layers
       const layersToRemove = [];
@@ -967,7 +1037,7 @@ export default function MapComponent({ onToggleList }) {
 
       // Only add new layer if we're not in the core map and have a selected type
       if (activeTab !== 1 && activeTabData?.visualizationType) {
-        const layerConfig = newConfig || activeTabData.layerConfiguration;
+        const layerConfig = activeTabData.layerConfiguration;
         
         const newLayer = createLayers(
           activeTabData.visualizationType,
@@ -984,20 +1054,17 @@ export default function MapComponent({ onToggleList }) {
           mapView.map.add(newLayer, 0);
 
           // Update the legend configuration for this layer
-          if (legend) {
-            legend.layerInfos = [{
-              layer: newLayer,
-              title: newLayer.title || activeTabData.visualizationType,
-              hideLayersNotInCurrentView: false
-            }];
-          }
+          legend.layerInfos = [{
+            layer: newLayer,
+            title: newLayer.title || activeTabData.visualizationType,
+            hideLayersNotInCurrentView: false
+          }];
         }
       }
     } catch (error) {
       console.error("Error updating visualization layer:", error);
     }
   };
-
 
   // Use the tab-specific configuration when switching tabs or rendering
   useEffect(() => {
@@ -1013,15 +1080,119 @@ export default function MapComponent({ onToggleList }) {
   ]);
 
 
-  const handleTabClick = (tabId) => {
-    setActiveTab(tabId);
-    setTabs(
-      tabs.map((tab) => ({
-        ...tab,
-        active: tab.id === tabId,
-        isEditing: false, // Close any open editing when switching tabs
-      }))
+// Updated handleTabClick function
+const handleTabClick = (tabId) => {
+  setActiveTab(tabId);
+  const newTabs = tabs.map((tab) => ({
+    ...tab,
+    active: tab.id === tabId,
+    isEditing: false, // Close any open editing when switching tabs
+  }));
+  setTabs(newTabs);
+
+  // Update visualization and legend for the newly selected tab
+  const selectedTab = newTabs.find(tab => tab.id === tabId);
+  if (selectedTab && mapView?.map) {
+    if (tabId === 1) {
+      // Clear visualization layers for Core Map
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        if (layer.get("isVisualizationLayer")) {
+          layersToRemove.push(layer);
+        }
+      });
+      layersToRemove.forEach((layer) => mapView.map.remove(layer));
+      
+      // Hide legend for Core Map
+      if (legend) {
+        legend.visible = false;
+      }
+    } else if (selectedTab.visualizationType) {
+      // Create and add new layer for visualization tabs
+      const newLayer = createLayers(
+        selectedTab.visualizationType,
+        selectedTab.layerConfiguration,
+        initialLayerConfigurations,
+        selectedTab.areaType
+      );
+
+      if (newLayer) {
+        // Remove existing visualization layers
+        mapView.map.layers.forEach((layer) => {
+          if (layer.get("isVisualizationLayer")) {
+            mapView.map.remove(layer);
+          }
+        });
+
+        // Add new layer
+        newLayer.set("isVisualizationLayer", true);
+        mapView.map.add(newLayer, 0);
+
+        // Update legend
+        if (legend) {
+          legend.layerInfos = [{
+            layer: newLayer,
+            title: newLayer.title || selectedTab.visualizationType,
+            hideLayersNotInCurrentView: false
+          }];
+          legend.visible = true;
+        }
+      }
+    }
+  }
+};
+
+  const handleAreaTypeChange = (tabId, newAreaType) => {
+    // Update the area type for the specific tab
+    const newTabs = tabs.map((tab) =>
+      tab.id === tabId
+        ? { 
+            ...tab, 
+            areaType: newAreaType
+          }
+        : tab
     );
+    
+    setTabs(newTabs);
+    setSelectedAreaType(newAreaType);
+    
+    // Update visualization and legend if there is one active
+    const activeTabData = newTabs.find((tab) => tab.id === tabId);
+    if (activeTabData?.visualizationType && mapView?.map) {
+      // Remove existing visualization layers
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        if (layer.get("isVisualizationLayer")) {
+          layersToRemove.push(layer);
+        }
+      });
+      layersToRemove.forEach((layer) => mapView.map.remove(layer));
+
+      // Create and add new layer with updated area type
+      const newLayer = createLayers(
+        activeTabData.visualizationType,
+        activeTabData.layerConfiguration,
+        initialLayerConfigurations,
+        newAreaType
+      );
+
+      if (newLayer) {
+        newLayer.set("isVisualizationLayer", true);
+        mapView.map.add(newLayer, 0);
+
+        // Update legend configuration
+        if (legend) {
+          legend.layerInfos = [{
+            layer: newLayer,
+            title: newLayer.title || activeTabData.visualizationType,
+            hideLayersNotInCurrentView: false
+          }];
+          legend.visible = true;
+        }
+      }
+    }
+    
+    autoSaveMapConfigurations();
   };
 
   // Update the visualization change handler
@@ -1249,7 +1420,8 @@ const autoSaveMapConfigurations = () => {
   }
 };
 
-const loadMapConfigurations = (key = MANUAL_SAVE_KEY, showAlert = true) => {
+// Updated loadMapConfigurations function
+const loadMapConfigurations = async (key = MANUAL_SAVE_KEY, showAlert = true) => {
   try {
     const savedConfigs = localStorage.getItem(key);
     if (!savedConfigs) {
@@ -1259,10 +1431,32 @@ const loadMapConfigurations = (key = MANUAL_SAVE_KEY, showAlert = true) => {
       return false;
     }
 
-    const mapConfigs = JSON.parse(savedConfigs);
-    const newTabs = [tabs[0]]; // Keep the core map
+    // Wait for the map and legend to be ready
+    if (!mapView?.map || !legend) {
+      console.log('Waiting for map and legend to initialize...');
+      await new Promise(resolve => {
+        const checkReady = setInterval(() => {
+          if (mapView?.map && legend) {
+            clearInterval(checkReady);
+            resolve();
+          }
+        }, 100);
+      });
+    }
 
-    mapConfigs.forEach(config => {
+    const mapConfigs = JSON.parse(savedConfigs);
+    const newTabs = [{
+      id: 1,
+      name: "Core Map",
+      active: true,
+      visualizationType: null,
+      areaType: areaTypes[0],
+      layerConfiguration: null,
+      isEditing: false
+    }];
+
+    // Process saved configurations
+    mapConfigs.forEach((config, index) => {
       const newTabId = Math.max(...newTabs.map(tab => tab.id)) + 1;
       const areaType = areaTypes.find(type => type.value === config.area_type) || areaTypes[0];
 
@@ -1277,24 +1471,19 @@ const loadMapConfigurations = (key = MANUAL_SAVE_KEY, showAlert = true) => {
       });
     });
 
-    if (newTabs.length > 1) {
-      newTabs[newTabs.length - 1].active = true;
-      setActiveTab(newTabs[newTabs.length - 1].id);
-    }
-
     setTabs(newTabs);
-    if (showAlert) {
-      alert('Map configurations loaded successfully');
-    }
+    setActiveTab(1);
+
     return true;
   } catch (error) {
-    console.error('Failed to load map configurations', error);
+    console.error('Failed to load map configurations:', error);
     if (showAlert) {
       alert('Failed to load map configurations');
     }
     return false;
   }
 };
+
 
 // Add these useEffects after your existing ones
 useEffect(() => {

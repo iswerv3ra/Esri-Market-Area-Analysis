@@ -358,7 +358,7 @@ const AdminPanel = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto max-h-[calc(100vh-20rem)]">
+          <div className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto max-h-[calc(100vh-30rem)]">
             {filteredUsers.map((user) => (
               <div 
                 key={user.id} 

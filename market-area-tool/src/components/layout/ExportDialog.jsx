@@ -15,7 +15,16 @@ const ExportDialog = ({
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
-  const [selectedPresets, setSelectedPresets] = useState(new Set());
+  const [selectedCorePresets, setSelectedCorePresets] = useState(new Set());
+  const [selectedAdditionalPresets, setSelectedAdditionalPresets] = useState(new Set());
+
+  // Split presets into core (Tier 1 Core) and additional variables
+  const corePresets = variablePresets.filter(preset => 
+    preset.tier === 1 || preset.name.toLowerCase().includes('tier 1 core')
+  );
+  const additionalPresets = variablePresets.filter(preset => 
+    preset.tier !== 1 && !preset.name.toLowerCase().includes('tier 1 core')
+  );
 
   useEffect(() => {
     if (marketAreas.length > 0) {
@@ -66,8 +75,9 @@ const ExportDialog = ({
     setIncludeUSAData(e.target.checked);
   };
 
-  const handlePresetSelection = (presetId) => {
-    setSelectedPresets((prev) => {
+  const handlePresetSelection = (presetId, isCore) => {
+    const setterFunction = isCore ? setSelectedCorePresets : setSelectedAdditionalPresets;
+    setterFunction((prev) => {
       const next = new Set(prev);
       if (next.has(presetId)) {
         next.delete(presetId);
@@ -88,8 +98,9 @@ const ExportDialog = ({
         selectedAreas.has(area.id)
       );
   
+      const selectedPresetIds = new Set([...selectedCorePresets, ...selectedAdditionalPresets]);
       const variables = variablePresets
-        .filter(preset => selectedPresets.has(preset.id))
+        .filter(preset => selectedPresetIds.has(preset.id))
         .flatMap(preset => preset.variables || []);
   
       const baseFileName = fileName.replace(/\.(xlsx|csv)$/i, '').trim();
@@ -122,7 +133,7 @@ const ExportDialog = ({
 
   const isExportDisabled = 
     isExporting || 
-    selectedPresets.size === 0 ||
+    (selectedCorePresets.size === 0 && selectedAdditionalPresets.size === 0) ||
     selectedAreas.size === 0 ||
     selectedAreas.size > 50;
 
@@ -222,17 +233,42 @@ const ExportDialog = ({
               </div>
             </div>
 
+            {/* Core Variables Section */}
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Select Variable Presets
+                Core Variables (Tier 1)
               </label>
               <div className="space-y-2">
-                {variablePresets.map((preset) => (
+                {corePresets.map((preset) => (
                   <label key={preset.id} className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={selectedPresets.has(preset.id)}
-                      onChange={() => handlePresetSelection(preset.id)}
+                      checked={selectedCorePresets.has(preset.id)}
+                      onChange={() => handlePresetSelection(preset.id, true)}
+                      disabled={isExporting}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                      {preset.name} ({preset.variables?.length || 0} variables)
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Additional Variables Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Additional Variables
+              </label>
+              <div className="space-y-2">
+                {additionalPresets.map((preset) => (
+                  <label key={preset.id} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdditionalPresets.has(preset.id)}
+                      onChange={() => handlePresetSelection(preset.id, false)}
                       disabled={isExporting}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
                                disabled:opacity-50 disabled:cursor-not-allowed"
