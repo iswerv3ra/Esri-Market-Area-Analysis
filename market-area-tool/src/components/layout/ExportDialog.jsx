@@ -15,8 +15,6 @@ const ExportDialog = ({
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
-  const [selectedCorePresets, setSelectedCorePresets] = useState(new Set());
-  const [selectedAdditionalPresets, setSelectedAdditionalPresets] = useState(new Set());
 
   // Split presets into core (Tier 1 Core) and additional variables
   const corePresets = variablePresets.filter(preset => 
@@ -25,6 +23,12 @@ const ExportDialog = ({
   const additionalPresets = variablePresets.filter(preset => 
     preset.tier !== 1 && !preset.name.toLowerCase().includes('tier 1 core')
   );
+
+  // Initialize core presets as selected by default
+  const [selectedCorePresets, setSelectedCorePresets] = useState(
+    () => new Set(corePresets.map(preset => preset.id))
+  );
+  const [selectedAdditionalPresets, setSelectedAdditionalPresets] = useState(new Set());
 
   useEffect(() => {
     if (marketAreas.length > 0) {
@@ -50,6 +54,14 @@ const ExportDialog = ({
   useEffect(() => {
     setSelectedAreas(new Set(marketAreas.map((area) => area.id)));
   }, [marketAreas]);
+
+  // Update selectedCorePresets when variablePresets changes
+  useEffect(() => {
+    const newCorePresets = variablePresets.filter(preset => 
+      preset.tier === 1 || preset.name.toLowerCase().includes('tier 1 core')
+    );
+    setSelectedCorePresets(new Set(newCorePresets.map(preset => preset.id)));
+  }, [variablePresets]);
 
   const handleSelectAllAreas = (e) => {
     if (e.target.checked) {
