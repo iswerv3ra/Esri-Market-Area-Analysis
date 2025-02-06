@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Count
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage
 
 class ColorKeySerializer(serializers.ModelSerializer):
     class Meta:
         model = ColorKey
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'last_modified']  # Adjust as needed
+        read_only_fields = ['id', 'created_at', 'last_modified']
 
 class TcgThemeSerializer(serializers.ModelSerializer):
     color_key = ColorKeySerializer(read_only=True)
@@ -31,7 +31,6 @@ class TcgThemeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'color_key_id': 'Invalid Color Key ID.'})
         elif fill_color:
             instance.fill_color = fill_color
-            # If fill_color is provided but no color_key_id, clear the color_key relation
             instance.color_key = None
 
         for attr, value in validated_data.items():
@@ -57,8 +56,36 @@ class UserSerializer(serializers.ModelSerializer):
         )
         return user
 
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'is_staff', 'is_active']
+        read_only_fields = ['id']
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['is_admin'] = instance.is_staff  # Explicitly add admin status
+        return rep
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['is_active', 'is_staff', 'email']
+
+class PasswordResetSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long")
+        return value
+
+class EnrichmentUsageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EnrichmentUsage
+        fields = ['id', 'user', 'project', 'cost', 'timestamp']
+
 class MarketAreaSerializer(serializers.ModelSerializer):
-    # Pull project_number from the related Project
     project_number = serializers.ReadOnlyField(source='project.project_number')
     
     class Meta:
@@ -92,6 +119,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'id', 'project_number', 'client', 'location', 
             'last_modified', 'market_areas_count'
         ]
+
 class ProjectDetailSerializer(serializers.ModelSerializer):
     market_areas = MarketAreaSerializer(many=True, read_only=True)
     users = UserSerializer(many=True, read_only=True)
@@ -157,6 +185,5 @@ class VariablePresetSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        # If you want to force is_global always True:
         data['is_global'] = True
         return data

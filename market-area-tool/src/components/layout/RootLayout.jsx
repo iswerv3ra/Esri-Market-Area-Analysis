@@ -6,11 +6,15 @@ import {
   HomeIcon,
   AdjustmentsHorizontalIcon,
   ArrowRightOnRectangleIcon,
-  SwatchIcon, // Added for "Manage Preset Colors"
+  SwatchIcon,
+  UserCircleIcon,
+  DocumentIcon,
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
-import { logout } from "../../utils/auth";
+import { logout, getApiUrl } from "../../utils/auth";
 import { useProjectCleanup } from '../../hooks/useProjectCleanup';
+import AdminPanel from "../../admin/AdminPanel";
+import axios from 'axios';
 
 export default function RootLayout() {
   const navigate = useNavigate();
@@ -19,6 +23,13 @@ export default function RootLayout() {
     localStorage.getItem("theme") === "dark"
   );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -29,6 +40,35 @@ export default function RootLayout() {
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
+  const checkAdminStatus = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      console.log('Current token:', token);
+
+      if (token) {
+        console.log('Making admin status request...');
+        const baseUrl = getApiUrl();
+        const response = await axios.get(`${baseUrl}/api/admin/users/me/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        });
+        console.log('Admin status response:', response.data);
+        setIsAdmin(Boolean(response.data.is_staff));
+        console.log('Is admin set to:', Boolean(response.data.is_staff));
+      } else {
+        console.log('No token found in localStorage');
+        setIsAdmin(false);
+      }
+    } catch (error) {
+      console.error("Failed to check admin status:", error?.response?.data || error.message);
+      setIsAdmin(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
   };
@@ -36,7 +76,7 @@ export default function RootLayout() {
   const handleLogoutConfirm = async () => {
     try {
       setShowLogoutConfirm(false);
-      cleanupProject(); // Clean up before logout
+      cleanupProject();
       await logout(navigate);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -45,17 +85,36 @@ export default function RootLayout() {
     }
   };
 
-  // In RootLayout.jsx, simplify the handleHomeClick:
   const handleHomeClick = (e) => {
     e.preventDefault();
     navigate("/");
   };
 
+  const handleUsersClick = () => {
+    setShowAdminPanel(true);
+  };
+
+  const handlePresetsClick = () => {
+    navigate("/presets");
+  };
+
+  const handleManageColorClick = () => {
+    navigate("/manage-preset-color");
+  };
+
+  if (loading) {
+    return null; // Or return a loading spinner
+  }
+
   return (
     <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+      {showAdminPanel && (
+        <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} />
+      )}
+
       <header className="h-14 flex-none bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="h-full px-4 flex items-center justify-between">
-          <div className="flex items-center">
+          <div className="flex items-center space-x-4">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="rounded-full p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
@@ -67,6 +126,32 @@ export default function RootLayout() {
                 <SunIcon className="h-5 w-5" />
               )}
             </button>
+
+            {isAdmin && (
+              <>
+                <button
+                  onClick={handleUsersClick}
+                  className="flex items-center gap-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors duration-200"
+                >
+                  <UserCircleIcon className="h-5 w-5" />
+                  <span className="hidden sm:inline">Users</span>
+                </button>
+                <button
+                  onClick={handlePresetsClick}
+                  className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors duration-200"
+                >
+                  <DocumentIcon className="h-5 w-5" />
+                  <span className="hidden sm:inline">Presets</span>
+                </button>
+                <button
+                  onClick={handleManageColorClick}
+                  className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors duration-200"
+                >
+                  <SwatchIcon className="h-5 w-5" />
+                  <span className="hidden sm:inline">Color</span>
+                </button>
+              </>
+            )}
           </div>
 
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
@@ -76,8 +161,6 @@ export default function RootLayout() {
           </div>
 
           <div className="flex items-center space-x-4">
-  
-
             <button
               onClick={handleHomeClick}
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -15,18 +15,7 @@ const ExportDialog = ({
   const [selectedAreas, setSelectedAreas] = useState(
     () => new Set(marketAreas.map((area) => area.id))
   );
-  const [selectedTiers, setSelectedTiers] = useState(() => new Set(['tier1']));
-
-  const { tier1Count, tier2Count } = useMemo(() => {
-    return variablePresets.reduce((acc, preset) => {
-      if (preset.name.toLowerCase().includes('tier 1')) {
-        acc.tier1Count += preset.variables?.length || 0;
-      } else if (preset.name.toLowerCase().includes('tier 2')) {
-        acc.tier2Count += preset.variables?.length || 0;
-      }
-      return acc;
-    }, { tier1Count: 0, tier2Count: 0 });
-  }, [variablePresets]);
+  const [selectedPresets, setSelectedPresets] = useState(new Set());
 
   useEffect(() => {
     if (marketAreas.length > 0) {
@@ -77,13 +66,13 @@ const ExportDialog = ({
     setIncludeUSAData(e.target.checked);
   };
 
-  const handleTierSelection = (tier) => {
-    setSelectedTiers((prev) => {
+  const handlePresetSelection = (presetId) => {
+    setSelectedPresets((prev) => {
       const next = new Set(prev);
-      if (next.has(tier)) {
-        next.delete(tier);
+      if (next.has(presetId)) {
+        next.delete(presetId);
       } else {
-        next.add(tier);
+        next.add(presetId);
       }
       return next;
     });
@@ -99,21 +88,9 @@ const ExportDialog = ({
         selectedAreas.has(area.id)
       );
   
-      let variables = [];
-  
-      if (selectedTiers.has('tier1')) {
-        const tier1Variables = variablePresets
-          .find(preset => preset.name.toLowerCase().includes('tier 1'))
-          ?.variables || [];
-        variables = [...variables, ...tier1Variables];
-      }
-      
-      if (selectedTiers.has('tier2')) {
-        const tier2Variables = variablePresets
-          .find(preset => preset.name.toLowerCase().includes('tier 2'))
-          ?.variables || [];
-        variables = [...variables, ...tier2Variables];
-      }
+      const variables = variablePresets
+        .filter(preset => selectedPresets.has(preset.id))
+        .flatMap(preset => preset.variables || []);
   
       const baseFileName = fileName.replace(/\.(xlsx|csv)$/i, '').trim();
       const fileNameWithExt = `${baseFileName}.xlsx`;
@@ -139,12 +116,13 @@ const ExportDialog = ({
       onClose();
     } catch (error) {
       console.error('Export failed:', error);
+      alert('Export failed: ' + (error.message || 'Unknown error'));
     }
   };
 
   const isExportDisabled = 
     isExporting || 
-    selectedTiers.size === 0 ||
+    selectedPresets.size === 0 ||
     selectedAreas.size === 0 ||
     selectedAreas.size > 50;
 
@@ -246,35 +224,24 @@ const ExportDialog = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Select Variables
+                Select Variable Presets
               </label>
               <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedTiers.has('tier1')}
-                    onChange={() => handleTierSelection('tier1')}
-                    disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
-                             disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Tier 1 Core Variables ({tier1Count} variables)
-                  </span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedTiers.has('tier2')}
-                    onChange={() => handleTierSelection('tier2')}
-                    disabled={isExporting}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
-                             disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                    Tier 2 Variables ({tier2Count} variables)
-                  </span>
-                </label>
+                {variablePresets.map((preset) => (
+                  <label key={preset.id} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedPresets.has(preset.id)}
+                      onChange={() => handlePresetSelection(preset.id)}
+                      disabled={isExporting}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                      {preset.name} ({preset.variables?.length || 0} variables)
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>

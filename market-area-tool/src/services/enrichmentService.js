@@ -2,6 +2,7 @@ import esriConfig from "@arcgis/core/config";
 import * as projection from "@arcgis/core/geometry/projection";
 import Polygon from "@arcgis/core/geometry/Polygon";
 import * as XLSX from 'xlsx/xlsx.mjs';
+import api from './api';  // Add this at the top with other imports
 
 const ARCGIS_CLIENT_ID = import.meta.env.VITE_ARCGIS_CLIENT_ID;
 const ARCGIS_CLIENT_SECRET = import.meta.env.VITE_ARCGIS_CLIENT_SECRET;
@@ -1400,33 +1401,126 @@ export class EnrichmentService {
 
   async handleExport(enrichmentData, marketAreas, selectedVariables, options = {}) {
     const { includeUSAData = false } = options;
+    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
+        ? includeUSAData 
+        : Boolean(enrichmentData?.includeUSAData);
     
     if (!enrichmentData || !marketAreas || !selectedVariables) {
       throw new Error('Missing required export parameters');
     }
   
-    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
-      ? includeUSAData 
-      : Boolean(enrichmentData?.includeUSAData);
-  
-    console.log('Processing export:', {
-      includeUSAData: shouldIncludeUSA,
-      marketAreasCount: marketAreas?.length,
-      variablesCount: selectedVariables?.length
-    });
-  
     try {
-      return await this.exportToExcel(
+      // Get project ID directly from the market area or options
+      const projectId = options.projectId ||  // Add this line to explicitly pass project ID
+        marketAreas[0]?.project_id || 
+        marketAreas[0]?.id;
+      
+      console.log('Project ID Details:', {
+        projectId,
+        firstMarketArea: marketAreas[0],
+        marketAreasLength: marketAreas.length,
+        options
+      });
+  
+      if (!projectId) {
+        console.error('Market area structure:', marketAreas[0]);
+        throw new Error('Could not find project ID');
+      }
+  
+      // Get user information from the API
+      let userId;
+      try {
+        const userResponse = await api.get('/api/admin/users/me/');
+        userId = userResponse.data.id;
+        
+        if (!userId || typeof userId !== 'number') {
+          throw new Error('Invalid user ID received from API');
+        }
+      } catch (error) {
+        console.error('Failed to get user ID:', error);
+        throw new Error('Could not determine user ID. Please log in again.');
+      }
+  
+      // Calculate cost: $1 per 1000 market areas * variables
+      // Ensure minimum cost of 0.01
+      const totalRecords = marketAreas.length * selectedVariables.length;
+      const calculatedCost = (totalRecords / 1000);
+      const cost = Math.max(calculatedCost, 0.01);  // Ensure minimum cost of $0.01
+  
+      // Prepare the usage data
+      const usageData = {
+        user_id: userId,
+        project_id: projectId,
+        cost: parseFloat(cost.toFixed(2))
+      };
+  
+      console.log('Sending enrichment usage data:', usageData);
+  
+      // Record the enrichment usage
+      try {
+        const usageResponse = await api.post('/api/enrichment/record_usage/', usageData);
+        console.log('Enrichment usage recorded:', usageResponse.data);
+      } catch (error) {
+        const errorDetails = error.response?.data?.detail || 
+                           error.response?.data?.error || 
+                           error.response?.data?.message || 
+                           error.message;
+        console.error('Failed to record enrichment usage:', {
+          error: error.response?.data,
+          details: errorDetails,
+          status: error.response?.status,
+          data: usageData
+        });
+        throw new Error(`Failed to record enrichment usage: ${errorDetails}`);
+      }
+  
+      const exportResult = await this.exportToExcel(
         enrichmentData, 
         marketAreas, 
         selectedVariables, 
         shouldIncludeUSA
       );
+  
+      return exportResult;
     } catch (error) {
       console.error('Export failed:', error);
       throw new Error(`Export failed: ${error.message}`);
     }
   }
+
+// Helper method to handle the export once we have a project ID
+async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariables, enrichmentData, includeUSAData) {
+    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
+      ? includeUSAData 
+      : Boolean(enrichmentData?.includeUSAData);
+
+    console.log('Processing export:', {
+      includeUSAData: shouldIncludeUSA,
+      marketAreasCount: marketAreas?.length,
+      variablesCount: selectedVariables?.length,
+      userId,
+      projectId
+    });
+
+    // Record the enrichment usage
+    const usageResponse = await api.post('/api/enrichment/record_usage/', {
+      user_id: userId,
+      project_id: projectId,
+      market_areas_count: marketAreas.length,
+      variables_count: selectedVariables.length
+    });
+
+    console.log('Enrichment usage recorded:', usageResponse.data);
+
+    const exportResult = await this.exportToExcel(
+      enrichmentData, 
+      marketAreas, 
+      selectedVariables, 
+      shouldIncludeUSA
+    );
+
+    return exportResult;
+}
 
   addUSADataToRows(rows, selectedVariables) {
     // Add USA column headers

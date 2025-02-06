@@ -457,6 +457,8 @@ export default function MapComponent({ onToggleList }) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   // First, update the initial state
+
+  
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
       type: "dot-density",
@@ -655,7 +657,8 @@ export default function MapComponent({ onToggleList }) {
       name: "Core Map", 
       active: true, 
       visualizationType: null,
-      layerConfiguration: null  // New field to store tab-specific layer config
+      areaType: areaTypes[0],
+      layerConfiguration: null
     }
   ]);  const [activeTab, setActiveTab] = useState(1);
   const [visualizationType, setVisualizationType] = useState(null);
@@ -688,31 +691,6 @@ export default function MapComponent({ onToggleList }) {
     }
   }, []);
 
-  // First, add the deleteTab handler function inside the MapComponent
-  const deleteTab = (tabId, e) => {
-    e.stopPropagation(); // Prevent tab activation when clicking delete button
-
-    // Don't allow deletion of the core map
-    if (tabId === 1) return;
-
-    // Remove the tab
-    const newTabs = tabs.filter((tab) => tab.id !== tabId);
-
-    // If we're deleting the active tab, switch to the previous tab
-    if (activeTab === tabId) {
-      const newActiveTab = newTabs[newTabs.length - 1].id;
-      setActiveTab(newActiveTab);
-      setTabs(
-        newTabs.map((tab) =>
-          tab.id === newActiveTab
-            ? { ...tab, active: true }
-            : { ...tab, active: false }
-        )
-      );
-    } else {
-      setTabs(newTabs);
-    }
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -1047,11 +1025,11 @@ export default function MapComponent({ onToggleList }) {
 
   // Update the visualization change handler
   // Modify handleVisualizationChange to save configuration to the specific tab
-  const handleVisualizationChange = (newValue) => {
+  const handleVisualizationChange = (tabId, newValue) => {
     if (!newValue) {
       setTabs(
         tabs.map((tab) =>
-          tab.id === activeTab
+          tab.id === tabId
             ? { 
                 ...tab, 
                 visualizationType: null, 
@@ -1063,19 +1041,36 @@ export default function MapComponent({ onToggleList }) {
       return;
     }
 
+    const handleAreaTypeChange = (tabId, newAreaType) => {
+      setTabs(
+        tabs.map((tab) =>
+          tab.id === tabId
+            ? { 
+                ...tab, 
+                areaType: newAreaType 
+              }
+            : tab
+        )
+      );
+    };    
+
     // Get the initial configuration for the new visualization type
     const initialConfig = initialLayerConfigurations[newValue];
 
     // Update the tabs state with the new visualization type
     setTabs(
       tabs.map((tab) =>
-        tab.id === activeTab
-          ? { ...tab, visualizationType: newValue }
+        tab.id === tabId
+          ? { 
+              ...tab, 
+              visualizationType: newValue,
+              layerConfiguration: initialConfig  // Set initial config
+            }
           : tab
       )
     );
 
-    // Update the layer configurations if needed
+    // Update layer configurations if needed
     setLayerConfigurations((prev) => {
       // Only add the configuration if it doesn't exist
       if (!prev[newValue]) {
@@ -1180,21 +1175,89 @@ const renderAreaTypeDropdown = () => (
     }
   };
 
-  // Update addNewTab to include layerConfiguration
-  const addNewTab = () => {
-    const newTabId = tabs.length + 1;
-    setTabs([
-      ...tabs,
-      {
-        id: newTabId,
-        name: `Map ${newTabId}`,
-        active: false,
-        visualizationType: null,
-        layerConfiguration: null,  // Initialize with null
-        isEditing: false,
-      },
-    ]);
-  };
+// Updated tab management functions
+
+const addNewTab = () => {
+  // Find the next available tab number
+  const existingTabNumbers = tabs
+    .filter(tab => tab.id !== 1)
+    .map(tab => {
+      const match = tab.name.match(/Map (\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    });
+
+  const nextTabNumber = existingTabNumbers.length > 0 
+    ? Math.max(...existingTabNumbers) + 1 
+    : 2;
+
+  const newTabId = Math.max(...tabs.map(tab => tab.id)) + 1;
+
+  setTabs(prevTabs => [
+    ...prevTabs.map(tab => ({ ...tab, active: false })),
+    {
+      id: newTabId,
+      name: `Map ${nextTabNumber}`,
+      active: true,
+      visualizationType: null,
+      areaType: areaTypes[0],
+      layerConfiguration: null,
+      isEditing: false,
+    }
+  ]);
+
+  setActiveTab(newTabId);
+};
+
+const deleteTab = (tabId, e) => {
+  e.stopPropagation(); // Prevent tab activation when clicking delete button
+
+  // Don't allow deletion of the core map
+  if (tabId === 1) return;
+
+  // Determine the new active tab
+  const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
+  let newActiveTab;
+
+  if (remainingTabs.length === 0) {
+    // This shouldn't happen due to core map, but just in case
+    return;
+  }
+
+  // If the active tab is being deleted, find a new active tab
+  if (activeTab === tabId) {
+    // Prefer the last remaining tab, or the core map
+    newActiveTab = remainingTabs[remainingTabs.length - 1].id;
+  } else {
+    // Keep the current active tab
+    newActiveTab = activeTab;
+  }
+
+  // Update tabs state
+  setTabs(
+    remainingTabs.map((tab) => ({
+      ...tab,
+      active: tab.id === newActiveTab,
+    }))
+  );
+
+  // Update active tab
+  setActiveTab(newActiveTab);
+};
+
+const handleAreaTypeChange = (tabId, newAreaType) => {
+  // Update the tabs state with the new area type for the specific tab
+  setTabs(
+    tabs.map((tab) =>
+      tab.id === tabId
+        ? { 
+            ...tab, 
+            areaType: newAreaType 
+          }
+        : tab
+    )
+  );
+};
+  
   // Update handleLayerConfigChange to save to the specific tab
   const handleLayerConfigChange = (newConfig) => {
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
@@ -1251,10 +1314,11 @@ const renderAreaTypeDropdown = () => (
               <div key={tab.id} className="flex items-center">
                 <div
                   onClick={() => handleTabClick(tab.id)}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${tab.active
-                    ? "bg-blue-500 dark:bg-blue-600 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
+                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
+                    tab.active
+                      ? "bg-blue-500 dark:bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
                 >
                   {tab.isEditing ? (
                     <input
@@ -1328,105 +1392,114 @@ const renderAreaTypeDropdown = () => (
               </div>
             ))}
             <button
-              disabled={true}
-              className="ml-2 px-3 py-1 text-sm bg-gray-300 text-gray-500 rounded cursor-not-allowed transition-colors duration-200 ease-in-out"
+              onClick={addNewTab}
+              className="ml-2 px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
             >
               + New Map
             </button>
           </div>
           {activeTab !== 1 && (
-  <div className="ml-4 flex items-center space-x-2">
-    {/* Area Type Dropdown */}
-    <select
-      value={selectedAreaType.value}
-      onChange={(e) => {
-        const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
-        setSelectedAreaType(newAreaType);
-        
-        // Trigger layer update when area type changes
-        const activeTabData = tabs.find(tab => tab.id === activeTab);
-        if (activeTabData?.visualizationType) {
-          const currentConfig = layerConfigurations[activeTabData.visualizationType];
-          const newLayer = createLayers(
-            activeTabData.visualizationType,
-            currentConfig,
-            initialLayerConfigurations,
-            selectedAreaType
-          );
-          if (newLayer && mapView?.map) {
-            // Remove existing visualization layers
-            const layersToRemove = [];
-            mapView.map.layers.forEach((layer) => {
-              if (layer.get("isVisualizationLayer")) {
-                layersToRemove.push(layer);
-              }
-            });
-            layersToRemove.forEach((layer) => mapView.map.remove(layer));
-            
-            // Add new layer
-            newLayer.set("isVisualizationLayer", true);
-            mapView.map.add(newLayer, 0);
-          }
-        }
-      }}
-      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-          focus:ring-blue-500 focus:border-blue-500"
-    >
-      {areaTypes.map(type => (
-        <option key={type.value} value={type.value}>
-          {type.label}
-        </option>
-      ))}
-    </select>
-
-    {/* Visualization Type Dropdown */}
-    <select
-      value={tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""}
-      onChange={(e) => handleVisualizationChange(e.target.value)}
-      className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
-          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-          focus:ring-blue-500 focus:border-blue-500"
-    >
-      <option value="">Select visualization</option>
-      {visualizationOptions.map(option => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-
-    {/* Edit Button */}
-    {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-      <button
-        onClick={() => setIsEditorOpen(true)}
-        className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
-                 dark:hover:text-gray-300 focus:outline-none"
-        title="Edit layer properties"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-          />
-        </svg>
-      </button>
-    )}
-  </div>
-)}
+            <div className="ml-4 flex items-center space-x-2">
+              {/* Area Type Dropdown */}
+              <select
+                value={
+                  tabs.find((tab) => tab.id === activeTab)?.areaType?.value || 
+                  areaTypes[0].value
+                }
+                onChange={(e) => {
+                  const newAreaType = areaTypes.find(
+                    type => type.value === parseInt(e.target.value)
+                  );
+                  
+                  handleAreaTypeChange(activeTab, newAreaType);
+                  
+                  // Trigger layer update when area type changes
+                  const activeTabData = tabs.find(tab => tab.id === activeTab);
+                  if (activeTabData?.visualizationType) {
+                    const currentConfig = activeTabData.layerConfiguration;
+                    const newLayer = createLayers(
+                      activeTabData.visualizationType,
+                      currentConfig,
+                      initialLayerConfigurations,
+                      newAreaType
+                    );
+                    
+                    if (newLayer && mapView?.map) {
+                      // Remove existing visualization layers
+                      const layersToRemove = [];
+                      mapView.map.layers.forEach((layer) => {
+                        if (layer.get("isVisualizationLayer")) {
+                          layersToRemove.push(layer);
+                        }
+                      });
+                      layersToRemove.forEach((layer) => mapView.map.remove(layer));
+                      
+                      // Add new layer
+                      newLayer.set("isVisualizationLayer", true);
+                      mapView.map.add(newLayer, 0);
+                    }
+                  }
+                }}
+                className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                    focus:ring-blue-500 focus:border-blue-500"
+              >
+                {areaTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+  
+              {/* Visualization Type Dropdown */}
+              <select
+                value={
+                  tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""
+                }
+                onChange={(e) => handleVisualizationChange(activeTab, e.target.value)}
+                className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
+                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                    focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select visualization</option>
+                {visualizationOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+  
+              {/* Edit Button */}
+              {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+                <button
+                  onClick={() => setIsEditorOpen(true)}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
+                       dark:hover:text-gray-300 focus:outline-none"
+                  title="Edit layer properties"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
-
+  
       <div className="flex flex-1 overflow-hidden">
         {/* Map container */}
         <div className="flex-1 relative">
@@ -1434,7 +1507,7 @@ const renderAreaTypeDropdown = () => (
             <ZoomAlert />
           </div>
         </div>
-
+  
         {/* Right panel container */}
         <div className="relative">
           {/* Layer Properties Editor */}
@@ -1447,21 +1520,21 @@ const renderAreaTypeDropdown = () => (
                 ${isEditorOpen ? 'translate-x-0' : 'translate-x-full'}
               `}
             >
-          <LayerPropertiesEditor
-            isOpen={isEditorOpen}
-            onClose={() => setIsEditorOpen(false)}
-            visualizationType={
-              tabs.find((tab) => tab.id === activeTab)?.visualizationType
-            }
-            layerConfig={
-              tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
-              (tabs.find((tab) => tab.id === activeTab)?.visualizationType 
-                ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType] 
-                : null)
-            }
-            onConfigChange={handleLayerConfigChange}
-            onPreview={handleConfigPreview}
-          />
+              <LayerPropertiesEditor
+                isOpen={isEditorOpen}
+                onClose={() => setIsEditorOpen(false)}
+                visualizationType={
+                  tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                }
+                layerConfig={
+                  tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
+                  (tabs.find((tab) => tab.id === activeTab)?.visualizationType 
+                    ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType] 
+                    : null)
+                }
+                onConfigChange={handleLayerConfigChange}
+                onPreview={handleConfigPreview}
+              />
             </div>
           )}
         </div>

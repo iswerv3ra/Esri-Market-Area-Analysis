@@ -4,6 +4,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
+from django.utils import timezone
+
 
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -35,6 +37,21 @@ class ColorKey(models.Model):
 
     def __str__(self):
         return f"{self.key_number} - {self.color_name}"
+
+class EnrichmentUsage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrichment_usage')
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='enrichments')
+    cost = models.DecimalField(max_digits=10, decimal_places=2)
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-timestamp']
+        db_table = 'enrichment_usage'
+
+    def __str__(self):
+        return f"{self.user.username} - ${self.cost} on {self.timestamp.date()}"
+    
 
 class TcgTheme(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

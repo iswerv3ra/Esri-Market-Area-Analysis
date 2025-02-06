@@ -79,7 +79,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         enrichedData,
         selectedMarketAreas,
         variables,
-        { includeUSAData }
+        { 
+          includeUSAData, 
+          projectId: projectId  // Pass the project ID explicitly
+        }
       );
   
       if (result instanceof Blob) {
