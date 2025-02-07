@@ -11,36 +11,37 @@ import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Legend from "@arcgis/core/widgets/Legend";
 import { useMap } from "../../contexts/MapContext";
 import LayerPropertiesEditor from "./LayerPropertiesEditor";
-
+import PropTypes from 'prop-types';
+import axios from 'axios';
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-  const colorScheme = {
-    level1: [255, 99, 71, 0.45],    // Salmon red
-    level2: [255, 165, 0, 0.45],    // Orange
-    level3: [255, 255, 144, 0.45],  // Light yellow
-    level4: [144, 238, 144, 0.45],  // Light green
-    level5: [135, 206, 235, 0.45],  // Sky blue
-    level6: [0, 0, 139, 0.45],      // Dark blue
-    level7: [128, 0, 128, 0.45]     // Purple
-  };
-  
-  // Update the createClassBreaks function accordingly
-  const createClassBreaks = (breakPoints, labels) => {
-    return breakPoints.map((point, index) => ({
-      minValue: point.min === undefined ? -Infinity : point.min,
-      maxValue: point.max === undefined ? Infinity : point.max,
-      symbol: {
-        type: "simple-fill",
-        color: colorScheme[`level${index + 1}`],
-        outline: { 
-          color: [50, 50, 50, 0.2], 
-          width: "0.5px" 
-        }
-      },
-      label: labels[index]
-    }));
-  };
+const colorScheme = {
+  level1: [255, 99, 71, 0.45],    // Salmon red
+  level2: [255, 165, 0, 0.45],    // Orange
+  level3: [255, 255, 144, 0.45],  // Light yellow
+  level4: [144, 238, 144, 0.45],  // Light green
+  level5: [135, 206, 235, 0.45],  // Sky blue
+  level6: [0, 0, 139, 0.45],      // Dark blue
+  level7: [128, 0, 128, 0.45]     // Purple
+};
+
+// Update the createClassBreaks function accordingly
+const createClassBreaks = (breakPoints, labels) => {
+  return breakPoints.map((point, index) => ({
+    minValue: point.min === undefined ? -Infinity : point.min,
+    maxValue: point.max === undefined ? Infinity : point.max,
+    symbol: {
+      type: "simple-fill",
+      color: colorScheme[`level${index + 1}`],
+      outline: {
+        color: [50, 50, 50, 0.2],
+        width: "0.5px"
+      }
+    },
+    label: labels[index]
+  }));
+};
 const initialLayerConfigurations = {
   population: {
     type: "dot-density",
@@ -245,9 +246,9 @@ const visualizationOptions = [
 ];
 
 const createLayers = (
-  visualizationType, 
-  configOverride = null, 
-  layerConfigs = initialLayerConfigurations, 
+  visualizationType,
+  configOverride = null,
+  layerConfigs = initialLayerConfigurations,
   selectedAreaType = areaTypes[0]
 ) => {
   // Validate inputs
@@ -291,7 +292,7 @@ const createLayers = (
           defaultLabel: "No data",
           classBreakInfos: config.classBreakInfos,
         };
-      
+
       default:
         console.error('Unsupported renderer type:', config.type);
         return null;
@@ -368,7 +369,7 @@ const createLayers = (
   };
 
   const layerConfig = layerDefinitions[visualizationType];
-  
+
   // Validate layer configuration
   if (!layerConfig) {
     console.error(`No layer configuration found for visualization type: ${visualizationType}`);
@@ -448,7 +449,7 @@ const areaTypes = [
   { value: 11, label: "County", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/11" }
 ];
 
-export default function MapComponent({ onToggleList }) {
+export default function MapComponent({ onToggleList, currentProject }) {
   const mapRef = useRef(null);
   const { setMapView, mapView } = useMap();
   const initCompleteRef = useRef(false);
@@ -457,9 +458,21 @@ export default function MapComponent({ onToggleList }) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   // First, update the initial state
-  const AUTO_SAVE_KEY = 'autoSavedMapConfigurations';
-  const MANUAL_SAVE_KEY = 'mapConfigurations';
-  
+  // Add a check at the beginning of the component
+  if (!currentProject) {
+    console.error('No project provided to MapComponent');
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-500">Please select a project to view map configurations.</p>
+      </div>
+    );
+  }
+
+  // Modify the storage keys to use project ID if available
+  const AUTO_SAVE_KEY = `autoSavedMapConfigurations_${currentProject.id || 'default'}`;
+  const MANUAL_SAVE_KEY = `mapConfigurations_${currentProject.id || 'default'}`;
+
+
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
       type: "dot-density",
@@ -653,15 +666,15 @@ export default function MapComponent({ onToggleList }) {
   });
 
   const [tabs, setTabs] = useState([
-    { 
-      id: 1, 
-      name: "Core Map", 
-      active: true, 
+    {
+      id: 1,
+      name: "Core Map",
+      active: true,
       visualizationType: null,
       areaType: areaTypes[0],
       layerConfiguration: null
     }
-  ]);  const [activeTab, setActiveTab] = useState(1);
+  ]); const [activeTab, setActiveTab] = useState(1);
   const [visualizationType, setVisualizationType] = useState(null);
 
   useEffect(() => {
@@ -920,7 +933,7 @@ export default function MapComponent({ onToggleList }) {
     // Load auto-saved configurations on mount
     const initConfigs = async () => {
       await loadMapConfigurations(AUTO_SAVE_KEY, false);
-      
+
       // Force update visualization layers and legend for all loaded tabs
       const loadedTabs = tabs.filter(tab => tab.id !== 1 && tab.visualizationType);
       for (const tab of loadedTabs) {
@@ -930,11 +943,11 @@ export default function MapComponent({ onToggleList }) {
           initialLayerConfigurations,
           tab.areaType
         );
-        
+
         if (newLayer && mapView?.map) {
           newLayer.set("isVisualizationLayer", true);
           mapView.map.add(newLayer, 0);
-          
+
           if (legend && tab.active) {
             legend.layerInfos = [{
               layer: newLayer,
@@ -946,7 +959,7 @@ export default function MapComponent({ onToggleList }) {
         }
       }
     };
-    
+
     initConfigs();
   }, [mapView, legend]);
 
@@ -1020,7 +1033,7 @@ export default function MapComponent({ onToggleList }) {
   }, [activeTab, mapView, legend, tabs, layerConfigurations]);
 
 
-  
+
   const updateVisualizationLayer = async () => {
     try {
       // Remove existing visualization layers
@@ -1038,7 +1051,7 @@ export default function MapComponent({ onToggleList }) {
       // Only add new layer if we're not in the core map and have a selected type
       if (activeTab !== 1 && activeTabData?.visualizationType) {
         const layerConfig = activeTabData.layerConfiguration;
-        
+
         const newLayer = createLayers(
           activeTabData.visualizationType,
           layerConfig,
@@ -1071,91 +1084,91 @@ export default function MapComponent({ onToggleList }) {
     if (!mapView?.map || !legend) return;
     updateVisualizationLayer();
   }, [
-    activeTab, 
+    activeTab,
     tabs,  // Added tabs to the dependency array
-    mapView, 
-    legend, 
-    isEditorOpen, 
+    mapView,
+    legend,
+    isEditorOpen,
     selectedAreaType
   ]);
 
 
-// Updated handleTabClick function
-const handleTabClick = (tabId) => {
-  setActiveTab(tabId);
-  const newTabs = tabs.map((tab) => ({
-    ...tab,
-    active: tab.id === tabId,
-    isEditing: false, // Close any open editing when switching tabs
-  }));
-  setTabs(newTabs);
+  // Updated handleTabClick function
+  const handleTabClick = (tabId) => {
+    setActiveTab(tabId);
+    const newTabs = tabs.map((tab) => ({
+      ...tab,
+      active: tab.id === tabId,
+      isEditing: false, // Close any open editing when switching tabs
+    }));
+    setTabs(newTabs);
 
-  // Update visualization and legend for the newly selected tab
-  const selectedTab = newTabs.find(tab => tab.id === tabId);
-  if (selectedTab && mapView?.map) {
-    if (tabId === 1) {
-      // Clear visualization layers for Core Map
-      const layersToRemove = [];
-      mapView.map.layers.forEach((layer) => {
-        if (layer.get("isVisualizationLayer")) {
-          layersToRemove.push(layer);
-        }
-      });
-      layersToRemove.forEach((layer) => mapView.map.remove(layer));
-      
-      // Hide legend for Core Map
-      if (legend) {
-        legend.visible = false;
-      }
-    } else if (selectedTab.visualizationType) {
-      // Create and add new layer for visualization tabs
-      const newLayer = createLayers(
-        selectedTab.visualizationType,
-        selectedTab.layerConfiguration,
-        initialLayerConfigurations,
-        selectedTab.areaType
-      );
-
-      if (newLayer) {
-        // Remove existing visualization layers
+    // Update visualization and legend for the newly selected tab
+    const selectedTab = newTabs.find(tab => tab.id === tabId);
+    if (selectedTab && mapView?.map) {
+      if (tabId === 1) {
+        // Clear visualization layers for Core Map
+        const layersToRemove = [];
         mapView.map.layers.forEach((layer) => {
           if (layer.get("isVisualizationLayer")) {
-            mapView.map.remove(layer);
+            layersToRemove.push(layer);
           }
         });
+        layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
-        // Add new layer
-        newLayer.set("isVisualizationLayer", true);
-        mapView.map.add(newLayer, 0);
-
-        // Update legend
+        // Hide legend for Core Map
         if (legend) {
-          legend.layerInfos = [{
-            layer: newLayer,
-            title: newLayer.title || selectedTab.visualizationType,
-            hideLayersNotInCurrentView: false
-          }];
-          legend.visible = true;
+          legend.visible = false;
+        }
+      } else if (selectedTab.visualizationType) {
+        // Create and add new layer for visualization tabs
+        const newLayer = createLayers(
+          selectedTab.visualizationType,
+          selectedTab.layerConfiguration,
+          initialLayerConfigurations,
+          selectedTab.areaType
+        );
+
+        if (newLayer) {
+          // Remove existing visualization layers
+          mapView.map.layers.forEach((layer) => {
+            if (layer.get("isVisualizationLayer")) {
+              mapView.map.remove(layer);
+            }
+          });
+
+          // Add new layer
+          newLayer.set("isVisualizationLayer", true);
+          mapView.map.add(newLayer, 0);
+
+          // Update legend
+          if (legend) {
+            legend.layerInfos = [{
+              layer: newLayer,
+              title: newLayer.title || selectedTab.visualizationType,
+              hideLayersNotInCurrentView: false
+            }];
+            legend.visible = true;
+          }
         }
       }
     }
-  }
-};
+  };
 
   const handleAreaTypeChange = (tabId, newAreaType) => {
     // Update the area type for the specific tab
     const newTabs = tabs.map((tab) =>
       tab.id === tabId
-        ? { 
-            ...tab, 
-            areaType: newAreaType
-          }
+        ? {
+          ...tab,
+          areaType: newAreaType
+        }
         : tab
     );
-    
+
     setTabs(newTabs);
     setSelectedAreaType(newAreaType);
-    
+
     // Update visualization and legend if there is one active
     const activeTabData = newTabs.find((tab) => tab.id === tabId);
     if (activeTabData?.visualizationType && mapView?.map) {
@@ -1191,7 +1204,7 @@ const handleTabClick = (tabId) => {
         }
       }
     }
-    
+
     autoSaveMapConfigurations();
   };
 
@@ -1201,29 +1214,29 @@ const handleTabClick = (tabId) => {
     if (!newValue) {
       const newTabs = tabs.map((tab) =>
         tab.id === tabId
-          ? { 
-              ...tab, 
-              visualizationType: null, 
-              layerConfiguration: null 
-            }
+          ? {
+            ...tab,
+            visualizationType: null,
+            layerConfiguration: null
+          }
           : tab
       );
       setTabs(newTabs);
       autoSaveMapConfigurations();
       return;
     }
-  
+
     const initialConfig = initialLayerConfigurations[newValue];
     const newTabs = tabs.map((tab) =>
       tab.id === tabId
-        ? { 
-            ...tab, 
-            visualizationType: newValue,
-            layerConfiguration: initialConfig
-          }
+        ? {
+          ...tab,
+          visualizationType: newValue,
+          layerConfiguration: initialConfig
+        }
         : tab
     );
-  
+
     setTabs(newTabs);
     setLayerConfigurations((prev) => {
       if (!prev[newValue]) {
@@ -1239,50 +1252,50 @@ const handleTabClick = (tabId) => {
 
 
   // Add this to your JSX near the visualization type dropdown
-const renderAreaTypeDropdown = () => (
-  <select
-    value={selectedAreaType.value}
-    onChange={(e) => {
-      const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
-      setSelectedAreaType(newAreaType);
-      
-      // Trigger layer update when area type changes
-      const activeTabData = tabs.find(tab => tab.id === activeTab);
-      if (activeTabData?.visualizationType) {
-        const currentConfig = layerConfigurations[activeTabData.visualizationType];
-        const newLayer = createLayers(
-          activeTabData.visualizationType,
-          currentConfig,
-          initialLayerConfigurations
-        );
-        if (newLayer && mapView?.map) {
-          // Remove existing visualization layers
-          const layersToRemove = [];
-          mapView.map.layers.forEach((layer) => {
-            if (layer.get("isVisualizationLayer")) {
-              layersToRemove.push(layer);
-            }
-          });
-          layersToRemove.forEach((layer) => mapView.map.remove(layer));
-          
-          // Add new layer
-          newLayer.set("isVisualizationLayer", true);
-          mapView.map.add(newLayer, 0);
+  const renderAreaTypeDropdown = () => (
+    <select
+      value={selectedAreaType.value}
+      onChange={(e) => {
+        const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
+        setSelectedAreaType(newAreaType);
+
+        // Trigger layer update when area type changes
+        const activeTabData = tabs.find(tab => tab.id === activeTab);
+        if (activeTabData?.visualizationType) {
+          const currentConfig = layerConfigurations[activeTabData.visualizationType];
+          const newLayer = createLayers(
+            activeTabData.visualizationType,
+            currentConfig,
+            initialLayerConfigurations
+          );
+          if (newLayer && mapView?.map) {
+            // Remove existing visualization layers
+            const layersToRemove = [];
+            mapView.map.layers.forEach((layer) => {
+              if (layer.get("isVisualizationLayer")) {
+                layersToRemove.push(layer);
+              }
+            });
+            layersToRemove.forEach((layer) => mapView.map.remove(layer));
+
+            // Add new layer
+            newLayer.set("isVisualizationLayer", true);
+            mapView.map.add(newLayer, 0);
+          }
         }
-      }
-    }}
-    className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+      }}
+      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
         bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
         text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
         focus:ring-blue-500 focus:border-blue-500"
-  >
-    {areaTypes.map(type => (
-      <option key={type.value} value={type.value}>
-        {type.label}
-      </option>
-    ))}
-  </select>
-);
+    >
+      {areaTypes.map(type => (
+        <option key={type.value} value={type.value}>
+          {type.label}
+        </option>
+      ))}
+    </select>
+  );
 
   const startEditing = (tabId, e) => {
     e.stopPropagation(); // Prevent tab activation when clicking edit button
@@ -1329,183 +1342,166 @@ const renderAreaTypeDropdown = () => (
     }
   };
 
-// Updated tab management functions
+  // Updated tab management functions
 
-const addNewTab = () => {
-  const existingTabNumbers = tabs
-    .filter(tab => tab.id !== 1)
-    .map(tab => {
-      const match = tab.name.match(/Map (\d+)/);
-      return match ? parseInt(match[1]) : 0;
-    });
+  const addNewTab = () => {
+    const existingTabNumbers = tabs
+      .filter(tab => tab.id !== 1)
+      .map(tab => {
+        const match = tab.name.match(/Map (\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      });
 
-  const nextTabNumber = existingTabNumbers.length > 0 
-    ? Math.max(...existingTabNumbers) + 1 
-    : 2;
+    const nextTabNumber = existingTabNumbers.length > 0
+      ? Math.max(...existingTabNumbers) + 1
+      : 2;
 
-  const newTabId = Math.max(...tabs.map(tab => tab.id)) + 1;
+    const newTabId = Math.max(...tabs.map(tab => tab.id)) + 1;
 
-  const newTabs = [
-    ...tabs.map(tab => ({ ...tab, active: false })),
-    {
-      id: newTabId,
-      name: `Map ${nextTabNumber}`,
-      active: true,
-      visualizationType: null,
-      areaType: areaTypes[0],
-      layerConfiguration: null,
-      isEditing: false,
+    const newTabs = [
+      ...tabs.map(tab => ({ ...tab, active: false })),
+      {
+        id: newTabId,
+        name: `Map ${nextTabNumber}`,
+        active: true,
+        visualizationType: null,
+        areaType: areaTypes[0],
+        layerConfiguration: null,
+        isEditing: false,
+      }
+    ];
+
+    setTabs(newTabs);
+    setActiveTab(newTabId);
+    autoSaveMapConfigurations();
+  };
+
+  const deleteTab = (tabId, e) => {
+    e.stopPropagation();
+    if (tabId === 1) return;
+
+    const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
+    const newActiveTab = activeTab === tabId
+      ? remainingTabs[remainingTabs.length - 1].id
+      : activeTab;
+
+    const newTabs = remainingTabs.map((tab) => ({
+      ...tab,
+      active: tab.id === newActiveTab,
+    }));
+
+    setTabs(newTabs);
+    setActiveTab(newActiveTab);
+    autoSaveMapConfigurations();
+  };
+
+  // Update save and load methods to include project-specific logic
+  const saveMapConfigurations = () => {
+    const mapConfigs = tabs
+      .filter(tab => tab.id !== 1)
+      .map((tab, index) => ({
+        tab_name: tab.name,
+        visualization_type: tab.visualizationType,
+        area_type: tab.areaType?.value,
+        layer_configuration: tab.layerConfiguration,
+        order: index,
+        project_id: currentProject.id  // Add project ID
+      }));
+
+    try {
+      // Send to backend API instead of local storage
+      axios.post(`/api/map-configurations/?project=${currentProject.id}`, mapConfigs);
+      alert('Map configurations saved successfully');
+    } catch (error) {
+      console.error('Failed to save map configurations', error);
+      alert('Failed to save map configurations');
     }
-  ];
+  };
 
-  setTabs(newTabs);
-  setActiveTab(newTabId);
-  autoSaveMapConfigurations();
-};
+  const loadMapConfigurations = async (key = MANUAL_SAVE_KEY, showAlert = true) => {
+    try {
+      // Fetch from backend API instead of local storage
+      const response = await axios.get(`/api/map-configurations/?project=${currentProject.id}`);
+      const mapConfigs = response.data;
 
-const deleteTab = (tabId, e) => {
-  e.stopPropagation();
-  if (tabId === 1) return;
+      // Similar loading logic as before, but using API data
+      const newTabs = [{
+        id: 1,
+        name: "Core Map",
+        active: true,
+        visualizationType: null,
+        areaType: areaTypes[0],
+        layerConfiguration: null,
+        isEditing: false
+      }];
 
-  const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
-  const newActiveTab = activeTab === tabId 
-    ? remainingTabs[remainingTabs.length - 1].id 
-    : activeTab;
+      mapConfigs.forEach((config, index) => {
+        const newTabId = Math.max(...newTabs.map(tab => tab.id)) + 1;
+        const areaType = areaTypes.find(type => type.value === config.area_type) || areaTypes[0];
 
-  const newTabs = remainingTabs.map((tab) => ({
-    ...tab,
-    active: tab.id === newActiveTab,
-  }));
+        newTabs.push({
+          id: newTabId,
+          name: config.tab_name,
+          active: false,
+          visualizationType: config.visualization_type,
+          areaType: areaType,
+          layerConfiguration: config.layer_configuration,
+          isEditing: false
+        });
+      });
 
-  setTabs(newTabs);
-  setActiveTab(newActiveTab);
-  autoSaveMapConfigurations();
-};
+      setTabs(newTabs);
+      setActiveTab(1);
 
-const saveMapConfigurations = () => {
-  const mapConfigs = tabs
-    .filter(tab => tab.id !== 1)
-    .map((tab, index) => ({
-      tab_name: tab.name,
-      visualization_type: tab.visualizationType,
-      area_type: tab.areaType?.value,
-      layer_configuration: tab.layerConfiguration,
-      order: index
-    }));
-
-  try {
-    localStorage.setItem(MANUAL_SAVE_KEY, JSON.stringify(mapConfigs));
-    alert('Map configurations saved successfully');
-  } catch (error) {
-    console.error('Failed to save map configurations', error);
-    alert('Failed to save map configurations');
-  }
-};
-
-const autoSaveMapConfigurations = () => {
-  const mapConfigs = tabs
-    .filter(tab => tab.id !== 1)
-    .map((tab, index) => ({
-      tab_name: tab.name,
-      visualization_type: tab.visualizationType,
-      area_type: tab.areaType?.value,
-      layer_configuration: tab.layerConfiguration,
-      order: index
-    }));
-
-  try {
-    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(mapConfigs));
-  } catch (error) {
-    console.error('Failed to auto-save map configurations', error);
-  }
-};
-
-// Updated loadMapConfigurations function
-const loadMapConfigurations = async (key = MANUAL_SAVE_KEY, showAlert = true) => {
-  try {
-    const savedConfigs = localStorage.getItem(key);
-    if (!savedConfigs) {
+      return true;
+    } catch (error) {
+      console.error('Failed to load map configurations:', error);
       if (showAlert) {
-        alert('No saved configurations found');
+        alert('Failed to load map configurations');
       }
       return false;
     }
+  };
 
-    // Wait for the map and legend to be ready
-    if (!mapView?.map || !legend) {
-      console.log('Waiting for map and legend to initialize...');
-      await new Promise(resolve => {
-        const checkReady = setInterval(() => {
-          if (mapView?.map && legend) {
-            clearInterval(checkReady);
-            resolve();
-          }
-        }, 100);
-      });
+  const autoSaveMapConfigurations = () => {
+    const mapConfigs = tabs
+      .filter(tab => tab.id !== 1)
+      .map((tab, index) => ({
+        tab_name: tab.name,
+        visualization_type: tab.visualizationType,
+        area_type: tab.areaType?.value,
+        layer_configuration: tab.layerConfiguration,
+        order: index
+      }));
+
+    try {
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(mapConfigs));
+    } catch (error) {
+      console.error('Failed to auto-save map configurations', error);
     }
+  };
 
-    const mapConfigs = JSON.parse(savedConfigs);
-    const newTabs = [{
-      id: 1,
-      name: "Core Map",
-      active: true,
-      visualizationType: null,
-      areaType: areaTypes[0],
-      layerConfiguration: null,
-      isEditing: false
-    }];
+  // Add these useEffects after your existing ones
+  useEffect(() => {
+    // Load auto-saved configurations on mount
+    loadMapConfigurations(AUTO_SAVE_KEY, false);
+  }, []);
 
-    // Process saved configurations
-    mapConfigs.forEach((config, index) => {
-      const newTabId = Math.max(...newTabs.map(tab => tab.id)) + 1;
-      const areaType = areaTypes.find(type => type.value === config.area_type) || areaTypes[0];
-
-      newTabs.push({
-        id: newTabId,
-        name: config.tab_name,
-        active: false,
-        visualizationType: config.visualization_type,
-        areaType: areaType,
-        layerConfiguration: config.layer_configuration,
-        isEditing: false
-      });
-    });
-
-    setTabs(newTabs);
-    setActiveTab(1);
-
-    return true;
-  } catch (error) {
-    console.error('Failed to load map configurations:', error);
-    if (showAlert) {
-      alert('Failed to load map configurations');
+  useEffect(() => {
+    // Auto-save whenever tabs change
+    if (tabs.length > 1) {
+      autoSaveMapConfigurations();
     }
-    return false;
-  }
-};
+  }, [tabs]);
 
-
-// Add these useEffects after your existing ones
-useEffect(() => {
-  // Load auto-saved configurations on mount
-  loadMapConfigurations(AUTO_SAVE_KEY, false);
-}, []);
-
-useEffect(() => {
-  // Auto-save whenever tabs change
-  if (tabs.length > 1) {
-    autoSaveMapConfigurations();
-  }
-}, [tabs]);
-  
   // Update handleLayerConfigChange to save to the specific tab
   const handleLayerConfigChange = (newConfig) => {
     const newTabs = tabs.map((tab) =>
       tab.id === activeTab && tab.visualizationType
-        ? { 
-            ...tab, 
-            layerConfiguration: newConfig
-          }
+        ? {
+          ...tab,
+          layerConfiguration: newConfig
+        }
         : tab
     );
     setTabs(newTabs);
@@ -1515,7 +1511,7 @@ useEffect(() => {
   // Handler for configuration previews
   const handleConfigPreview = (previewConfig) => {
     if (!mapView?.map) return;
-  
+
     // Remove existing visualization layers
     const layersToRemove = [];
     mapView.map.layers.forEach((layer) => {
@@ -1524,7 +1520,7 @@ useEffect(() => {
       }
     });
     layersToRemove.forEach((layer) => mapView.map.remove(layer));
-  
+
     // Create new layer with preview config
     const activeTabData = tabs.find((tab) => tab.id === activeTab);
     if (activeTabData?.visualizationType) {
@@ -1541,18 +1537,18 @@ useEffect(() => {
     }
   };
 
-// Add these useEffects after your existing ones
-useEffect(() => {
-  // Load auto-saved configurations on mount
-  loadMapConfigurations(AUTO_SAVE_KEY, false);
-}, []);
+  // Add these useEffects after your existing ones
+  useEffect(() => {
+    // Load auto-saved configurations on mount
+    loadMapConfigurations(AUTO_SAVE_KEY, false);
+  }, []);
 
-useEffect(() => {
-  // Auto-save whenever tabs change
-  if (tabs.length > 1) {
-    autoSaveMapConfigurations();
-  }
-}, [tabs]);
+  useEffect(() => {
+    // Auto-save whenever tabs change
+    if (tabs.length > 1) {
+      autoSaveMapConfigurations();
+    }
+  }, [tabs]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1565,11 +1561,10 @@ useEffect(() => {
                 <div key={tab.id} className="flex items-center">
                   <div
                     onClick={() => handleTabClick(tab.id)}
-                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
-                      tab.active
+                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${tab.active
                         ? "bg-blue-500 dark:bg-blue-600 text-white"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
+                      }`}
                   >
                     {tab.isEditing ? (
                       <input
@@ -1657,7 +1652,7 @@ useEffect(() => {
               <>
                 <select
                   value={
-                    tabs.find((tab) => tab.id === activeTab)?.areaType?.value || 
+                    tabs.find((tab) => tab.id === activeTab)?.areaType?.value ||
                     areaTypes[0].value
                   }
                   onChange={(e) => {
@@ -1749,8 +1744,8 @@ useEffect(() => {
                 }
                 layerConfig={
                   tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
-                  (tabs.find((tab) => tab.id === activeTab)?.visualizationType 
-                    ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType] 
+                  (tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                    ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType]
                     : null)
                 }
                 onConfigChange={handleLayerConfigChange}

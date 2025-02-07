@@ -333,7 +333,7 @@ class MarketAreaReorder(generics.GenericAPIView):
                     market_area.order = order_mapping[str(market_area.id)]
                     market_area.save()
                 
-                updated_updated_market_areas = MarketArea.objects.filter(
+                updated_market_areas = MarketArea.objects.filter(
                     project_id=project_id
                 ).order_by('order')
                 serializer = self.get_serializer(updated_market_areas, many=True)
@@ -345,7 +345,6 @@ class MarketAreaReorder(generics.GenericAPIView):
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 class StylePresetViewSet(viewsets.ModelViewSet):
     serializer_class = StylePresetSerializer
     permission_classes = [permissions.IsAuthenticated]

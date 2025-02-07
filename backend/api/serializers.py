@@ -95,20 +95,9 @@ class MarketAreaSerializer(serializers.ModelSerializer):
             'style_settings', 'locations', 'radius_points',
             'created_at', 'last_modified',
             'project_number',
+            'order',  # Add this line
         ]
-        read_only_fields = ['created_at', 'last_modified']
-
-    def validate(self, data):
-        if data.get('ma_type') == 'radius':
-            if not data.get('radius_points'):
-                raise serializers.ValidationError(
-                    {"radius_points": "Radius points are required for radius type market areas"}
-                )
-        elif not data.get('locations'):
-            raise serializers.ValidationError(
-                {"locations": "Locations are required for non-radius type market areas"}
-            )
-        return data
+        read_only_fields = ['created_at', 'last_modified', 'order']  # Add 'order' here
 
 class ProjectListSerializer(serializers.ModelSerializer):
     market_areas_count = serializers.IntegerField(read_only=True)
