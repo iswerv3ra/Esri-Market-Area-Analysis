@@ -449,7 +449,7 @@ const areaTypes = [
   { value: 11, label: "County", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/11" }
 ];
 
-export default function MapComponent({ onToggleList, currentProject }) {
+export default function MapComponent({ onToggleLis }) {
   const mapRef = useRef(null);
   const { setMapView, mapView } = useMap();
   const initCompleteRef = useRef(false);
@@ -457,21 +457,10 @@ export default function MapComponent({ onToggleList, currentProject }) {
   const [legend, setLegend] = useState(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
-  // First, update the initial state
-  // Add a check at the beginning of the component
-  if (!currentProject) {
-    console.error('No project provided to MapComponent');
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-gray-500">Please select a project to view map configurations.</p>
-      </div>
-    );
-  }
 
-  // Modify the storage keys to use project ID if available
-  const AUTO_SAVE_KEY = `autoSavedMapConfigurations_${currentProject.id || 'default'}`;
-  const MANUAL_SAVE_KEY = `mapConfigurations_${currentProject.id || 'default'}`;
-
+  // Modify storage keys to use a static default
+  const AUTO_SAVE_KEY = 'autoSavedMapConfigurations_default';
+  const MANUAL_SAVE_KEY = 'mapConfigurations_default';
 
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
@@ -1395,7 +1384,6 @@ export default function MapComponent({ onToggleList, currentProject }) {
     autoSaveMapConfigurations();
   };
 
-  // Update save and load methods to include project-specific logic
   const saveMapConfigurations = () => {
     const mapConfigs = tabs
       .filter(tab => tab.id !== 1)
@@ -1404,27 +1392,26 @@ export default function MapComponent({ onToggleList, currentProject }) {
         visualization_type: tab.visualizationType,
         area_type: tab.areaType?.value,
         layer_configuration: tab.layerConfiguration,
-        order: index,
-        project_id: currentProject.id  // Add project ID
+        order: index
+        // Remove project_id reference
       }));
-
+  
     try {
-      // Send to backend API instead of local storage
-      axios.post(`/api/map-configurations/?project=${currentProject.id}`, mapConfigs);
+      // Use local storage instead of API call
+      localStorage.setItem(MANUAL_SAVE_KEY, JSON.stringify(mapConfigs));
       alert('Map configurations saved successfully');
     } catch (error) {
       console.error('Failed to save map configurations', error);
       alert('Failed to save map configurations');
     }
   };
-
+  
   const loadMapConfigurations = async (key = MANUAL_SAVE_KEY, showAlert = true) => {
     try {
-      // Fetch from backend API instead of local storage
-      const response = await axios.get(`/api/map-configurations/?project=${currentProject.id}`);
-      const mapConfigs = response.data;
-
-      // Similar loading logic as before, but using API data
+      // Use local storage instead of API call
+      const storedConfigs = localStorage.getItem(key);
+      const mapConfigs = storedConfigs ? JSON.parse(storedConfigs) : [];
+  
       const newTabs = [{
         id: 1,
         name: "Core Map",
@@ -1434,11 +1421,11 @@ export default function MapComponent({ onToggleList, currentProject }) {
         layerConfiguration: null,
         isEditing: false
       }];
-
+  
       mapConfigs.forEach((config, index) => {
         const newTabId = Math.max(...newTabs.map(tab => tab.id)) + 1;
         const areaType = areaTypes.find(type => type.value === config.area_type) || areaTypes[0];
-
+  
         newTabs.push({
           id: newTabId,
           name: config.tab_name,
@@ -1449,10 +1436,10 @@ export default function MapComponent({ onToggleList, currentProject }) {
           isEditing: false
         });
       });
-
+  
       setTabs(newTabs);
       setActiveTab(1);
-
+  
       return true;
     } catch (error) {
       console.error('Failed to load map configurations:', error);
