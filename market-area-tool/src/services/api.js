@@ -518,6 +518,101 @@ export const updateMarketArea = async (projectId, marketAreaId, updatedData) => 
   return await marketAreasAPI.update(projectId, marketAreaId, updatedData);
 };
 
+export const mapConfigurationsAPI = {
+  getAll: async (projectId) => {
+    try {
+      if (!projectId) {
+        throw new Error('Project ID is required');
+      }
+
+      const response = await api.get('/api/map-configurations/', {
+        params: { project: projectId }
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('[API] Error fetching map configurations:', error);
+      throw error;
+    }
+  },
+
+  create: async (projectId, configData) => {
+    try {
+      if (!projectId) {
+        throw new Error('Project ID is required');
+      }
+
+      const requestData = {
+        project: projectId,
+        project_id: projectId,
+        tab_name: configData.tab_name,
+        visualization_type: configData.visualization_type,
+        area_type: configData.area_type,
+        layer_configuration: configData.layer_configuration,
+        order: configData.order || 0
+      };
+
+      console.log('[API] Creating map configuration:', {
+        projectId,
+        requestData
+      });
+
+      const response = await api.post('/api/map-configurations/', requestData);
+      return response;
+    } catch (error) {
+      console.error('[API] Create error:', {
+        error,
+        response: error.response?.data,
+        sentData: configData
+      });
+      throw error;
+    }
+  },
+
+  update: async (configId, configData) => {
+    try {
+      if (!configId) {
+        console.error('[API] Config ID is missing for update request');
+        throw new Error('Configuration ID is required');
+      }
+
+      // Ensure trailing slash
+      const url = `/api/map-configurations/${configId}/`;
+      const response = await api.put(url, configData);
+      return response;
+    } catch (error) {
+      console.error(`[API] Error updating map configuration ${configId}:`, error);
+      throw error;
+    }
+  },
+
+  delete: async (configId) => {
+    try {
+      if (!configId) {
+        console.error('[API] Config ID is missing for delete request');
+        throw new Error('Configuration ID is required');
+      }
+
+      // Ensure trailing slash
+      const url = `/api/map-configurations/${configId}/`;
+      console.log('[API] Deleting configuration at URL:', url);
+      
+      const response = await api.delete(url);
+      return response;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.warn(`[API] Map configuration ${configId} not found (already deleted)`);
+        return {
+          status: 200,
+          data: { message: 'Configuration already deleted or not found' }
+        };
+      }
+      console.error(`[API] Error deleting map configuration ${configId}:`, error);
+      throw error;
+    }
+  }
+};
+
 // ---------------------------------------------------------
 // Admin API endpoints
 // ---------------------------------------------------------
@@ -630,7 +725,4 @@ export const adminAPI = {
   }
 };
 
-// ---------------------------------------------------------
-// Export the base axios instance if needed
-// ---------------------------------------------------------
 export default api;

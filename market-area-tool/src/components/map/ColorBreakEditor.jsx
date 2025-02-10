@@ -66,10 +66,10 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     const isFirst = index === 0;
     const isLast = index === breaks.length - 1;
 
-    if (isFirst && breakItem.minValue === -Infinity) {
+    if (isFirst) {
       return `Less than ${cleanNumber(breakItem.maxValue)}`;
     }
-    if (isLast && breakItem.maxValue === Infinity) {
+    if (isLast) {
       return `${cleanNumber(breakItem.minValue)} or more`;
     }
     return `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;

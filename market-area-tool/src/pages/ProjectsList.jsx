@@ -82,11 +82,26 @@ export default function ProjectsList() {
     try {
       const response = await projectsAPI.retrieve(projectId);
       console.log('Full project response:', response.data);
-      navigate(`/projects/${projectId}/market-areas`, { replace: true });
-      window.location.reload();
+      
+      // Store the project ID in multiple places to ensure availability
+      localStorage.setItem('currentProjectId', projectId);
+      sessionStorage.setItem('currentProjectId', projectId);
+      
+      // Navigate to the project's market areas page
+      navigate(`/projects/${projectId}/market-areas`, { 
+        replace: true,
+        state: { projectId } // Add project ID to route state
+      });
+  
+      // Since you're reloading the page after navigation,
+      // make sure project ID is available immediately after reload
+      window.location.href = `/projects/${projectId}/market-areas`;
     } catch (error) {
-      console.error('Full error object:', error);
-      console.error('Error response:', error.response);
+      console.error('Project loading error:', {
+        error,
+        projectId,
+        response: error.response
+      });
       const errorMessage = error.response?.data?.detail || 'Failed to load project details';
       alert(errorMessage);
     }

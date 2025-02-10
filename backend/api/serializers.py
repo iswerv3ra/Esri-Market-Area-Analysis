@@ -179,11 +179,32 @@ class VariablePresetSerializer(serializers.ModelSerializer):
     
 
 class MapConfigurationSerializer(serializers.ModelSerializer):
+    project = serializers.UUIDField(write_only=True)
+    
     class Meta:
         model = MapConfiguration
         fields = [
-            'id', 'tab_name', 'visualization_type', 
+            'id', 'project', 'tab_name', 'visualization_type', 
             'area_type', 'layer_configuration', 
             'order', 'created_at', 'last_modified'
         ]
         read_only_fields = ['id', 'created_at', 'last_modified']
+
+    def validate_area_type(self, value):
+        valid_choices = dict(MarketArea.MARKET_AREA_TYPES)
+        if value not in valid_choices:
+            raise serializers.ValidationError(f"Invalid area_type. Valid choices are: {list(valid_choices.keys())}")
+        return value
+
+    def create(self, validated_data):
+        try:
+            project_id = validated_data.pop('project')
+            project = Project.objects.get(id=project_id)
+            return MapConfiguration.objects.create(project=project, **validated_data)
+        except Project.DoesNotExist:
+            raise serializers.ValidationError({"project": "Project does not exist"})
+        except Exception as e:
+            import traceback
+            print(f"Error creating MapConfiguration: {str(e)}")
+            print(traceback.format_exc())
+            raise serializers.ValidationError(str(e))

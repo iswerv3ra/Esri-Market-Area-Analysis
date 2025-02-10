@@ -421,15 +421,54 @@ class MapConfigurationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        project_id = self.request.query_params.get('project')
-        if project_id:
-            return MapConfiguration.objects.filter(project_id=project_id).order_by('order')
-        return MapConfiguration.objects.none()
-
-    def perform_create(self, serializer):
-        project_id = self.request.query_params.get('project')
-        if not project_id:
-            raise serializers.ValidationError("Project ID is required")
+        # For list action, filter by project
+        if self.action == 'list':
+            project_id = self.request.query_params.get('project')
+            if project_id:
+                return MapConfiguration.objects.filter(
+                    project_id=project_id
+                ).order_by('order')
+            return MapConfiguration.objects.none()
         
-        project = Project.objects.get(id=project_id)
-        serializer.save(project=project)
+        # For other actions (retrieve, update, delete), return all configurations
+        return MapConfiguration.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        try:
+            project_id = request.data.get('project')
+            tab_name = request.data.get('tab_name')
+            
+            # Make sure we're only deleting configurations for the specific project
+            existing_config = MapConfiguration.objects.filter(
+                project_id=project_id, 
+                tab_name=tab_name
+            ).first()
+
+            if existing_config:
+                existing_config.delete()
+
+            return super().create(request, *args, **kwargs)
+            
+        except Exception as e:
+            print(f"Error in MapConfigurationViewSet.create: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            # Add logging to help debug
+            print(f"Deleting configuration with ID: {instance.id}")
+            result = super().destroy(request, *args, **kwargs)
+            print(f"Successfully deleted configuration")
+            return result
+        except Exception as e:
+            print(f"Error deleting configuration: {str(e)}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
