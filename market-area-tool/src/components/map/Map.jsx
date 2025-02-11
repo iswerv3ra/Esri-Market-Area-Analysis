@@ -21,15 +21,15 @@ import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path a
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-const colorScheme = {
-  level1: [255, 99, 71, 0.45],    // Salmon red
-  level2: [255, 165, 0, 0.45],    // Orange
-  level3: [255, 255, 144, 0.45],  // Light yellow
-  level4: [144, 238, 144, 0.45],  // Light green
-  level5: [135, 206, 235, 0.45],  // Sky blue
-  level6: [0, 0, 139, 0.45],      // Dark blue
-  level7: [128, 0, 128, 0.45]     // Purple
-};
+  const colorScheme = {
+    level1: [128, 0, 128, 0.45],      // Purple
+    level2: [0, 0, 139, 0.45],        // Dark blue
+    level3: [135, 206, 235, 0.45],    // Sky blue
+    level4: [144, 238, 144, 0.45],    // Light green
+    level5: [255, 255, 144, 0.45],    // Light yellow
+    level6: [255, 165, 0, 0.45],      // Orange
+    level7: [255, 99, 71, 0.45]       // Salmon red
+  };
 
 // Update the createClassBreaks function accordingly
 const createClassBreaks = (breakPoints, labels) => {
