@@ -17,7 +17,6 @@ import { useNavigate, useParams } from "react-router-dom"; // Add useNavigate he
 import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path as needed
 
 
-
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
@@ -818,8 +817,24 @@ export default function MapComponent({ onToggleLis }) {
             widget: new ScaleBar({
               view,
               unit: "imperial",
+              style: {
+                ruler: {
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "#000000",
+                  borderWidth: 2,
+                  tickColor: "#000000",
+                  tickLength: 10,
+                  labelColor: "#000000",
+                  fontSize: 36,  // Significantly larger font size
+                  width: 400,    // Much wider scale bar
+                  height: 80     // Much taller scale bar
+                }
+              },
+              // Make scale bar much larger overall
+              scaleMultiplier: 4,
+              maxWidth: 400
             }),
-            position: "bottom-right",
+            position: "bottom-right"
           },
         ];
 
