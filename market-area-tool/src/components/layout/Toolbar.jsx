@@ -1,4 +1,3 @@
-// src/components/market-areas/Toolbar.jsx
 import { useState, useEffect, Fragment, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Menu, Transition } from "@headlessui/react";
@@ -693,15 +692,16 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           </Menu>
         </div>
 
-        <div className="flex-1 flex items-center">
-          <div
-            ref={searchWidgetRef}
-            className="flex-1 max-w-2xl mr-4 relative border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
-          ></div>
-
-          <div className="text-right">
-            <div className="text-sm font-semibold text-gray-900 dark:text-white">
-              {projectDetails.project_number} - {projectDetails.client}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-4 w-full max-w-3xl">
+            <div
+              ref={searchWidgetRef}
+              className="flex-1 relative border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+            />
+            <div className="whitespace-nowrap">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                {projectDetails.project_number} - {projectDetails.client}
+              </div>
             </div>
           </div>
         </div>
