@@ -25,14 +25,12 @@ function InnerLayout() {
         console.log('[MarketAreasLayout] Starting initial market areas fetch');
         const areas = await fetchMarketAreas(projectId);
         console.log('[MarketAreasLayout] Fetch complete, got areas:', areas?.length);
-        console.log("Fetched marketAreas:", marketAreas);
 
-        // Add a slight delay before opening the list
         setTimeout(() => {
           console.log('[MarketAreasLayout] Opening MA list after delay');
           openMAList();
           initialLoadDone.current = true;
-        }, 500); // 500ms delay
+        }, 500);
       } catch (error) {
         console.error('[MarketAreasLayout] Error fetching market areas:', error);
       }
@@ -48,7 +46,6 @@ function InnerLayout() {
   };
 
   const openMAList = () => {
-    console.log('[MarketAreasLayout] Opening MA list with areas:', marketAreas?.length);
     setEditingMarketArea(null);
     setSidebarContent('list');
     setIsSidebarOpen(true);
@@ -66,7 +63,6 @@ function InnerLayout() {
     setEditingMarketArea(null);
   };
 
-  // Handle map resizing
   useEffect(() => {
     if (!mapView) return;
 
@@ -93,27 +89,35 @@ function InnerLayout() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-none h-14">
+      <div className="flex-none h-14 relative z-20">
         <Toolbar
           onCreateMA={openCreateMA}
           onToggleList={openMAList}
         />
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 min-h-0 relative">
         <div 
-          id="map-container" 
-          style={{ 
-            width: isSidebarOpen ? 'calc(100% - 400px)' : '100%',
-            transition: 'width 300ms ease-in-out'
+          id="map-container"
+          className="absolute inset-0 transition-all duration-300 ease-in-out"
+          style={{
+            clipPath: isSidebarOpen 
+              ? 'polygon(0 0, 100% 0, 100% 55px, calc(100% - 500px) 55px, calc(100% - 500px) 100%, 0 100%)'
+              : 'polygon(0 0, 100% 0, 100% 100%, 0 100%)'
           }}
-          className="h-full"
         >
           <MapComponent />
         </div>
 
-        {isSidebarOpen && (
-          <div className="w-[500px] flex-shrink-0 h-full">
+        <div 
+          className={`
+            absolute right-0 top-[52px] w-[500px] h-[calc(100%-55px)]
+            bg-white dark:bg-gray-800
+            transition-transform duration-300 ease-in-out z-10
+            ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+          `}
+        >
+          {isSidebarOpen && (
             <Sidebar
               isOpen={isSidebarOpen}
               onClose={closeSidebar}
@@ -121,17 +125,13 @@ function InnerLayout() {
               editingMarketArea={editingMarketArea}
               onEdit={handleEdit}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 export default function MarketAreasLayout() {
-  return (
-    // Just return <InnerLayout/> 
-    // because the top-level <MapProvider> is already in App.jsx
-    <InnerLayout />
-  );
+  return <InnerLayout />;
 }
