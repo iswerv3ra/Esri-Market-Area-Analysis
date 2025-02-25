@@ -6,6 +6,15 @@ import { mapConfigurationsAPI } from '../../services/api';
 const DotDensityEditor = ({ config, onChange }) => {
   if (!config) return null;
 
+  // Ensure config has the necessary properties
+  const safeConfig = {
+    ...config,
+    dotSize: config.dotSize || 1,
+    dotValue: config.dotValue || 1,
+    dotType: 'circle', // Always use circle
+    attributes: config.attributes || [{ color: '#000000' }]
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -14,9 +23,9 @@ const DotDensityEditor = ({ config, onChange }) => {
         </label>
         <input
           type="number"
-          value={config.dotSize}
+          value={safeConfig.dotSize}
           onChange={(e) => onChange({ 
-            ...config, 
+            ...safeConfig, 
             dotSize: Math.max(0.5, Math.min(10, parseFloat(e.target.value) || 0.5))
           })}
           min="0.5"
@@ -33,9 +42,9 @@ const DotDensityEditor = ({ config, onChange }) => {
         </label>
         <input
           type="number"
-          value={config.dotValue}
+          value={safeConfig.dotValue}
           onChange={(e) => onChange({ 
-            ...config, 
+            ...safeConfig, 
             dotValue: Math.max(1, parseInt(e.target.value) || 1)
           })}
           min="1"
@@ -50,11 +59,14 @@ const DotDensityEditor = ({ config, onChange }) => {
         </label>
         <input
           type="color"
-          value={config.attributes?.[0]?.color || '#000000'}
+          value={safeConfig.attributes[0]?.color || '#000000'}
           onChange={(e) => {
-            const newAttributes = [...(config.attributes || [])];
+            const newAttributes = [...safeConfig.attributes];
             newAttributes[0] = { ...newAttributes[0], color: e.target.value };
-            onChange({ ...config, attributes: newAttributes });
+            onChange({ 
+              ...safeConfig, 
+              attributes: newAttributes 
+            });
           }}
           className="w-full h-10 bg-transparent rounded cursor-pointer"
         />
@@ -62,6 +74,7 @@ const DotDensityEditor = ({ config, onChange }) => {
     </div>
   );
 };
+
 
 const LayerPropertiesEditor = ({ 
   isOpen, 
@@ -221,8 +234,10 @@ const LayerPropertiesEditor = ({
         </div>
       );
     }
-
-    if (visualizationType === 'population') {
+  
+    // Check for dot density type based on configuration properties
+    // rather than visualization name
+    if (currentConfig.type === "dot-density") {
       return (
         <DotDensityEditor
           config={currentConfig}
@@ -230,13 +245,13 @@ const LayerPropertiesEditor = ({
         />
       );
     }
-
+  
     const classBreakTypes = [
       'income', 'growth', 'density', 'age', 
       'unemployment', 'homeValue', 'affordability'
     ];
     
-    if (classBreakTypes.includes(visualizationType)) {
+    if (currentConfig.type === "class-breaks" || classBreakTypes.includes(visualizationType)) {
       return (
         <ColorBreakEditor
           breaks={currentConfig.classBreakInfos || []}
@@ -251,7 +266,7 @@ const LayerPropertiesEditor = ({
         />
       );
     }
-
+  
     return (
       <div className="p-4 text-gray-400">
         No editor available for this visualization type.

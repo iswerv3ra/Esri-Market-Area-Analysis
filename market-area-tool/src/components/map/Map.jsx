@@ -1790,6 +1790,8 @@ export default function MapComponent({ onToggleLis }) {
   const { projectId: routeProjectId } = useParams();
   const localStorageProjectId = localStorage.getItem('currentProjectId');
   const sessionStorageProjectId = sessionStorage.getItem('currentProjectId');
+  const [isSaving, setIsSaving] = useState(false);
+
 
   // Use the first available project ID
   const projectId = routeProjectId || localStorageProjectId || sessionStorageProjectId;
@@ -2042,7 +2044,9 @@ export default function MapComponent({ onToggleLis }) {
     }
   }, []);
 
-
+  const sidebarWidth = 350; // Your standard sidebar width
+  const padding = 20; // Additional padding
+  
   useEffect(() => {
     let isMounted = true;
 
@@ -2116,48 +2120,18 @@ export default function MapComponent({ onToggleLis }) {
             position: "top-left",
           },
           {
+            widget: new ScaleBar({
+              view,
+              unit: "imperial"
+            }),
+            position: "top-left",
+          },
+          {
             widget: new BasemapToggle({
               view,
               nextBasemap: "arcgis-imagery",
             }),
             position: "bottom-right",
-          },
-          {
-            widget: new Locate({
-              view,
-              useHeadingEnabled: false,
-              goToOverride: (view, options) => {
-                options.target.scale = 1500;
-                return view.goTo(options.target, {
-                  duration: 1000,
-                  easing: "ease-in-out",
-                });
-              },
-            }),
-            position: "top-left",
-          },
-          {
-            widget: new ScaleBar({
-              view,
-              unit: "imperial",
-              style: {
-                ruler: {
-                  backgroundColor: "#FFFFFF",
-                  borderColor: "#000000",
-                  borderWidth: 2,
-                  tickColor: "#000000",
-                  tickLength: 10,
-                  labelColor: "#000000",
-                  fontSize: 36,  // Significantly larger font size
-                  width: 400,    // Much wider scale bar
-                  height: 80     // Much taller scale bar
-                }
-              },
-              // Make scale bar much larger overall
-              scaleMultiplier: 4,
-              maxWidth: 400
-            }),
-            position: "bottom-right"
           },
         ];
 
@@ -3261,76 +3235,137 @@ export default function MapComponent({ onToggleLis }) {
             </div>
           </div>
 
-          {/* Dropdowns and Save/Load buttons on the right */}
           <div className="flex items-center space-x-2">
-            {activeTab !== 1 && (
-              <>
-                <select
-                  value={
-                    tabs.find((tab) => tab.id === activeTab)?.areaType?.value ||
-                    areaTypes[0].value
-                  }
-                  onChange={(e) => {
-                    const newAreaType = areaTypes.find(
-                      type => type.value === parseInt(e.target.value)
-                    );
-                    handleAreaTypeChange(activeTab, newAreaType);
-                  }}
-                  className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-                      bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-                      text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-                      focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {areaTypes.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+          {activeTab !== 1 && (
+            <>
+              <select
+                value={
+                  tabs.find((tab) => tab.id === activeTab)?.areaType?.value ||
+                  areaTypes[0].value
+                }
+                onChange={(e) => {
+                  const newAreaType = areaTypes.find(
+                    type => type.value === parseInt(e.target.value)
+                  );
+                  handleAreaTypeChange(activeTab, newAreaType);
+                }}
+                className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
+                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                    focus:ring-blue-500 focus:border-blue-500"
+              >
+                {areaTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
 
-                <select
-                  value={
-                    tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""
-                  }
-                  onChange={(e) => handleVisualizationChange(activeTab, e.target.value)}
-                  className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
-                      bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-                      text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-                      focus:ring-blue-500 focus:border-blue-500"
+              <select
+                value={
+                  tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""
+                }
+                onChange={(e) => handleVisualizationChange(activeTab, e.target.value)}
+                className="block w-48 rounded-md border border-gray-300 dark:border-gray-600 
+                    bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
+                    text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+                    focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select visualization</option>
+                {visualizationOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+                <button
+                  onClick={() => setIsEditorOpen(true)}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
+                      dark:hover:text-gray-300 focus:outline-none"
+                  title="Edit layer properties"
                 >
-                  <option value="">Select visualization</option>
-                  {visualizationOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-                  <button
-                    onClick={() => setIsEditorOpen(true)}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
-                         dark:hover:text-gray-300 focus:outline-none"
-                    title="Edit layer properties"
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      />
-                    </svg>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
+          
+          {/* Save button always visible */}
+          <button
+            onClick={async () => {
+              try {
+                setIsSaving(true);
+                
+                const configurations = tabs
+                  .filter(tab => tab.id !== 1)
+                  .map((tab, index) => ({
+                    project_id: projectId,
+                    project: projectId,
+                    tab_name: tab.name,
+                    visualization_type: tab.visualizationType || '',
+                    area_type: convertAreaTypeToString(tab.id === activeTab ? selectedAreaType.value : tab.areaType?.value),
+                    layer_configuration: tab.layerConfiguration,
+                    order: index
+                  }));
+                
+                const existingConfigs = await mapConfigurationsAPI.getAll(projectId);
+                if (existingConfigs?.data?.length > 0) {
+                  await Promise.all(
+                    existingConfigs.data.map(config => 
+                      mapConfigurationsAPI.delete(config.id)
+                    )
+                  );
+                }
+                
+                for (const config of configurations) {
+                  await mapConfigurationsAPI.create(projectId, {
+                    ...config,
+                    project: projectId
+                  });
+                }
+                
+                alert('Map configurations saved successfully');
+              } catch (error) {
+                console.error('[Save] Error:', error);
+                alert('Failed to save map configurations');
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
+                dark:hover:text-gray-300 focus:outline-none"
+            title="Save map configurations"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-5 w-5" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" 
+              />
+            </svg>
+          </button>
+        </div>
         </div>
       </div>
 
