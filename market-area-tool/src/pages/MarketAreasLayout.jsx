@@ -25,6 +25,7 @@ function InnerLayout() {
         console.log('[MarketAreasLayout] Starting initial market areas fetch');
         const areas = await fetchMarketAreas(projectId);
         console.log('[MarketAreasLayout] Fetch complete, got areas:', areas?.length);
+        console.log("Fetched marketAreas:", marketAreas);
 
         setTimeout(() => {
           console.log('[MarketAreasLayout] Opening MA list after delay');
@@ -63,6 +64,22 @@ function InnerLayout() {
     setEditingMarketArea(null);
   };
 
+  // Effect to handle map resizing when sidebar changes
+  useEffect(() => {
+    if (!mapView) return;
+
+    // Give the DOM time to update before resizing the map
+    const timer = setTimeout(() => {
+      if (mapView && typeof mapView.resize === 'function') {
+        mapView.resize();
+        console.log('[MarketAreasLayout] Resized map after sidebar state change');
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [mapView, isSidebarOpen]);
+
+  // Effect to handle resize observer
   useEffect(() => {
     if (!mapView) return;
 
@@ -74,8 +91,6 @@ function InnerLayout() {
       }
     };
 
-    handleResize();
-
     const resizeObserver = new ResizeObserver(handleResize);
     const mapContainer = document.getElementById('map-container');
     if (mapContainer) {
@@ -85,7 +100,7 @@ function InnerLayout() {
     return () => {
       resizeObserver.disconnect();
     };
-  }, [mapView, isSidebarOpen]);
+  }, [mapView]);
 
   return (
     <div className="flex flex-col h-full">
@@ -97,25 +112,35 @@ function InnerLayout() {
       </div>
 
       <div className="flex-1 min-h-0 relative">
+        {/* Map container always takes full size */}
         <div 
           id="map-container"
-          className="absolute inset-0 transition-all duration-300 ease-in-out"
+          className="absolute inset-0"
           style={{
-            clipPath: isSidebarOpen 
-              ? 'polygon(0 0, 100% 0, 100% 55px, calc(100% - 500px) 55px, calc(100% - 500px) 100%, 0 100%)'
-              : 'polygon(0 0, 100% 0, 100% 100%, 0 100%)'
+            // Updated sidebar width from 350px to 440px
+            '--sidebar-width': isSidebarOpen ? '440px' : '0px'
           }}
         >
-          <MapComponent />
+          <MapComponent 
+            sidebarOpen={isSidebarOpen} 
+            sidebarWidth={440} // Updated from 350 to 440
+            adjustEditorPosition={true}
+          />
         </div>
 
+        {/* Market Areas sidebar - increased width from 350px to 440px (25% increase) */}
         <div 
           className={`
-            absolute right-0 top-[52px] w-[500px] h-[calc(100%-55px)]
-            bg-white dark:bg-gray-800
-            transition-transform duration-300 ease-in-out z-10
+            absolute right-0 top-[52px] w-[440px] h-[calc(100%-52px)]
+            bg-[#1a202c]
+            shadow-lg
+            transition-transform duration-300 ease-in-out z-30
             ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+            border-t border-gray-700
           `}
+          style={{
+            pointerEvents: 'auto' // Ensure click events work
+          }}
         >
           {isSidebarOpen && (
             <Sidebar

@@ -20,15 +20,49 @@ import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path a
 const API_KEY =
   "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
-  const colorScheme = {
-    level1: [128, 0, 128, 0.45],      // Purple
-    level2: [0, 0, 139, 0.45],        // Dark blue
-    level3: [135, 206, 235, 0.45],    // Sky blue
-    level4: [144, 238, 144, 0.45],    // Light green
-    level5: [255, 255, 144, 0.45],    // Light yellow
-    level6: [255, 165, 0, 0.45],      // Orange
-    level7: [255, 99, 71, 0.45]       // Salmon red
-  };
+const colorScheme = {
+  level1: [128, 0, 128, 0.45],      // Purple
+  level2: [0, 0, 139, 0.45],        // Dark blue
+  level3: [135, 206, 235, 0.45],    // Sky blue
+  level4: [144, 238, 144, 0.45],    // Light green
+  level5: [255, 255, 144, 0.45],    // Light yellow
+  level6: [255, 165, 0, 0.45],      // Orange
+  level7: [255, 99, 71, 0.45]       // Salmon red
+};
+
+
+// ZoomAlert Component
+const ZoomAlert = () => {
+  const { isOutsideZoomRange, zoomMessage } = useMap();
+
+  if (!isOutsideZoomRange || !zoomMessage) return null;
+
+  return (
+    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-lg">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-yellow-400"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-yellow-700">{zoomMessage}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Update the createClassBreaks function accordingly
 const createClassBreaks = (breakPoints, labels) => {
@@ -46,28 +80,10 @@ const createClassBreaks = (breakPoints, labels) => {
     label: labels[index]
   }));
 };
+
+
 const initialLayerConfigurations = {
-  population: {
-    type: "dot-density",
-    field: "TOTPOP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: {
-      width: 0.5,
-      color: [50, 50, 50, 0.2],
-    },
-    legendOptions: {
-      unit: "people",
-    },
-    attributes: [
-      {
-        field: "TOTPOP_CY",
-        color: "#E60049",
-        label: "Total Population",
-      },
-    ],
-  },
+  // Existing heatmap configurations
   income: {
     type: "class-breaks",
     field: "MEDHINC_CY",
@@ -235,18 +251,1308 @@ const initialLayerConfigurations = {
         "175 or more"
       ]
     )
+  },
+  MEDHINC_CY: {
+    type: "class-breaks",
+    field: "MEDHINC_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  AVGHINC_CY: {
+    type: "class-breaks",
+    field: "AVGHINC_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC0_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC0_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC15_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC15_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500000 },
+        { min: 2000, max: 5000 },
+        { min: 1000, max: 2000 },
+        { min: 500, max: 1000 },
+        { min: 250, max: 500 },
+        { min: 0 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC25_CY: {
+    type: "class-breaks",
+    field: "HINC25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5000 },
+        { min: 2000, max: 5000 },
+        { min: 1000, max: 2000 },
+        { min: 500, max: 1000 },
+        { min: 250, max: 500 },
+        { min: 0 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC35_CY: {
+    type: "class-breaks",
+    field: "HINC35_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC50_CY: {
+    type: "class-breaks",
+    field: "HINC50_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC75_CY: {
+    type: "class-breaks",
+    field: "HINC75_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC100_CY: {
+    type: "class-breaks",
+    field: "HINC100_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC150_CY: {
+    type: "class-breaks",
+    field: "HINC150_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+  HINC200_CY: {
+    type: "class-breaks",
+    field: "HINC200_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 125000 },
+        { min: 125000, max: 150000 },
+        { min: 150000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $125,000",
+        "$125,000 - $150,000",
+        "$150,000 or more"
+      ]
+    )
+  },
+
+  // New dot density configurations
+  TOTPOP_CY: {
+    type: "dot-density",
+    field: "TOTPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "TOTPOP_CY", color: "#E60049", label: "Total Population" }]
+  },
+  TOTHH_CY: {
+    type: "dot-density",
+    field: "TOTHH_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "TOTHH_CY", color: "#0BB4FF", label: "Total Households" }]
+  },
+  DPOP_CY: {
+    type: "dot-density",
+    field: "DPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "DPOP_CY", color: "#50E991", label: "Daytime Population" }]
+  },
+  DPOPWRK_CY: {
+    type: "dot-density",
+    field: "DPOPWRK_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "DPOPWRK_CY", color: "#9B19F5", label: "Daytime Workers" }]
+  },
+  WORKAGE_CY: {
+    type: "dot-density",
+    field: "WORKAGE_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "WORKAGE_CY", color: "#FFB400", label: "Working Age Population" }]
+  },
+  SENIOR_CY: {
+    type: "dot-density",
+    field: "SENIOR_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "SENIOR_CY", color: "#007ED6", label: "Senior Population" }]
+  },
+  CHILD_CY: {
+    type: "dot-density",
+    field: "CHILD_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "children" },
+    attributes: [{ field: "CHILD_CY", color: "#FF6B6B", label: "Child Population" }]
+  },
+  HISPPOP_CY: {
+    type: "dot-density",
+    field: "HISPPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "HISPPOP_CY", color: "#007ED6", label: "Hispanic Population" }]
+  },
+  NHSPWHT_CY: {
+    type: "dot-density",
+    field: "NHSPWHT_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPWHT_CY", color: "#5954D6", label: "White Non-Hispanic Population" }]
+  },
+  NHSPBLK_CY: {
+    type: "dot-density",
+    field: "NHSPBLK_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPBLK_CY", color: "#9B19F5", label: "Black Non-Hispanic Population" }]
+  },
+  NHSPASN_CY: {
+    type: "dot-density",
+    field: "NHSPASN_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPASN_CY", color: "#FF6B6B", label: "Asian Non-Hispanic Population" }]
+  },
+  NHSPAI_CY: {
+    type: "dot-density",
+    field: "NHSPAI_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPAI_CY", color: "#00C6B7", label: "American Indian/Alaska Native Non-Hispanic" }]
+  },
+  EMP_CY: {
+    type: "dot-density",
+    field: "EMP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMP_CY", color: "#00BA3F", label: "Employed Population" }]
+  },
+  UNEMP_CY: {
+    type: "dot-density",
+    field: "UNEMP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNEMP_CY", color: "#E60049", label: "Unemployed Population" }]
+  },
+  OWNER_CY: {
+    type: "dot-density",
+    field: "OWNER_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "OWNER_CY", color: "#0BB4FF", label: "Owner Occupied Housing" }]
+  },
+  RENTER_CY: {
+    type: "dot-density",
+    field: "RENTER_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "RENTER_CY", color: "#FFB400", label: "Renter Occupied Housing" }]
+  },
+  // Age-specific populations
+  POP0_CY: {
+    type: "dot-density",
+    field: "POP0_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP0_CY", color: "#FF9E8F", label: "Population Age 0-4" }]
+  },
+  POP5_CY: {
+    type: "dot-density",
+    field: "POP5_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP5_CY", color: "#FF8E72", label: "Population Age 5-9" }]
+  },
+  POP10_CY: {
+    type: "dot-density",
+    field: "POP10_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP10_CY", color: "#FF7E55", label: "Population Age 10-14" }]
+  },
+  POP15_CY: {
+    type: "dot-density",
+    field: "POP15_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP15_CY", color: "#FF6E38", label: "Population Age 15-19" }]
+  },
+  POP35_CY: {
+    type: "dot-density",
+    field: "POP35_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP35_CY", color: "#FFF4B3", label: "Population Age 35-39" }]
+  },
+  POP40_CY: {
+    type: "dot-density",
+    field: "POP40_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP40_CY", color: "#B3FFB3", label: "Population Age 40-44" }]
+  },
+  POP45_CY: {
+    type: "dot-density",
+    field: "POP45_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP45_CY", color: "#B3D1FF", label: "Population Age 45-49" }]
+  },
+  POP50_CY: {
+    type: "dot-density",
+    field: "POP50_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP50_CY", color: "#FFB3E6", label: "Population Age 50-54" }]
+  },
+  POP55_CY: {
+    type: "dot-density",
+    field: "POP55_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP55_CY", color: "#FFE6B3", label: "Population Age 55-59" }]
+  },
+  POP60_CY: {
+    type: "dot-density",
+    field: "POP60_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP60_CY", color: "#E6FFB3", label: "Population Age 60-64" }]
+  },
+  POP65_CY: {
+    type: "dot-density",
+    field: "POP65_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP65_CY", color: "#B3FFE6", label: "Population Age 65-69" }]
+  },
+  POP70_CY: {
+    type: "dot-density",
+    field: "POP70_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP70_CY", color: "#B3FFFF", label: "Population Age 70-74" }]
+  },
+  POP75_CY: {
+    type: "dot-density",
+    field: "POP75_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP75_CY", color: "#B3B3FF", label: "Population Age 75-79" }]
+  },
+  POP80_CY: {
+    type: "dot-density",
+    field: "POP80_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP80_CY", color: "#E6B3FF", label: "Population Age 80-84" }]
+  },
+  // Generation groups
+  GENALPHACY: {
+    type: "dot-density",
+    field: "GENALPHACY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "GENALPHACY", color: "#FFB400", label: "Generation Alpha" }]
+  },
+  GENZ_CY: {
+    type: "dot-density",
+    field: "GENZ_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "GENZ_CY", color: "#FF6B6B", label: "Generation Z" }]
+  },
+  MILLENN_CY: {
+    type: "dot-density",
+    field: "MILLENN_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "MILLENN_CY", color: "#4ECDC4", label: "Millennials" }]
+  },
+
+  // Educational Attainment
+  NOHS_CY: {
+    type: "dot-density",
+    field: "NOHS_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NOHS_CY", color: "#FF6B6B", label: "Less than 9th Grade" }]
+  },
+  SOMEHS_CY: {
+    type: "dot-density",
+    field: "SOMEHS_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "SOMEHS_CY", color: "#FFB400", label: "Some High School" }]
+  },
+
+  // Income Brackets
+  HINC0_CY: {
+    type: "dot-density",
+    field: "HINC0_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "HINC0_CY", color: "#E60049", label: "Income < $15,000" }]
+  },
+  HINC15_CY: {
+    type: "dot-density",
+    field: "HINC15_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "HINC15_CY", color: "#0BB4FF", label: "Income $15,000-$24,999" }]
+  },
+
+  // Home Values
+  VAL0_CY: {
+    type: "dot-density",
+    field: "VAL0_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "VAL0_CY", color: "#50E991", label: "Home Value < $50,000" }]
+  },
+  VAL50K_CY: {
+    type: "dot-density",
+    field: "VAL50K_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "VAL50K_CY", color: "#9B19F5", label: "Home Value $50,000-$99,999" }]
+  },
+
+  // Labor Force Demographics
+  CIVLBFR_CY: {
+    type: "dot-density",
+    field: "CIVLBFR_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLBFR_CY", color: "#0BB4FF", label: "Civilian Labor Force" }]
+  },
+
+  // Employment by Race
+  EMPWHTCY: {
+    type: "dot-density",
+    field: "EMPWHTCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPWHTCY", color: "#E60049", label: "White Employed" }]
+  },
+  EMPBLKCY: {
+    type: "dot-density",
+    field: "EMPBLKCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPBLKCY", color: "#0BB4FF", label: "Black/African American Employed" }]
+  },
+
+  // Unemployment by Race
+  UNWHTCY: {
+    type: "dot-density",
+    field: "UNWHTCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNWHTCY", color: "#FFB400", label: "White Unemployed" }]
+  },
+  UNBLKCY: {
+    type: "dot-density",
+    field: "UNBLKCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNBLKCY", color: "#007ED6", label: "Black/African American Unemployed" }]
+  },
+
+  // Labor Force by Age
+  CIVLF16_CY: {
+    type: "dot-density",
+    field: "CIVLF16_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLF16_CY", color: "#50E991", label: "Labor Force Age 16-24" }]
+  },
+  CIVLF25_CY: {
+    type: "dot-density",
+    field: "CIVLF25_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLF25_CY", color: "#9B19F5", label: "Labor Force Age 25-54" }]
+  },
+
+  // Income Tiers
+  LOTRHH_CY: {
+    type: "dot-density",
+    field: "LOTRHH_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "LOTRHH_CY", color: "#FFB400", label: "Low Income Tier Households" }]
+  },
+  MDTRHH_CY: {
+    type: "dot-density",
+    field: "MDTRHH_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "MDTRHH_CY", color: "#007ED6", label: "Middle Income Tier Households" }]
+  },
+  // Additional dot density configurations to add to initialLayerConfigurations
+
+  // Additional Population Demographics
+  DPOPRES_CY: {
+    type: "dot-density",
+    field: "DPOPRES_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "DPOPRES_CY", color: "#36A2EB", label: "Daytime Residents" }]
+  },
+  MALES_CY: {
+    type: "dot-density",
+    field: "MALES_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "MALES_CY", color: "#4BC0C0", label: "Male Population" }]
+  },
+  FEMALES_CY: {
+    type: "dot-density",
+    field: "FEMALES_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "FEMALES_CY", color: "#FF6384", label: "Female Population" }]
+  },
+
+  // Additional Education
+  HSGRAD_CY: {
+    type: "dot-density",
+    field: "HSGRAD_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "HSGRAD_CY", color: "#97BBCD", label: "High School Graduates" }]
+  },
+  GED_CY: {
+    type: "dot-density",
+    field: "GED_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "GED_CY", color: "#B2D8B2", label: "GED/Alternative Credential" }]
+  },
+  SMCOLL_CY: {
+    type: "dot-density",
+    field: "SMCOLL_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "SMCOLL_CY", color: "#FFC3A0", label: "Some College" }]
+  },
+  ASSCDEG_CY: {
+    type: "dot-density",
+    field: "ASSCDEG_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "ASSCDEG_CY", color: "#A0CED9", label: "Associate's Degree" }]
+  },
+  BACHDEG_CY: {
+    type: "dot-density",
+    field: "BACHDEG_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "BACHDEG_CY", color: "#ADB9E3", label: "Bachelor's Degree" }]
+  },
+  GRADDEG_CY: {
+    type: "dot-density",
+    field: "GRADDEG_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "GRADDEG_CY", color: "#B5A8E3", label: "Graduate/Professional Degree" }]
+  },
+
+  // Additional Race/Ethnicity
+  NHSPPI_CY: {
+    type: "dot-density",
+    field: "NHSPPI_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPPI_CY", color: "#FF9F40", label: "Pacific Islander Non-Hispanic" }]
+  },
+  NHSPOTH_CY: {
+    type: "dot-density",
+    field: "NHSPOTH_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPOTH_CY", color: "#FFD700", label: "Other Race Non-Hispanic" }]
+  },
+  NHSPMLT_CY: {
+    type: "dot-density",
+    field: "NHSPMLT_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "NHSPMLT_CY", color: "#C39BD3", label: "Multiple Races Non-Hispanic" }]
+  },
+
+  // Additional Employment
+  EMPAICY: {
+    type: "dot-density",
+    field: "EMPAICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPAICY", color: "#85C1E9", label: "American Indian/Alaska Native Employed" }]
+  },
+  EMPASNCY: {
+    type: "dot-density",
+    field: "EMPASNCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPASNCY", color: "#82E0AA", label: "Asian Employed" }]
+  },
+  EMPPICY: {
+    type: "dot-density",
+    field: "EMPPICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPPICY", color: "#F8C471", label: "Pacific Islander Employed" }]
+  },
+  EMPOTHCY: {
+    type: "dot-density",
+    field: "EMPOTHCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPOTHCY", color: "#E59866", label: "Other Race Employed" }]
+  },
+  EMPMLTCY: {
+    type: "dot-density",
+    field: "EMPMLTCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPMLTCY", color: "#BB8FCE", label: "Multiple Races Employed" }]
+  },
+
+  // Additional Housing
+  TOTHU_CY: {
+    type: "dot-density",
+    field: "TOTHU_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "TOTHU_CY", color: "#F7DC6F", label: "Total Housing Units" }]
+  },
+  VACANT_CY: {
+    type: "dot-density",
+    field: "VACANT_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [{ field: "VACANT_CY", color: "#EC7063", label: "Vacant Housing Units" }]
+  },
+
+  // Upper Income Tier (missing from original)
+  UPTRHH_CY: {
+    type: "dot-density",
+    field: "UPTRHH_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "UPTRHH_CY", color: "#5D4037", label: "Upper Income Tier Households" }]
+  },
+
+  // Additional Age-specific populations (20-85+)
+  POP20_CY: {
+    type: "dot-density",
+    field: "POP20_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP20_CY", color: "#FF5E3A", label: "Population Age 20-24" }]
+  },
+  // Additional missing configurations to add
+
+  // Remaining Age Groups
+  POP25_CY: {
+    type: "dot-density",
+    field: "POP25_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP25_CY", color: "#FF4E50", label: "Population Age 25-29" }]
+  },
+  POP30_CY: {
+    type: "dot-density",
+    field: "POP30_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP30_CY", color: "#FC913A", label: "Population Age 30-34" }]
+  },
+  // Continue through age groups...
+  POP85_CY: {
+    type: "dot-density",
+    field: "POP85_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "POP85_CY", color: "#99B898", label: "Population Age 85+" }]
+  },
+
+  // Additional Generations
+  BABYBOOMCY: {
+    type: "dot-density",
+    field: "BABYBOOMCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "BABYBOOMCY", color: "#E84A5F", label: "Baby Boomer Population" }]
+  },
+  OLDRGENSCY: {
+    type: "dot-density",
+    field: "OLDRGENSCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "OLDRGENSCY", color: "#355C7D", label: "Silent & Greatest Generations" }]
+  },
+
+  // Additional Labor Force by Age
+  EMPAGE16CY: {
+    type: "dot-density",
+    field: "EMPAGE16CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPAGE16CY", color: "#A8E6CF", label: "Employed Age 16-24" }]
+  },
+  EMPAGE25CY: {
+    type: "dot-density",
+    field: "EMPAGE25CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPAGE25CY", color: "#FFD3B6", label: "Employed Age 25-54" }]
+  },
+  EMPAGE55CY: {
+    type: "dot-density",
+    field: "EMPAGE55CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPAGE55CY", color: "#FFAAA5", label: "Employed Age 55-64" }]
+  },
+  EMPAGE65CY: {
+    type: "dot-density",
+    field: "EMPAGE65CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [{ field: "EMPAGE65CY", color: "#98DDCA", label: "Employed Age 65+" }]
+  },
+
+  // Disposable Income Brackets
+  DI0_CY: {
+    type: "dot-density",
+    field: "DI0_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "DI0_CY", color: "#FF9A8B", label: "Disposable Income < $15,000" }]
+  },
+  DI15_CY: {
+    type: "dot-density",
+    field: "DI15_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [{ field: "DI15_CY", color: "#FFB8B1", label: "Disposable Income $15,000-$24,999" }]
+  },
+  // Additional Unemployed by Race
+  UNAICY: {
+    type: "dot-density",
+    field: "UNAICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNAICY", color: "#FFB7B2", label: "American Indian/Alaska Native Unemployed" }]
+  },
+  UNASNCY: {
+    type: "dot-density",
+    field: "UNASNCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNASNCY", color: "#FFDAC1", label: "Asian Unemployed" }]
+  },
+  UNPICY: {
+    type: "dot-density",
+    field: "UNPICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNPICY", color: "#E2F0CB", label: "Pacific Islander Unemployed" }]
+  },
+  UNOTHCY: {
+    type: "dot-density",
+    field: "UNOTHCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNOTHCY", color: "#B5EAD7", label: "Other Race Unemployed" }]
+  },
+  UNMLTCY: {
+    type: "dot-density",
+    field: "UNMLTCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "UNMLTCY", color: "#C7CEEA", label: "Multiple Races Unemployed" }]
+  },
+
+  // Additional Labor Force by Race
+  CIVLFAICY: {
+    type: "dot-density",
+    field: "CIVLFAICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLFAICY", color: "#E5989B", label: "American Indian/Alaska Native Labor Force" }]
+  },
+  CIVLFASNCY: {
+    type: "dot-density",
+    field: "CIVLFASNCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLFASNCY", color: "#B5838D", label: "Asian Labor Force" }]
+  },
+  CIVLFPICY: {
+    type: "dot-density",
+    field: "CIVLFPICY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLFPICY", color: "#6D6875", label: "Pacific Islander Labor Force" }]
+  },
+  CIVLFOTHCY: {
+    type: "dot-density",
+    field: "CIVLFOTHCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLFOTHCY", color: "#A4C3B2", label: "Other Race Labor Force" }]
+  },
+  CIVLFMLTCY: {
+    type: "dot-density",
+    field: "CIVLFMLTCY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [{ field: "CIVLFMLTCY", color: "#EAF4D3", label: "Multiple Races Labor Force" }]
   }
 };
-// Update the visualization options in the dropdown
+
+// New visualization options array
 const visualizationOptions = [
-  { value: "population", label: "Population Distribution" },
-  { value: "income", label: "Median Household Income" },
-  { value: "growth", label: "Household Growth Rate" },
-  { value: "affordability", label: "Housing Affordability Index" },
-  { value: "density", label: "Population Density" },
-  { value: "age", label: "Median Age" },
-  { value: "unemployment", label: "Unemployment Rate" },
-  { value: "homeValue", label: "Median Home Value" }
+  // Original heatmap options
+  { value: "income", label: "Median Household Income (Heat)", type: "class-breaks" },
+  { value: "growth", label: "Household Growth Rate (Heat)", type: "class-breaks" },
+  { value: "affordability", label: "Housing Affordability Index (Heat)", type: "class-breaks" },
+  { value: "density", label: "Population Density (Heat)", type: "class-breaks" },
+  { value: "age", label: "Median Age (Heat)", type: "class-breaks" },
+  { value: "unemployment", label: "Unemployment Rate (Heat)", type: "class-breaks" },
+  { value: "homeValue", label: "Median Home Value (Heat)", type: "class-breaks" },
+
+  // Income Heat Maps
+  { value: "MEDHINC_CY", label: "Median Household Income (Heat)", type: "class-breaks" },
+  { value: "AVGHINC_CY", label: "Average Household Income (Heat)", type: "class-breaks" },
+  { value: "HINC0_CY_HEAT", label: "Household Income < $15K (Heat)", type: "class-breaks" },
+  { value: "HINC15_CY_HEAT", label: "Household Income $15K-$25K (Heat)", type: "class-breaks" },
+  { value: "HINC25_CY", label: "Household Income $25K-$35K (Heat)", type: "class-breaks" },
+  { value: "HINC35_CY", label: "Household Income $35K-$50K (Heat)", type: "class-breaks" },
+  { value: "HINC50_CY", label: "Household Income $50K-$75K (Heat)", type: "class-breaks" },
+  { value: "HINC75_CY", label: "Household Income $75K-$100K (Heat)", type: "class-breaks" },
+  { value: "HINC100_CY", label: "Household Income $100K-$150K (Heat)", type: "class-breaks" },
+  { value: "HINC150_CY", label: "Household Income $150K-$200K (Heat)", type: "class-breaks" },
+  { value: "HINC200_CY", label: "Household Income $200K+ (Heat)", type: "class-breaks" },
+
+
+  // Population Demographics
+  { value: "TOTPOP_CY", label: "Total Population 2024 (Dot)", type: "dot-density" },
+  { value: "TOTHH_CY", label: "Total Households 2024 (Dot)", type: "dot-density" },
+  { value: "DPOP_CY", label: "Daytime Population 2024 (Dot)", type: "dot-density" },
+  { value: "DPOPWRK_CY", label: "Daytime Workers 2024 (Dot)", type: "dot-density" },
+  { value: "DPOPRES_CY", label: "Daytime Residents 2024 (Dot)", type: "dot-density" },
+
+  // Age Groups
+  { value: "WORKAGE_CY", label: "Working Age Population 18-64 (Dot)", type: "dot-density" },
+  { value: "SENIOR_CY", label: "Senior Population 65+ (Dot)", type: "dot-density" },
+  { value: "CHILD_CY", label: "Child Population <18 (Dot)", type: "dot-density" },
+
+  // Detailed Age Groups
+  { value: "POP0_CY", label: "Population Age 0-4 (Dot)", type: "dot-density" },
+  { value: "POP5_CY", label: "Population Age 5-9 (Dot)", type: "dot-density" },
+  { value: "POP10_CY", label: "Population Age 10-14 (Dot)", type: "dot-density" },
+  { value: "POP15_CY", label: "Population Age 15-19 (Dot)", type: "dot-density" },
+  { value: "POP20_CY", label: "Population Age 20-24 (Dot)", type: "dot-density" },
+  { value: "POP25_CY", label: "Population Age 25-29 (Dot)", type: "dot-density" },
+  { value: "POP30_CY", label: "Population Age 30-34 (Dot)", type: "dot-density" },
+  { value: "POP35_CY", label: "Population Age 35-39 (Dot)", type: "dot-density" },
+  { value: "POP40_CY", label: "Population Age 40-44 (Dot)", type: "dot-density" },
+  { value: "POP45_CY", label: "Population Age 45-49 (Dot)", type: "dot-density" },
+  { value: "POP50_CY", label: "Population Age 50-54 (Dot)", type: "dot-density" },
+  { value: "POP55_CY", label: "Population Age 55-59 (Dot)", type: "dot-density" },
+  { value: "POP60_CY", label: "Population Age 60-64 (Dot)", type: "dot-density" },
+  { value: "POP65_CY", label: "Population Age 65-69 (Dot)", type: "dot-density" },
+  { value: "POP70_CY", label: "Population Age 70-74 (Dot)", type: "dot-density" },
+  { value: "POP75_CY", label: "Population Age 75-79 (Dot)", type: "dot-density" },
+  { value: "POP80_CY", label: "Population Age 80-84 (Dot)", type: "dot-density" },
+  { value: "POP85_CY", label: "Population Age 85+ (Dot)", type: "dot-density" },
+
+  // Generations
+  { value: "GENALPHACY", label: "Generation Alpha (Born 2017+) (Dot)", type: "dot-density" },
+  { value: "GENZ_CY", label: "Generation Z (Born 1999-2016) (Dot)", type: "dot-density" },
+  { value: "MILLENN_CY", label: "Millennials (Born 1981-1998) (Dot)", type: "dot-density" },
+  { value: "GENX_CY", label: "Generation X (Born 1965-1980) (Dot)", type: "dot-density" },
+  { value: "BABYBOOMCY", label: "Baby Boomers (Born 1946-1964) (Dot)", type: "dot-density" },
+  { value: "OLDRGENSCY", label: "Silent & Greatest Gens (Born pre-1946) (Dot)", type: "dot-density" },
+
+  // Housing
+  { value: "TOTHU_CY", label: "Total Housing Units (Dot)", type: "dot-density" },
+  { value: "OWNER_CY", label: "Owner Occupied Housing (Dot)", type: "dot-density" },
+  { value: "RENTER_CY", label: "Renter Occupied Housing (Dot)", type: "dot-density" },
+  { value: "VACANT_CY", label: "Vacant Housing Units (Dot)", type: "dot-density" },
+
+  // Education
+  { value: "NOHS_CY", label: "Less than 9th Grade Education (Dot)", type: "dot-density" },
+  { value: "SOMEHS_CY", label: "Some High School (Dot)", type: "dot-density" },
+  { value: "HSGRAD_CY", label: "High School Graduates (Dot)", type: "dot-density" },
+  { value: "GED_CY", label: "GED/Alternative Credential (Dot)", type: "dot-density" },
+  { value: "SMCOLL_CY", label: "Some College (Dot)", type: "dot-density" },
+  { value: "ASSCDEG_CY", label: "Associate's Degree (Dot)", type: "dot-density" },
+  { value: "BACHDEG_CY", label: "Bachelor's Degree (Dot)", type: "dot-density" },
+  { value: "GRADDEG_CY", label: "Graduate/Professional Degree (Dot)", type: "dot-density" },
+
+  // Race and Ethnicity
+  { value: "HISPPOP_CY", label: "Hispanic Population (Dot)", type: "dot-density" },
+  { value: "NHSPWHT_CY", label: "White Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPBLK_CY", label: "Black/African American Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPAI_CY", label: "American Indian/Alaska Native Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPASN_CY", label: "Asian Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPPI_CY", label: "Pacific Islander Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPOTH_CY", label: "Other Race Non-Hispanic (Dot)", type: "dot-density" },
+  { value: "NHSPMLT_CY", label: "Multiple Races Non-Hispanic (Dot)", type: "dot-density" },
+
+  // Income Tiers
+  { value: "LOTRHH_CY", label: "Low Income Tier Households (Dot)", type: "dot-density" },
+  { value: "MDTRHH_CY", label: "Middle Income Tier Households (Dot)", type: "dot-density" },
+  { value: "UPTRHH_CY", label: "Upper Income Tier Households (Dot)", type: "dot-density" },
+
+  // Employment by Race
+  { value: "EMPWHTCY", label: "White Employed Population (Dot)", type: "dot-density" },
+  { value: "EMPBLKCY", label: "Black/African American Employed (Dot)", type: "dot-density" },
+  { value: "EMPAICY", label: "American Indian/Alaska Native Employed (Dot)", type: "dot-density" },
+  { value: "EMPASNCY", label: "Asian Employed (Dot)", type: "dot-density" },
+  { value: "EMPPICY", label: "Pacific Islander Employed (Dot)", type: "dot-density" },
+  { value: "EMPOTHCY", label: "Other Race Employed (Dot)", type: "dot-density" },
+  { value: "EMPMLTCY", label: "Multiple Races Employed (Dot)", type: "dot-density" },
+
+  // Labor Force
+  { value: "CIVLBFR_CY", label: "Civilian Labor Force (Dot)", type: "dot-density" },
+  { value: "EMP_CY", label: "Employed Population (Dot)", type: "dot-density" },
+  { value: "UNEMP_CY", label: "Unemployed Population (Dot)", type: "dot-density" }
 ];
 
 const createLayers = (
@@ -267,6 +1573,16 @@ const createLayers = (
   }
 
   const config = configOverride || layerConfigs[visualizationType];
+
+  if (!config) {
+    console.error(`No configuration found for visualization type: ${visualizationType}`);
+    return null;
+  }
+
+  // Adjust dot value based on area type for dot density visualizations
+  if (config.type === "dot-density") {
+    config.dotValue = selectedAreaType.value === 12 ? 10 : 100;
+  }
 
   const createRenderer = (config) => {
     if (!config) return null;
@@ -372,18 +1688,40 @@ const createLayers = (
     },
   };
 
+  // Get layer configuration based on visualization type
   const layerConfig = layerDefinitions[visualizationType];
 
-  // Validate layer configuration
-  if (!layerConfig) {
-    console.error(`No layer configuration found for visualization type: ${visualizationType}`);
-    return null;
-  }
+  // Create field info based on configuration type
+  const createFieldInfo = (config, layerConfig) => {
+    // If we have a predefined layer config, use it
+    if (layerConfig) {
+      return {
+        fieldName: layerConfig.fieldName,
+        label: layerConfig.title,
+        format: layerConfig.format,
+      };
+    }
 
-  if (!config) {
-    console.error(`No configuration found for visualization type: ${visualizationType}`);
-    return null;
-  }
+    // Otherwise, create field info dynamically
+    const fieldName = config.field;
+    let format = {
+      digitSeparator: true,
+      places: 0
+    };
+
+    // Set format based on field type
+    if (fieldName.includes('HINC') || fieldName.includes('VAL') || fieldName.includes('MEDHINC')) {
+      format.type = 'currency';
+    } else if (fieldName.includes('RT') || fieldName.includes('PCT')) {
+      format.places = 1;
+    }
+
+    return {
+      fieldName: fieldName,
+      label: config.attributes?.[0]?.label || fieldName,
+      format: format
+    };
+  };
 
   // Validate URL
   if (!selectedAreaType.url) {
@@ -400,53 +1738,38 @@ const createLayers = (
       content: [
         {
           type: "fields",
-          fieldInfos: [
-            {
-              fieldName: layerConfig.fieldName,
-              label: layerConfig.title,
-              format: layerConfig.format,
-            },
-          ],
+          fieldInfos: [createFieldInfo(config, layerConfig)]
         },
       ],
     },
-    title: layerConfig.title,
-    minScale: selectedAreaType.value === 12 ? 2500000 : 25000000, // Adjust scale based on area type
+    title: layerConfig?.title || config.attributes?.[0]?.label || visualizationType,
+    minScale: selectedAreaType.value === 12 ? 2500000 : 25000000,
   });
 };
 
-// ZoomAlert Component
-const ZoomAlert = () => {
-  const { isOutsideZoomRange, zoomMessage } = useMap();
+// Helper function to create a dot density configuration
+const createDotDensityConfig = (field, label, dotValue = 100) => ({
+  type: "dot-density",
+  field,
+  dotValue,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: {
+    width: 0.5,
+    color: [50, 50, 50, 0.2],
+  },
+  legendOptions: {
+    unit: "people",
+  },
+  attributes: [
+    {
+      field,
+      color: "#E60049",
+      label,
+    },
+  ],
+});
 
-  if (!isOutsideZoomRange || !zoomMessage) return null;
-
-  return (
-    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-lg">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-yellow-400"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-yellow-700">{zoomMessage}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const areaTypes = [
   { value: 12, label: "Census Tract", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12" },
@@ -2018,15 +3341,21 @@ export default function MapComponent({ onToggleLis }) {
           </div>
         </div>
 
+        {/* Layer Properties Editor - always positioned to the left of the Market Areas sidebar */}
         <div className="relative">
           {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
             <div
               className={`
                 w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200 
                 dark:border-gray-700 transform transition-all duration-300 ease-in-out
-                absolute top-0 right-0 h-full
+                absolute h-full
                 ${isEditorOpen ? 'translate-x-0' : 'translate-x-full'}
               `}
+              style={{
+                // Always position to the left of the Market Areas sidebar (350px width)
+                right: '440px',
+                top: '0'
+              }}
             >
               <LayerPropertiesEditor
                 isOpen={isEditorOpen}
