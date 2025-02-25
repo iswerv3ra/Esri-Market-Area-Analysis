@@ -3,17 +3,78 @@ import { X, Save } from 'lucide-react';
 import ColorBreakEditor from './ColorBreakEditor';
 import { mapConfigurationsAPI } from '../../services/api';
 
-const DotDensityEditor = ({ config, onChange }) => {
+const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => {
   if (!config) return null;
+  
+  // Determine default dot value based on area type
+  const getDefaultDotValue = () => {
+    if (!selectedAreaType || !selectedAreaType.value) return 1;
+    
+    // Use area type to determine default value
+    if (selectedAreaType.value === 11) return 100; // County level
+    if (selectedAreaType.value === 12) return 10;  // Census tract level
+    return 1; // Default for other area types
+  };
 
-  // Ensure config has the necessary properties
+  // Fix value mismatch by ensuring both properties match
+  const actualValue = config.attributes && config.attributes[0] && 
+                     config.attributes[0].value !== undefined ? 
+                     parseInt(config.attributes[0].value) : 
+                     (config.dotValue !== undefined ? 
+                     parseInt(config.dotValue) : 
+                     getDefaultDotValue());
+
+  // Create a safer reference of the config with synchronized values
   const safeConfig = {
     ...config,
     dotSize: config.dotSize || 1,
-    dotValue: config.dotValue || 1,
-    dotType: 'circle', // Always use circle
-    attributes: config.attributes || [{ color: '#000000' }]
+    dotValue: actualValue,
+    dotType: 'circle',
+    attributes: config.attributes ? 
+      config.attributes.map(attr => ({
+        ...attr,
+        value: actualValue // Force sync with dotValue
+      })) :
+      [{ color: '#000000', value: actualValue }]
   };
+
+  // Handler for dot value changes - ensure both values are updated
+  const handleDotValueChange = (e) => {
+    // Get the raw input value
+    const inputValue = e.target.value;
+    
+    // Parse the input value
+    let newValue = parseInt(inputValue);
+    
+    // Only apply minimum if parsed value is NaN
+    if (isNaN(newValue)) {
+      newValue = 1;
+    }
+    
+    // Create a new config object with the updated value
+    // Use a completely new object to force React to see it as a change
+    const updatedConfig = {
+      ...JSON.parse(JSON.stringify(safeConfig)), // Deep clone to force refresh
+      dotValue: newValue,
+      attributes: safeConfig.attributes.map(attr => ({
+        ...attr,
+        value: newValue // Ensure value is also updated in attributes
+      }))
+    };
+    
+    // Pass the updated config to the parent component
+    onChange(updatedConfig);
+    
+    // Force a preview if available
+    if (onPreview) {
+      setTimeout(() => {
+        onPreview(updatedConfig);
+      }, 100);
+    }
+  };
+
+  // Get recommended value for the current geography (for display only)
+  const recommendedValue = getDefaultDotValue();
 
   return (
     <div className="space-y-4">
@@ -24,10 +85,15 @@ const DotDensityEditor = ({ config, onChange }) => {
         <input
           type="number"
           value={safeConfig.dotSize}
-          onChange={(e) => onChange({ 
-            ...safeConfig, 
-            dotSize: Math.max(0.5, Math.min(10, parseFloat(e.target.value) || 0.5))
-          })}
+          onChange={(e) => {
+            const newSize = Math.max(0.5, Math.min(10, parseFloat(e.target.value) || 0.5));
+            const updatedConfig = {
+              ...JSON.parse(JSON.stringify(safeConfig)), // Deep clone
+              dotSize: newSize
+            };
+            onChange(updatedConfig);
+            if (onPreview) setTimeout(() => onPreview(updatedConfig), 100);
+          }}
           min="0.5"
           max="10"
           step="0.5"
@@ -43,14 +109,20 @@ const DotDensityEditor = ({ config, onChange }) => {
         <input
           type="number"
           value={safeConfig.dotValue}
-          onChange={(e) => onChange({ 
-            ...safeConfig, 
-            dotValue: Math.max(1, parseInt(e.target.value) || 1)
-          })}
+          onChange={handleDotValueChange}
           min="1"
+          step="1"
           className="w-full p-2 bg-gray-800 text-white 
                    border border-gray-700 rounded"
         />
+        <div className="flex justify-between">
+          <p className="text-xs text-gray-400">
+            {recommendedValue > 1 ? (
+              `Recommended: ${recommendedValue} people per dot`
+            ) : ''}
+          </p>
+          <p className="text-xs text-white">Current value: {safeConfig.dotValue}</p>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -61,16 +133,43 @@ const DotDensityEditor = ({ config, onChange }) => {
           type="color"
           value={safeConfig.attributes[0]?.color || '#000000'}
           onChange={(e) => {
-            const newAttributes = [...safeConfig.attributes];
-            newAttributes[0] = { ...newAttributes[0], color: e.target.value };
-            onChange({ 
-              ...safeConfig, 
-              attributes: newAttributes 
-            });
+            const newAttributes = safeConfig.attributes.map(attr => ({
+              ...attr,
+              color: e.target.value,
+              value: safeConfig.dotValue // Maintain synchronization
+            }));
+            
+            const updatedConfig = {
+              ...JSON.parse(JSON.stringify(safeConfig)), // Deep clone
+              attributes: newAttributes
+            };
+            
+            onChange(updatedConfig);
+            if (onPreview) setTimeout(() => onPreview(updatedConfig), 100);
           }}
           className="w-full h-10 bg-transparent rounded cursor-pointer"
         />
       </div>
+      
+      {/* Debug information */}
+      <div className="mt-8 p-3 bg-gray-900 rounded text-xs text-gray-400">
+        <p>Debug Info:</p>
+        <p>Area Type: {selectedAreaType?.value}</p>
+        <p>Dot Value: {safeConfig.dotValue}</p>
+        <p>Attribute Value: {safeConfig.attributes[0]?.value}</p>
+      </div>
+      
+      <button 
+        className="mt-4 px-4 py-2 w-full bg-blue-600 text-white rounded hover:bg-blue-700"
+        onClick={() => {
+          // Force a complete refresh of the configuration
+          const refreshedConfig = JSON.parse(JSON.stringify(safeConfig));
+          onChange(refreshedConfig);
+          if (onPreview) onPreview(refreshedConfig);
+        }}
+      >
+        Force Refresh View
+      </button>
     </div>
   );
 };
@@ -161,12 +260,18 @@ const LayerPropertiesEditor = ({
   };
 
 
-  const handleSave = async () => {
-    if (!currentConfig || isSaving) return;
-  
-    try {
-      setIsSaving(true);
-      console.log('[Save] Starting save with projectId:', projectId);
+// Inside your handleSave function
+const handleSave = async () => {
+  if (!currentConfig || isSaving) return;
+
+  try {
+    setIsSaving(true);
+    
+    // Create a deep clone of the configuration to ensure all references are new
+    const freshConfig = JSON.parse(JSON.stringify(currentConfig));
+    
+    // Add a unique timestamp to force the map to see this as a new configuration
+    freshConfig.timestamp = Date.now();
   
       const configurations = tabs
         .filter(tab => tab.id !== 1)
@@ -208,21 +313,16 @@ const LayerPropertiesEditor = ({
           throw err;
         }
       }
-  
-      onConfigChange(currentConfig);
-      onClose();
-  
-    } catch (error) {
-      console.error('[Save] Error:', {
-        error,
-        response: error.response?.data,
-        projectId
-      });
-      alert('Failed to save map configurations');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    // When returning to the map view, force a complete redraw
+    onConfigChange(freshConfig);
+    onClose();
+    
+  } catch (error) {
+    // Error handling...
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const renderEditor = () => {
     if (!currentConfig || isTransitioning) {
@@ -236,12 +336,13 @@ const LayerPropertiesEditor = ({
     }
   
     // Check for dot density type based on configuration properties
-    // rather than visualization name
     if (currentConfig.type === "dot-density") {
       return (
         <DotDensityEditor
           config={currentConfig}
           onChange={handleConfigChange}
+          selectedAreaType={selectedAreaType}
+          onPreview={onPreview} // Pass this down to force refreshes
         />
       );
     }
