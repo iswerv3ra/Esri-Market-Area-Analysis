@@ -3263,7 +3263,7 @@ const createLayers = (
   }
 
   // Adjust dot value based on area type for dot density visualizations
-  if (config.type === "dot-density") {
+  if (config.type === "dot-density" && !config.dotValue) {
     config.dotValue = selectedAreaType.value === 12 ? 10 : 100;
   }
 
@@ -4078,35 +4078,38 @@ export default function MapComponent({ onToggleLis }) {
       console.log('Map not ready or configs still loading, skipping visualization update');
       return;
     }
-
+  
     try {
       // Remove existing visualization layers
       const layersToRemove = [];
       mapView.map.layers.forEach((layer) => {
-        if (layer.get("isVisualizationLayer")) {
+        if (layer.get && layer.get("isVisualizationLayer")) {
           layersToRemove.push(layer);
         }
       });
       layersToRemove.forEach((layer) => mapView.map.remove(layer));
-
+  
       // Find the active tab and its visualization type
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
-
+  
       // Only add new layer if we're not in the core map and have a selected type
       if (activeTab !== 1 && activeTabData?.visualizationType) {
-        console.log('Creating new layer with area type:', activeTabData.areaType);
-
+        console.log('Creating new layer with config:', activeTabData.layerConfiguration);
+        
+        // Create a deep clone of the configuration to prevent any references
+        const configClone = JSON.parse(JSON.stringify(activeTabData.layerConfiguration));
+        
         const newLayer = createLayers(
           activeTabData.visualizationType,
-          activeTabData.layerConfiguration,
+          configClone,
           initialLayerConfigurations,
           activeTabData.areaType
         );
-
+  
         if (newLayer) {
           newLayer.set("isVisualizationLayer", true);
           mapView.map.add(newLayer, 0);
-
+  
           if (legend) {
             legend.layerInfos = [{
               layer: newLayer,
@@ -4789,29 +4792,53 @@ export default function MapComponent({ onToggleLis }) {
   // Handler for configuration previews
   const handleConfigPreview = (previewConfig) => {
     if (!mapView?.map) return;
-
-    // Remove existing visualization layers
-    const layersToRemove = [];
-    mapView.map.layers.forEach((layer) => {
-      if (layer?.isVisualizationLayer) {
-        layersToRemove.push(layer);
+  
+    try {
+      console.log('Previewing config:', previewConfig);
+  
+      // Remove existing visualization layers
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        if (layer && layer.get && layer.get("isVisualizationLayer")) {
+          layersToRemove.push(layer);
+        }
+      });
+      layersToRemove.forEach((layer) => mapView.map.remove(layer));
+  
+      // Create new layer with preview config
+      const activeTabData = tabs.find((tab) => tab.id === activeTab);
+      if (activeTabData?.visualizationType) {
+        // Create a deep clone of the preview config to prevent any references
+        const previewConfigClone = JSON.parse(JSON.stringify(previewConfig));
+        
+        // Make sure we're preserving the dot value from the preview config
+        // and not letting createLayers override it
+        const dotValue = previewConfigClone.dotValue;
+        
+        const newLayer = createLayers(
+          activeTabData.visualizationType,
+          previewConfigClone,
+          initialLayerConfigurations,
+          activeTabData.areaType || selectedAreaType
+        );
+        
+        if (newLayer) {
+          newLayer.set("isVisualizationLayer", true);
+          mapView.map.add(newLayer, 0);
+          
+          // Update legend if necessary
+          if (legend) {
+            legend.layerInfos = [{
+              layer: newLayer,
+              title: newLayer.title || activeTabData.visualizationType,
+              hideLayersNotInCurrentView: false
+            }];
+            legend.visible = true;
+          }
+        }
       }
-    });
-    layersToRemove.forEach((layer) => mapView.map.remove(layer));
-
-    // Create new layer with preview config
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    if (activeTabData?.visualizationType) {
-      const newLayer = createLayers(
-        activeTabData.visualizationType,
-        previewConfig,
-        initialLayerConfigurations,
-        selectedAreaType  // Explicitly pass selectedAreaType
-      );
-      if (newLayer) {
-        newLayer.isVisualizationLayer = true;
-        mapView.map.add(newLayer, 0);
-      }
+    } catch (error) {
+      console.error("Error in preview:", error);
     }
   };
 

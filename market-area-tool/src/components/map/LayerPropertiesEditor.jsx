@@ -38,7 +38,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       [{ color: '#000000', value: actualValue }]
   };
 
-  // Handler for dot value changes - ensure both values are updated
   const handleDotValueChange = (e) => {
     // Get the raw input value
     const inputValue = e.target.value;
@@ -50,9 +49,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     if (isNaN(newValue)) {
       newValue = 1;
     }
-    
-    // Create a new config object with the updated value
-    // Use a completely new object to force React to see it as a change
     const updatedConfig = {
       ...JSON.parse(JSON.stringify(safeConfig)), // Deep clone to force refresh
       dotValue: newValue,
@@ -65,11 +61,11 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     // Pass the updated config to the parent component
     onChange(updatedConfig);
     
-    // Force a preview if available
+    // Force a preview if available - use a longer timeout to ensure the change is processed
     if (onPreview) {
       setTimeout(() => {
         onPreview(updatedConfig);
-      }, 100);
+      }, 200); // Increased from 100ms to 200ms
     }
   };
 
@@ -115,14 +111,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
           className="w-full p-2 bg-gray-800 text-white 
                    border border-gray-700 rounded"
         />
-        <div className="flex justify-between">
-          <p className="text-xs text-gray-400">
-            {recommendedValue > 1 ? (
-              `Recommended: ${recommendedValue} people per dot`
-            ) : ''}
-          </p>
-          <p className="text-xs text-white">Current value: {safeConfig.dotValue}</p>
-        </div>
       </div>
 
       <div className="space-y-2">
@@ -150,26 +138,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
           className="w-full h-10 bg-transparent rounded cursor-pointer"
         />
       </div>
-      
-      {/* Debug information */}
-      <div className="mt-8 p-3 bg-gray-900 rounded text-xs text-gray-400">
-        <p>Debug Info:</p>
-        <p>Area Type: {selectedAreaType?.value}</p>
-        <p>Dot Value: {safeConfig.dotValue}</p>
-        <p>Attribute Value: {safeConfig.attributes[0]?.value}</p>
-      </div>
-      
-      <button 
-        className="mt-4 px-4 py-2 w-full bg-blue-600 text-white rounded hover:bg-blue-700"
-        onClick={() => {
-          // Force a complete refresh of the configuration
-          const refreshedConfig = JSON.parse(JSON.stringify(safeConfig));
-          onChange(refreshedConfig);
-          if (onPreview) onPreview(refreshedConfig);
-        }}
-      >
-        Force Refresh View
-      </button>
     </div>
   );
 };
