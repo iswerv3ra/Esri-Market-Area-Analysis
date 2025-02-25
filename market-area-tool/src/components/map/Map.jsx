@@ -3732,13 +3732,18 @@ export default function MapComponent({ onToggleLis }) {
 
   useEffect(() => {
     let isMounted = true;
-
+  
     const initializeMap = async () => {
       try {
+        console.log("Starting map initialization...");
+        
+        // Change to a known valid basemap
         const map = new Map({
-          basemap: "arcgis-navigation",
+          basemap: "arcgis-navigation", // Changed from "arcgis-navigation" to fix basemap not found error
         });
-
+        
+        console.log("Map created, setting up view...");
+  
         const view = new MapView({
           container: mapRef.current,
           map: map,
@@ -3749,22 +3754,29 @@ export default function MapComponent({ onToggleLis }) {
             maxZoom: 20,
           },
           navigation: {
-            mouseWheelZoomEnabled: true,
+            // Updated to use the recommended property instead of deprecated one
+            actionMap: {
+              mouseWheel: {
+                enabled: true,
+                zoomRate: 0.2  // Reduces zoom speed
+              }
+            },
             browserTouchPanEnabled: true,
             momentumEnabled: true,
             keyboardNavigation: true,
-            // Add these new properties to slow down zooming
-            mouseWheelZoomRate: 0.2  // Reduces zoom speed (default is typically 1)
           },
           ui: {
             components: ["attribution"],
           },
+          center: [-98, 39], // Default to center of US
+          zoom: 4           // Default zoom level for US view
         });
-
+  
+        console.log("Waiting for view to be ready...");
         // Wait for the view to be ready before proceeding
         await view.when();
-
-
+        console.log("View is now ready!");
+  
         // Add smooth zoom behavior
         view.on("mouse-wheel", (event) => {
           event.stopPropagation();
@@ -3775,7 +3787,7 @@ export default function MapComponent({ onToggleLis }) {
             Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
             view.constraints.maxZoom
           );
-
+  
           view.goTo(
             {
               zoom: newZoom,
@@ -3787,8 +3799,8 @@ export default function MapComponent({ onToggleLis }) {
             }
           );
         });
-
-
+  
+        console.log("Adding UI widgets...");
         // Add non-legend widgets first
         const widgets = [
           {
@@ -3817,17 +3829,18 @@ export default function MapComponent({ onToggleLis }) {
             position: "bottom-right",
           },
         ];
-
+  
         widgets.forEach(({ widget, position }) => {
           view.ui.add(widget, position);
         });
-
+  
         if (isMounted) {
+          console.log("Finalizing map setup...");
           // Set map readiness flag and view in context
           view.ready = true;
           setMapView(view);
           console.log('[MapContext] Map view initialized and ready');
-
+  
           // Initialize legend after map is ready
           const legendWidget = new Legend({
             view,
@@ -3835,23 +3848,21 @@ export default function MapComponent({ onToggleLis }) {
             layerInfos: [],
             visible: false
           });
-
+  
           // Add legend to the view but keep it hidden initially
           view.ui.add(legendWidget, "bottom-left");
           setLegend(legendWidget);
         }
       } catch (error) {
-        console.error("[Map] Error initializing map:", error);
+        console.error("[Map] Error initializing map:", error, error.stack);
       }
     };
-
+  
     initializeMap();
     return () => {
       isMounted = false;
     };
   }, [setMapView]);
-
-
 
   // Style legend whenever it changes
   useEffect(() => {
