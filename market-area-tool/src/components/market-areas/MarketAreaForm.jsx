@@ -398,7 +398,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     selectionGraphicsLayer
   ]);
 
-// Replace the current normalizeRadiusPoint function with this improved version
 const normalizeRadiusPoint = async (point) => {
   // Ensure consistent format for radius points
   if (!point) return null;
@@ -809,6 +808,21 @@ const normalizeRadiusPoint = async (point) => {
         console.log("Submitting normalized radius points:", 
           JSON.stringify(normalizedPoints, null, 2));
 
+          if (selectionGraphicsLayer) {
+            const tempRadiusGraphics = selectionGraphicsLayer.graphics.filter(
+              (g) => (
+                g.attributes?.FEATURE_TYPE === "radius" && 
+                (g.attributes?.marketAreaId === "temporary" || 
+                 g.attributes?.marketAreaId === "temp")
+              )
+            );
+            
+            if (tempRadiusGraphics.length > 0) {
+              console.log(`Removing ${tempRadiusGraphics.length} temporary radius graphics before save`);
+              selectionGraphicsLayer.removeMany(tempRadiusGraphics);
+            }
+          }
+
         const marketAreaData = {
           ma_type: "radius",
           name: formState.maName,
@@ -879,16 +893,6 @@ const normalizeRadiusPoint = async (point) => {
           });
           selectionGraphicsLayer.add(graphic);
         });
-  
-        // Draw the radius(es) with proper styles
-        for (const point of marketAreaData.radius_points) {
-          await drawRadius(
-            point,
-            styleSettings,
-            savedMarketArea.id,
-            savedMarketArea.order
-          );
-        }
   
         // Handle visibility
         const storedVisibleIds = localStorage.getItem(

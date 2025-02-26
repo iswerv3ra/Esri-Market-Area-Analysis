@@ -17,7 +17,8 @@ import { useNavigate, useParams } from "react-router-dom"; // Add useNavigate he
 import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path as needed
 import SearchableDropdown from './SearchableDropdown'; // Adjust the import path as needed
 
-const API_KEY = process.env.REACT_APP_ARCGIS_API_KEY || "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg";
+
+const API_KEY = "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg";
 
 
 const colorScheme = {
@@ -3698,33 +3699,6 @@ export default function MapComponent({ onToggleLis }) {
   ]); const [activeTab, setActiveTab] = useState(1);
   const [visualizationType, setVisualizationType] = useState(null);
 
-  useEffect(() => {
-    try {
-      esriConfig.apiKey = API_KEY;
-      esriConfig.assetsPath = "https://js.arcgis.com/4.31/@arcgis/core/assets/";
-
-      if (!esriConfig.request.corsEnabledServers) {
-        esriConfig.request.corsEnabledServers = [];
-      }
-
-      const serversToAdd = [
-        "geocode-api.arcgis.com",
-        "route-api.arcgis.com",
-        "services.arcgis.com",
-        "basemaps.arcgis.com",
-        "basemaps-api.arcgis.com",
-        "tiles.arcgis.com",
-      ];
-
-      serversToAdd.forEach((server) => {
-        if (!esriConfig.request.corsEnabledServers.includes(server)) {
-          esriConfig.request.corsEnabledServers.push(server);
-        }
-      });
-    } catch (error) {
-      console.error("[Map] Error initializing ArcGIS configuration:", error);
-    }
-  }, []);
 
   const sidebarWidth = 350; // Your standard sidebar width
   const padding = 20; // Additional padding

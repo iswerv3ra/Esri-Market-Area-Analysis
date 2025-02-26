@@ -2999,15 +2999,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 count: points.length,
                 firstPoint: points[0]
               });
-              
-              for (const point of points) {
-                await drawRadius(
-                  point, 
-                  point.style || ma.style, 
-                  ma.id, 
-                  ma.order || 0
-                );
-              }
             } else {
               console.warn("[MapContext] Radius market area missing radius_points:", ma.id);
             }
