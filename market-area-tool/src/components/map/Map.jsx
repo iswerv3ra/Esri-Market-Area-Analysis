@@ -4045,7 +4045,7 @@ export default function MapComponent({ onToggleLis }) {
         // Remove existing visualization layers
         const layersToRemove = [];
         mapView.map.layers.forEach((layer) => {
-          if (layer.get("isVisualizationLayer")) {
+          if (layer.get && layer.get("isVisualizationLayer")) {
             layersToRemove.push(layer);
           }
         });
