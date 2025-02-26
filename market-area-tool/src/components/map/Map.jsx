@@ -3728,141 +3728,92 @@ export default function MapComponent({ onToggleLis }) {
 
   const sidebarWidth = 350; // Your standard sidebar width
   const padding = 20; // Additional padding
-
+  
+  
   useEffect(() => {
     let isMounted = true;
-  
+    
     const initializeMap = async () => {
       try {
         console.log("Starting map initialization...");
         
-        // Change to a known valid basemap
+        // Validate API Key
+        const apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+        if (!apiKey) {
+          console.error('ArcGIS API Key is missing');
+          return;
+        }
+    
+        // Configure ArcGIS
+        esriConfig.apiKey = apiKey;
+        esriConfig.assetsPath = "https://js.arcgis.com/4.31/@arcgis/core/assets/";
+    
+        // Create map with standard basemap
         const map = new Map({
-          basemap: "arcgis-navigation", // Changed from "arcgis-navigation" to fix basemap not found error
+          basemap: "streets-navigation-vector" // Use a standard, predefined basemap
         });
-        
-        console.log("Map created, setting up view...");
-  
+    
+        // Create view with comprehensive error handling
         const view = new MapView({
           container: mapRef.current,
           map: map,
+          center: [-98, 39],
+          zoom: 4,
           constraints: {
-            snapToZoom: false,
             rotationEnabled: false,
             minZoom: 2,
-            maxZoom: 20,
-          },
-          navigation: {
-            // Updated to use the recommended property instead of deprecated one
-            actionMap: {
-              mouseWheel: {
-                enabled: true,
-                zoomRate: 0.2  // Reduces zoom speed
-              }
-            },
-            browserTouchPanEnabled: true,
-            momentumEnabled: true,
-            keyboardNavigation: true,
-          },
-          ui: {
-            components: ["attribution"],
-          },
-          center: [-98, 39], // Default to center of US
-          zoom: 4           // Default zoom level for US view
+            maxZoom: 20
+          }
         });
-  
-        console.log("Waiting for view to be ready...");
-        // Wait for the view to be ready before proceeding
-        await view.when();
-        console.log("View is now ready!");
-  
-        // Add smooth zoom behavior
-        view.on("mouse-wheel", (event) => {
-          event.stopPropagation();
-          const delta = event.deltaY;
-          const currentZoom = view.zoom;
-          const zoomDelta = delta > 0 ? -0.20 : 0.20;
-          const newZoom = Math.min(
-            Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
-            view.constraints.maxZoom
-          );
-  
-          view.goTo(
-            {
-              zoom: newZoom,
-              center: view.center,
-            },
-            {
-              duration: 100,
-              easing: "linear",
-            }
-          );
-        });
-  
-        console.log("Adding UI widgets...");
-        // Add non-legend widgets first
-        const widgets = [
-          {
-            widget: new Zoom({
-              view,
-              zoomFactor: 1.2,
-            }),
-            position: "top-left",
+    
+        // Comprehensive view initialization
+        view.when(
+          () => {
+            console.log("✅ View is ready");
+            setMapView(view);
+            
+            // Add widgets
+            const widgets = [
+              new Zoom({ view }),
+              new Home({ view }),
+              new ScaleBar({ view, unit: "imperial" }),
+              new BasemapToggle({ 
+                view, 
+                nextBasemap: "arcgis-imagery" 
+              })
+            ];
+    
+            widgets.forEach(widget => {
+              view.ui.add(widget, "top-left");
+            });
           },
-          {
-            widget: new Home({ view }),
-            position: "top-left",
-          },
-          {
-            widget: new ScaleBar({
-              view,
-              unit: "imperial"
-            }),
-            position: "top-left",
-          },
-          {
-            widget: new BasemapToggle({
-              view,
-              nextBasemap: "arcgis-imagery",
-            }),
-            position: "bottom-right",
-          },
-        ];
-  
-        widgets.forEach(({ widget, position }) => {
-          view.ui.add(widget, position);
-        });
-  
-        if (isMounted) {
-          console.log("Finalizing map setup...");
-          // Set map readiness flag and view in context
-          view.ready = true;
-          setMapView(view);
-          console.log('[MapContext] Map view initialized and ready');
-  
-          // Initialize legend after map is ready
-          const legendWidget = new Legend({
-            view,
-            container: document.createElement("div"),
-            layerInfos: [],
-            visible: false
-          });
-  
-          // Add legend to the view but keep it hidden initially
-          view.ui.add(legendWidget, "bottom-left");
-          setLegend(legendWidget);
-        }
+          (error) => {
+            console.error("Map View Initialization Error:", {
+              message: error.message,
+              name: error.name,
+              stack: error.stack
+            });
+          }
+        );
+    
       } catch (error) {
-        console.error("[Map] Error initializing map:", error, error.stack);
+        console.error("Comprehensive Map Initialization Error:", {
+          message: error.message,
+          name: error.name,
+          fullError: error,
+          stack: error.stack
+        });
       }
     };
   
+    // Trigger map initialization
     initializeMap();
+  
+    // Cleanup function
     return () => {
       isMounted = false;
     };
-  }, [setMapView]);
-
+  }, []); // Empty dependency array ensures this runs once on mount
   // Style legend whenever it changes
   useEffect(() => {
     if (!legend) return;
