@@ -1069,7 +1069,7 @@ export class EnrichmentService {
     if (this.variableLabels[variableId]) {
       return this.variableLabels[variableId];
     }
-  
+
     // If not found with full path, try with just the short key
     const shortKey = variableId.split(".").pop();
     if (this.variableLabels[shortKey]) {
@@ -1155,125 +1155,324 @@ export class EnrichmentService {
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
-
+  
     const expandedAreas = [];
     let areaIndex = 0;
-
+  
     for (const area of marketAreas) {
       console.log("Processing market area for enrichment:", {
         name: area.name,
-        type: area.ma_type,
+        type: area.type || area.ma_type,
         hasRadiusPoints: Boolean(area.radius_points?.length),
         hasLocations: Boolean(area.locations?.length),
       });
-
-      if (area.ma_type === "radius") {
+  
+      // Check for both area.ma_type and area.type to handle different data structures
+      if ((area.ma_type === "radius" || area.type === "radius")) {
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
-
+  
           for (const point of area.radius_points) {
-            if (!point.center || !point.radii?.length) continue;
-
-            for (const radiusMiles of point.radii) {
-              const polygonRings = this.createCirclePolygon(
-                point.center.x,
-                point.center.y,
-                radiusMiles,
-                point.center.spatialReference?.wkid || 102100
-              );
-
-              const combinedPolygon = new Polygon({
-                rings: polygonRings,
-                spatialReference: { wkid: 3857 },
-              });
-
-              const projectedGeometry = projection.project(combinedPolygon, {
-                wkid: 4326,
-              });
-
-              if (projectedGeometry && radiusMiles > largestRadiusInfo.radius) {
-                largestRadiusInfo = { radius: radiusMiles, polygon: projectedGeometry };
+            console.log("Processing radius point:", JSON.stringify(point, null, 2));
+            
+            if (!point.center) {
+              console.warn("Radius point has no center:", point);
+              continue;
+            }
+            
+            // Extract coordinates correctly based on available properties
+            let centerLon, centerLat;
+            
+            // Handle different data structures
+            if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
+              centerLon = point.center.longitude;
+              centerLat = point.center.latitude;
+            } else if (point.center.x !== undefined && point.center.y !== undefined) {
+              centerLon = point.center.x;
+              centerLat = point.center.y;
+            } else {
+              console.warn("Cannot determine center coordinates from point:", point.center);
+              continue;
+            }
+            
+            // Check if coordinates need to be transformed from Web Mercator to geographic
+            const spatialRefWkid = point.center.spatialReference?.wkid || 
+                                  point.center.spatialReference?.latestWkid;
+            
+            // If we have Web Mercator coordinates, we need to convert them
+            if (spatialRefWkid === 102100 || spatialRefWkid === 3857) {
+              try {
+                // Import the utilities needed
+                const { default: Point } = await import("@arcgis/core/geometry/Point");
+                const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
+                
+                // First create a Web Mercator point
+                const webMercatorPoint = new Point({
+                  x: centerLon,
+                  y: centerLat,
+                  spatialReference: {
+                    wkid: spatialRefWkid
+                  }
+                });
+                
+                // Convert to geographic (lat/lon)
+                const geographicPoint = webMercatorToGeographic(webMercatorPoint);
+                
+                if (geographicPoint) {
+                  centerLon = geographicPoint.longitude;
+                  centerLat = geographicPoint.latitude;
+                  console.log("Converted to geographic coordinates:", { 
+                    longitude: centerLon, 
+                    latitude: centerLat 
+                  });
+                }
+              } catch (error) {
+                console.error("Error converting to geographic coordinates:", error);
+                // If conversion fails, we'll use the original coordinates and hope for the best
+              }
+            }
+            
+            // Skip if we have invalid coordinates
+            if (!centerLon || !centerLat || 
+                isNaN(centerLon) || isNaN(centerLat) || 
+                (centerLon === 0 && centerLat === 0)) {
+              console.warn("Invalid center coordinates:", centerLon, centerLat);
+              continue;
+            }
+            
+            console.log("Using center coordinates for enrichment:", { longitude: centerLon, latitude: centerLat });
+            
+            // Process each radius
+            for (const radiusMiles of (point.radii || [])) {
+              console.log(`Processing radius: ${radiusMiles} miles`);
+              
+              try {
+                // Create a circle polygon directly in geographic coordinates
+                const { default: Point } = await import("@arcgis/core/geometry/Point");
+                const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
+                
+                // Create a geographic point
+                const geoPoint = new Point({
+                  longitude: centerLon,
+                  latitude: centerLat,
+                  spatialReference: { wkid: 4326 }
+                });
+                
+                // Create a geodesic buffer (proper circle on Earth's surface)
+                const radiusMeters = radiusMiles * 1609.34;
+                const bufferPolygon = geodesicBuffer(geoPoint, radiusMeters, "meters");
+                
+                if (bufferPolygon && bufferPolygon.rings?.length > 0) {
+                  // Log the first few points to verify they're valid
+                  console.log(`Created buffer with ${bufferPolygon.rings[0].length} points. First 3:`, 
+                    JSON.stringify(bufferPolygon.rings[0].slice(0, 3)));
+                  
+                  if (radiusMiles > largestRadiusInfo.radius) {
+                    largestRadiusInfo = { 
+                      radius: radiusMiles, 
+                      polygon: bufferPolygon
+                    };
+                    console.log("Updated largest radius info:", radiusMiles);
+                  }
+                } else {
+                  console.warn("Buffer creation failed for radius:", radiusMiles);
+                }
+              } catch (error) {
+                console.error(`Error creating buffer for radius ${radiusMiles}:`, error);
               }
             }
           }
-
+  
           if (largestRadiusInfo.polygon) {
+            console.log("Using largest radius polygon:", largestRadiusInfo.radius);
+            
+            // Add the expanded area with the buffer polygon
             expandedAreas.push({
               geometry: {
                 rings: largestRadiusInfo.polygon.rings,
-                spatialReference: { wkid: 4326 },
+                spatialReference: { wkid: 4326 }, // Ensure WGS84 for the API
               },
               attributes: {
                 ObjectID: areaIndex,
-                name: area.name,
-                originalAreaName: area.name,
+                name: area.name || "Radius Area",
+                originalAreaName: area.name || "Radius Area",
                 radiusMiles: largestRadiusInfo.radius,
               },
               originalIndex: areaIndex,
             });
             areaIndex++;
           } else {
-            console.warn(`No valid radii found for radius MA: ${area.name}`);
+            console.warn(`No valid radius polygon created for market area: ${area.name}`);
           }
         } else {
           console.warn(`No radius_points found for radius MA: ${area.name}`);
         }
       } else {
+        // Non-radius area processing remains the same
         const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
-
+  
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
           continue;
         }
-
-        const combinedPolygon = new Polygon({
-          rings: allRings,
-          spatialReference: { wkid: 3857 },
-        });
-
-        const projectedGeometry = projection.project(combinedPolygon, {
-          wkid: 4326,
-        });
-
-        if (!projectedGeometry) {
-          console.error(`Projection failed for ${area.name}`);
-          continue;
+  
+        try {
+          const combinedPolygon = new Polygon({
+            rings: allRings,
+            spatialReference: { wkid: 3857 },
+          });
+  
+          const projectedGeometry = projection.project(combinedPolygon, {
+            wkid: 4326,
+          });
+  
+          if (projectedGeometry) {
+            expandedAreas.push({
+              geometry: {
+                rings: projectedGeometry.rings,
+                spatialReference: { wkid: 4326 },
+              },
+              attributes: {
+                ObjectID: areaIndex,
+                name: area.name,
+                originalAreaName: area.name,
+              },
+              originalIndex: areaIndex,
+            });
+            areaIndex++;
+          } else {
+            console.error(`Projection returned null for ${area.name}`);
+          }
+        } catch (error) {
+          console.error(`Projection failed for ${area.name}:`, error);
         }
-
-        expandedAreas.push({
-          geometry: {
-            rings: projectedGeometry.rings,
-            spatialReference: { wkid: 4326 },
-          },
-          attributes: {
-            ObjectID: areaIndex,
-            name: area.name,
-            originalAreaName: area.name,
-          },
-          originalIndex: areaIndex,
-        });
-
-        areaIndex++;
       }
     }
-
+  
+    // Final validation of expanded areas
+    if (expandedAreas.length === 0) {
+      throw new Error("No valid study areas could be generated from market areas");
+    }
+  
+    // Validate all polygons have rings with coordinates
+    for (let i = 0; i < expandedAreas.length; i++) {
+      const area = expandedAreas[i];
+      if (!area.geometry?.rings || !Array.isArray(area.geometry.rings) || area.geometry.rings.length === 0) {
+        console.error(`Invalid geometry for area ${i}:`, area);
+        throw new Error(`Area at index ${i} has invalid geometry: missing or empty rings array`);
+      }
+  
+      // Check if any ring has coordinates
+      let hasValidRing = false;
+      for (const ring of area.geometry.rings) {
+        if (Array.isArray(ring) && ring.length > 3) { // Need at least 3 points plus closing point
+          // Check if any ring has non-zero coordinates
+          const hasNonZeroPoints = ring.some(point => 
+            Array.isArray(point) && point.length >= 2 && 
+            (Math.abs(point[0]) > 0.000001 || Math.abs(point[1]) > 0.000001)
+          );
+          
+          if (hasNonZeroPoints) {
+            hasValidRing = true;
+            break;
+          }
+        }
+      }
+  
+      if (!hasValidRing) {
+        console.error(`All rings for area ${i} have zero or invalid coordinates:`, area.geometry.rings);
+        throw new Error(`Area at index ${i} has invalid geometry: all points are zero or invalid`);
+      }
+    }
+  
+    console.log(`Successfully created ${expandedAreas.length} valid study areas for enrichment`);
     return expandedAreas;
   }
 
   createCirclePolygon(centerX, centerY, radiusMiles, fromWkid = 102100) {
+    // Convert miles to meters
     const radiusMeters = radiusMiles * 1609.34;
     const numPoints = 32;
     const points = [];
 
+    // Debug the input values
+    console.log("Creating circle polygon with:", {
+      centerX,
+      centerY,
+      radiusMiles,
+      radiusMeters,
+      fromWkid
+    });
+
+    // Check for invalid center coordinates
+    if (!centerX || !centerY || isNaN(centerX) || isNaN(centerY) ||
+      (centerX === 0 && centerY === 0)) {
+      console.error("Invalid center coordinates for circle polygon:", centerX, centerY);
+      return null;
+    }
+
+    // Generate points around the circle
     for (let i = 0; i <= numPoints; i++) {
       const angle = (i * 2 * Math.PI) / numPoints;
       const dx = Math.cos(angle) * radiusMeters;
       const dy = Math.sin(angle) * radiusMeters;
-      points.push([centerX + dx, centerY + dy]);
+
+      // Add the offset to the center coordinates
+      const pointX = centerX + dx;
+      const pointY = centerY + dy;
+
+      // Log some points to verify
+      if (i === 0 || i === numPoints / 4 || i === numPoints / 2) {
+        console.log(`Circle point ${i}:`, [pointX, pointY]);
+      }
+
+      points.push([pointX, pointY]);
     }
 
-    points.push(points[0]); // Close the ring
-    return [points];
+    // Close the ring
+    points.push(points[0]);
+
+    // Validate the created ring
+    if (this.isValidRing(points)) {
+      return [points];
+    } else {
+      console.error("Failed to create valid circle polygon");
+      return null;
+    }
+  }
+
+  // Helper method to validate a ring of coordinates
+  isValidRing(ring) {
+    // Check if we have enough points for a valid ring
+    if (!ring || ring.length < 4) {
+      console.error("Ring has insufficient points:", ring?.length);
+      return false;
+    }
+
+    // Check if all coordinates are identical (invalid area)
+    const firstPoint = ring[0];
+    const allSame = ring.every(point =>
+      point[0] === firstPoint[0] && point[1] === firstPoint[1]
+    );
+
+    if (allSame) {
+      console.error("All points in ring are identical");
+      return false;
+    }
+
+    // Check if any coordinates are invalid
+    const hasInvalidCoords = ring.some(point =>
+      !point || point.length !== 2 ||
+      isNaN(point[0]) || isNaN(point[1]) ||
+      (point[0] === 0 && point[1] === 0)
+    );
+
+    if (hasInvalidCoords) {
+      console.error("Ring contains invalid coordinates");
+      return false;
+    }
+
+    return true;
   }
 
   async enrichChunk(studyAreas, selectedVariables = []) {
@@ -1401,38 +1600,38 @@ export class EnrichmentService {
 
   async handleExport(enrichmentData, marketAreas, selectedVariables, options = {}) {
     const { includeUSAData = false } = options;
-    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
-        ? includeUSAData 
-        : Boolean(enrichmentData?.includeUSAData);
-    
+    const shouldIncludeUSA = typeof includeUSAData === "boolean"
+      ? includeUSAData
+      : Boolean(enrichmentData?.includeUSAData);
+
     if (!enrichmentData || !marketAreas || !selectedVariables) {
       throw new Error('Missing required export parameters');
     }
-  
+
     try {
       // Get project ID directly from the market area or options
       const projectId = options.projectId ||  // Add this line to explicitly pass project ID
-        marketAreas[0]?.project_id || 
+        marketAreas[0]?.project_id ||
         marketAreas[0]?.id;
-      
+
       console.log('Project ID Details:', {
         projectId,
         firstMarketArea: marketAreas[0],
         marketAreasLength: marketAreas.length,
         options
       });
-  
+
       if (!projectId) {
         console.error('Market area structure:', marketAreas[0]);
         throw new Error('Could not find project ID');
       }
-  
+
       // Get user information from the API
       let userId;
       try {
         const userResponse = await api.get('/api/admin/users/me/');
         userId = userResponse.data.id;
-        
+
         if (!userId || typeof userId !== 'number') {
           throw new Error('Invalid user ID received from API');
         }
@@ -1440,31 +1639,31 @@ export class EnrichmentService {
         console.error('Failed to get user ID:', error);
         throw new Error('Could not determine user ID. Please log in again.');
       }
-  
+
       // Calculate cost: $1 per 1000 market areas * variables
       // Ensure minimum cost of 0.01
       const totalRecords = marketAreas.length * selectedVariables.length;
       const calculatedCost = (totalRecords / 1000);
       const cost = Math.max(calculatedCost, 0.01);  // Ensure minimum cost of $0.01
-  
+
       // Prepare the usage data
       const usageData = {
         user_id: userId,
         project_id: projectId,
         cost: parseFloat(cost.toFixed(2))
       };
-  
+
       console.log('Sending enrichment usage data:', usageData);
-  
+
       // Record the enrichment usage
       try {
         const usageResponse = await api.post('/api/enrichment/record_usage/', usageData);
         console.log('Enrichment usage recorded:', usageResponse.data);
       } catch (error) {
-        const errorDetails = error.response?.data?.detail || 
-                           error.response?.data?.error || 
-                           error.response?.data?.message || 
-                           error.message;
+        const errorDetails = error.response?.data?.detail ||
+          error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message;
         console.error('Failed to record enrichment usage:', {
           error: error.response?.data,
           details: errorDetails,
@@ -1473,14 +1672,14 @@ export class EnrichmentService {
         });
         throw new Error(`Failed to record enrichment usage: ${errorDetails}`);
       }
-  
+
       const exportResult = await this.exportToExcel(
-        enrichmentData, 
-        marketAreas, 
-        selectedVariables, 
+        enrichmentData,
+        marketAreas,
+        selectedVariables,
         shouldIncludeUSA
       );
-  
+
       return exportResult;
     } catch (error) {
       console.error('Export failed:', error);
@@ -1488,10 +1687,10 @@ export class EnrichmentService {
     }
   }
 
-// Helper method to handle the export once we have a project ID
-async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariables, enrichmentData, includeUSAData) {
-    const shouldIncludeUSA = typeof includeUSAData === "boolean" 
-      ? includeUSAData 
+  // Helper method to handle the export once we have a project ID
+  async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariables, enrichmentData, includeUSAData) {
+    const shouldIncludeUSA = typeof includeUSAData === "boolean"
+      ? includeUSAData
       : Boolean(enrichmentData?.includeUSAData);
 
     console.log('Processing export:', {
@@ -1513,14 +1712,14 @@ async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariable
     console.log('Enrichment usage recorded:', usageResponse.data);
 
     const exportResult = await this.exportToExcel(
-      enrichmentData, 
-      marketAreas, 
-      selectedVariables, 
+      enrichmentData,
+      marketAreas,
+      selectedVariables,
       shouldIncludeUSA
     );
 
     return exportResult;
-}
+  }
 
   addUSADataToRows(rows, selectedVariables) {
     // Add USA column headers
@@ -1532,7 +1731,7 @@ async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariable
 
     // Track positions in USA data
     const variableToUSAIndex = new Map();
-    
+
     // Map Tier 1 variables
     let currentIndex = 5;
     analysisCategories.tier1.variables.forEach(v => {
@@ -1551,23 +1750,23 @@ async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariable
     for (let i = 5; i < rows.length; i++) {
       const variableId = selectedVariables[i - 5];
       const shortKey = variableId.split(".").pop();
-      
+
       let usaValue = "";
-      const isTier2 = variableId.startsWith("1yearincrements.") || 
-                      variableId.startsWith("educationalattainment.") || 
-                      variableId.includes("BASEFY") ||
-                      variableId.includes("MEDIA") ||
-                      (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
-                      (variableId.includes("networth.") && variableId.includes("A"));
-      
+      const isTier2 = variableId.startsWith("1yearincrements.") ||
+        variableId.startsWith("educationalattainment.") ||
+        variableId.includes("BASEFY") ||
+        variableId.includes("MEDIA") ||
+        (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
+        (variableId.includes("networth.") && variableId.includes("A"));
+
       const position = variableToUSAIndex.get(shortKey);
-      
+
       if (isTier2 && position < usaDataRowsTier2.length) {
         usaValue = usaDataRowsTier2[position];
       } else if (!isTier2 && position < usaDataRowsTier1.length) {
         usaValue = usaDataRowsTier1[position];
       }
-      
+
       rows[i].push(usaValue);
     }
   }
@@ -1631,19 +1830,19 @@ async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariable
             return "";
           case "block":
           case "blockgroup":
-            case "tract":
-              // Added error handling and proper this reference
-              return ma.locations?.map(loc => {
-                try {
-                  return this.formatBigNumberAsText(loc.name);
-                } catch (e) {
-                  console.error(`Error formatting location name: ${loc.name}`, e);
-                  return loc.name || "";
-                }
-              }).join(", ") || "";
-            default:
-              return ma.locations?.map(loc => loc.name).join(", ") || "";
-          }
+          case "tract":
+            // Added error handling and proper this reference
+            return ma.locations?.map(loc => {
+              try {
+                return this.formatBigNumberAsText(loc.name);
+              } catch (e) {
+                console.error(`Error formatting location name: ${loc.name}`, e);
+                return loc.name || "";
+              }
+            }).join(", ") || "";
+          default:
+            return ma.locations?.map(loc => loc.name).join(", ") || "";
+        }
       })
     ]);
 
@@ -1651,7 +1850,7 @@ async handleExportWithProjectId(projectId, userId, marketAreas, selectedVariable
     rows.push(Array(marketAreas.length + 1).fill(""));
 
     // Rest of the exportToExcel method remains the same...
-    
+
     // Data rows with proper labels
     selectedVariables.forEach(variableId => {
       const shortKey = variableId.split(".").pop();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MapPinIcon } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { toast } from "react-hot-toast";
@@ -8,71 +8,58 @@ export default function Radius({
   styleSettings,
   existingRadiusPoints = []
 }) {
-  const { mapView, drawRadius, clearSelection } = useMap();
+  const { mapView, clearSelection, drawRadius } = useMap();
 
-  // Normalize existing points to ensure consistent structure
-  const normalizePoint = (point) => {
-    try {
+  // Use useMemo to normalize points only when existingRadiusPoints changes
+  const normalizedPoints = useMemo(() => {
+    const normalizePoint = (point) => {
+      if (!point) return null;
+      
+      const center = point.center ? {
+        longitude: Number(point.center.longitude || point.center.x || point.center[0]),
+        latitude: Number(point.center.latitude || point.center.y || point.center[1]),
+        spatialReference: point.center.spatialReference || { wkid: 4326 }
+      } : null;
+      
+      if (!center) {
+        console.error("Failed to extract valid center coordinates:", point);
+        return null;
+      }
+      
+      const radii = Array.isArray(point.radii) 
+        ? point.radii.map(r => Number(r)) 
+        : (point.radius ? [Number(point.radius)] : [10]);
+      
+      if (isNaN(center.longitude) || isNaN(center.latitude) || 
+          !radii.length || radii.some(r => isNaN(r) || r <= 0)) {
+        console.error("Invalid coordinates or radii:", { center, radii });
+        return null;
+      }
+      
       return {
-        center: {
-          longitude: point.center?.x || point.center?.longitude || 0,
-          latitude: point.center?.y || point.center?.latitude || 0,
-          spatialReference: point.center?.spatialReference || mapView?.spatialReference
-        },
-        radii: Array.isArray(point.radii) ? point.radii.map(Number) : [Number(point.radius || 1)],
+        center,
+        radii,
         units: point.units || 'miles'
       };
-    } catch (error) {
-      console.error('Error normalizing point:', error);
-      return null;
-    }
-  };
+    };
 
-  // Modify initial state to select the first point if exists
+    return existingRadiusPoints.map(normalizePoint).filter(Boolean);
+  }, [existingRadiusPoints]);
+
   const [formState, setFormState] = useState({
-    radiusPoints: existingRadiusPoints.map(normalizePoint).filter(Boolean),
-    currentRadius: existingRadiusPoints.length > 0 
-      ? (existingRadiusPoints[0].radii[0]?.toString() || "1")
-      : "10", // Default to 10 miles
-    selectedPinIndex: existingRadiusPoints.length > 0 ? 0 : null,
+    radiusPoints: normalizedPoints,
+    currentRadius: normalizedPoints.length > 0 
+      ? (normalizedPoints[0].radii[0]?.toString() || "1")
+      : "10",
+    selectedPinIndex: normalizedPoints.length > 0 ? 0 : null,
     isPlacingPin: false,
   });
 
-  // Validate and prepare point for drawing
-  const validateAndDrawRadius = async (point, style, marketAreaId = null, order = 0) => {
-    try {
-      if (!point?.center?.longitude || !point?.center?.latitude) {
-        console.error('Invalid coordinates:', point);
-        return false;
-      }
 
-      // Structure the point exactly as drawRadius expects it
-      const drawPoint = {
-        center: {
-          longitude: Number(point.center.longitude),
-          latitude: Number(point.center.latitude),
-          spatialReference: point.center.spatialReference || mapView?.spatialReference
-        },
-        radii: point.radii.map(r => Math.max(0.1, Number(r))),
-        units: point.units || 'miles'
-      };
-
-      console.log('Drawing point with structure:', JSON.stringify(drawPoint, null, 2));
-
-      await drawRadius(drawPoint, style, marketAreaId, order);
-      return true;
-    } catch (error) {
-      console.error('Error in validateAndDrawRadius:', error);
-      return false;
-    }
-  };
-
-  // Map click handler for placing pins
   useEffect(() => {
     if (!mapView) return;
 
-    // Update the Radius component point creation
-    const handleMapClick = async (event) => {
+    const handleMapClick = (event) => {
       if (!formState.isPlacingPin) return;
 
       const parsedRadius = parseFloat(formState.currentRadius);
@@ -81,49 +68,39 @@ export default function Radius({
         return;
       }
 
-      try {
-        const point = {
-          center: {
-            longitude: event.mapPoint.longitude,
-            latitude: event.mapPoint.latitude,
-            spatialReference: event.mapPoint.spatialReference
-          },
-          radii: [parsedRadius],
-          units: 'miles'
+      const point = {
+        center: {
+          longitude: event.mapPoint.longitude,
+          latitude: event.mapPoint.latitude,
+          spatialReference: event.mapPoint.spatialReference
+        },
+        radii: [parsedRadius],
+        units: 'miles'
+      };
+
+      // Instead of drawing, update the state and let parent handle drawing
+      setFormState(prev => {
+        const newPoints = [point];
+        
+        // Notify parent about state change
+        onFormStateChange({ radiusPoints: newPoints });
+        
+        return {
+          ...prev,
+          radiusPoints: newPoints,
+          isPlacingPin: false,
+          selectedPinIndex: 0,
+          currentRadius: parsedRadius.toString()
         };
+      });
 
-        console.log('Attempting to draw new point:', JSON.stringify(point, null, 2));
-
-        const success = await validateAndDrawRadius(point, styleSettings);
-        if (!success) {
-          throw new Error('Failed to draw radius');
-        }
-
-        setFormState(prev => {
-          // Replace existing points with the new point
-          const newPoints = [point];
-          return {
-            ...prev,
-            radiusPoints: newPoints,
-            isPlacingPin: false,
-            selectedPinIndex: 0,
-            currentRadius: parsedRadius.toString()
-          };
-        });
-
-        onFormStateChange({ radiusPoints: [point] });
-        toast.success("Pin placed successfully");
-      } catch (error) {
-        console.error("Error handling map click:", error);
-        toast.error("Failed to place pin on the map");
-      }
+      toast.success("Pin placed successfully");
     };
 
     const clickHandler = mapView.on("click", handleMapClick);
     return () => clickHandler.remove();
-  }, [mapView, formState.isPlacingPin, formState.currentRadius, styleSettings, onFormStateChange]);
+  }, [mapView, formState.isPlacingPin, formState.currentRadius, onFormStateChange]);
 
-  // Update radius for existing point
   const updateRadius = async (pointIndex, newRadius) => {
     const parsedRadius = parseFloat(newRadius);
     if (isNaN(parsedRadius) || parsedRadius <= 0) {
@@ -131,8 +108,8 @@ export default function Radius({
       return;
     }
 
-    try {
-      const updatedPoints = [...formState.radiusPoints];
+    setFormState(prev => {
+      const updatedPoints = [...prev.radiusPoints];
       const existingPoint = updatedPoints[pointIndex];
       
       const updatedPoint = {
@@ -140,28 +117,21 @@ export default function Radius({
         radii: [parsedRadius]
       };
 
-      const success = await validateAndDrawRadius(updatedPoint, styleSettings);
-      if (!success) {
-        throw new Error('Failed to update radius');
-      }
-
       updatedPoints[pointIndex] = updatedPoint;
       
-      setFormState(prev => ({
+      // Notify parent about state change
+      onFormStateChange({ radiusPoints: updatedPoints });
+
+      return {
         ...prev,
         radiusPoints: updatedPoints,
         currentRadius: parsedRadius.toString()
-      }));
+      };
+    });
 
-      onFormStateChange({ radiusPoints: updatedPoints });
-      toast.success("Radius updated successfully");
-    } catch (error) {
-      console.error("Error updating radius:", error);
-      toast.error("Failed to update radius");
-    }
+    toast.success("Radius updated successfully");
   };
 
-  // Remove radius point
   const removeRadiusPoint = async () => {
     try {
       // Clear all points
@@ -219,7 +189,12 @@ export default function Radius({
         clearSelection();
         
         for (const point of formState.radiusPoints) {
-          await validateAndDrawRadius(point, styleSettings);
+          await drawRadius(
+            point, 
+            styleSettings, 
+            null, 
+            0
+          );
         }
       } catch (error) {
         console.error("Error redrawing points:", error);
@@ -228,7 +203,7 @@ export default function Radius({
     };
 
     redrawPoints();
-  }, [styleSettings, clearSelection, formState.radiusPoints]);
+  }, [styleSettings, clearSelection, formState.radiusPoints, drawRadius]);
 
   const formatCoordinates = (center) => {
     if (!center) return "N/A";

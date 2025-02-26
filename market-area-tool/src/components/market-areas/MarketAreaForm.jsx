@@ -328,75 +328,180 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     ]
   );
 
+  const drawnPointsRef = useRef(new Set());
+
   useEffect(() => {
     const drawRadiusPoints = async () => {
       if (formState.maType === "radius" && radiusPoints.length > 0) {
-        const latestPoint = radiusPoints[radiusPoints.length - 1];
-        console.log("Drawing radius point:", latestPoint);
-  
-        try {
-          // Normalize the center coordinates
-          let centerCoords = {};
-          if (latestPoint.center?.longitude !== undefined && latestPoint.center?.latitude !== undefined) {
-            centerCoords = {
-              x: Number(latestPoint.center.longitude),
-              y: Number(latestPoint.center.latitude)
-            };
-          } else if (latestPoint.center?.x !== undefined && latestPoint.center?.y !== undefined) {
-            centerCoords = {
-              x: typeof latestPoint.center.x === "function" 
-                ? latestPoint.center.x() 
-                : Number(latestPoint.center.x),
-              y: typeof latestPoint.center.y === "function" 
-                ? latestPoint.center.y() 
-                : Number(latestPoint.center.y)
-            };
+        // Only process points we haven't drawn yet
+        const pointsToDraw = radiusPoints.filter((point, index) => {
+          // Create a unique ID for this point based on its properties
+          const pointId = `${JSON.stringify(point.center)}-${JSON.stringify(point.radii)}-${index}`;
+          if (drawnPointsRef.current.has(pointId)) {
+            return false; // Skip points we've already drawn
           }
-  
-          // Validate coordinates
-          if (isNaN(centerCoords.x) || isNaN(centerCoords.y)) {
-            console.error("Invalid radius point coordinates:", centerCoords);
-            return;
-          }
-  
-          // Prepare radii
-          const radii = Array.isArray(latestPoint.radii) 
-            ? latestPoint.radii.map(Number) 
-            : [Number(latestPoint.radius || 10)];
-  
-          const radiusPoint = {
-            center: {
-              x: centerCoords.x,
-              y: centerCoords.y,
-              spatialReference: latestPoint.center.spatialReference || { wkid: 102100 }
-            },
-            radii: radii.filter(r => !isNaN(r) && r > 0),
-            units: latestPoint.units || 'miles'
-          };
-  
-          console.log("Transformed radius point for drawing:", radiusPoint);
-  
-          // Draw the radius
-          await drawRadius(
-            radiusPoint,
-            formState.styleSettings,
-            editingMarketArea?.id || "temporary",
-            editingMarketArea?.order || 0
+          drawnPointsRef.current.add(pointId);
+          return true;
+        });
+        
+        if (pointsToDraw.length === 0) {
+          return; // Nothing new to draw
+        }
+        
+        // Clear existing radius graphics first to avoid duplication
+        if (selectionGraphicsLayer) {
+          const radiusGraphics = selectionGraphicsLayer.graphics.filter(
+            (g) => g.attributes?.FEATURE_TYPE === "radius" && 
+                   g.attributes?.marketAreaId === (editingMarketArea?.id || "temporary")
           );
-        } catch (error) {
-          console.error("Comprehensive error drawing radius point:", error);
+          selectionGraphicsLayer.removeMany(radiusGraphics);
+        }
+        
+        // Draw all points with consistent styling
+        for (const point of radiusPoints) {
+          console.log("Drawing radius point:", point);
+          
+          try {
+            // Apply the current style settings to all points
+            await drawRadius(
+              point,
+              {
+                fillColor: formState.styleSettings.fillColor,
+                fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+                borderColor: formState.styleSettings.borderColor,
+                borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth
+              },
+              editingMarketArea?.id || "temporary",
+              editingMarketArea?.order || 0
+            );
+          } catch (error) {
+            console.error("Error drawing radius point:", error);
+          }
         }
       }
     };
   
     drawRadiusPoints();
+    
+    // Clear the tracking set when changing market area type
+    return () => {
+      if (formState.maType !== "radius") {
+        drawnPointsRef.current.clear();
+      }
+    };
   }, [
     radiusPoints, 
     formState.maType, 
     formState.styleSettings, 
     drawRadius, 
-    editingMarketArea
+    editingMarketArea,
+    selectionGraphicsLayer
   ]);
+
+// Replace the current normalizeRadiusPoint function with this improved version
+const normalizeRadiusPoint = async (point) => {
+  // Ensure consistent format for radius points
+  if (!point) return null;
+  
+  let center = null;
+  
+  try {
+    // Load required ArcGIS modules for coordinate conversion
+    const { default: Point } = await import("@arcgis/core/geometry/Point");
+    const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
+    
+    // Extract center coordinates properly
+    if (point.center) {
+      // Handle different center formats
+      let srcPoint;
+      
+      if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
+        srcPoint = new Point({
+          longitude: Number(point.center.longitude),
+          latitude: Number(point.center.latitude),
+          spatialReference: point.center.spatialReference || { wkid: 4326 }
+        });
+      } else if (point.center.x !== undefined && point.center.y !== undefined) {
+        srcPoint = new Point({
+          x: Number(point.center.x),
+          y: Number(point.center.y),
+          spatialReference: point.center.spatialReference || { wkid: 102100 }
+        });
+      } else if (Array.isArray(point.center)) {
+        srcPoint = new Point({
+          longitude: Number(point.center[0]),
+          latitude: Number(point.center[1]),
+          spatialReference: { wkid: 4326 }
+        });
+      } else {
+        console.error("Invalid center format:", point.center);
+        return null;
+      }
+      
+      // Check if we need to convert from Web Mercator to geographic
+      const spatialRefWkid = srcPoint.spatialReference?.wkid || 
+                             srcPoint.spatialReference?.latestWkid;
+      
+      let geoPoint = srcPoint;
+      
+      // If we have Web Mercator coordinates, we need to convert them
+      if (spatialRefWkid === 102100 || spatialRefWkid === 3857) {
+        try {
+          geoPoint = webMercatorToGeographic(srcPoint);
+          console.log("Converted Web Mercator to geographic:", {
+            from: {
+              x: srcPoint.x,
+              y: srcPoint.y,
+              wkid: spatialRefWkid
+            },
+            to: {
+              longitude: geoPoint.longitude,
+              latitude: geoPoint.latitude
+            }
+          });
+        } catch (error) {
+          console.error("Error converting to geographic coordinates:", error);
+          // If conversion fails, we'll use the original point
+        }
+      }
+      
+      // Create the normalized center
+      center = {
+        longitude: Number(geoPoint.longitude),
+        latitude: Number(geoPoint.latitude),
+        spatialReference: { wkid: 4326 } // Always use WGS84 for API
+      };
+    }
+    
+    if (!center) {
+      console.error("Failed to extract valid center coordinates:", point);
+      return null;
+    }
+    
+    // Ensure radii is a valid array of numbers
+    const radii = Array.isArray(point.radii) 
+      ? point.radii.map(r => Number(r)) 
+      : (point.radius ? [Number(point.radius)] : [10]); // Default to 10 miles if no radius specified
+    
+    // Validate the coordinates and radii
+    if (isNaN(center.longitude) || isNaN(center.latitude) || 
+        !radii.length || radii.some(r => isNaN(r) || r <= 0)) {
+      console.error("Invalid coordinates or radii:", { center, radii });
+      return null;
+    }
+    
+    return {
+      center,
+      radii,
+      units: point.units || 'miles'
+    };
+  } catch (error) {
+    console.error("Error normalizing radius point:", error);
+    return null;
+  }
+};
+
+
   // Searching
   useEffect(() => {
     const searchTimer = setTimeout(async () => {
@@ -682,65 +787,35 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       console.log("Form state on submit:", formState);
       console.log("Current radius points:", radiusPoints);
   
+      // Update this section in the handleSubmit function
       if (formState.maType === "radius") {
         // Validate radius points
         if (!radiusPoints || radiusPoints.length === 0) {
           throw new Error("No radius points defined");
         }
-  
-        // Update the transformedRadiusPoints logic in handleSubmit
-        const transformedRadiusPoints = radiusPoints.map((point, index) => {
-          try {
-            // For points with longitude/latitude
-            if (point.center?.longitude !== undefined && point.center?.latitude !== undefined) {
-              const longitude = Number(point.center.longitude);
-              const latitude = Number(point.center.latitude);
-              
-              if (isNaN(longitude) || isNaN(latitude)) {
-                throw new Error(`Invalid coordinates for radius point ${index}`);
-              }
-  
-              return {
-                center: {
-                  longitude,
-                  latitude,
-                  spatialReference: point.center.spatialReference || { wkid: 102100 }
-                },
-                radii: Array.isArray(point.radii) ? point.radii.map(Number) : [Number(point.radius || 1)],
-                units: point.units || 'miles'
-              };
-            }
-  
-            // For points with x/y coordinates
-            const x = typeof point.center.x === "function" ? point.center.x() : Number(point.center.x);
-            const y = typeof point.center.y === "function" ? point.center.y() : Number(point.center.y);
-  
-            if (isNaN(x) || isNaN(y)) {
-              throw new Error(`Invalid coordinates for radius point ${index}`);
-            }
-  
-            return {
-              center: {
-                x,
-                y,
-                spatialReference: point.center.spatialReference || { wkid: 102100 }
-              },
-              radii: Array.isArray(point.radii) ? point.radii.map(Number) : [Number(point.radius || 1)],
-              units: point.units || 'miles'
-            };
-          } catch (error) {
-            console.error(`Error transforming point ${index}:`, error);
-            throw error;
-          }
-        });
-  
+
+        // Normalize radius points before submission - with async handling
+        const normalizationPromises = radiusPoints.map(point => normalizeRadiusPoint(point));
+        const normalizedPointsWithNulls = await Promise.all(normalizationPromises);
+        const normalizedPoints = normalizedPointsWithNulls.filter(Boolean); // Remove any invalid points
+          
+        if (normalizedPoints.length === 0) {
+          toast.error("No valid radius points to save");
+          setIsSaving(false);
+          return;
+        }
+        
+        // Log normalized points for debugging
+        console.log("Submitting normalized radius points:", 
+          JSON.stringify(normalizedPoints, null, 2));
+
         const marketAreaData = {
           ma_type: "radius",
           name: formState.maName,
           short_name: formState.shortName,
           style_settings: styleSettings,
           locations: [],
-          radius_points: transformedRadiusPoints,
+          radius_points: normalizedPoints,
         };
   
         // Store existing graphics that we want to keep

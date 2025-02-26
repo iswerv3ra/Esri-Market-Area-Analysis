@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { useMap } from './MapContext'; // Add this import
 
 const MarketAreaContext = createContext();
 
@@ -20,6 +21,7 @@ export const MarketAreaProvider = ({ children }) => {
   const [isEditing, setIsEditing] = useState(false);
   const fetchInProgress = useRef(false);
   const initialFetchDone = useRef(false);
+  const { clearMarketAreaGraphics } = useMap(); // Use this to access the function
 
   const fetchMarketAreas = useCallback(async (projectId) => {
     if (!projectId) {
@@ -47,6 +49,12 @@ export const MarketAreaProvider = ({ children }) => {
       // Robust array checking and transformation
       let areas = Array.isArray(response.data) ? response.data : [];
   
+      // Enhanced logging to help debug what we're receiving
+      console.log('Received market areas:', {
+        count: areas.length,
+        types: areas.map(a => a.ma_type)
+      });
+  
       // Enhanced validation and transformation
       const validatedAreas = areas.filter(area => {
         // Validate basic structure
@@ -55,8 +63,83 @@ export const MarketAreaProvider = ({ children }) => {
           return false;
         }
   
-        // Check and transform locations
-        if (area.locations && Array.isArray(area.locations)) {
+        // Special handling for radius market areas
+        if (area.ma_type === 'radius') {
+          console.log('Processing radius market area:', area.id);
+          
+          // Ensure we have radius_points data
+          if (!area.radius_points) {
+            console.warn(`Radius market area ${area.id} missing radius_points`);
+            
+            // Check if we need to parse radius data from other fields
+            if (area.ma_geometry_data) {
+              try {
+                const geoData = typeof area.ma_geometry_data === 'string' 
+                  ? JSON.parse(area.ma_geometry_data) 
+                  : area.ma_geometry_data;
+                  
+                if (geoData) {
+                  // Create radius_points from geometry data
+                  area.radius_points = [{
+                    center: geoData.center || geoData.point,
+                    radii: geoData.radii || [geoData.radius || 5],
+                    style: geoData.style
+                  }];
+                  console.log(`Created radius_points for market area ${area.id} from ma_geometry_data`);
+                }
+              } catch (e) {
+                console.warn(`Error parsing ma_geometry_data for market area ${area.id}:`, e);
+              }
+            }
+            
+            // If we still don't have radius points, this is invalid
+            if (!area.radius_points) {
+              return false;
+            }
+          }
+          
+          // Ensure radius_points is properly formatted
+          try {
+            if (typeof area.radius_points === 'string') {
+              area.radius_points = JSON.parse(area.radius_points);
+            }
+            
+            // Normalize to array
+            if (!Array.isArray(area.radius_points)) {
+              area.radius_points = [area.radius_points];
+            }
+            
+            // Validate each point has necessary info
+            area.radius_points = area.radius_points.filter(point => {
+              if (!point) return false;
+              
+              // Ensure we have center coordinates
+              if (!point.center && !point.point) {
+                console.warn(`Radius point in market area ${area.id} missing center/point`);
+                return false;
+              }
+              
+              // Ensure we have radius information
+              if (!point.radii && !point.radius) {
+                console.log(`Radius point in market area ${area.id} missing radius/radii, using default`);
+                point.radii = [5]; // Default 5-mile radius
+              } else if (point.radius && !point.radii) {
+                // Convert single radius to array format
+                point.radii = [point.radius];
+              }
+              
+              return true;
+            });
+            
+            // Market area is valid if it has at least one valid radius point
+            return area.radius_points.length > 0;
+          } catch (e) {
+            console.error(`Error processing radius_points for market area ${area.id}:`, e);
+            return false;
+          }
+        } 
+        // Handle polygon-based market areas
+        else if (area.locations && Array.isArray(area.locations)) {
           area.locations = area.locations.filter(loc => {
             // Validate location geometry
             if (!loc.geometry) {
@@ -85,14 +168,22 @@ export const MarketAreaProvider = ({ children }) => {
             return false;
           }
         } else {
-          // Handle radius market areas or other types
-          if (area.ma_type === 'radius' && (!area.radius_points || area.radius_points.length === 0)) {
-            console.warn(`Radius market area ${area.id} missing radius points`);
-            return false;
-          }
+          // No locations and not a radius - invalid
+          console.warn(`Market area ${area.id} has no locations and is not a radius type`);
+          return false;
         }
   
         return true;
+      });
+  
+      // Log validation results
+      console.log('Market Areas Validation:', {
+        totalReceived: areas.length,
+        validCount: validatedAreas.length,
+        byType: {
+          radius: validatedAreas.filter(a => a.ma_type === 'radius').length,
+          other: validatedAreas.filter(a => a.ma_type !== 'radius').length
+        }
       });
   
       // Sort based on existing order or create new order
@@ -105,12 +196,6 @@ export const MarketAreaProvider = ({ children }) => {
       } else {
         setOrder(validatedAreas.map(area => area.id));
       }
-  
-      // Log validation results
-      console.log('Market Areas Validation:', {
-        totalReceived: areas.length,
-        validCount: validatedAreas.length
-      });
   
       // Update state
       setMarketAreas(validatedAreas);
@@ -250,6 +335,12 @@ export const MarketAreaProvider = ({ children }) => {
     if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
     setIsLoading(true);
     try {
+      // First, ensure all graphics are removed from the map
+      if (clearMarketAreaGraphics) {
+        clearMarketAreaGraphics(marketAreaId);
+      }
+      
+      // Then delete from the API
       await api.delete(`/api/projects/${projectId}/market-areas/${marketAreaId}/`);
       
       setMarketAreas(prev => prev.filter(ma => ma.id !== marketAreaId));
@@ -267,7 +358,7 @@ export const MarketAreaProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedMarketArea]);
+  }, [selectedMarketArea, clearMarketAreaGraphics]);
 
   const reorderMarketAreas = useCallback(async (projectId, newOrder) => {
     if (!projectId) throw new Error('Project ID is required');
