@@ -17,9 +17,8 @@ import { useNavigate, useParams } from "react-router-dom"; // Add useNavigate he
 import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path as needed
 import SearchableDropdown from './SearchableDropdown'; // Adjust the import path as needed
 
-
-const API_KEY = "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg";
-
+const API_KEY =
+  "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
 const colorScheme = {
   level1: [128, 0, 128, 0.45],      // Purple
