@@ -3736,7 +3736,7 @@ export default function MapComponent({ onToggleLis }) {
     const initializeMap = async () => {
       try {
         console.log("Starting map initialization...");
-        
+    
         // Validate API Key
         const apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
         if (!apiKey) {
@@ -3763,40 +3763,92 @@ export default function MapComponent({ onToggleLis }) {
             rotationEnabled: false,
             minZoom: 2,
             maxZoom: 20
+          },
+          navigation: {
+            actionMap: {
+              mouseWheel: {
+                enabled: false // Disable default mouse wheel behavior
+              }
+            },
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
           }
         });
     
-        // Comprehensive view initialization
-        view.when(
-          () => {
-            console.log("✅ View is ready");
-            setMapView(view);
-            
-            // Add widgets
-            const widgets = [
-              new Zoom({ view }),
-              new Home({ view }),
-              new ScaleBar({ view, unit: "imperial" }),
-              new BasemapToggle({ 
-                view, 
-                nextBasemap: "arcgis-imagery" 
-              })
-            ];
+        console.log("Waiting for view to be ready...");
+        // Wait for the view to be ready before proceeding
+        await view.when();
+        console.log("View is now ready!");
     
-            widgets.forEach(widget => {
-              view.ui.add(widget, "top-left");
-            });
+        // Custom mouse wheel zoom handler
+        view.constraints.snapToZoom = false; // Allow fractional zoom levels
+
+        view.on("mouse-wheel", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          // Access the native deltaY value
+          const delta = event.native.deltaY;
+          const currentZoom = view.zoom;
+
+          // Use half an increment per wheel event: 0.5 instead of 1
+          const zoomDelta = delta > 0 ? -0.1 : 0.1;
+          
+          const newZoom = Math.min(
+            Math.max(currentZoom + zoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
+
+          view.goTo(
+            {
+              zoom: newZoom,
+              center: view.center,
+            },
+            {
+              duration: 10,  // Slightly shorter duration for a more responsive feel
+              easing: "linear",  // More immediate response
+            }
+          );
+
+          // Log zoom details for debugging
+          console.log('Wheel Delta:', delta);
+          console.log('Current Zoom:', currentZoom);
+          console.log('Zoom Delta:', zoomDelta);
+          console.log('New Zoom:', newZoom);
+        });
+
+    
+        console.log("Adding UI widgets...");
+        // Add non-legend widgets first
+        const widgets = [
+          {
+            widget: new Home({ view }),
+            position: "top-left",
           },
-          (error) => {
-            console.error("Map View Initialization Error:", {
-              message: error.message,
-              name: error.name,
-              stack: error.stack
-            });
+          {
+            widget: new ScaleBar({
+              view,
+              unit: "imperial"
+            }),
+            position: "top-left",
           }
-        );
+        ];
+    
+        widgets.forEach(({ widget, position }) => {
+          view.ui.add(widget, position);
+        });
+    
+        if (isMounted) {
+          console.log("Finalizing map setup...");
+          // Set map readiness flag and view in context
+          view.ready = true;
+          setMapView(view);
+          console.log('[MapContext] Map view initialized and ready');
+        }
     
       } catch (error) {
+        console.error("[Map] Error initializing map:", error, error.stack);
         console.error("Comprehensive Map Initialization Error:", {
           message: error.message,
           name: error.name,
