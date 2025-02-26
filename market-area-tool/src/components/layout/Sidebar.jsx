@@ -28,16 +28,16 @@ export default function Sidebar({ isOpen, onClose, sidebarContent, editingMarket
   };
   
   return (
-    <div className="h-full flex flex-col bg-[#1a202c] border-t border-gray-700">
-      <div className="flex-none h-12 flex items-center justify-center px-5 border-b border-gray-700 bg-[#1e2330]">
-        <h2 className="text-xl font-semibold text-white">
+    <div className="h-full flex flex-col bg-white dark:bg-[#1a202c]">
+      <div className="flex-none h-12 flex items-center justify-center px-5 border-b border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-[#1e2330]">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           {currentView === 'create'
             ? (editingMarketArea ? 'Edit Market Area' : 'Create Market Area')
             : 'Saved Market Areas'}
         </h2>
       </div>
       
-      <div className="flex-1 overflow-y-auto bg-[#1a202c]">
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-[#1a202c]">
         {currentView === 'create' && (
           <MarketAreaForm 
             editingMarketArea={editingMarketArea}

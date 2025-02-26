@@ -75,7 +75,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-white">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
           Dot Size
         </label>
         <input
@@ -93,13 +93,13 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
           min="0.5"
           max="10"
           step="0.5"
-          className="w-full p-2 bg-gray-800 text-white 
-                   border border-gray-700 rounded"
+          className="w-full p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+                   border border-gray-300 dark:border-gray-700 rounded"
         />
       </div>
       
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-white">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
           People per Dot
         </label>
         <input
@@ -108,13 +108,13 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
           onChange={handleDotValueChange}
           min="1"
           step="1"
-          className="w-full p-2 bg-gray-800 text-white 
-                   border border-gray-700 rounded"
+          className="w-full p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+                   border border-gray-300 dark:border-gray-700 rounded"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-white">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
           Dot Color
         </label>
         <input
@@ -141,7 +141,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     </div>
   );
 };
-
 
 const LayerPropertiesEditor = ({ 
   isOpen, 
@@ -227,70 +226,68 @@ const LayerPropertiesEditor = ({
     return value === 12 ? 'tract' : value === 11 ? 'county' : 'tract';
   };
 
+  const handleSave = async () => {
+    if (!currentConfig || isSaving) return;
 
-// Inside your handleSave function
-const handleSave = async () => {
-  if (!currentConfig || isSaving) return;
-
-  try {
-    setIsSaving(true);
+    try {
+      setIsSaving(true);
+      
+      // Create a deep clone of the configuration to ensure all references are new
+      const freshConfig = JSON.parse(JSON.stringify(currentConfig));
+      
+      // Add a unique timestamp to force the map to see this as a new configuration
+      freshConfig.timestamp = Date.now();
     
-    // Create a deep clone of the configuration to ensure all references are new
-    const freshConfig = JSON.parse(JSON.stringify(currentConfig));
+        const configurations = tabs
+          .filter(tab => tab.id !== 1)
+          .map((tab, index) => ({
+            project_id: projectId,
+            project: projectId,
+            tab_name: tab.name,
+            visualization_type: tab.visualizationType || '',
+            area_type: convertAreaTypeToString(tab.id === activeTab ? selectedAreaType.value : tab.areaType?.value),
+            layer_configuration: tab.id === activeTab ? currentConfig : tab.layerConfiguration,
+            order: index
+          }));
     
-    // Add a unique timestamp to force the map to see this as a new configuration
-    freshConfig.timestamp = Date.now();
-  
-      const configurations = tabs
-        .filter(tab => tab.id !== 1)
-        .map((tab, index) => ({
-          project_id: projectId,
-          project: projectId,
-          tab_name: tab.name,
-          visualization_type: tab.visualizationType || '',
-          area_type: convertAreaTypeToString(tab.id === activeTab ? selectedAreaType.value : tab.areaType?.value),
-          layer_configuration: tab.id === activeTab ? currentConfig : tab.layerConfiguration,
-          order: index
-        }));
-  
-      console.log('[Save] Configurations to save:', configurations);
-  
-      const existingConfigs = await mapConfigurationsAPI.getAll(projectId);
-      if (existingConfigs?.data?.length > 0) {
-        await Promise.all(
-          existingConfigs.data.map(config => 
-            mapConfigurationsAPI.delete(config.id)
-          )
-        );
-      }
-  
-      for (const config of configurations) {
-        try {
-          console.log('[Save] Creating configuration:', config);
-          const response = await mapConfigurationsAPI.create(projectId, {
-            ...config,
-            project: projectId
-          });
-          console.log('[Save] Creation response:', response);
-        } catch (err) {
-          console.error('[Save] Error creating config:', {
-            config,
-            error: err.response?.data,
-            fullError: err
-          });
-          throw err;
+        console.log('[Save] Configurations to save:', configurations);
+    
+        const existingConfigs = await mapConfigurationsAPI.getAll(projectId);
+        if (existingConfigs?.data?.length > 0) {
+          await Promise.all(
+            existingConfigs.data.map(config => 
+              mapConfigurationsAPI.delete(config.id)
+            )
+          );
         }
-      }
-    // When returning to the map view, force a complete redraw
-    onConfigChange(freshConfig);
-    onClose();
     
-  } catch (error) {
-    // Error handling...
-  } finally {
-    setIsSaving(false);
-  }
-};
+        for (const config of configurations) {
+          try {
+            console.log('[Save] Creating configuration:', config);
+            const response = await mapConfigurationsAPI.create(projectId, {
+              ...config,
+              project: projectId
+            });
+            console.log('[Save] Creation response:', response);
+          } catch (err) {
+            console.error('[Save] Error creating config:', {
+              config,
+              error: err.response?.data,
+              fullError: err
+            });
+            throw err;
+          }
+        }
+      // When returning to the map view, force a complete redraw
+      onConfigChange(freshConfig);
+      onClose();
+      
+    } catch (error) {
+      // Error handling...
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const renderEditor = () => {
     if (!currentConfig || isTransitioning) {
@@ -344,9 +341,9 @@ const handleSave = async () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#1a202c] border-t border-gray-700">
-      <div className="flex-none h-12 flex items-center justify-center px-5 border-b border-gray-700 bg-[#1e2330]">
-        <h2 className="text-xl font-semibold text-white">
+    <div className="h-full flex flex-col bg-gray-100 dark:bg-[#1a202c] border-t border-gray-300 dark:border-gray-700">
+      <div className="flex-none h-12 flex items-center justify-center px-5 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1e2330]">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Edit Layer Properties
         </h2>
       </div>
@@ -355,12 +352,12 @@ const handleSave = async () => {
         {renderEditor()}
       </div>
   
-      <div className="p-5 border-t border-gray-700 bg-[#1a202c]">
+      <div className="p-5 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a202c]">
         <div className="flex justify-end space-x-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-300 bg-transparent 
-                     hover:bg-gray-700 rounded transition-colors"
+            className="px-4 py-2 text-gray-600 dark:text-gray-300 bg-transparent 
+                     hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
           >
             Cancel
           </button>

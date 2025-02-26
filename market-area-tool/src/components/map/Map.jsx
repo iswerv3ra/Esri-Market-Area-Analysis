@@ -3839,13 +3839,27 @@ export default function MapComponent({ onToggleLis }) {
           view.ui.add(widget, position);
         });
     
+
         if (isMounted) {
           console.log("Finalizing map setup...");
           // Set map readiness flag and view in context
           view.ready = true;
           setMapView(view);
           console.log('[MapContext] Map view initialized and ready');
+    
+          // Initialize legend after map is ready
+          const legendWidget = new Legend({
+            view,
+            container: document.createElement("div"),
+            layerInfos: [],
+            visible: false
+          });
+    
+          // Add legend to the view but keep it hidden initially
+          view.ui.add(legendWidget, "bottom-left");
+          setLegend(legendWidget);
         }
+    
     
       } catch (error) {
         console.error("[Map] Error initializing map:", error, error.stack);
@@ -3857,7 +3871,7 @@ export default function MapComponent({ onToggleLis }) {
         });
       }
     };
-  
+
     // Trigger map initialization
     initializeMap();
   
