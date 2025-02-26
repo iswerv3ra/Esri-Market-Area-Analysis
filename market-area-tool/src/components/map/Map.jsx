@@ -17,9 +17,8 @@ import { useNavigate, useParams } from "react-router-dom"; // Add useNavigate he
 import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path as needed
 import SearchableDropdown from './SearchableDropdown'; // Adjust the import path as needed
 
+const API_KEY = process.env.REACT_APP_ARCGIS_API_KEY || "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg";
 
-const API_KEY =
-  "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
 
 const colorScheme = {
   level1: [128, 0, 128, 0.45],      // Purple
@@ -4135,6 +4134,64 @@ export default function MapComponent({ onToggleLis }) {
       console.error("Error updating visualization layer:", error);
     }
   };
+
+  useEffect(() => {
+    try {
+      console.log('ArcGIS API Key:', import.meta.env.VITE_ARCGIS_API_KEY ? 'Loaded' : 'Not Found');
+      
+      esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+      
+      if (!esriConfig.apiKey) {
+        console.error('ArcGIS API Key is missing or undefined');
+        // Optionally show a user-friendly error message
+        return;
+      }
+  
+      esriConfig.assetsPath = "https://js.arcgis.com/4.31/@arcgis/core/assets/";
+  
+      // CORS configuration
+      if (!esriConfig.request.corsEnabledServers) {
+        esriConfig.request.corsEnabledServers = [];
+      }
+  
+      const serversToAdd = [
+        "geocode-api.arcgis.com",
+        "route-api.arcgis.com",
+        "services.arcgis.com",
+        "basemaps.arcgis.com",
+        "basemaps-api.arcgis.com",
+        "tiles.arcgis.com",
+        "services8.arcgis.com"
+      ];
+  
+      serversToAdd.forEach((server) => {
+        if (!esriConfig.request.corsEnabledServers.includes(server)) {
+          esriConfig.request.corsEnabledServers.push(server);
+        }
+      });
+  
+      // Add request interceptor for debugging
+      esriConfig.request.interceptors.push({
+        before: (params) => {
+          console.log('ArcGIS Request Interceptor:', {
+            url: params.url,
+            method: params.method,
+            headers: params.headers
+          });
+        },
+        error: (error) => {
+          console.error('ArcGIS Request Error:', error);
+        }
+      });
+  
+    } catch (error) {
+      console.error('ArcGIS Configuration Error:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+    }
+  }, []);
 
   // Use the tab-specific configuration when switching tabs or rendering
   useEffect(() => {
