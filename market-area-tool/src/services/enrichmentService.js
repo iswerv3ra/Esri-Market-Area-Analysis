@@ -1155,10 +1155,10 @@ export class EnrichmentService {
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
-  
+
     const expandedAreas = [];
     let areaIndex = 0;
-  
+
     for (const area of marketAreas) {
       console.log("Processing market area for enrichment:", {
         name: area.name,
@@ -1166,23 +1166,23 @@ export class EnrichmentService {
         hasRadiusPoints: Boolean(area.radius_points?.length),
         hasLocations: Boolean(area.locations?.length),
       });
-  
+
       // Check for both area.ma_type and area.type to handle different data structures
       if ((area.ma_type === "radius" || area.type === "radius")) {
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
-  
+
           for (const point of area.radius_points) {
             console.log("Processing radius point:", JSON.stringify(point, null, 2));
-            
+
             if (!point.center) {
               console.warn("Radius point has no center:", point);
               continue;
             }
-            
+
             // Extract coordinates correctly based on available properties
             let centerLon, centerLat;
-            
+
             // Handle different data structures
             if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
               centerLon = point.center.longitude;
@@ -1194,82 +1194,118 @@ export class EnrichmentService {
               console.warn("Cannot determine center coordinates from point:", point.center);
               continue;
             }
-            
+
             // Check if coordinates need to be transformed from Web Mercator to geographic
-            const spatialRefWkid = point.center.spatialReference?.wkid || 
-                                  point.center.spatialReference?.latestWkid;
-            
-            // If we have Web Mercator coordinates, we need to convert them
+            const spatialRefWkid = point.center.spatialReference?.wkid ||
+              point.center.spatialReference?.latestWkid;
+
+            // CRITICAL FIX: Special handling for lat/long values incorrectly tagged as Web Mercator
             if (spatialRefWkid === 102100 || spatialRefWkid === 3857) {
-              try {
-                // Import the utilities needed
-                const { default: Point } = await import("@arcgis/core/geometry/Point");
-                const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-                
-                // First create a Web Mercator point
-                const webMercatorPoint = new Point({
-                  x: centerLon,
-                  y: centerLat,
-                  spatialReference: {
-                    wkid: spatialRefWkid
-                  }
-                });
-                
-                // Convert to geographic (lat/lon)
-                const geographicPoint = webMercatorToGeographic(webMercatorPoint);
-                
-                if (geographicPoint) {
-                  centerLon = geographicPoint.longitude;
-                  centerLat = geographicPoint.latitude;
-                  console.log("Converted to geographic coordinates:", { 
-                    longitude: centerLon, 
-                    latitude: centerLat 
-                  });
+              // If we have lat/long values with Web Mercator spatial ref
+              if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
+                // Check if values appear to be latitude/longitude (reasonable range)
+                if (Math.abs(centerLat) <= 90 && Math.abs(centerLon) <= 180) {
+                  console.log("Detected lat/long values incorrectly tagged as Web Mercator - using directly");
+                  // No conversion needed - keep the values as they are
+                  console.log("Using coordinates directly:", { longitude: centerLon, latitude: centerLat });
                 }
-              } catch (error) {
-                console.error("Error converting to geographic coordinates:", error);
-                // If conversion fails, we'll use the original coordinates and hope for the best
+                else {
+                  // Normal Web Mercator to geographic conversion for true Web Mercator coordinates
+                  try {
+                    const { default: Point } = await import("@arcgis/core/geometry/Point");
+                    const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
+
+                    const webMercatorPoint = new Point({
+                      x: centerLon,
+                      y: centerLat,
+                      spatialReference: {
+                        wkid: spatialRefWkid
+                      }
+                    });
+
+                    const geographicPoint = webMercatorToGeographic(webMercatorPoint);
+
+                    if (geographicPoint) {
+                      centerLon = geographicPoint.longitude;
+                      centerLat = geographicPoint.latitude;
+                      console.log("Converted to geographic coordinates:", {
+                        longitude: centerLon,
+                        latitude: centerLat
+                      });
+                    }
+                  } catch (error) {
+                    console.error("Error converting to geographic coordinates:", error);
+                  }
+                }
+              }
+              // x/y coordinates need normal conversion
+              else if (point.center.x !== undefined && point.center.y !== undefined) {
+                try {
+                  const { default: Point } = await import("@arcgis/core/geometry/Point");
+                  const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
+
+                  const webMercatorPoint = new Point({
+                    x: centerLon,
+                    y: centerLat,
+                    spatialReference: {
+                      wkid: spatialRefWkid
+                    }
+                  });
+
+                  const geographicPoint = webMercatorToGeographic(webMercatorPoint);
+
+                  if (geographicPoint) {
+                    centerLon = geographicPoint.longitude;
+                    centerLat = geographicPoint.latitude;
+                    console.log("Converted Web Mercator x/y to geographic coordinates:", {
+                      longitude: centerLon,
+                      latitude: centerLat
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error converting to geographic coordinates:", error);
+                }
               }
             }
-            
+
             // Skip if we have invalid coordinates
-            if (!centerLon || !centerLat || 
-                isNaN(centerLon) || isNaN(centerLat) || 
-                (centerLon === 0 && centerLat === 0)) {
+            if (!centerLon || !centerLat ||
+              isNaN(centerLon) || isNaN(centerLat) ||
+              (centerLon === 0 && centerLat === 0)) {
               console.warn("Invalid center coordinates:", centerLon, centerLat);
               continue;
             }
-            
+
             console.log("Using center coordinates for enrichment:", { longitude: centerLon, latitude: centerLat });
-            
+
             // Process each radius
             for (const radiusMiles of (point.radii || [])) {
               console.log(`Processing radius: ${radiusMiles} miles`);
-              
+
               try {
                 // Create a circle polygon directly in geographic coordinates
                 const { default: Point } = await import("@arcgis/core/geometry/Point");
                 const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
-                
+
                 // Create a geographic point
                 const geoPoint = new Point({
                   longitude: centerLon,
                   latitude: centerLat,
                   spatialReference: { wkid: 4326 }
                 });
-                
+
                 // Create a geodesic buffer (proper circle on Earth's surface)
                 const radiusMeters = radiusMiles * 1609.34;
                 const bufferPolygon = geodesicBuffer(geoPoint, radiusMeters, "meters");
-                
+
                 if (bufferPolygon && bufferPolygon.rings?.length > 0) {
                   // Log the first few points to verify they're valid
-                  console.log(`Created buffer with ${bufferPolygon.rings[0].length} points. First 3:`, 
+                  console.log(`Created buffer with ${bufferPolygon.rings[0].length} points. First 3:`,
                     JSON.stringify(bufferPolygon.rings[0].slice(0, 3)));
-                  
+
                   if (radiusMiles > largestRadiusInfo.radius) {
-                    largestRadiusInfo = { 
-                      radius: radiusMiles, 
+                    largestRadiusInfo = {
+                      radius: radiusMiles,
                       polygon: bufferPolygon
                     };
                     console.log("Updated largest radius info:", radiusMiles);
@@ -1282,10 +1318,10 @@ export class EnrichmentService {
               }
             }
           }
-  
+
           if (largestRadiusInfo.polygon) {
             console.log("Using largest radius polygon:", largestRadiusInfo.radius);
-            
+
             // Add the expanded area with the buffer polygon
             expandedAreas.push({
               geometry: {
@@ -1310,22 +1346,22 @@ export class EnrichmentService {
       } else {
         // Non-radius area processing remains the same
         const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
-  
+
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
           continue;
         }
-  
+
         try {
           const combinedPolygon = new Polygon({
             rings: allRings,
             spatialReference: { wkid: 3857 },
           });
-  
+
           const projectedGeometry = projection.project(combinedPolygon, {
             wkid: 4326,
           });
-  
+
           if (projectedGeometry) {
             expandedAreas.push({
               geometry: {
@@ -1348,12 +1384,12 @@ export class EnrichmentService {
         }
       }
     }
-  
+
     // Final validation of expanded areas
     if (expandedAreas.length === 0) {
       throw new Error("No valid study areas could be generated from market areas");
     }
-  
+
     // Validate all polygons have rings with coordinates
     for (let i = 0; i < expandedAreas.length; i++) {
       const area = expandedAreas[i];
@@ -1361,30 +1397,30 @@ export class EnrichmentService {
         console.error(`Invalid geometry for area ${i}:`, area);
         throw new Error(`Area at index ${i} has invalid geometry: missing or empty rings array`);
       }
-  
+
       // Check if any ring has coordinates
       let hasValidRing = false;
       for (const ring of area.geometry.rings) {
         if (Array.isArray(ring) && ring.length > 3) { // Need at least 3 points plus closing point
           // Check if any ring has non-zero coordinates
-          const hasNonZeroPoints = ring.some(point => 
-            Array.isArray(point) && point.length >= 2 && 
+          const hasNonZeroPoints = ring.some(point =>
+            Array.isArray(point) && point.length >= 2 &&
             (Math.abs(point[0]) > 0.000001 || Math.abs(point[1]) > 0.000001)
           );
-          
+
           if (hasNonZeroPoints) {
             hasValidRing = true;
             break;
           }
         }
       }
-  
+
       if (!hasValidRing) {
         console.error(`All rings for area ${i} have zero or invalid coordinates:`, area.geometry.rings);
         throw new Error(`Area at index ${i} has invalid geometry: all points are zero or invalid`);
       }
     }
-  
+
     console.log(`Successfully created ${expandedAreas.length} valid study areas for enrichment`);
     return expandedAreas;
   }
