@@ -3,6 +3,7 @@ import * as projection from "@arcgis/core/geometry/projection";
 import Polygon from "@arcgis/core/geometry/Polygon";
 import * as XLSX from 'xlsx/xlsx.mjs';
 import api from './api';  // Add this at the top with other imports
+import { flipVertical } from "@arcgis/core/geometry/geometryEngine";
 
 const ARCGIS_CLIENT_ID = import.meta.env.VITE_ARCGIS_CLIENT_ID;
 const ARCGIS_CLIENT_SECRET = import.meta.env.VITE_ARCGIS_CLIENT_SECRET;
@@ -159,6 +160,8 @@ const usaDataRowsTier1 = [
   "88,085,823",
   "46,332,051",
   "14,657,583",
+  "0",
+  "0",
   "308,162,550",
   "116,441,641",
   "20,146,004",
@@ -499,7 +502,27 @@ const usaDataRowsTier2 = [
   "4,531,117",
   "7,317,525",
   "6,510,152",
-  "4,142,121"
+  "4,142,121",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
 ];
 
 export const analysisCategories = {
@@ -657,6 +680,9 @@ export const analysisCategories = {
       { id: "KeyUSFacts.OWNER_FY", label: "2029 Owner Occupied HUs" },
       { id: "KeyUSFacts.RENTER_FY", label: "2029 Renter Occupied HUs" },
       { id: "KeyUSFacts.VACANT_FY", label: "2029 Vacant Housing Units" },
+
+      { id: "HistoricalPopulation.TSPOP20_CY", label: "2020 Total Population" },
+      { id: "HistoricalHouseholds.TSHH20_CY", label: "2020 Total   Households" },
 
       // Historical (2010) Population
       { id: "HistoricalPopulation.TSPOP10_CY", label: "2010 Total Population" },
@@ -1009,6 +1035,30 @@ export const analysisCategories = {
       { id: "networth.A55NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 55-64" },
       { id: "networth.A65NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 65-74" },
       { id: "networth.A75NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 75+" },
+
+
+      { id: "householdsbysize.FAM2PERS10", label: "2010 Family HHs: 2-Person" },
+      { id: "householdsbysize.FAM3PERS10", label: "2010 Family HHs: 3-Person" },
+      { id: "householdsbysize.FAM4PERS10", label: "2010 Family HHs: 4-Person" },
+      { id: "householdsbysize.FAM5PERS10", label: "2010 Family HHs: 5-Person" },
+      { id: "householdsbysize.FAM6PERS10", label: "2010 Family HHs: 6-Person" },
+      { id: "householdsbysize.FAM7PERS10", label: "2010 Family HHs: 7+-Person" },
+      { id: "householdsbysize.NF1PERS10", label: "2010 Nonfamily HHs: 1-Person" },
+      { id: "householdsbysize.NF2PERS10", label: "2010 Nonfamily HHs: 2-Person" },
+      { id: "householdsbysize.NF3PERS10", label: "2010 Nonfamily HHs: 3-Person" },
+      { id: "householdsbysize.NF4PERS10", label: "2010 Nonfamily HHs: 4-Person" },
+      { id: "householdsbysize.NF5PERS10", label: "2010 Nonfamily HHs: 5-Person" },
+      { id: "householdsbysize.NF6PERS10", label: "2010 Nonfamily HHs: 6-Person" },
+      { id: "householdsbysize.NF7PERS10", label: "2010 Nonfamily HHs: 7+-Person" },
+
+      // Income by Age (Average)
+      { id: "incomebyage.AVGIA15_CY", label: "2024 Average HH Inc: HHr 15-24" },
+      { id: "incomebyage.AVGIA25_CY", label: "2024 Average HH Inc: HHr 25-34" },
+      { id: "incomebyage.AVGIA35_CY", label: "2024 Average HH Inc: HHr 35-44" },
+      { id: "incomebyage.AVGIA45_CY", label: "2024 Average HH Inc: HHr 45-54" },
+      { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
+      { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
+      { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" }
     ]
   }
 };
@@ -1789,11 +1839,12 @@ export class EnrichmentService {
 
       let usaValue = "";
       const isTier2 = variableId.startsWith("1yearincrements.") ||
-        variableId.startsWith("educationalattainment.") ||
-        variableId.includes("BASEFY") ||
-        variableId.includes("MEDIA") ||
-        (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
-        (variableId.includes("networth.") && variableId.includes("A"));
+      variableId.startsWith("educationalattainment.") ||
+      variableId.includes("BASEFY") ||
+      variableId.includes("MEDIA") ||
+      (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
+      (variableId.includes("networth.") && variableId.includes("A")) ||
+      variableId.includes("incomebyage.AVGIA");  // Add this condition
 
       const position = variableToUSAIndex.get(shortKey);
 
