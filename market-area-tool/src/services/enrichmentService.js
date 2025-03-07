@@ -985,6 +985,8 @@ export const analysisCategories = {
       { id: "incomebyage.MEDIA55_CY", label: "2024 Median HH Inc: HHr 55-64" },
       { id: "incomebyage.MEDIA65_CY", label: "2024 Median HH Inc: HHr 65-74" },
       { id: "incomebyage.MEDIA75_CY", label: "2024 Median HH Inc: HHr 75+" },
+
+
       { id: "incomebyage.A15I0_CY", label: "2024 HH Inc <$15000/HHr 15-24" },
       { id: "incomebyage.A15I15_CY", label: "2024 HH Inc $15K-24999/HHr 15-24" },
       { id: "incomebyage.A15I25_CY", label: "2024 HH Inc $25K-34999/HHr 15-24" },
@@ -1036,6 +1038,82 @@ export const analysisCategories = {
       { id: "networth.A65NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 65-74" },
       { id: "networth.A75NW1M_CY", label: "2024 HH Net Worth $1000000+/HHr 75+" },
 
+      // Age 15-24 Income Brackets
+      { id: "incomebyage.A15I0_FY", label: "2029 HH Inc <$15000/HHr 15-24" },
+      { id: "incomebyage.A15I15_FY", label: "2029 HH Inc $15K-24999/HHr 15-24" },
+      { id: "incomebyage.A15I25_FY", label: "2029 HH Inc $25K-34999/HHr 15-24" },
+      { id: "incomebyage.A15I35_FY", label: "2029 HH Inc $35K-49999/HHr 15-24" },
+      { id: "incomebyage.A15I50_FY", label: "2029 HH Inc $50K-74999/HHr 15-24" },
+      { id: "incomebyage.A15I75_FY", label: "2029 HH Inc $75K-99999/HHr 15-24" },
+      { id: "incomebyage.A15I100_FY", label: "2029 HH Inc 100K-149999/HHr 15-24" },
+      { id: "incomebyage.A15I150_FY", label: "2029 HH Inc 150K-199999/HHr 15-24" },
+      { id: "incomebyage.A15I200_FY", label: "2029 HH Inc $200000+/HHr 15-24" },
+
+      // Age 25-34 Income Brackets
+      { id: "incomebyage.A25I0_FY", label: "2029 HH Inc <$15000/HHr 25-34" },
+      { id: "incomebyage.A25I15_FY", label: "2029 HH Inc $15K-24999/HHr 25-34" },
+      { id: "incomebyage.A25I25_FY", label: "2029 HH Inc $25K-34999/HHr 25-34" },
+      { id: "incomebyage.A25I35_FY", label: "2029 HH Inc $35K-49999/HHr 25-34" },
+      { id: "incomebyage.A25I50_FY", label: "2029 HH Inc $50K-74999/HHr 25-34" },
+      { id: "incomebyage.A25I75_FY", label: "2029 HH Inc $75K-99999/HHr 25-34" },
+      { id: "incomebyage.A25I100_FY", label: "2029 HH Inc 100K-149999/HHr 25-34" },
+      { id: "incomebyage.A25I150_FY", label: "2029 HH Inc 150K-199999/HHr 25-34" },
+      { id: "incomebyage.A25I200_FY", label: "2029 HH Inc $200000+/HHr 25-34" },
+
+      // Age 35-44 Income Brackets
+      { id: "incomebyage.A35I0_FY", label: "2029 HH Inc <$15000/HHr 35-44" },
+      { id: "incomebyage.A35I15_FY", label: "2029 HH Inc $15K-24999/HHr 35-44" },
+      { id: "incomebyage.A35I25_FY", label: "2029 HH Inc $25K-34999/HHr 35-44" },
+      { id: "incomebyage.A35I35_FY", label: "2029 HH Inc $35K-49999/HHr 35-44" },
+      { id: "incomebyage.A35I50_FY", label: "2029 HH Inc $50K-74999/HHr 35-44" },
+      { id: "incomebyage.A35I75_FY", label: "2029 HH Inc $75K-99999/HHr 35-44" },
+      { id: "incomebyage.A35I100_FY", label: "2029 HH Inc 100K-149999/HHr 35-44" },
+      { id: "incomebyage.A35I150_FY", label: "2029 HH Inc 150K-199999/HHr 35-44" },
+      { id: "incomebyage.A35I200_FY", label: "2029 HH Inc $200000+/HHr 35-44" },
+
+      // Age 45-54 Income Brackets
+      { id: "incomebyage.A45I0_FY", label: "2029 HH Inc <$15000/HHr 45-54" },
+      { id: "incomebyage.A45I15_FY", label: "2029 HH Inc $15K-24999/HHr 45-54" },
+      { id: "incomebyage.A45I25_FY", label: "2029 HH Inc $25K-34999/HHr 45-54" },
+      { id: "incomebyage.A45I35_FY", label: "2029 HH Inc $35K-49999/HHr 45-54" },
+      { id: "incomebyage.A45I50_FY", label: "2029 HH Inc $50K-74999/HHr 45-54" },
+      { id: "incomebyage.A45I75_FY", label: "2029 HH Inc $75K-99999/HHr 45-54" },
+      { id: "incomebyage.A45I100_FY", label: "2029 HH Inc 100K-149999/HHr 45-54" },
+      { id: "incomebyage.A45I150_FY", label: "2029 HH Inc 150K-199999/HHr 45-54" },
+      { id: "incomebyage.A45I200_FY", label: "2029 HH Inc $200000+/HHr 45-54" },
+
+      // Age 55-64 Income Brackets
+      { id: "incomebyage.A55I0_FY", label: "2029 HH Inc <$15000/HHr 55-64" },
+      { id: "incomebyage.A55I15_FY", label: "2029 HH Inc $15K-24999/HHr 55-64" },
+      { id: "incomebyage.A55I25_FY", label: "2029 HH Inc $25K-34999/HHr 55-64" },
+      { id: "incomebyage.A55I35_FY", label: "2029 HH Inc $35K-49999/HHr 55-64" },
+      { id: "incomebyage.A55I50_FY", label: "2029 HH Inc $50K-74999/HHr 55-64" },
+      { id: "incomebyage.A55I75_FY", label: "2029 HH Inc $75K-99999/HHr 55-64" },
+      { id: "incomebyage.A55I100_FY", label: "2029 HH Inc 100K-149999/HHr 55-64" },
+      { id: "incomebyage.A55I150_FY", label: "2029 HH Inc 150K-199999/HHr 55-64" },
+      { id: "incomebyage.A55I200_FY", label: "2029 HH Inc $200000+/HHr 55-64" },
+
+      // Age 65-74 Income Brackets
+      { id: "incomebyage.A65I0_FY", label: "2029 HH Inc <$15000/HHr 65-74" },
+      { id: "incomebyage.A65I15_FY", label: "2029 HH Inc $15K-24999/HHr 65-74" },
+      { id: "incomebyage.A65I25_FY", label: "2029 HH Inc $25K-34999/HHr 65-74" },
+      { id: "incomebyage.A65I35_FY", label: "2029 HH Inc $35K-49999/HHr 65-74" },
+      { id: "incomebyage.A65I50_FY", label: "2029 HH Inc $50K-74999/HHr 65-74" },
+      { id: "incomebyage.A65I75_FY", label: "2029 HH Inc $75K-99999/HHr 65-74" },
+      { id: "incomebyage.A65I100_FY", label: "2029 HH Inc 100K-149999/HHr 65-74" },
+      { id: "incomebyage.A65I150_FY", label: "2029 HH Inc 150K-199999/HHr 65-74" },
+      { id: "incomebyage.A65I200_FY", label: "2029 HH Inc $200000+/HHr 65-74" },
+
+      // Age 75+ Income Brackets
+      { id: "incomebyage.A75I0_FY", label: "2029 HH Inc <$15000/HHr 75+" },
+      { id: "incomebyage.A75I15_FY", label: "2029 HH Inc $15K-24999/HHr 75+" },
+      { id: "incomebyage.A75I25_FY", label: "2029 HH Inc $25K-34999/HHr 75+" },
+      { id: "incomebyage.A75I35_FY", label: "2029 HH Inc $35K-49999/HHr 75+" },
+      { id: "incomebyage.A75I50_FY", label: "2029 HH Inc $50K-74999/HHr 75+" },
+      { id: "incomebyage.A75I75_FY", label: "2029 HH Inc $75K-99999/HHr 75+" },
+      { id: "incomebyage.A75I100_FY", label: "2029 HH Inc 100K-149999/HHr 75+" },
+      { id: "incomebyage.A75I150_FY", label: "2029 HH Inc 150K-199999/HHr 75+" },
+      { id: "incomebyage.A75I200_FY", label: "2029 HH Inc $200000+/HHr 75+" },
 
       { id: "householdsbysize.FAM2PERS10", label: "2010 Family HHs: 2-Person" },
       { id: "householdsbysize.FAM3PERS10", label: "2010 Family HHs: 3-Person" },
@@ -1058,17 +1136,19 @@ export const analysisCategories = {
       { id: "incomebyage.AVGIA45_CY", label: "2024 Average HH Inc: HHr 45-54" },
       { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
       { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
-      { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" }
+      { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" },
     ]
   }
 };
 
-// Helper function to initialize variable labels
 function createVariableLabels(categories) {
   const labels = {};
   Object.values(categories).forEach(category => {
     category.variables.forEach(variable => {
+      // Store with full path ID
       labels[variable.id] = variable.label;
+      
+      // Also store with short key for lookup flexibility
       const shortKey = variable.id.split(".").pop();
       labels[shortKey] = variable.label;
     });
@@ -1119,22 +1199,24 @@ export class EnrichmentService {
     if (this.variableLabels[variableId]) {
       return this.variableLabels[variableId];
     }
-
+  
     // If not found with full path, try with just the short key
     const shortKey = variableId.split(".").pop();
     if (this.variableLabels[shortKey]) {
       return this.variableLabels[shortKey];
     }
-
-    // Look through categories for a match
-    const matchingVariable = Object.values(analysisCategories)
-      .flatMap(category => category.variables)
-      .find(variable => variable.id === variableId || variable.id.endsWith(shortKey));
-
-    if (matchingVariable) {
-      return matchingVariable.label;
+  
+    // Direct lookup in the analysisCategories object
+    // This ensures we catch all defined variables, even if the labels mapping wasn't properly initialized
+    for (const categoryKey in analysisCategories) {
+      const category = analysisCategories[categoryKey];
+      for (const variable of category.variables) {
+        if (variable.id === variableId || variable.id.endsWith(shortKey)) {
+          return variable.label;
+        }
+      }
     }
-
+  
     // If all else fails, return the shortKey
     return shortKey;
   }
@@ -1844,7 +1926,8 @@ export class EnrichmentService {
       variableId.includes("MEDIA") ||
       (variableId.includes("incomebyage.A") && !variableId.includes("BASE")) ||
       (variableId.includes("networth.") && variableId.includes("A")) ||
-      variableId.includes("incomebyage.AVGIA");  // Add this condition
+      variableId.includes("incomebyage.AVGIA") ||
+      (variableId.includes("incomebyage.") && variableId.includes("_FY"));
 
       const position = variableToUSAIndex.get(shortKey);
 

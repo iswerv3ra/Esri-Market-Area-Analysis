@@ -9,6 +9,7 @@ import Radius from "./Radius";
 import { FEATURE_LAYERS } from "../../contexts/MapContext";
 import { StyleSettingsPanel } from "./StyleSettingsPanel";
 import ThemeSelector from "./ThemeSelector";
+import DriveTime from "./DriveTime";
 
 const defaultStyleSettings = {
   fillColor: "#0078D4",
@@ -33,6 +34,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     clearSelection,
     updateFeatureStyles,
     drawRadius,
+    drawDriveTimePolygon, // Make sure this is available
+    calculateDriveTimePolygon, // Make sure this is available
     addActiveLayer,
     removeActiveLayer,
     selectedFeatures,
@@ -72,11 +75,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const [radiusPoints, setRadiusPoints] = useState(
     editingMarketArea?.radius_points || []
   );
+
+
+  const [driveTimePoints, setDriveTimePoints] = useState(
+    editingMarketArea?.drive_time_points || []
+  );
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const maTypes = [
     { value: "radius", label: "Radius" },
+    { value: "drivetime", label: "Drive Time" }, // Add this line
     { value: "zip", label: "Zip Code" },
     { value: "county", label: "County" },
     { value: "place", label: "Place" },
@@ -87,6 +97,42 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "state", label: "State" },
     { value: "md", label: "Metro Division" },
   ];
+
+
+  useEffect(() => {
+    if (formState.maType === "drive_time" && driveTimePoints.length > 0) {
+      console.log("Drawing drive time points from effect:", driveTimePoints);
+
+      try {
+        // Apply styling to drive time polygons
+        driveTimePoints.forEach(point => {
+          if (point.polygon) {
+            drawDriveTimePolygon(
+              point.polygon,
+              {
+                fillColor: formState.styleSettings.fillColor,
+                fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+                borderColor: formState.styleSettings.borderColor,
+                borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth
+              },
+              editingMarketArea?.id || "temporary",
+              editingMarketArea?.order || 0
+            );
+          }
+        });
+      } catch (error) {
+        console.error("Error drawing drive time points in effect:", error);
+        toast.error("Error displaying drive time areas. Please try again.");
+      }
+    }
+  }, [
+    driveTimePoints,
+    formState.maType,
+    formState.styleSettings
+  ]);
+
+
+
 
   useEffect(() => {
     // Always have map selection active
@@ -104,8 +150,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       initializationDone.current = true;
 
       try {
-        // Non-radius area
-        if (editingMarketArea.ma_type !== "radius") {
+        // Non-radius, non-drivetime area
+        if (editingMarketArea.ma_type !== "radius" && editingMarketArea.ma_type !== "drivetime") {
           await addActiveLayer(editingMarketArea.ma_type);
 
           // If it has locations already
@@ -138,7 +184,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               shortName: editingMarketArea.short_name,
               styleSettings: {
                 ...prev.styleSettings,
-                // Overwrite with the editing area’s style settings,
+                // Overwrite with the editing area's style settings,
                 ...editingMarketArea.style_settings,
                 noBorder: editingMarketArea.style_settings?.borderWidth === 0,
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
@@ -161,14 +207,70 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 })),
             }));
 
-            // Update map with this area’s style
+            // Update map with this area's style
             await updateFeatureStyles(
               features,
               editingMarketArea.style_settings,
               editingMarketArea.ma_type
             );
           }
-        } else {
+        }
+        else if (editingMarketArea.ma_type === "drivetime") {
+          // Drive Time market area
+          if (editingMarketArea.drive_time_points?.length > 0) {
+            setFormState((prev) => ({
+              ...prev,
+              maType: editingMarketArea.ma_type,
+              maName: editingMarketArea.name,
+              shortName: editingMarketArea.short_name,
+              styleSettings: {
+                ...prev.styleSettings,
+                ...editingMarketArea.style_settings,
+                noBorder: editingMarketArea.style_settings?.borderWidth === 0,
+                noFill: editingMarketArea.style_settings?.fillOpacity === 0,
+              },
+            }));
+
+            // Set drive time points
+            let points = editingMarketArea.drive_time_points;
+            if (typeof points === 'string') {
+              try {
+                points = JSON.parse(points);
+              } catch (e) {
+                console.error("Error parsing drive time points:", e);
+                points = [];
+              }
+            }
+
+            // Ensure points is an array
+            if (!Array.isArray(points)) {
+              points = [points].filter(Boolean);
+            }
+
+            setDriveTimePoints(points);
+
+            // Draw the drive time area(s)
+            for (const point of points) {
+              if (!point.driveTimePolygon) {
+                // If polygon isn't available, calculate it
+                try {
+                  point.driveTimePolygon = await calculateDriveTimePolygon(point);
+                } catch (err) {
+                  console.error("Error calculating drive time polygon:", err);
+                  continue; // Skip this point if calculation fails
+                }
+              }
+
+              await drawDriveTimePolygon(
+                point,
+                editingMarketArea.style_settings,
+                editingMarketArea.id,
+                editingMarketArea.order
+              );
+            }
+          }
+        }
+        else {
           // Radius area
           if (editingMarketArea.radius_points?.length > 0) {
             setFormState((prev) => ({
@@ -210,6 +312,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateFeatureStyles,
     formatLocationName,
     drawRadius,
+    drawDriveTimePolygon,
+    calculateDriveTimePolygon,
   ]);
 
   const updateStyles = useCallback(() => {
@@ -240,7 +344,39 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             editingMarketArea?.order || 0
           );
         });
-      } else if (formState.selectedLocations.length > 0) {
+      }
+
+
+
+
+      else if (formState.maType === "drivetime") {
+        // Clear existing drive time graphics first
+        if (selectionGraphicsLayer) {
+          const driveTimeGraphics = selectionGraphicsLayer.graphics.filter(
+            (g) => g.attributes?.FEATURE_TYPE === "drivetime" ||
+              g.attributes?.FEATURE_TYPE === "drivetime_point"
+          );
+          selectionGraphicsLayer.removeMany(driveTimeGraphics);
+        }
+
+        // Re-draw all drive time areas with new style settings
+        driveTimePoints.forEach((point) => {
+          if (point.driveTimePolygon) {
+            drawDriveTimePolygon(
+              point,
+              {
+                fillColor,
+                fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
+                borderColor,
+                borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
+              },
+              editingMarketArea?.id || "temporary",
+              editingMarketArea?.order || 0
+            );
+          }
+        });
+      }
+      else if (formState.selectedLocations.length > 0) {
         const marketAreaId = editingMarketArea?.id || "current";
         const features = formState.selectedLocations.map((loc) => ({
           geometry: loc.geometry || loc.feature?.geometry,
@@ -272,10 +408,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.selectedLocations,
     formState.maType,
     radiusPoints,
+    driveTimePoints,
     updateFeatureStyles,
     drawRadius,
+    drawDriveTimePolygon,
     editingMarketArea,
   ]);
+
 
   useEffect(() => {
     updateStyles();
@@ -502,48 +641,48 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   // Enhanced coordinate handling for normalizeRadiusPoint
   const normalizeRadiusPoint = async (point) => {
     if (!point) return null;
-    
+
     let center = null;
-    
+
     try {
       // Load required ArcGIS modules for coordinate conversion
       const { default: Point } = await import("@arcgis/core/geometry/Point");
       const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-      
+
       if (point.center) {
         let srcPoint;
         let detectMode = "unknown";
-        
+
         // Handle different center formats
         if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
           detectMode = "lat/long";
           const spatialRef = point.center.spatialReference || { wkid: 4326 };
-          
+
           // CRITICAL FIX: Handle the case where lat/long values are incorrectly tagged as Web Mercator
           if (spatialRef.wkid === 102100 || spatialRef.wkid === 3857) {
             console.log("Detected lat/long values with Web Mercator spatial reference - correcting");
-            
+
             // Skip conversion and use the lat/long values directly with correct spatial reference
             center = {
               longitude: Number(point.center.longitude),
               latitude: Number(point.center.latitude),
               spatialReference: { wkid: 4326 } // Use WGS84 instead
             };
-            
+
             console.log("Corrected coordinates:", center);
-            
+
             // Skip further processing since we've already corrected the center
-            const radii = Array.isArray(point.radii) 
-              ? point.radii.map(r => Number(r)) 
+            const radii = Array.isArray(point.radii)
+              ? point.radii.map(r => Number(r))
               : (point.radius ? [Number(point.radius)] : [10]);
-            
+
             return {
               center,
               radii: radii.filter(r => !isNaN(r) && r > 0),
               units: point.units || 'miles'
             };
           }
-          
+
           // Normal case - create point with lat/long
           srcPoint = new Point({
             longitude: Number(point.center.longitude),
@@ -568,15 +707,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           console.error("Invalid center format:", point.center);
           return null;
         }
-        
+
         console.log(`Detected center format: ${detectMode}`, srcPoint);
-        
+
         // Regular coordinate handling
-        const spatialRefWkid = srcPoint.spatialReference?.wkid || 
-                              srcPoint.spatialReference?.latestWkid;
-        
+        const spatialRefWkid = srcPoint.spatialReference?.wkid ||
+          srcPoint.spatialReference?.latestWkid;
+
         let geoPoint = srcPoint;
-        
+
         // Only convert if we're actually in Web Mercator and haven't already fixed the coordinates
         if ((spatialRefWkid === 102100 || spatialRefWkid === 3857) && center === null) {
           try {
@@ -596,7 +735,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             console.error("Error converting to geographic coordinates:", error);
           }
         }
-        
+
         // If we haven't already set center in the fix
         if (center === null) {
           center = {
@@ -606,22 +745,22 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           };
         }
       }
-      
+
       if (!center) {
         console.error("Failed to extract valid center coordinates:", point);
         return null;
       }
-      
-      const radii = Array.isArray(point.radii) 
-        ? point.radii.map(r => Number(r)) 
+
+      const radii = Array.isArray(point.radii)
+        ? point.radii.map(r => Number(r))
         : (point.radius ? [Number(point.radius)] : [10]);
-      
-      if (isNaN(center.longitude) || isNaN(center.latitude) || 
-          !radii.length || radii.some(r => isNaN(r) || r <= 0)) {
+
+      if (isNaN(center.longitude) || isNaN(center.latitude) ||
+        !radii.length || radii.some(r => isNaN(r) || r <= 0)) {
         console.error("Invalid coordinates or radii:", { center, radii });
         return null;
       }
-      
+
       return {
         center,
         radii,
@@ -631,6 +770,179 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       console.error("Error normalizing radius point:", error);
       return null;
     }
+  };
+
+
+  // Add this function to normalize drive time points, similar to normalizeRadiusPoint
+  const normalizeDriveTimePoint = async (point) => {
+    if (!point) return null;
+
+    let center = null;
+
+    try {
+      // Load required ArcGIS modules for coordinate conversion
+      const { default: Point } = await import("@arcgis/core/geometry/Point");
+      const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
+
+      if (point.center) {
+        let srcPoint;
+
+        // Handle different center formats
+        if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
+          const spatialRef = point.center.spatialReference || { wkid: 4326 };
+
+          // Handle the case where lat/long values are incorrectly tagged as Web Mercator
+          if (spatialRef.wkid === 102100 || spatialRef.wkid === 3857) {
+            center = {
+              longitude: Number(point.center.longitude),
+              latitude: Number(point.center.latitude),
+              spatialReference: { wkid: 4326 } // Use WGS84 instead
+            };
+
+            // Skip further processing since we've already corrected the center
+            const timeRanges = Array.isArray(point.timeRanges)
+              ? point.timeRanges.map(r => Number(r))
+              : (point.timeRange ? [Number(point.timeRange)] : [5]);
+
+            return {
+              center,
+              timeRanges: timeRanges.filter(r => !isNaN(r) && r > 0),
+              units: point.units || 'minutes',
+              polygon: point.polygon || null
+            };
+          }
+
+          // Normal case - create point with lat/long
+          srcPoint = new Point({
+            longitude: Number(point.center.longitude),
+            latitude: Number(point.center.latitude),
+            spatialReference: spatialRef
+          });
+        } else if (point.center.x !== undefined && point.center.y !== undefined) {
+          srcPoint = new Point({
+            x: Number(point.center.x),
+            y: Number(point.center.y),
+            spatialReference: point.center.spatialReference || { wkid: 102100 }
+          });
+        } else if (Array.isArray(point.center)) {
+          srcPoint = new Point({
+            longitude: Number(point.center[0]),
+            latitude: Number(point.center[1]),
+            spatialReference: { wkid: 4326 }
+          });
+        } else {
+          console.error("Invalid center format:", point.center);
+          return null;
+        }
+
+        // Regular coordinate handling
+        const spatialRefWkid = srcPoint.spatialReference?.wkid ||
+          srcPoint.spatialReference?.latestWkid;
+
+        let geoPoint = srcPoint;
+
+        // Only convert if we're actually in Web Mercator and haven't already fixed the coordinates
+        if ((spatialRefWkid === 102100 || spatialRefWkid === 3857) && center === null) {
+          try {
+            geoPoint = webMercatorToGeographic(srcPoint);
+          } catch (error) {
+            console.error("Error converting to geographic coordinates:", error);
+          }
+        }
+
+        // If we haven't already set center in the fix
+        if (center === null) {
+          center = {
+            longitude: Number(geoPoint.longitude),
+            latitude: Number(geoPoint.latitude),
+            spatialReference: { wkid: 4326 }
+          };
+        }
+      }
+
+      if (!center) {
+        console.error("Failed to extract valid center coordinates:", point);
+        return null;
+      }
+
+      const timeRanges = Array.isArray(point.timeRanges)
+        ? point.timeRanges.map(r => Number(r))
+        : (point.timeRange ? [Number(point.timeRange)] : [5]);
+
+      if (isNaN(center.longitude) || isNaN(center.latitude) ||
+        !timeRanges.length || timeRanges.some(r => isNaN(r) || r <= 0)) {
+        console.error("Invalid coordinates or time ranges:", { center, timeRanges });
+        return null;
+      }
+
+      return {
+        center,
+        timeRanges,
+        units: point.units || 'minutes',
+        polygon: point.polygon || null // Preserve the drive time polygon if available
+      };
+    } catch (error) {
+      console.error("Error normalizing drive time point:", error);
+      return null;
+    }
+  };
+
+  // Add this function to handle drive time submission
+  const handleDriveTimeSubmit = async (formState, driveTimePoints, editingMarketArea, styleSettings) => {
+    console.group('Drive Time Market Area Submission');
+    console.log("Starting drive time market area submission");
+    console.log("Form state:", formState);
+    console.log("Initial drive time points:", driveTimePoints);
+  
+    // Validate drive time points
+    if (!driveTimePoints || driveTimePoints.length === 0) {
+      throw new Error("No drive time points defined");
+    }
+  
+    // Make a deep copy to avoid reference issues
+    const driveTimePointsCopy = JSON.parse(JSON.stringify(driveTimePoints));
+    
+    // Normalize drive time points with the correct structure expected by the backend
+    const normalizedPoints = driveTimePointsCopy.map(point => {
+      // Ensure the correct structure with travelTimeMinutes instead of timeRanges
+      return {
+        center: point.center,
+        travelTimeMinutes: Array.isArray(point.timeRanges) ? point.timeRanges[0] : 
+                           (point.timeRange || point.travelTimeMinutes || 15),
+        units: 'minutes',
+        // Include polygon if available, but not required for submission
+        ...(point.polygon ? { polygon: point.polygon } : {})
+      };
+    }).filter(point => {
+      // Filter out invalid points
+      return point && point.center && 
+             typeof point.travelTimeMinutes === 'number' && 
+             point.travelTimeMinutes > 0;
+    });
+  
+    if (normalizedPoints.length === 0) {
+      console.error("No valid drive time points after normalization");
+      throw new Error("No valid drive time points to save. Check console logs for details.");
+    }
+  
+    // Log normalized points for debugging
+    console.log("Submitting normalized drive time points:", 
+      JSON.stringify(normalizedPoints, null, 2));
+  
+    // Create market area data with validated points
+    const marketAreaData = {
+      ma_type: "drivetime", // Use consistent type name
+      name: formState.maName,
+      short_name: formState.shortName,
+      style_settings: styleSettings,
+      locations: [], // Drive time types don't use locations array
+      drive_time_points: normalizedPoints,
+    };
+  
+    console.log("Final market area data:", marketAreaData);
+    console.groupEnd();
+  
+    return marketAreaData;
   };
 
 
@@ -874,8 +1186,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         },
       }));
 
-      // Clear radius points
+      // Clear radius points and drive time points
       setRadiusPoints([]);
+      setDriveTimePoints([]);
     }
   }, [editingMarketArea, clearSelection]);
 
@@ -1047,18 +1360,17 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   };
 
 
-  // Updated handleSubmit function that properly handles radius types
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-
+  
     try {
       // Comprehensive pre-submission validation
       if (!formState.maName || formState.maName.trim() === '') {
         throw new Error("Market Area Name is required");
       }
-
+  
       // Build styleSettings from user's final picks
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
@@ -1072,44 +1384,95 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         excelFill: formState.styleSettings.excelFill,
         excelText: formState.styleSettings.excelText,
       };
-
+  
       // If they picked "md" as a type, treat it as "place"
+      // No need to map drivetime to radius anymore
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
-
+  
       // Validate market area type
       if (!formState.maType) {
         throw new Error("Market Area Type must be selected");
       }
-
+  
       // Detailed logging of submission state
       console.group('Market Area Submission');
       console.log("Form state on submit:", formState);
-
+  
       let marketAreaData;
-
-      // Handling radius type market areas with improved error handling
-      if (formState.maType === "radius") {
+  
+      // Handling drive time type market areas
+      if (formState.maType === "drivetime") {
+        console.log("Processing drive time type market area");
+        console.log("Current drive time points:", driveTimePoints);
+  
+        // Validate drive time points
+        if (!driveTimePoints || driveTimePoints.length === 0) {
+          throw new Error("No drive time points defined");
+        }
+  
+        // Make a deep copy to avoid reference issues
+        const driveTimePointsCopy = JSON.parse(JSON.stringify(driveTimePoints));
+        
+        // Normalize drive time points with the correct structure expected by the backend
+        const normalizedPoints = driveTimePointsCopy.map(point => {
+          // Ensure the correct structure with travelTimeMinutes instead of timeRanges
+          return {
+            center: point.center,
+            travelTimeMinutes: Array.isArray(point.timeRanges) ? point.timeRanges[0] : 
+                              (point.timeRange || point.travelTimeMinutes || 15),
+            units: 'minutes',
+            // Include polygon if available, but not required for submission
+            ...(point.polygon ? { polygon: point.polygon } : {})
+          };
+        }).filter(point => {
+          // Filter out invalid points
+          return point && point.center && 
+                typeof point.travelTimeMinutes === 'number' && 
+                point.travelTimeMinutes > 0;
+        });
+  
+        if (normalizedPoints.length === 0) {
+          console.error("No valid drive time points after normalization");
+          toast.error("No valid drive time points to save");
+          setIsSaving(false);
+          return;
+        }
+  
+        // Create market area data with validated normalized points
+        marketAreaData = {
+          ma_type: "drivetime", // Now we can use drivetime directly
+          name: formState.maName,
+          short_name: formState.shortName,
+          style_settings: styleSettings,
+          locations: [], // Drive time types don't use locations array
+          drive_time_points: normalizedPoints,
+        };
+  
+        console.log("Final market area data for drive time type:", marketAreaData);
+      }
+      // Handling radius type market areas
+      else if (formState.maType === "radius") {
         console.log("Processing radius type market area");
         console.log("Current radius points:", radiusPoints);
-
+  
         // Validate radius points
         if (!radiusPoints || radiusPoints.length === 0) {
           throw new Error("No radius points defined");
         }
-
+  
         // Make a deep copy of radius points to avoid reference issues
         const radiusPointsCopy = JSON.parse(JSON.stringify(radiusPoints));
         console.log("Working with radius points copy:", radiusPointsCopy);
-
+  
         // Normalize radius points before submission - with enhanced error handling
         const normalizationPromises = radiusPointsCopy.map((point, index) => {
           console.log(`Normalizing point ${index + 1}/${radiusPointsCopy.length}`);
           return normalizeRadiusPoint(point);
         });
-
+  
         const normalizedPointsWithNulls = await Promise.all(normalizationPromises);
         console.log("Normalization complete. Results:", normalizedPointsWithNulls);
-
+  
         const normalizedPoints = normalizedPointsWithNulls.filter(point => {
           const isValid = Boolean(point);
           if (!isValid) {
@@ -1117,19 +1480,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }
           return isValid;
         });
-
+  
         if (normalizedPoints.length === 0) {
           console.error("No valid radius points after normalization");
           toast.error("No valid radius points to save");
           setIsSaving(false);
           return;
         }
-
+  
         // Log normalized points for debugging
         console.log("Submitting normalized radius points:",
           JSON.stringify(normalizedPoints, null, 2));
-
-        // IMPORTANT: Don't remove graphics too early
+  
         // Only remove temporary graphics if necessary, and do it carefully
         if (selectionGraphicsLayer) {
           const tempRadiusGraphics = selectionGraphicsLayer.graphics.filter(
@@ -1138,13 +1500,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               g.attributes?.marketAreaId === "temporary" // Only remove truly temporary ones
             )
           );
-
+  
           if (tempRadiusGraphics.length > 0) {
             console.log(`Removing ${tempRadiusGraphics.length} temporary radius graphics before save`);
             selectionGraphicsLayer.removeMany(tempRadiusGraphics);
           }
         }
-
+  
         // Create market area data with validated normalized points
         marketAreaData = {
           ma_type: "radius",
@@ -1154,19 +1516,19 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           locations: [], // Radius types don't use locations
           radius_points: normalizedPoints,
         };
-
+  
         console.log("Final market area data for radius type:", marketAreaData);
       } else {
         // Non-radius scenario - reuse existing code
         console.log("Processing non-radius type market area");
         const { default: Query } = await import("@arcgis/core/rest/support/Query");
         const layer = featureLayersRef[formState.maType]; // Remove .current since featureLayersRef is already the current value
-
+  
         // Get high resolution geometries first
         const highResLocations = await Promise.all(
           formState.selectedLocations.map(async (loc) => {
             if (!layer) return loc;
-
+  
             try {
               const query = new Query({
                 where: `${layer.objectIdField || 'OBJECTID'} = ${loc.id}`,
@@ -1175,7 +1537,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 maxAllowableOffset: 0,
                 geometryPrecision: 8
               });
-
+  
               let result;
               if (Array.isArray(layer.featureLayers)) {
                 const results = await Promise.all(
@@ -1185,7 +1547,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               } else {
                 result = await layer.queryFeatures(query);
               }
-
+  
               if (result?.features[0]) {
                 return {
                   ...loc,
@@ -1198,7 +1560,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             return loc;
           })
         );
-
+  
         marketAreaData = {
           ma_type: mappedType,
           name: formState.maName,
@@ -1210,10 +1572,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             geometry: loc.geometry || loc.feature?.geometry,
           })),
           radius_points: [],
-          original_type: formState.maType,
+          drive_time_points: [], // Include empty drive time points
         };
       }
-
+  
       // Store existing graphics that we want to keep
       const existingGraphics = selectionGraphicsLayer.graphics
         .filter(
@@ -1227,9 +1589,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           attributes: g.attributes,
           symbol: g.symbol,
         }));
-
+  
       console.log(`Preserving ${existingGraphics.length} existing graphics`);
-
+  
       // Save the market area with appropriate API
       let savedMarketArea;
       if (editingMarketArea) {
@@ -1245,16 +1607,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         savedMarketArea = await addMarketArea(projectId, marketAreaData);
         toast.success("Market area created successfully");
       }
-
+  
       console.log("Market area saved successfully:", savedMarketArea);
-
+  
       // Turn off map selection temporarily
       setIsMapSelectionActive(false);
-
+  
       // Clear all graphics and selection state
       selectionGraphicsLayer.removeAll();
       clearSelection();
-
+  
       // Reset form state while preserving style settings
       setFormState((prev) => ({
         ...prev,
@@ -1268,10 +1630,11 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           ...prev.styleSettings,
         },
       }));
-
-      // Clear radius points
+  
+      // Clear radius points and drive time points
       setRadiusPoints([]);
-
+      setDriveTimePoints([]);
+  
       // Re-add existing graphics
       const { default: Graphic } = await import("@arcgis/core/Graphic");
       existingGraphics.forEach((g) => {
@@ -1282,9 +1645,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         });
         selectionGraphicsLayer.add(graphic);
       });
-
-      // Apply specific post-save handling for non-radius types
-      if (formState.maType !== "radius") {
+  
+      // Apply specific post-save handling for non-radius, non-drivetime types
+      if (formState.maType !== "radius" && formState.maType !== "drivetime") {
         // For non-radius market areas, handle visualizations in the current view
         const currentSelections = formState.selectedLocations.map((loc) => ({
           geometry: loc.geometry || loc.feature?.geometry,
@@ -1295,12 +1658,12 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             order: savedMarketArea.order,
           },
         }));
-
+  
         // Remove active layer
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-
+  
         // Apply styles to features
         await updateFeatureStyles(
           currentSelections,
@@ -1314,7 +1677,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           true
         );
       }
-
+  
       // Handle visibility for all market area types
       const storedVisibleIds = localStorage.getItem(
         `marketAreas.${projectId}.visible`
@@ -1323,17 +1686,17 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         ? JSON.parse(storedVisibleIds)
         : [];
       const marketAreaId = editingMarketArea?.id || savedMarketArea.id;
-
+  
       if (!currentVisibleIds.includes(marketAreaId)) {
         currentVisibleIds.push(marketAreaId);
       }
-
+  
       localStorage.setItem(
         `marketAreas.${projectId}.visible`,
         JSON.stringify(currentVisibleIds)
       );
       setVisibleMarketAreaIds(currentVisibleIds);
-
+  
       // Common cleanup
       setEditingMarketArea(null);
       onClose?.();
@@ -1348,7 +1711,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       setIsSaving(false);
     }
   };
-
 
 
   const handleCancel = useCallback(async () => {
@@ -1398,10 +1760,33 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
 
       // If we were editing, re-draw that area's original style
       if (editingMarketArea) {
-        if (
-          editingMarketArea.ma_type === "radius" &&
-          editingMarketArea.radius_points
-        ) {
+        if (editingMarketArea.ma_type === "drivetime" && editingMarketArea.drive_time_points) {
+          // Redraw drive time polygons with original style
+          for (const point of editingMarketArea.drive_time_points) {
+            if (!point.driveTimePolygon) {
+              // If polygon isn't available, calculate it
+              try {
+                point.driveTimePolygon = await calculateDriveTimePolygon(point);
+              } catch (err) {
+                console.error("Error calculating drive time polygon:", err);
+                continue; // Skip this point if calculation fails
+              }
+            }
+
+            await drawDriveTimePolygon(
+              point,
+              {
+                fillColor: editingMarketArea.style_settings.fillColor,
+                fillOpacity: editingMarketArea.style_settings.fillOpacity,
+                borderColor: editingMarketArea.style_settings.borderColor,
+                borderWidth: editingMarketArea.style_settings.borderWidth,
+              },
+              editingMarketArea.id,
+              editingMarketArea.order
+            );
+          }
+        }
+        else if (editingMarketArea.ma_type === "radius" && editingMarketArea.radius_points) {
           for (const point of editingMarketArea.radius_points) {
             await drawRadius(
               point,
@@ -1446,6 +1831,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         availableLocations: [],
       }));
 
+      // Clear radius and drive time points
+      setRadiusPoints([]);
+      setDriveTimePoints([]);
+
       // Clear any active selections and editing state
       clearSelection();
       setEditingMarketArea(null);
@@ -1466,12 +1855,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.maType,
     editingMarketArea,
     drawRadius,
+    drawDriveTimePolygon,
+    calculateDriveTimePolygon,
     updateFeatureStyles,
     setEditingMarketArea,
     onClose,
-    selectionGraphicsLayer // Changed from selectionGraphicsLayerRef
+    selectionGraphicsLayer
   ]);
 
+  // Update the form rendering to include DriveTime component
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-800">
       <div className="flex-1 overflow-y-auto p-4">
@@ -1571,6 +1963,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               }
               styleSettings={formState.styleSettings}
               existingRadiusPoints={radiusPoints}
+            />
+          ) : formState.maType === "drivetime" ? (
+            <DriveTime
+              onFormStateChange={(newState) =>
+                setDriveTimePoints(newState.driveTimePoints)
+              }
+              styleSettings={formState.styleSettings}
+              existingDriveTimePoints={driveTimePoints}
             />
           ) : (
             formState.maType && (
@@ -1706,13 +2106,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                    hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                    disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-          disabled={
-            isSaving ||
-            (formState.maType === "radius" && radiusPoints.length === 0) ||
-            (formState.maType !== "radius" &&
-              formState.selectedLocations.length === 0) ||
-            !formState.maName
-          }
+                   disabled={
+                    isSaving ||
+                    (formState.maType === "radius" && radiusPoints.length === 0) ||
+                    (formState.maType === "drivetime" && driveTimePoints.length === 0) || // Changed from "drive_time" to "drivetime"
+                    (formState.maType !== "radius" && formState.maType !== "drivetime" &&
+                      formState.selectedLocations.length === 0) ||
+                    !formState.maName
+                  }
         >
           {isSaving
             ? "Saving..."

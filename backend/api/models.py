@@ -6,7 +6,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 from django.utils import timezone
 
-
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project_number = models.CharField(max_length=20)  
@@ -69,10 +68,10 @@ class TcgTheme(models.Model):
     def __str__(self):
         return f"{self.theme_key} - {self.theme_name}"
 
-
 class MarketArea(models.Model):
     MARKET_AREA_TYPES = [
         ('radius', 'Radius'),
+        ('drivetime', 'Drive Time'),  # Added drivetime as a valid choice
         ('zip', 'Zip Code'),
         ('county', 'County'),
         ('place', 'Place'),
@@ -93,6 +92,7 @@ class MarketArea(models.Model):
     style_settings = models.JSONField(default=dict)  # Store style settings
     locations = models.JSONField(null=True, blank=True)  # Store location data
     radius_points = models.JSONField(null=True, blank=True)  # Store radius points data
+    drive_time_points = models.JSONField(null=True, blank=True)  # Added explicit field for drive time points
     order = models.IntegerField(default=0)  # New field for ordering
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
@@ -100,24 +100,6 @@ class MarketArea(models.Model):
     class Meta:
         ordering = ['order', '-last_modified']
         unique_together = ['project', 'name']
-
-    def save(self, *args, **kwargs):
-        if not self.style_settings:
-            self.style_settings = {
-                "fillColor": "#0078D4",
-                "fillOpacity": 0.3,
-                "borderColor": "#0078D4",
-                "borderWidth": 2
-            }
-        if not self.order and not self.id:
-            from django.db.models import Max
-            last_order = MarketArea.objects.filter(project=self.project).aggregate(Max('order'))['order__max']
-            self.order = (last_order or 0) + 1
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.name} ({self.project.project_number})"
-
 
 class StylePreset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -138,7 +120,6 @@ class StylePreset(models.Model):
     def __str__(self):
         return self.name
 
-
 class VariablePreset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
@@ -157,7 +138,6 @@ class VariablePreset(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class MapConfiguration(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
