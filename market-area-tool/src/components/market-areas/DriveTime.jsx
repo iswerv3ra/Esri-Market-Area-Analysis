@@ -4,13 +4,13 @@ import { PlusCircleIcon, TrashIcon, MapPinIcon } from '@heroicons/react/24/outli
 import { useMap } from '../../contexts/MapContext';
 
 export default function DriveTime({ onFormStateChange, styleSettings, existingDriveTimePoints = [] }) {
-  const { 
-    mapView, 
-    drawDriveTimePolygon, 
-    calculateDriveTimePolygon, 
-    selectionGraphicsLayer 
+  const {
+    mapView,
+    drawDriveTimePolygon,
+    calculateDriveTimePolygon,
+    selectionGraphicsLayer
   } = useMap();
-  
+
   const [driveTimePoints, setDriveTimePoints] = useState(existingDriveTimePoints || []);
   const [isPinMode, setIsPinMode] = useState(false);
   const [activeDriveTime, setActiveDriveTime] = useState(15); // Default 15 minutes
@@ -37,7 +37,7 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
       clickHandler.remove();
       setClickHandler(null);
     }
-    
+
     // Toggle state
     setIsPinMode(prev => !prev);
   }, [isPinMode, clickHandler]);
@@ -61,11 +61,11 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
     try {
       // Get the clicked point
       const { longitude, latitude } = event.mapPoint;
-      
+
       // Prepare the drive time point
       const newPoint = {
-        center: { 
-          longitude, 
+        center: {
+          longitude,
           latitude,
           spatialReference: { wkid: 4326 } // WGS84
         },
@@ -80,24 +80,24 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
 
       // Calculate the drive time polygon
       const driveTimePolygon = await calculateDriveTimePolygon(newPoint);
-      
+
       // Add the polygon to the point data
       newPoint.driveTimePolygon = driveTimePolygon;
-      
+
       // Draw on the map
       await drawDriveTimePolygon(
-        newPoint, 
+        newPoint,
         styleSettings,
         "temporary", // Using temporary ID until saved
         driveTimePoints.length
       );
-      
+
       // Add to local state
       setDriveTimePoints(prev => [...prev, newPoint]);
-      
+
       // Disable point adding mode
       setIsPinMode(false);
-      
+
       // If we have a click handler, remove it
       if (clickHandler) {
         clickHandler.remove();
@@ -121,14 +121,14 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
     // First remove the graphics from the map
     if (selectionGraphicsLayer) {
       const graphicsToRemove = selectionGraphicsLayer.graphics.filter(
-        g => g.attributes?.FEATURE_TYPE === 'drivetime' && 
-             g.attributes?.order === index && 
-             g.attributes?.marketAreaId === 'temporary'
+        g => g.attributes?.FEATURE_TYPE === 'drivetime' &&
+          g.attributes?.order === index &&
+          g.attributes?.marketAreaId === 'temporary'
       );
-      
+
       selectionGraphicsLayer.removeMany(graphicsToRemove);
     }
-    
+
     // Then update state
     setDriveTimePoints(prev => prev.filter((_, i) => i !== index));
   }, [selectionGraphicsLayer]);
@@ -139,8 +139,9 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
           Drive Time Settings
         </h3>
-        
+
         <div className="flex flex-col space-y-4">
+          {/* Drive time controls */}
           {/* Drive time controls */}
           <div className="flex items-center space-x-4">
             <div className="flex-grow">
@@ -154,30 +155,29 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
                 max="120"
                 value={activeDriveTime}
                 onChange={(e) => validateDriveTime(e)}
-                disabled={!isPinMode}
-                className={`mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                           bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
-                           focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-white
-                           ${!isPinMode ? 'opacity-50' : ''}`}
+                // Removed the disabled property so users can set value before placing pin
+                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
+                bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-blue-500 
+                focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-white"
               />
             </div>
-            
+
             <button
               type="button"
               onClick={togglePinMode}
               className={`h-10 mt-6 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 
-                        font-medium rounded-md shadow-sm text-white 
-                        ${isPinMode 
-                            ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' 
-                            : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-                        }
-                        focus:outline-none focus:ring-2 focus:ring-offset-2`}
+              font-medium rounded-md shadow-sm text-white 
+              ${isPinMode
+                  ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                  : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                }
+              focus:outline-none focus:ring-2 focus:ring-offset-2`}
             >
               <MapPinIcon className="w-5 h-5 mr-1" />
               {isPinMode ? 'Cancel Pin' : 'Place Pin'}
             </button>
           </div>
-          
+
           {/* Instructions */}
           {isPinMode && (
             <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded-md text-sm text-blue-700 dark:text-blue-300">
@@ -192,7 +192,7 @@ export default function DriveTime({ onFormStateChange, styleSettings, existingDr
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Drive Time Points
         </h3>
-        
+
         <div className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700 max-h-60">
           {driveTimePoints.length === 0 ? (
             <p className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">

@@ -75,6 +75,43 @@ export const StyleSettingsPanel = ({
     setIsColorOnlySelectorOpen(false);
   };
 
+  // NEW HANDLERS FOR CHECKBOXES
+  const handleNoFillChange = (e) => {
+    const checked = e.target.checked;
+    
+    console.log("No Fill checkbox changed:", checked);
+    
+    // Update the noFill flag
+    onStyleChange('noFill', checked);
+    
+    // Update the actual fillOpacity based on the checkbox state
+    if (checked) {
+      // If checkbox is checked, set fillOpacity to 0 (transparent)
+      onStyleChange('fillOpacity', 0);
+    } else {
+      // If checkbox is unchecked, restore to default opacity
+      onStyleChange('fillOpacity', 0.35);
+    }
+  };
+  
+  const handleNoBorderChange = (e) => {
+    const checked = e.target.checked;
+    
+    console.log("No Border checkbox changed:", checked);
+    
+    // Update the noBorder flag
+    onStyleChange('noBorder', checked);
+    
+    // Update the actual borderWidth based on the checkbox state
+    if (checked) {
+      // If checkbox is checked, set borderWidth to 0 (no border)
+      onStyleChange('borderWidth', 0);
+    } else {
+      // If checkbox is unchecked, restore to default width
+      onStyleChange('borderWidth', 3);
+    }
+  };
+
   return (
     <div
       className="bg-white dark:bg-gray-900 rounded-lg shadow-md w-full max-w-md relative"
@@ -129,7 +166,7 @@ export const StyleSettingsPanel = ({
                 <input
                   type="checkbox"
                   checked={styleSettings.noFill}
-                  onChange={(e) => onStyleChange('noFill', e.target.checked)}
+                  onChange={handleNoFillChange} // Using our new handler
                   className="rounded border-gray-300 dark:border-gray-600"
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-400">No Fill</span>
@@ -159,7 +196,7 @@ export const StyleSettingsPanel = ({
                 <input
                   type="checkbox"
                   checked={styleSettings.noBorder}
-                  onChange={(e) => onStyleChange('noBorder', e.target.checked)}
+                  onChange={handleNoBorderChange} // Using our new handler
                   className="rounded border-gray-300 dark:border-gray-600"
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-400">No Border</span>
@@ -186,6 +223,14 @@ export const StyleSettingsPanel = ({
         if (!isNaN(transparencyValue)) {
           // Convert transparency to opacity (inverted)
           const opacity = 1 - (Math.max(0, Math.min(100, transparencyValue)) / 100);
+          
+          // Also update noFill flag if needed
+          if (opacity === 0 && !styleSettings.noFill) {
+            onStyleChange('noFill', true);
+          } else if (opacity > 0 && styleSettings.noFill) {
+            onStyleChange('noFill', false);
+          }
+          
           onStyleChange('fillOpacity', opacity);
         }
       }}
@@ -205,12 +250,26 @@ export const StyleSettingsPanel = ({
         // Allow empty input for deletion
         if (e.target.value === '') {
           onStyleChange('borderWidth', 0);
+          
+          // Update noBorder flag
+          if (!styleSettings.noBorder) {
+            onStyleChange('noBorder', true);
+          }
           return;
         }
         
         const value = parseFloat(e.target.value);
         if (!isNaN(value)) {
-          onStyleChange('borderWidth', Math.max(0, Math.min(10, value)));
+          const width = Math.max(0, Math.min(10, value));
+          
+          // Also update noBorder flag if needed
+          if (width === 0 && !styleSettings.noBorder) {
+            onStyleChange('noBorder', true);
+          } else if (width > 0 && styleSettings.noBorder) {
+            onStyleChange('noBorder', false);
+          }
+          
+          onStyleChange('borderWidth', width);
         }
       }}
       disabled={styleSettings.noBorder}
@@ -270,18 +329,7 @@ export const StyleSettingsPanel = ({
       <CondensedThemeSelector
         isOpen={isColorOnlySelectorOpen}
         onClose={() => setIsColorOnlySelectorOpen(false)}
-        onColorOnlySelect={(hex) => {
-          // e.g. set fillColor, borderColor, or excelFill, etc.
-          if (colorTarget === 'fill') {
-            onStyleChange('fillColor', hex);
-          } else if (colorTarget === 'border') {
-            onStyleChange('borderColor', hex);
-          } else if (colorTarget === 'excelFill') {
-            onStyleChange('excelFill', hex);
-          } else if (colorTarget === 'excelText') {
-            onStyleChange('excelText', hex);
-          }
-        }}
+        onColorSelect={handleColorOnlySelect}
       />  
     </div>
   );

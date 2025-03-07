@@ -98,7 +98,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "md", label: "Metro Division" },
   ];
 
-
   useEffect(() => {
     if (formState.maType === "drive_time" && driveTimePoints.length > 0) {
       console.log("Drawing drive time points from effect:", driveTimePoints);
@@ -130,9 +129,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.maType,
     formState.styleSettings
   ]);
-
-
-
 
   useEffect(() => {
     // Always have map selection active
@@ -320,7 +316,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     try {
       const { fillColor, fillOpacity, borderColor, borderWidth } =
         formState.styleSettings;
-
+  
       if (formState.maType === "radius") {
         // Clear existing radius graphics first
         if (selectionGraphicsLayer) {
@@ -329,7 +325,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
           selectionGraphicsLayer.removeMany(radiusGraphics);
         }
-
+  
         // Re-draw all radius rings with new style settings
         radiusPoints.forEach((point) => {
           drawRadius(
@@ -345,10 +341,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
         });
       }
-
-
-
-
       else if (formState.maType === "drivetime") {
         // Clear existing drive time graphics first
         if (selectionGraphicsLayer) {
@@ -358,10 +350,21 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
           selectionGraphicsLayer.removeMany(driveTimeGraphics);
         }
-
+  
         // Re-draw all drive time areas with new style settings
-        driveTimePoints.forEach((point) => {
-          if (point.driveTimePolygon) {
+        // Check if driveTimePoints is an array before using forEach
+        if (Array.isArray(driveTimePoints) && driveTimePoints.length > 0) {
+          driveTimePoints.forEach((point) => {
+            // Log for debugging
+            console.log("Redrawing drive time point with styles:", {
+              fillColor,
+              fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
+              borderColor,
+              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
+              noFill: formState.styleSettings.noFill,
+              noBorder: formState.styleSettings.noBorder
+            });
+            
             drawDriveTimePolygon(
               point,
               {
@@ -373,28 +376,28 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               editingMarketArea?.id || "temporary",
               editingMarketArea?.order || 0
             );
-          }
-        });
+          });
+        }
       }
       else if (formState.selectedLocations.length > 0) {
-        const marketAreaId = editingMarketArea?.id || "current";
-        const features = formState.selectedLocations.map((loc) => ({
-          geometry: loc.geometry || loc.feature?.geometry,
+        // Handle feature-based market areas
+        const featureSelection = formState.selectedLocations.map((location) => ({
+          geometry: location.geometry,
           attributes: {
-            FID: loc.id,
-            name: loc.name,
-            marketAreaId: marketAreaId,
-            order: editingMarketArea?.order || 0,
-          },
+            id: location.id,
+            marketAreaId: editingMarketArea?.id || 'temporary',
+            order: editingMarketArea?.order || 0
+          }
         }));
-
+  
+        // Update the styles
         updateFeatureStyles(
-          features,
+          featureSelection,
           {
             fill: fillColor,
-            fillOpacity,
+            fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
             outline: borderColor,
-            outlineWidth: borderWidth,
+            outlineWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
           },
           formState.maType
         );
@@ -413,12 +416,65 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     drawRadius,
     drawDriveTimePolygon,
     editingMarketArea,
+    selectionGraphicsLayer
   ]);
 
 
   useEffect(() => {
     updateStyles();
-  }, [formState.styleSettings, radiusPoints, updateStyles]);
+  }, [formState.styleSettings, radiusPoints, driveTimePoints, updateStyles]);
+
+  useEffect(() => {
+    if (formState.maType === "drivetime" && Array.isArray(driveTimePoints) && driveTimePoints.length > 0) {
+      console.log("Drawing drive time points from effect:", driveTimePoints);
+  
+      try {
+        // Clear existing drive time graphics first to avoid duplicates
+        if (selectionGraphicsLayer) {
+          const driveTimeGraphics = selectionGraphicsLayer.graphics.filter(
+            (g) => g.attributes?.FEATURE_TYPE === "drivetime" ||
+                  g.attributes?.FEATURE_TYPE === "drivetime_point"
+          );
+          selectionGraphicsLayer.removeMany(driveTimeGraphics);
+        }
+  
+        // Apply styling to drive time polygons - ensure noFill and noBorder are properly applied
+        driveTimePoints.forEach(point => {
+          // Log the style settings for debugging
+          console.log("Applying styles to drive time point:", {
+            fillColor: formState.styleSettings.fillColor,
+            fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity, 
+            noFill: formState.styleSettings.noFill,
+            borderColor: formState.styleSettings.borderColor,
+            borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
+            noBorder: formState.styleSettings.noBorder
+          });
+          
+          drawDriveTimePolygon(
+            point,
+            {
+              fillColor: formState.styleSettings.fillColor,
+              fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+              borderColor: formState.styleSettings.borderColor,
+              borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth
+            },
+            editingMarketArea?.id || "temporary",
+            editingMarketArea?.order || 0
+          );
+        });
+      } catch (error) {
+        console.error("Error drawing drive time points in effect:", error);
+        toast.error("Error displaying drive time areas. Please try again.");
+      }
+    }
+  }, [
+    driveTimePoints,
+    formState.maType,
+    formState.styleSettings,
+    drawDriveTimePolygon,
+    selectionGraphicsLayer,
+    editingMarketArea
+  ]);
 
   const handleMATypeChange = useCallback(
     async (e) => {
@@ -548,8 +604,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     // This should replace the existing useEffect for drawing radius points
     const enhancedDrawRadiusPointsEffect = () => {
       useEffect(() => {
-        const drawRadiusPointsAsync = async () => {
-          if (formState.maType === "radius" && radiusPoints.length > 0) {
+        // Only run this effect if we're in radius mode
+        if (formState.maType !== "radius") {
+          return; // Skip this effect entirely for non-radius types
+        }
+
+        const drawRadiusPoints = async () => {
+          if (radiusPoints.length > 0) {
             console.log("Drawing radius points from effect:", radiusPoints);
 
             try {
@@ -572,7 +633,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }
         };
 
-        drawRadiusPointsAsync();
+        drawRadiusPoints();
       }, [
         radiusPoints,
         formState.maType,
@@ -902,15 +963,22 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     // Make a deep copy to avoid reference issues
     const driveTimePointsCopy = JSON.parse(JSON.stringify(driveTimePoints));
     
-    // Normalize drive time points with the correct structure expected by the backend
-    const normalizedPoints = driveTimePointsCopy.map(point => {
-      // Ensure the correct structure with travelTimeMinutes instead of timeRanges
+    const normalizedPoints = driveTimePointsCopy.map(async (point) => {
+      // If polygon isn't already calculated, calculate it
+      if (!point.polygon && !point.driveTimePolygon) {
+        try {
+          point.driveTimePolygon = await calculateDriveTimePolygon(point);
+        } catch (err) {
+          console.error("Failed to calculate drive time polygon:", err);
+        }
+      }
+    
       return {
         center: point.center,
         travelTimeMinutes: Array.isArray(point.timeRanges) ? point.timeRanges[0] : 
                            (point.timeRange || point.travelTimeMinutes || 15),
         units: 'minutes',
-        // Include polygon if available, but not required for submission
+        polygon: point.polygon || point.driveTimePolygon,
         ...(point.polygon ? { polygon: point.polygon } : {})
       };
     }).filter(point => {
@@ -929,22 +997,22 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     console.log("Submitting normalized drive time points:", 
       JSON.stringify(normalizedPoints, null, 2));
   
-    // Create market area data with validated points
-    const marketAreaData = {
-      ma_type: "drivetime", // Use consistent type name
-      name: formState.maName,
-      short_name: formState.shortName,
-      style_settings: styleSettings,
-      locations: [], // Drive time types don't use locations array
-      drive_time_points: normalizedPoints,
-    };
+      // Create market area data with validated points
+      marketAreaData = {
+        ma_type: "drivetime", 
+        name: formState.maName,
+        short_name: formState.shortName,
+        style_settings: styleSettings,
+        locations: [], // Drive time types don't use locations array
+        drive_time_points: normalizedPoints,
+        geometry: normalizedPoints[0]?.polygon || null
+      };
   
     console.log("Final market area data:", marketAreaData);
     console.groupEnd();
   
     return marketAreaData;
   };
-
 
   // Searching
   useEffect(() => {
@@ -1359,7 +1427,6 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     }
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -1371,7 +1438,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         throw new Error("Market Area Name is required");
       }
   
-      // Build styleSettings from user's final picks
+      // In the handleSubmit function, ensure style settings are correctly saved:
       const styleSettings = {
         fillColor: formState.styleSettings.fillColor,
         fillOpacity: formState.styleSettings.noFill
@@ -1383,6 +1450,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           : formState.styleSettings.borderWidth,
         excelFill: formState.styleSettings.excelFill,
         excelText: formState.styleSettings.excelText,
+        // Make sure to include these flags so they're saved with the market area
+        noFill: formState.styleSettings.noFill,
+        noBorder: formState.styleSettings.noBorder,
       };
   
       // If they picked "md" as a type, treat it as "place"
@@ -1415,20 +1485,40 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         
         // Normalize drive time points with the correct structure expected by the backend
         const normalizedPoints = driveTimePointsCopy.map(point => {
-          // Ensure the correct structure with travelTimeMinutes instead of timeRanges
+          // Extract center coordinates
+          const center = point.center || point.point || point;
+          const longitude = center.longitude || center.x;
+          const latitude = center.latitude || center.y;
+  
+          // Determine time range
+          const travelTimeMinutes = Array.isArray(point.timeRanges) 
+            ? point.timeRanges[0] 
+            : (point.timeRange || point.travelTimeMinutes || 15);
+  
+          // Ensure polygon is included if available
+          const polygon = point.polygon || point.driveTimePolygon;
+  
           return {
-            center: point.center,
-            travelTimeMinutes: Array.isArray(point.timeRanges) ? point.timeRanges[0] : 
-                              (point.timeRange || point.travelTimeMinutes || 15),
-            units: 'minutes',
-            // Include polygon if available, but not required for submission
-            ...(point.polygon ? { polygon: point.polygon } : {})
+            center: {
+              longitude,
+              latitude,
+              spatialReference: { wkid: 4326 }
+            },
+            travelTimeMinutes,
+            units: point.units || 'minutes',
+            polygon,
+            // Include additional metadata to aid reconstruction
+            metadata: {
+              originalPoint: point
+            }
           };
         }).filter(point => {
-          // Filter out invalid points
-          return point && point.center && 
-                typeof point.travelTimeMinutes === 'number' && 
-                point.travelTimeMinutes > 0;
+          // Strict validation
+          return point.center && 
+                 !isNaN(point.center.longitude) && 
+                 !isNaN(point.center.latitude) && 
+                 typeof point.travelTimeMinutes === 'number' && 
+                 point.travelTimeMinutes > 0;
         });
   
         if (normalizedPoints.length === 0) {
@@ -1438,14 +1528,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           return;
         }
   
-        // Create market area data with validated normalized points
+        // Create market area data with validated points
         marketAreaData = {
-          ma_type: "drivetime", // Now we can use drivetime directly
+          ma_type: "drivetime", 
           name: formState.maName,
           short_name: formState.shortName,
           style_settings: styleSettings,
           locations: [], // Drive time types don't use locations array
           drive_time_points: normalizedPoints,
+          // Include geometry for backend storage
+          geometry: normalizedPoints[0]?.polygon || null
         };
   
         console.log("Final market area data for drive time type:", marketAreaData);
