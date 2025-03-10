@@ -67,6 +67,73 @@ export const MarketAreaProvider = ({ children }) => {
         if (area.ma_type === 'radius') {
           console.log('Processing radius market area:', area.id);
           
+          // First check if this is actually a drive time area saved as radius
+          if (area.original_type === 'drivetime' || 
+              (area.drive_time_points && area.drive_time_points.length > 0) ||
+              (area.radius_points && area.radius_points.some(p => p.isDriveTime))) {
+            
+            console.log(`Detected drive time area saved as radius: ${area.id}`);
+            // Restore the original type
+            area.ma_type = 'drivetime';
+            
+            // If we have drive_time_points stored, ensure they're properly formatted
+            if (area.drive_time_points && area.drive_time_points.length > 0) {
+              console.log(`Using ${area.drive_time_points.length} stored drive time points`);
+              
+              // Normalize drive time points if needed
+              try {
+                if (typeof area.drive_time_points === 'string') {
+                  area.drive_time_points = JSON.parse(area.drive_time_points);
+                }
+                
+                // Ensure it's an array
+                if (!Array.isArray(area.drive_time_points)) {
+                  area.drive_time_points = [area.drive_time_points];
+                }
+                
+                // Validate each point
+                area.drive_time_points = area.drive_time_points.filter(point => {
+                  if (!point || !point.center) return false;
+                  if (!point.travelTimeMinutes) {
+                    point.travelTimeMinutes = 15; // Default
+                  }
+                  return true;
+                });
+                
+                // Area is valid if it has at least one drive time point
+                return area.drive_time_points.length > 0;
+              } catch (e) {
+                console.error(`Error processing drive_time_points for market area ${area.id}:`, e);
+              }
+            }
+            // If no valid drive_time_points, try to reconstruct from radius_points
+            else if (area.radius_points && area.radius_points.length > 0) {
+              console.log(`Reconstructing drive time points from radius points for ${area.id}`);
+              
+              try {
+                if (typeof area.radius_points === 'string') {
+                  area.radius_points = JSON.parse(area.radius_points);
+                }
+                
+                if (!Array.isArray(area.radius_points)) {
+                  area.radius_points = [area.radius_points];
+                }
+                
+                // Convert radius points to drive time points
+                area.drive_time_points = area.radius_points.map(point => ({
+                  center: point.center || point.point,
+                  travelTimeMinutes: Array.isArray(point.radii) ? point.radii[0] : (point.radius || 15)
+                  // Note: driveTimePolygon will be calculated on demand when rendering
+                }));
+                
+                return area.drive_time_points.length > 0;
+              } catch (e) {
+                console.error(`Error converting radius_points to drive_time_points for ${area.id}:`, e);
+              }
+            }
+          }
+          
+          // Normal radius area processing
           // Ensure we have radius_points data
           if (!area.radius_points) {
             console.warn(`Radius market area ${area.id} missing radius_points`);
@@ -137,7 +204,99 @@ export const MarketAreaProvider = ({ children }) => {
             console.error(`Error processing radius_points for market area ${area.id}:`, e);
             return false;
           }
-        } 
+        }
+        
+        // Special handling for drive time market areas
+        else if (area.ma_type === 'drivetime') {
+          console.log('Processing drive time market area:', area.id);
+          
+          // First, check drive_time_points property
+          if (area.drive_time_points) {
+            try {
+              // Normalize drive_time_points to proper format
+              if (typeof area.drive_time_points === 'string') {
+                area.drive_time_points = JSON.parse(area.drive_time_points);
+              }
+              
+              // Convert to array if it's not already
+              if (!Array.isArray(area.drive_time_points)) {
+                area.drive_time_points = [area.drive_time_points];
+              }
+              
+              // Validate each point has basic requirements
+              area.drive_time_points = area.drive_time_points.filter(point => {
+                if (!point) return false;
+                
+                // Ensure center coordinates exist
+                if (!point.center) {
+                  if (point.longitude !== undefined && point.latitude !== undefined) {
+                    point.center = {
+                      longitude: point.longitude,
+                      latitude: point.latitude
+                    };
+                  } else if (point.x !== undefined && point.y !== undefined) {
+                    point.center = {
+                      longitude: point.x,
+                      latitude: point.y
+                    };
+                  } else {
+                    console.warn(`Drive time point in ${area.id} missing center coordinates`);
+                    return false;
+                  }
+                }
+                
+                // Ensure we have travel time minutes
+                if (!point.travelTimeMinutes && !point.timeRanges && !point.timeRange) {
+                  point.travelTimeMinutes = 15; // Default 15-minute drive time
+                } else if (point.timeRanges && !point.travelTimeMinutes) {
+                  point.travelTimeMinutes = Array.isArray(point.timeRanges) ? 
+                    point.timeRanges[0] : point.timeRanges;
+                } else if (point.timeRange && !point.travelTimeMinutes) {
+                  point.travelTimeMinutes = point.timeRange;
+                }
+                
+                return true;
+              });
+              
+              // Area is valid if it has at least one drive time point
+              return area.drive_time_points.length > 0;
+            } catch (e) {
+              console.error(`Error processing drive_time_points for ${area.id}:`, e);
+            }
+          }
+          
+          // If still not valid, try to extract from geometry if available
+          if (area.geometry && area.geometry.rings && area.geometry.rings.length > 0) {
+            try {
+              // Create a drive time point from the geometry centroid
+              const ring = area.geometry.rings[0];
+              let sumX = 0, sumY = 0;
+              
+              for (const point of ring) {
+                sumX += point[0];
+                sumY += point[1];
+              }
+              
+              area.drive_time_points = [{
+                center: {
+                  longitude: sumX / ring.length,
+                  latitude: sumY / ring.length
+                },
+                travelTimeMinutes: 15,
+                polygon: area.geometry
+              }];
+              
+              console.log(`Created drive time point from geometry for ${area.id}`);
+              return true;
+            } catch (e) {
+              console.error(`Error creating drive time from geometry for ${area.id}:`, e);
+            }
+          }
+          
+          console.warn(`Drive time market area ${area.id} has no valid points or geometry`);
+          return false;
+        }
+
         // Handle polygon-based market areas
         else if (area.locations && Array.isArray(area.locations)) {
           area.locations = area.locations.filter(loc => {
@@ -168,8 +327,8 @@ export const MarketAreaProvider = ({ children }) => {
             return false;
           }
         } else {
-          // No locations and not a radius - invalid
-          console.warn(`Market area ${area.id} has no locations and is not a radius type`);
+          // No locations and not a radius or drivetime - invalid
+          console.warn(`Market area ${area.id} has no locations and is not a radius or drivetime type`);
           return false;
         }
   
@@ -182,7 +341,8 @@ export const MarketAreaProvider = ({ children }) => {
         validCount: validatedAreas.length,
         byType: {
           radius: validatedAreas.filter(a => a.ma_type === 'radius').length,
-          other: validatedAreas.filter(a => a.ma_type !== 'radius').length
+          drivetime: validatedAreas.filter(a => a.ma_type === 'drivetime').length,
+          other: validatedAreas.filter(a => a.ma_type !== 'radius' && a.ma_type !== 'drivetime').length
         }
       });
   
@@ -304,8 +464,6 @@ export const MarketAreaProvider = ({ children }) => {
     }
   }, [marketAreas]);
   
-  
-
   const updateMarketArea = useCallback(async (projectId, marketAreaId, updateData) => {
     if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
     setIsLoading(true);
@@ -399,6 +557,7 @@ export const MarketAreaProvider = ({ children }) => {
       setIsLoading(false);
     }
   }, [marketAreas, order]);
+
 
   const value = {
     marketAreas: marketAreas || [],

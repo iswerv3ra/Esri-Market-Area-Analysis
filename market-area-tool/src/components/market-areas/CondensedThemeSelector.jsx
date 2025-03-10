@@ -261,7 +261,7 @@ function SaturationBrightnessSquare({
   );
 }
 
-const CondensedThemeSelector = ({ isOpen, onClose, onColorOnlySelect }) => {
+const CondensedThemeSelector = ({ isOpen, onClose, onColorSelect }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [themes, setThemes] = useState({});
@@ -335,7 +335,6 @@ const CondensedThemeSelector = ({ isOpen, onClose, onColorOnlySelect }) => {
     handleColorClick(advancedHex, "Advanced");
   };
 
-  // Common color click
   const handleColorClick = (color, label = "") => {
     const isStandard = STANDARD_COLORS.some(
       (std) => std.toLowerCase() === color.toLowerCase()
@@ -343,13 +342,12 @@ const CondensedThemeSelector = ({ isOpen, onClose, onColorOnlySelect }) => {
     if (!isStandard) {
       setRecentColors((prev) => addToRecentColors(color, prev));
     }
-    onColorOnlySelect(color);
+    onColorSelect(color); // Fixed: Changed from onColorOnlySelect to onColorSelect
     onClose();
     toast.success(
       label ? `Color applied from ${label}` : `Color applied: ${color}`
     );
   };
-
   const toggleMoreColors = () => {
     setShowMoreColors((prev) => !prev);
   };
