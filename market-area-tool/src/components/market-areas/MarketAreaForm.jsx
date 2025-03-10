@@ -350,20 +350,20 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           );
           selectionGraphicsLayer.removeMany(driveTimeGraphics);
         }
-  
+      
+        // Clear the tracking map when updating styles
+        drawnDriveTimePointsRef.current.clear();
+      
         // Re-draw all drive time areas with new style settings
-        // Check if driveTimePoints is an array before using forEach
         if (Array.isArray(driveTimePoints) && driveTimePoints.length > 0) {
-          driveTimePoints.forEach((point) => {
-            // Log for debugging
-            console.log("Redrawing drive time point with styles:", {
-              fillColor,
-              fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
-              borderColor,
-              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
-              noFill: formState.styleSettings.noFill,
-              noBorder: formState.styleSettings.noBorder
-            });
+          for (const point of driveTimePoints) {
+            // Create a unique identifier for this point
+            const pointId = generatePointId(point);
+            
+            // Skip if we've already drawn this exact point
+            if (drawnDriveTimePointsRef.current.has(pointId)) {
+              continue;
+            }
             
             drawDriveTimePolygon(
               point,
@@ -376,7 +376,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               editingMarketArea?.id || "temporary",
               editingMarketArea?.order || 0
             );
-          });
+            
+            // Mark this point as drawn
+            drawnDriveTimePointsRef.current.set(pointId, true);
+          }
         }
       }
       else if (formState.selectedLocations.length > 0) {
@@ -424,9 +427,15 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     updateStyles();
   }, [formState.styleSettings, radiusPoints, driveTimePoints, updateStyles]);
 
+  const drawnDriveTimePointsRef = useRef(new Map());
+
   useEffect(() => {
-    if (formState.maType === "drivetime" && Array.isArray(driveTimePoints) && driveTimePoints.length > 0) {
-      console.log("Drawing drive time points from effect:", driveTimePoints);
+    if (formState.maType !== "drivetime" || !Array.isArray(driveTimePoints) || driveTimePoints.length === 0) {
+      return;
+    }
+  
+    const drawDriveTimePointsOnce = async () => {
+      console.log("Drawing drive time points with tracking:", driveTimePoints.length);
   
       try {
         // Clear existing drive time graphics first to avoid duplicates
@@ -435,38 +444,64 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             (g) => g.attributes?.FEATURE_TYPE === "drivetime" ||
                   g.attributes?.FEATURE_TYPE === "drivetime_point"
           );
-          selectionGraphicsLayer.removeMany(driveTimeGraphics);
+          
+          if (driveTimeGraphics.length > 0) {
+            console.log(`Removing ${driveTimeGraphics.length} existing drive time graphics before redrawing`);
+            selectionGraphicsLayer.removeMany(driveTimeGraphics);
+          }
         }
+        
+        // Clear the tracking map when we're redrawing all points
+        drawnDriveTimePointsRef.current.clear();
   
         // Apply styling to drive time polygons - ensure noFill and noBorder are properly applied
-        driveTimePoints.forEach(point => {
-          // Log the style settings for debugging
-          console.log("Applying styles to drive time point:", {
-            fillColor: formState.styleSettings.fillColor,
-            fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity, 
-            noFill: formState.styleSettings.noFill,
-            borderColor: formState.styleSettings.borderColor,
-            borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth,
-            noBorder: formState.styleSettings.noBorder
-          });
+        for (let i = 0; i < driveTimePoints.length; i++) {
+          const point = driveTimePoints[i];
           
-          drawDriveTimePolygon(
+          // Create a unique identifier for this point
+          const pointId = generatePointId(point);
+          
+          // Skip if we've already drawn this exact point in this rendering cycle
+          if (drawnDriveTimePointsRef.current.has(pointId)) {
+            console.log(`Skipping duplicate drive time point: ${pointId}`);
+            continue;
+          }
+          
+          // Apply the current style settings
+          const effectiveStyles = {
+            fillColor: formState.styleSettings.fillColor,
+            fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
+            borderColor: formState.styleSettings.borderColor,
+            borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth
+          };
+          
+          // Draw the polygon
+          await drawDriveTimePolygon(
             point,
-            {
-              fillColor: formState.styleSettings.fillColor,
-              fillOpacity: formState.styleSettings.noFill ? 0 : formState.styleSettings.fillOpacity,
-              borderColor: formState.styleSettings.borderColor,
-              borderWidth: formState.styleSettings.noBorder ? 0 : formState.styleSettings.borderWidth
-            },
+            effectiveStyles,
             editingMarketArea?.id || "temporary",
             editingMarketArea?.order || 0
           );
-        });
+          
+          // Mark this point as drawn
+          drawnDriveTimePointsRef.current.set(pointId, true);
+          console.log(`Drew drive time point ${i+1}/${driveTimePoints.length} with ID: ${pointId}`);
+        }
       } catch (error) {
-        console.error("Error drawing drive time points in effect:", error);
+        console.error("Error drawing drive time points:", error);
         toast.error("Error displaying drive time areas. Please try again.");
       }
-    }
+    };
+  
+    drawDriveTimePointsOnce();
+    
+    // Return a cleanup function
+    return () => {
+      // When changing market area type or unmounting, clear the tracking
+      if (formState.maType !== "drivetime") {
+        drawnDriveTimePointsRef.current.clear();
+      }
+    };
   }, [
     driveTimePoints,
     formState.maType,
@@ -475,6 +510,22 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     selectionGraphicsLayer,
     editingMarketArea
   ]);
+  
+  // Add this helper function to generate a unique ID for each drive time point
+  function generatePointId(point) {
+    // Get center coordinates
+    const center = point.center || {};
+    const lon = center.longitude || center.x || 0;
+    const lat = center.latitude || center.y || 0;
+    
+    // Get time range (use first one if it's an array)
+    const timeRange = Array.isArray(point.timeRanges) 
+      ? point.timeRanges[0] 
+      : (point.timeRange || point.travelTimeMinutes || 0);
+    
+    // Create a string ID that uniquely identifies this point
+    return `dt-${lon.toFixed(6)}-${lat.toFixed(6)}-${timeRange}`;
+  }
 
   const handleMATypeChange = useCallback(
     async (e) => {

@@ -1287,34 +1287,35 @@ export class EnrichmentService {
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
-
+  
     const expandedAreas = [];
     let areaIndex = 0;
-
+  
     for (const area of marketAreas) {
       console.log("Processing market area for enrichment:", {
         name: area.name,
         type: area.type || area.ma_type,
         hasRadiusPoints: Boolean(area.radius_points?.length),
+        hasDriveTimePoints: Boolean(area.drive_time_points?.length),
         hasLocations: Boolean(area.locations?.length),
       });
-
+  
       // Check for both area.ma_type and area.type to handle different data structures
       if ((area.ma_type === "radius" || area.type === "radius")) {
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
-
+  
           for (const point of area.radius_points) {
             console.log("Processing radius point:", JSON.stringify(point, null, 2));
-
+  
             if (!point.center) {
               console.warn("Radius point has no center:", point);
               continue;
             }
-
+  
             // Extract coordinates correctly based on available properties
             let centerLon, centerLat;
-
+  
             // Handle different data structures
             if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
               centerLon = point.center.longitude;
@@ -1326,11 +1327,11 @@ export class EnrichmentService {
               console.warn("Cannot determine center coordinates from point:", point.center);
               continue;
             }
-
+  
             // Check if coordinates need to be transformed from Web Mercator to geographic
             const spatialRefWkid = point.center.spatialReference?.wkid ||
               point.center.spatialReference?.latestWkid;
-
+  
             // CRITICAL FIX: Special handling for lat/long values incorrectly tagged as Web Mercator
             if (spatialRefWkid === 102100 || spatialRefWkid === 3857) {
               // If we have lat/long values with Web Mercator spatial ref
@@ -1346,7 +1347,7 @@ export class EnrichmentService {
                   try {
                     const { default: Point } = await import("@arcgis/core/geometry/Point");
                     const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-
+  
                     const webMercatorPoint = new Point({
                       x: centerLon,
                       y: centerLat,
@@ -1354,9 +1355,9 @@ export class EnrichmentService {
                         wkid: spatialRefWkid
                       }
                     });
-
+  
                     const geographicPoint = webMercatorToGeographic(webMercatorPoint);
-
+  
                     if (geographicPoint) {
                       centerLon = geographicPoint.longitude;
                       centerLat = geographicPoint.latitude;
@@ -1375,7 +1376,7 @@ export class EnrichmentService {
                 try {
                   const { default: Point } = await import("@arcgis/core/geometry/Point");
                   const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-
+  
                   const webMercatorPoint = new Point({
                     x: centerLon,
                     y: centerLat,
@@ -1383,9 +1384,9 @@ export class EnrichmentService {
                       wkid: spatialRefWkid
                     }
                   });
-
+  
                   const geographicPoint = webMercatorToGeographic(webMercatorPoint);
-
+  
                   if (geographicPoint) {
                     centerLon = geographicPoint.longitude;
                     centerLat = geographicPoint.latitude;
@@ -1399,7 +1400,7 @@ export class EnrichmentService {
                 }
               }
             }
-
+  
             // Skip if we have invalid coordinates
             if (!centerLon || !centerLat ||
               isNaN(centerLon) || isNaN(centerLat) ||
@@ -1407,34 +1408,34 @@ export class EnrichmentService {
               console.warn("Invalid center coordinates:", centerLon, centerLat);
               continue;
             }
-
+  
             console.log("Using center coordinates for enrichment:", { longitude: centerLon, latitude: centerLat });
-
+  
             // Process each radius
             for (const radiusMiles of (point.radii || [])) {
               console.log(`Processing radius: ${radiusMiles} miles`);
-
+  
               try {
                 // Create a circle polygon directly in geographic coordinates
                 const { default: Point } = await import("@arcgis/core/geometry/Point");
                 const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
-
+  
                 // Create a geographic point
                 const geoPoint = new Point({
                   longitude: centerLon,
                   latitude: centerLat,
                   spatialReference: { wkid: 4326 }
                 });
-
+  
                 // Create a geodesic buffer (proper circle on Earth's surface)
                 const radiusMeters = radiusMiles * 1609.34;
                 const bufferPolygon = geodesicBuffer(geoPoint, radiusMeters, "meters");
-
+  
                 if (bufferPolygon && bufferPolygon.rings?.length > 0) {
                   // Log the first few points to verify they're valid
                   console.log(`Created buffer with ${bufferPolygon.rings[0].length} points. First 3:`,
                     JSON.stringify(bufferPolygon.rings[0].slice(0, 3)));
-
+  
                   if (radiusMiles > largestRadiusInfo.radius) {
                     largestRadiusInfo = {
                       radius: radiusMiles,
@@ -1450,10 +1451,10 @@ export class EnrichmentService {
               }
             }
           }
-
+  
           if (largestRadiusInfo.polygon) {
             console.log("Using largest radius polygon:", largestRadiusInfo.radius);
-
+  
             // Add the expanded area with the buffer polygon
             expandedAreas.push({
               geometry: {
@@ -1475,25 +1476,135 @@ export class EnrichmentService {
         } else {
           console.warn(`No radius_points found for radius MA: ${area.name}`);
         }
-      } else {
+      } 
+      // NEW CASE: Handle drivetime market areas 
+      else if (area.ma_type === "drivetime" || area.type === "drivetime") {
+        console.log("Processing drivetime market area:", area.name);
+        
+        // First check if we have a pre-computed polygon to use directly
+        if (area.geometry && area.geometry.rings && area.geometry.rings.length > 0) {
+          console.log("Using existing geometry for drivetime area");
+          
+          try {
+            // Make sure the geometry is in the right projection
+            const existingPolygon = new Polygon({
+              rings: area.geometry.rings,
+              spatialReference: area.geometry.spatialReference || { wkid: 3857 }
+            });
+            
+            const projectedGeometry = projection.project(existingPolygon, {
+              wkid: 4326
+            });
+            
+            if (projectedGeometry) {
+              expandedAreas.push({
+                geometry: {
+                  rings: projectedGeometry.rings,
+                  spatialReference: { wkid: 4326 }
+                },
+                attributes: {
+                  ObjectID: areaIndex,
+                  name: area.name || "Drivetime Area",
+                  originalAreaName: area.name || "Drivetime Area",
+                  driveTimeMinutes: area.drive_time_minutes || 15
+                },
+                originalIndex: areaIndex
+              });
+              areaIndex++;
+              continue; // Skip to next area since we've added this one
+            }
+          } catch (error) {
+            console.error(`Error projecting existing drivetime geometry: ${error.message}`);
+            // Continue to try other methods if this fails
+          }
+        }
+        
+        // Check if we have drive time points
+        const driveTimePoints = Array.isArray(area.drive_time_points) ? 
+          area.drive_time_points : 
+          typeof area.drive_time_points === 'string' ? 
+            JSON.parse(area.drive_time_points) : 
+            [];
+            
+        if (driveTimePoints.length > 0) {
+          console.log(`Found ${driveTimePoints.length} drive time points to process`);
+          
+          for (const point of driveTimePoints) {
+            // Skip points without polygon data - we need the polygon
+            if (!point.polygon) {
+              console.warn("Skipping drive time point with no polygon:", point);
+              continue;
+            }
+            
+            try {
+              // Extract the polygon from the point
+              const driveTimePolygon = point.polygon;
+              
+              if (!driveTimePolygon.rings || driveTimePolygon.rings.length === 0) {
+                console.warn("Drive time polygon has no rings:", driveTimePolygon);
+                continue;
+              }
+              
+              // Convert to Polygon object for projection
+              const esriPolygon = new Polygon({
+                rings: driveTimePolygon.rings,
+                spatialReference: driveTimePolygon.spatialReference || { wkid: 3857 }
+              });
+              
+              const projectedGeometry = projection.project(esriPolygon, {
+                wkid: 4326
+              });
+              
+              if (projectedGeometry) {
+                // Get the drive time in minutes
+                const driveTimeMinutes = point.timeRanges?.[0] || 
+                  point.travelTimeMinutes || 
+                  area.drive_time_minutes || 
+                  15;
+                  
+                expandedAreas.push({
+                  geometry: {
+                    rings: projectedGeometry.rings,
+                    spatialReference: { wkid: 4326 }
+                  },
+                  attributes: {
+                    ObjectID: areaIndex,
+                    name: area.name || "Drivetime Area",
+                    originalAreaName: area.name || "Drivetime Area", 
+                    driveTimeMinutes
+                  },
+                  originalIndex: areaIndex
+                });
+                areaIndex++;
+                break; // Use only the first valid drive time polygon
+              }
+            } catch (error) {
+              console.error(`Error processing drive time point:`, error);
+            }
+          }
+        } else {
+          console.warn(`No drive_time_points found for drivetime MA: ${area.name}`);
+        }
+      }
+      else {
         // Non-radius area processing remains the same
         const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
-
+  
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
           continue;
         }
-
+  
         try {
           const combinedPolygon = new Polygon({
             rings: allRings,
             spatialReference: { wkid: 3857 },
           });
-
+  
           const projectedGeometry = projection.project(combinedPolygon, {
             wkid: 4326,
           });
-
+  
           if (projectedGeometry) {
             expandedAreas.push({
               geometry: {
@@ -1516,12 +1627,12 @@ export class EnrichmentService {
         }
       }
     }
-
+  
     // Final validation of expanded areas
     if (expandedAreas.length === 0) {
       throw new Error("No valid study areas could be generated from market areas");
     }
-
+  
     // Validate all polygons have rings with coordinates
     for (let i = 0; i < expandedAreas.length; i++) {
       const area = expandedAreas[i];
@@ -1529,7 +1640,7 @@ export class EnrichmentService {
         console.error(`Invalid geometry for area ${i}:`, area);
         throw new Error(`Area at index ${i} has invalid geometry: missing or empty rings array`);
       }
-
+  
       // Check if any ring has coordinates
       let hasValidRing = false;
       for (const ring of area.geometry.rings) {
@@ -1539,20 +1650,20 @@ export class EnrichmentService {
             Array.isArray(point) && point.length >= 2 &&
             (Math.abs(point[0]) > 0.000001 || Math.abs(point[1]) > 0.000001)
           );
-
+  
           if (hasNonZeroPoints) {
             hasValidRing = true;
             break;
           }
         }
       }
-
+  
       if (!hasValidRing) {
         console.error(`All rings for area ${i} have zero or invalid coordinates:`, area.geometry.rings);
         throw new Error(`Area at index ${i} has invalid geometry: all points are zero or invalid`);
       }
     }
-
+  
     console.log(`Successfully created ${expandedAreas.length} valid study areas for enrichment`);
     return expandedAreas;
   }
