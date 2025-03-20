@@ -82,11 +82,12 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
       // Convert transparency percentage directly to opacity
       const transparencyPercent = parseInt(theme.transparency) || 35;
       const opacity = 1 - (transparencyPercent / 100);  // Invert the calculation
-  
+      
       // Get hex value instead of building 'rgb(...)'
       const fillColorHex = theme.color_key?.Hex || theme.fill_color || '#0078D4';
-  
-      const styleSettings = {
+      
+      // Create a theme settings object without any type property
+      const themeSettings = {
         themeName: theme.theme_name,
         fillColor: fillColorHex,
         fillOpacity: opacity,
@@ -97,7 +98,7 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
               ? parseInt(theme.weight)
               : 3
             : 0,
-        excelFill: fillColorHex,  // Always use the theme's fill color
+        excelFill: fillColorHex,
         excelText:
           theme.excel_text === 'Black'
             ? '#000000'
@@ -107,8 +108,10 @@ const ThemeSelector = ({ onThemeSelect, isOpen, onClose }) => {
         noFill: theme.fill !== 'Yes',
         noBorder: theme.border !== 'Yes',
       };
-  
-      onThemeSelect(styleSettings);
+      
+      // Pass the theme settings to parent component
+      onThemeSelect(themeSettings);
+      
       onClose();
       toast.success(`Theme style applied: ${theme.theme_name}`);
     } catch (err) {

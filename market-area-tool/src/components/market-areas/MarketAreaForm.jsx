@@ -1230,53 +1230,74 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     [removeFromSelection, formState.maType]
   );
 
-  // Keep the form state’s style settings updated as user picks them
-  const handleStyleChange = useCallback((type, value) => {
-    setFormState((prev) => {
-      const newStyleSettings = { ...prev.styleSettings };
-
-      if (type === "noBorder") {
-        newStyleSettings.noBorder = value;
-        if (value) {
-          newStyleSettings.borderWidth = 0;
-        } else {
-          if (newStyleSettings.borderWidth === 0) {
-            newStyleSettings.borderWidth = 3;
-          }
-        }
-      } else if (type === "noFill") {
-        newStyleSettings.noFill = value;
-        if (value) {
-          newStyleSettings.fillOpacity = 0;
-        } else {
-          if (newStyleSettings.fillOpacity === 0) {
-            newStyleSettings.fillOpacity = 0.35;
-          }
-        }
-      } else if (type === "fillOpacity") {
-        newStyleSettings.fillOpacity = Math.max(0, Math.min(1, value));
-        if (newStyleSettings.fillOpacity === 0) {
-          newStyleSettings.noFill = true;
-        } else {
-          newStyleSettings.noFill = false;
-        }
-      } else if (type === "borderWidth") {
-        newStyleSettings.borderWidth = Math.max(0, Number(value));
-        if (newStyleSettings.borderWidth === 0) {
-          newStyleSettings.noBorder = true;
-        } else {
-          newStyleSettings.noBorder = false;
-        }
-      } else {
-        newStyleSettings[type] = value;
-      }
-
+// Keep the form state's style settings updated as user picks them
+const handleStyleChange = useCallback((type, value) => {
+  setFormState((prev) => {
+    // Handle batch update from theme selector
+    if (type === "batchUpdate" || type === "completeThemeUpdate") {
+      console.log('Market Area Form received batch theme update:', value);
+      
+      // Extract the theme data based on the update type
+      const batchData = type === "completeThemeUpdate" ? value.styles : value;
+      
       return {
         ...prev,
-        styleSettings: newStyleSettings,
+        styleSettings: {
+          ...prev.styleSettings,
+          ...batchData,
+          // Ensure proper state for no-fill and no-border flags
+          noFill: batchData.noFill !== undefined ? batchData.noFill : batchData.fillOpacity === 0,
+          noBorder: batchData.noBorder !== undefined ? batchData.noBorder : batchData.borderWidth === 0,
+          themeName: batchData.themeName || (type === "completeThemeUpdate" ? value.theme : 'Custom')
+        }
       };
-    });
-  }, []);
+    }
+
+    // Handle individual property updates (original code)
+    const newStyleSettings = { ...prev.styleSettings };
+
+    if (type === "noBorder") {
+      newStyleSettings.noBorder = value;
+      if (value) {
+        newStyleSettings.borderWidth = 0;
+      } else {
+        if (newStyleSettings.borderWidth === 0) {
+          newStyleSettings.borderWidth = 3;
+        }
+      }
+    } else if (type === "noFill") {
+      newStyleSettings.noFill = value;
+      if (value) {
+        newStyleSettings.fillOpacity = 0;
+      } else {
+        if (newStyleSettings.fillOpacity === 0) {
+          newStyleSettings.fillOpacity = 0.35;
+        }
+      }
+    } else if (type === "fillOpacity") {
+      newStyleSettings.fillOpacity = Math.max(0, Math.min(1, value));
+      if (newStyleSettings.fillOpacity === 0) {
+        newStyleSettings.noFill = true;
+      } else {
+        newStyleSettings.noFill = false;
+      }
+    } else if (type === "borderWidth") {
+      newStyleSettings.borderWidth = Math.max(0, Number(value));
+      if (newStyleSettings.borderWidth === 0) {
+        newStyleSettings.noBorder = true;
+      } else {
+        newStyleSettings.noBorder = false;
+      }
+    } else {
+      newStyleSettings[type] = value;
+    }
+
+    return {
+      ...prev,
+      styleSettings: newStyleSettings,
+    };
+  });
+}, []);
 
   // Helper to jump back to the MarketAreaList
   const pressMAListButton = () => {

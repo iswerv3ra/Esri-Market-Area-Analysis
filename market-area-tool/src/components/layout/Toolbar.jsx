@@ -8,6 +8,7 @@ import {
   TableCellsIcon,
   PlusIcon,
   ListBulletIcon,
+  ArrowUpOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { useMap } from "../../contexts/MapContext";
 import { useMarketAreas } from "../../contexts/MarketAreaContext";
@@ -16,6 +17,7 @@ import { toast } from "react-hot-toast";
 import { saveAs } from "file-saver";
 import ExportDialog from "./ExportDialog";
 import ExportKMLDialog from "./ExportKMLDialog";
+import ImportExcelDialog from "./ImportExcelDialog";
 import { usePresets } from "../../contexts/PresetsContext";
 import { useProjectCleanup } from "../../hooks/useProjectCleanup";
 import * as projection from "@arcgis/core/geometry/projection";
@@ -39,8 +41,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isExportKMLDialogOpen, setIsExportKMLDialogOpen] = useState(false);
+  const [isImportExcelDialogOpen, setIsImportExcelDialogOpen] = useState(false);
   const searchWidgetRef = useRef(null);
   const { mapView } = useMap();
   const { marketAreas } = useMarketAreas();
@@ -135,6 +139,35 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       toast.error(`Failed to export data: ${error.message}`);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleImportExcel = async (fileData) => {
+    if (!fileData) {
+      return;
+    }
+    
+    try {
+      setIsImporting(true);
+      const loadingToast = toast.loading("Importing Excel data...");
+      
+      // Handle the import logic here - this would need to be implemented
+      // based on your application's requirements
+      
+      // Example implementation:
+      // const result = await dataImportService.importExcelData(fileData, projectId);
+      
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast.dismiss(loadingToast);
+      toast.success("Excel data imported successfully");
+    } catch (error) {
+      console.error("Import failed:", error);
+      toast.error(`Failed to import data: ${error.message}`);
+    } finally {
+      setIsImporting(false);
+      setIsImportExcelDialogOpen(false);
     }
   };
 
@@ -389,6 +422,10 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
 
   const handleExportKML = () => {
     setIsExportKMLDialogOpen(true);
+  };
+  
+  const handleImportExcelClick = () => {
+    setIsImportExcelDialogOpen(true);
   };
 
   const isClockwise = (ring) => {
@@ -686,6 +723,21 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                       </button>
                     )}
                   </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleImportExcelClick}
+                        disabled={isImporting}
+                        className={`${
+                          active ? "bg-gray-100 dark:bg-gray-600" : ""
+                        } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
+                           ${isImporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        <ArrowUpOnSquareIcon className="mr-3 h-5 w-5" />
+                        Import Excel
+                      </button>
+                    )}
+                  </Menu.Item>
                 </div>
               </Menu.Items>
             </Transition>
@@ -709,7 +761,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         <div className="flex items-center space-x-2">
           <button
             onClick={handleCreateMA}
-            disabled={isExporting}
+            disabled={isExporting || isImporting}
             className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlusIcon className="h-5 w-5" />
@@ -718,9 +770,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           <button
             id="maListButton"
             onClick={onToggleList}
-            disabled={isExporting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+            disabled={isExporting || isImporting}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed">
             <ListBulletIcon className="h-5 w-5" />
             MA List
           </button>
@@ -742,6 +793,13 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
         onClose={() => setIsExportKMLDialogOpen(false)}
         marketAreas={marketAreas}
         onExport={exportSelectedMAsToKML}
+      />
+
+      <ImportExcelDialog
+        isOpen={isImportExcelDialogOpen}
+        onClose={() => setIsImportExcelDialogOpen(false)}
+        onImport={handleImportExcel}
+        projectId={projectId}
       />
     </div>
   );

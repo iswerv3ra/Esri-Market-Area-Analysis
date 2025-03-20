@@ -16,22 +16,48 @@ export const StyleSettingsPanel = ({
 
   const panelRef = useRef(null);
 
-  // Handle the **full theme** application
-  const handleThemeSelect = (newSettings) => {
-    console.log('StyleSettingsPanel received new settings:', newSettings);
-    onStyleChange('fillColor', newSettings.fillColor);
-    onStyleChange('fillOpacity', newSettings.fillOpacity);
-    onStyleChange('borderColor', newSettings.borderColor);
-    onStyleChange('borderWidth', newSettings.borderWidth);
-    onStyleChange('excelFill', newSettings.excelFill);
-    onStyleChange('excelText', newSettings.excelText);
-    onStyleChange('noFill', newSettings.noFill);
-    onStyleChange('noBorder', newSettings.noBorder);
-
-    if (newSettings.themeName) {
-      setCurrentThemeName(newSettings.themeName);
-    }
+  // In StyleSettingsPanel.jsx
+  const handleThemeSelect = (themeData) => {
+    console.log('StyleSettingsPanel received theme data:', themeData);
+    
+    // Extract the theme name first (works for any format)
+    setCurrentThemeName(themeData.themeName || 'Custom');
+    
+    // Close the theme selector modal
     setIsThemeSelectorOpen(false);
+    
+    // Create a batch update object from the theme data
+    const batchUpdateData = {
+      fillColor: themeData.fillColor,
+      fillOpacity: themeData.fillOpacity,
+      borderColor: themeData.borderColor,
+      borderWidth: themeData.borderWidth,
+      excelFill: themeData.excelFill || themeData.fillColor || "#ffffff",
+      excelText: themeData.excelText || "#000000",
+      noFill: themeData.noFill,
+      noBorder: themeData.noBorder,
+      themeName: themeData.themeName || 'Custom'
+    };
+    
+    // If the parent component supports batch updates, use that
+    if (typeof onStyleChange === 'function') {
+      try {
+        // Try batch update first (for import dialog)
+        onStyleChange('batchUpdate', batchUpdateData);
+      } catch (e) {
+        console.warn('Batch update failed, falling back to individual updates', e);
+        
+        // Fall back to individual updates (for market area form)
+        onStyleChange('fillColor', batchUpdateData.fillColor);
+        onStyleChange('fillOpacity', batchUpdateData.fillOpacity);
+        onStyleChange('borderColor', batchUpdateData.borderColor);
+        onStyleChange('borderWidth', batchUpdateData.borderWidth);
+        onStyleChange('excelFill', batchUpdateData.excelFill);
+        onStyleChange('excelText', batchUpdateData.excelText);
+        onStyleChange('noFill', batchUpdateData.noFill);
+        onStyleChange('noBorder', batchUpdateData.noBorder);
+      }
+    }
   };
 
   /**
