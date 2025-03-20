@@ -1479,7 +1479,7 @@ const cleanupAfterImport = () => {
             const allPossibleValues = [];
             
             // Scan rows 30-70 for definition values
-            for (let i = DEFINITION_START_ROW; i < Math.min(data.length, DEFINITION_START_ROW + 40); i++) {
+            for (let i = DEFINITION_START_ROW; i < Math.min(data.length, DEFINITION_START_ROW + 300); i++) {
                 // Skip if row doesn't exist or has no value in our column
                 if (!data[i] || data[i][col] === undefined) continue;
                 
@@ -1913,7 +1913,7 @@ const cleanupAfterImport = () => {
 
     // Helper function to ensure color is in hex format with enhanced color name support
     const ensureHexColor = (color) => {
-        if (!color) return "#0078D4"; // Default blue
+        if (!color)  return "#0078D4"; // Default blue
 
         // Common color names mapping
         const colorMap = {
