@@ -13,12 +13,15 @@ import { useMap } from "../../contexts/MapContext";
 import LayerPropertiesEditor from "./LayerPropertiesEditor";
 import PropTypes from 'prop-types';
 import axios from 'axios';
-import { useNavigate, useParams } from "react-router-dom"; // Add useNavigate here
-import { mapConfigurationsAPI } from '../../services/api';  // Adjust the path as needed
-import SearchableDropdown from './SearchableDropdown'; // Adjust the import path as needed
+import { useNavigate, useParams } from "react-router-dom";
+import { mapConfigurationsAPI } from '../../services/api';
+import SearchableDropdown from './SearchableDropdown';
+import NewMapDialog from './NewMapDialog';
+import { processCustomMapData } from './CustomDataHandler';
 
-const API_KEY =
-  "AAPTxy8BH1VEsoebNVZXo8HurJFjeEBoGOztYNmDEDsJ91F0pjIxcWhHJrxnWXtWOEKMti287Bs6E1oNcGDpDlRxshH3qqosM5FZAoRGU6SczbuurBtsXOXIef39Eia3J11BSBE1hPNla2S6mRKAsuSAGM6qXNsg-A-B4EsyQJQ2659AVgnbyISk4-3bqAcXSGdxd48agv5GOufGX382QIckdN21BhJdzEP3v3Xt1nKug1Y.AT1_ioxXSAbW";
+// Replace the hardcoded API_KEY with the environment variable
+const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
+
 
 const colorScheme = {
   level1: [128, 0, 128, 0.45],      // Purple
@@ -3249,18 +3252,31 @@ const createLayers = (
     return null;
   }
 
-  if (!selectedAreaType) {
-    console.error('No area type provided, using default');
-    selectedAreaType = areaTypes[0];
-  }
-
+  // Get configuration
   const config = configOverride || layerConfigs[visualizationType];
-
   if (!config) {
     console.error(`No configuration found for visualization type: ${visualizationType}`);
     return null;
   }
 
+  // EARLY DETECTION - Check if this is custom data before any URL validation
+  const isCustomData = visualizationType === 'custom' || 
+                      (config.customData && config.customData.data) || 
+                      (config.geometryType === 'point' && 
+                       config.type !== 'dot-density');
+
+  if (isCustomData) {
+    console.log('Detected custom data visualization - using Graphics layer');
+    return createGraphicsLayerFromCustomData(config);
+  }
+
+  // For standard visualizations, validate the URL
+  if (!selectedAreaType || !selectedAreaType.url) {
+    console.error('Invalid area type: No URL provided', selectedAreaType);
+    return null;
+  }
+
+  // Proceed with standard visualization (dot density or heat map)
   // Adjust dot value based on area type for dot density visualizations
   if (config.type === "dot-density" && !config.dotValue) {
     config.dotValue = selectedAreaType.value === 12 ? 10 : 100;
@@ -3405,12 +3421,6 @@ const createLayers = (
     };
   };
 
-  // Validate URL
-  if (!selectedAreaType.url) {
-    console.error('Invalid area type: No URL provided', selectedAreaType);
-    return null;
-  }
-
   // Create and return the FeatureLayer
   return new FeatureLayer({
     url: selectedAreaType.url,
@@ -3428,6 +3438,132 @@ const createLayers = (
     minScale: selectedAreaType.value === 12 ? 2500000 : 25000000,
   });
 };
+
+async function createGraphicsLayerFromCustomData(config) {
+  try {
+    // Dynamically import required modules
+    const [
+      { default: GraphicsLayer },
+      { default: Graphic },
+      { default: SimpleMarkerSymbol },
+      { default: PopupTemplate },
+      { default: Color },
+      { default: Point }
+    ] = await Promise.all([
+      import("@arcgis/core/layers/GraphicsLayer"),
+      import("@arcgis/core/Graphic"),
+      import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+      import("@arcgis/core/PopupTemplate"),
+      import("@arcgis/core/Color"),
+      import("@arcgis/core/geometry/Point")
+    ]);
+
+    console.log("Creating graphics layer from custom data", config);
+    
+    // Create a graphics layer
+    const customLayer = new GraphicsLayer({
+      title: config.title || "Custom Data Points",
+      listMode: "show"
+    });
+
+    // Set special flag to identify this as a visualization layer
+    customLayer.set("isVisualizationLayer", true);
+    customLayer.set("isCustomDataLayer", true);
+    
+    // Extract data from configuration
+    const data = config.customData?.data || [];
+    if (!data.length) {
+      console.warn("No data points found in configuration");
+      return customLayer; // Return empty layer
+    }
+    
+    // Determine name and value columns
+    const nameColumn = config.customData.nameColumn;
+    const valueColumn = config.field || config.customData.valueColumn;
+    
+    if (!nameColumn || !valueColumn) {
+      console.warn("Missing name or value column in configuration");
+      return customLayer;
+    }
+    
+    console.log(`Processing ${data.length} data points with nameColumn=${nameColumn}, valueColumn=${valueColumn}`);
+    
+    // Create popup template
+    const popupTemplate = new PopupTemplate({
+      title: `{${nameColumn}}`,
+      content: [
+        {
+          type: "fields",
+          fieldInfos: [
+            {
+              fieldName: valueColumn,
+              label: valueColumn,
+              format: {
+                digitSeparator: true,
+                places: 2
+              }
+            }
+          ]
+        }
+      ]
+    });
+    
+    // Add each data point as a graphic
+    let addedCount = 0;
+    
+    data.forEach((item, index) => {
+      // Skip if no geometry
+      if (!item.geometry) {
+        console.warn(`Item ${index} missing geometry`);
+        return;
+      }
+      
+      try {
+        // Create a point geometry
+        const point = new Point({
+          x: item.geometry.x,
+          y: item.geometry.y,
+          spatialReference: { wkid: 4326 }
+        });
+        
+        // Create a marker symbol with a size based on the value (optional)
+        const markerSymbol = new SimpleMarkerSymbol({
+          size: 24, // Large for visibility
+          color: new Color([65, 105, 225, 0.8]), // Royal blue
+          outline: {
+            color: new Color([255, 255, 255, 0.8]),
+            width: 2
+          }
+        });
+        
+        // Create the graphic
+        const pointGraphic = new Graphic({
+          geometry: point,
+          symbol: markerSymbol,
+          attributes: {
+            ...item,
+            ID: index, // Add an ID for reference
+          },
+          popupTemplate: popupTemplate
+        });
+        
+        // Add to layer
+        customLayer.add(pointGraphic);
+        addedCount++;
+      } catch (error) {
+        console.error(`Error adding point ${index}:`, error);
+      }
+    });
+    
+    console.log(`Added ${addedCount} points to custom graphics layer`);
+    return customLayer;
+  } catch (error) {
+    console.error("Error creating custom graphics layer:", error);
+    return null;
+  }
+}
+
+
 
 // Helper function to create a dot density configuration
 const createDotDensityConfig = (field, label, dotValue = 100) => ({
@@ -3452,7 +3588,6 @@ const createDotDensityConfig = (field, label, dotValue = 100) => ({
   ],
 });
 
-
 const areaTypes = [
   { value: 12, label: "Census Tract", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12" },
   { value: 11, label: "County", url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/11" }
@@ -3460,7 +3595,7 @@ const areaTypes = [
 
 export default function MapComponent({ onToggleLis }) {
   const [isConfigLoading, setIsConfigLoading] = useState(true);
-
+  const [isNewMapDialogOpen, setIsNewMapDialogOpen] = useState(false);
   const mapRef = useRef(null);
   const { setMapView, mapView } = useMap();
   const initCompleteRef = useRef(false);
@@ -4072,7 +4207,50 @@ export default function MapComponent({ onToggleLis }) {
   ]);
 
 
-  // Update the updateVisualizationLayer function
+  const handleCustomDataVisualization = async (tabData) => {
+    if (!mapView?.map) {
+      console.error("Map view not ready");
+      return;
+    }
+  
+    try {
+      console.log("Setting up custom data visualization:", tabData);
+      
+      // Create the custom layer using our dedicated function
+      const customLayer = await createGraphicsLayerFromCustomData(tabData.layerConfiguration);
+      
+      if (!customLayer) {
+        console.error("Failed to create custom data layer");
+        return;
+      }
+      
+      // Add to map
+      mapView.map.add(customLayer);
+      
+      // If there are points, zoom to them after a short delay
+      setTimeout(() => {
+        if (customLayer.graphics && customLayer.graphics.length > 0) {
+          mapView.goTo(customLayer.graphics.toArray(), {
+            duration: 1000,
+            easing: "ease-in-out"
+          });
+        }
+      }, 500);
+      
+      // Update legend
+      if (legend) {
+        legend.layerInfos = [{
+          layer: customLayer,
+          title: tabData.name || "Custom Data",
+          hideLayersNotInCurrentView: false
+        }];
+        legend.visible = !isEditorOpen;
+      }
+    } catch (error) {
+      console.error("Error setting up custom data visualization:", error);
+    }
+  };
+  
   const updateVisualizationLayer = async () => {
     if (!mapView?.map || isConfigLoading) {
       console.log('Map not ready or configs still loading, skipping visualization update');
@@ -4094,36 +4272,71 @@ export default function MapComponent({ onToggleLis }) {
   
       // Only add new layer if we're not in the core map and have a selected type
       if (activeTab !== 1 && activeTabData?.visualizationType) {
-        console.log('Creating new layer with config:', activeTabData.layerConfiguration);
+        console.log('Creating visualization for:', activeTabData.visualizationType, 'with area type:', activeTabData.areaType);
         
-        // Create a deep clone of the configuration to prevent any references
-        const configClone = JSON.parse(JSON.stringify(activeTabData.layerConfiguration));
-        
-        const newLayer = createLayers(
-          activeTabData.visualizationType,
-          configClone,
-          initialLayerConfigurations,
-          activeTabData.areaType
-        );
-  
-        if (newLayer) {
-          newLayer.set("isVisualizationLayer", true);
-          mapView.map.add(newLayer, 0);
-  
-          if (legend) {
-            legend.layerInfos = [{
-              layer: newLayer,
-              title: newLayer.title || activeTabData.visualizationType,
-              hideLayersNotInCurrentView: false
-            }];
-            legend.visible = true;
+        // Special handling for custom data visualizations
+        if (activeTabData.visualizationType === 'custom' || 
+            (activeTabData.layerConfiguration && 
+             activeTabData.layerConfiguration.customData && 
+             activeTabData.layerConfiguration.customData.data)) {
+             
+          // Use the dedicated custom data function
+          const customLayer = await createGraphicsLayerFromCustomData(activeTabData.layerConfiguration);
+          if (customLayer) {
+            mapView.map.add(customLayer);
+            
+            // Update legend
+            if (legend) {
+              legend.layerInfos = [{
+                layer: customLayer,
+                title: activeTabData.name || "Custom Data",
+                hideLayersNotInCurrentView: false
+              }];
+              legend.visible = !isEditorOpen;
+            }
           }
+          return;
+        }
+        
+        // For standard visualizations (heat map, dot density)
+        try {
+          const newLayer = createLayers(
+            activeTabData.visualizationType,
+            activeTabData.layerConfiguration,
+            initialLayerConfigurations,
+            activeTabData.areaType
+          );
+  
+          if (newLayer) {
+            newLayer.set("isVisualizationLayer", true);
+            mapView.map.add(newLayer, 0);
+  
+            if (legend) {
+              legend.layerInfos = [{
+                layer: newLayer,
+                title: newLayer.title || activeTabData.visualizationType,
+                hideLayersNotInCurrentView: false
+              }];
+              legend.visible = !isEditorOpen;
+            }
+          } else {
+            console.error("Failed to create visualization layer");
+          }
+        } catch (error) {
+          console.error("Error creating standard visualization layer:", error);
+        }
+      } else {
+        // Hide legend if no visualization
+        if (legend) {
+          legend.visible = false;
         }
       }
     } catch (error) {
       console.error("Error updating visualization layer:", error);
     }
   };
+  
+  
 
   useEffect(() => {
     try {
@@ -4435,8 +4648,14 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
-  // Also update the addNewTab function to include originalName:
+  // Replace the existing addNewTab function with this updated version
   const addNewTab = () => {
+    // Open the dialog instead of immediately creating a tab
+    setIsNewMapDialogOpen(true);
+  };
+
+  // Add this new function to handle map creation from the dialog
+  const handleCreateMap = (mapData) => {
     const existingTabNumbers = tabs
       .filter(tab => tab.id !== 1)
       .map(tab => {
@@ -4449,18 +4668,45 @@ export default function MapComponent({ onToggleLis }) {
       : 2;
 
     const newTabId = Math.max(...tabs.map(tab => tab.id)) + 1;
-    const newTabName = `Map ${nextTabNumber}`;
+    
+    // Use the provided map name or a default
+    const newTabName = mapData.name || `Map ${nextTabNumber}`;
+
+    // Process visualization type and configuration
+    let visualizationType = null;
+    let layerConfiguration = null;
+    
+    if (mapData.type === 'custom' && mapData.customData) {
+      // Process custom data to create a proper configuration
+      const customConfig = processCustomMapData({
+        customData: mapData.customData,
+        nameColumn: mapData.nameColumn,
+        valueColumn: mapData.valueColumn,
+        type: mapData.type
+      });
+      
+      if (customConfig) {
+        visualizationType = 'custom';
+        layerConfiguration = customConfig;
+      }
+    } else if (mapData.type === 'heatmap' || mapData.type === 'dotdensity') {
+      // Use the selected visualization type
+      visualizationType = mapData.visualizationType;
+      
+      // Use the default layer configuration for this visualization
+      layerConfiguration = initialLayerConfigurations[visualizationType];
+    }
 
     const newTabs = [
       ...tabs.map(tab => ({ ...tab, active: false })),
       {
         id: newTabId,
         name: newTabName,
-        originalName: newTabName, // Add this line
+        originalName: newTabName,
         active: true,
-        visualizationType: null,
-        areaType: areaTypes[0],
-        layerConfiguration: null,
+        visualizationType: visualizationType,
+        areaType: mapData.areaType,
+        layerConfiguration: layerConfiguration,
         isEditing: false,
       }
     ];
@@ -4848,7 +5094,7 @@ export default function MapComponent({ onToggleLis }) {
     updateVisualizationLayer(tabs.find(tab => tab.id === activeTab)?.visualizationType, newConfig);
   };
   // Handler for configuration previews
-  const handleConfigPreview = (previewConfig) => {
+  const handleConfigPreview = async (previewConfig) => {
     if (!mapView?.map) return;
   
     try {
@@ -4866,24 +5112,29 @@ export default function MapComponent({ onToggleLis }) {
       // Create new layer with preview config
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
       if (activeTabData?.visualizationType) {
-        // Create a deep clone of the preview config to prevent any references
-        const previewConfigClone = JSON.parse(JSON.stringify(previewConfig));
+        // Check if this is custom data
+        const isCustomData = activeTabData.visualizationType === 'custom' || 
+                            (previewConfig && previewConfig.customData && previewConfig.customData.data);
         
-        // Make sure we're preserving the dot value from the preview config
-        // and not letting createLayers override it
-        const dotValue = previewConfigClone.dotValue;
+        let newLayer;
         
-        const newLayer = createLayers(
-          activeTabData.visualizationType,
-          previewConfigClone,
-          initialLayerConfigurations,
-          activeTabData.areaType || selectedAreaType
-        );
-        
+        if (isCustomData) {
+          // Handle custom data with special function
+          newLayer = await createGraphicsLayerFromCustomData(previewConfig);
+        } else {
+          // Standard visualization with area types
+          newLayer = createLayers(
+            activeTabData.visualizationType,
+            previewConfig,
+            initialLayerConfigurations,
+            activeTabData.areaType || selectedAreaType
+          );
+        }
+  
         if (newLayer) {
           newLayer.set("isVisualizationLayer", true);
           mapView.map.add(newLayer, 0);
-          
+  
           // Update legend if necessary
           if (legend) {
             legend.layerInfos = [{
@@ -5176,6 +5427,14 @@ export default function MapComponent({ onToggleLis }) {
           )}
         </div>
       </div>
+
+      <NewMapDialog 
+        isOpen={isNewMapDialogOpen}
+        onClose={() => setIsNewMapDialogOpen(false)}
+        onCreateMap={handleCreateMap}
+        visualizationOptions={visualizationOptions}
+        areaTypes={areaTypes}
+      />
     </div>
   );
 }

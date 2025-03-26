@@ -6,14 +6,13 @@ import * as XLSX from 'xlsx';
 const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, areaTypes }) => {
   const [step, setStep] = useState(1);
   const [mapName, setMapName] = useState('New Map');
-  const [mapType, setMapType] = useState('comps'); // 'comps', 'pipeline', 'custom', 'heatmap', or 'dotdensity'
+  const [mapType, setMapType] = useState('custom'); // 'custom', 'heatmap', or 'dotdensity'
   const [selectedVisualization, setSelectedVisualization] = useState('');
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   const [customData, setCustomData] = useState(null);
   const [columns, setColumns] = useState([]);
   const [nameColumn, setNameColumn] = useState('');
   const [valueColumn, setValueColumn] = useState('');
-  const [statusColumn, setStatusColumn] = useState('');
   const [latitudeColumn, setLatitudeColumn] = useState('');
   const [longitudeColumn, setLongitudeColumn] = useState('');
   const [fileError, setFileError] = useState('');
@@ -145,93 +144,40 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         setValueColumn(fields[1]);
       }
       
-      // Auto-detect status column for pipeline maps
-      const statusColumns = ['status', 'state', 'condition', 'phase'];
-      const statusCol = fields.find(field => 
-        statusColumns.includes(field.toLowerCase()) || 
-        field.toLowerCase().includes('status')
-      );
-      
-      if (statusCol) setStatusColumn(statusCol);
-      
       // Auto-detect latitude and longitude columns
-      // More comprehensive detection of lat/long columns with multiple possible names
-      const latColumns = ['latitude', 'lat', 'y', 'lat_y', 'laty'];
-      const longColumns = ['longitude', 'long', 'lng', 'lon', 'x', 'lng_x', 'longx'];
-      
-      // Try to find a latitude column (case insensitive)
       const latCol = fields.find(field => 
-        latColumns.includes(field.toLowerCase()) || 
-        field.toLowerCase().includes('lat')
+        field.toLowerCase().includes('lat') || 
+        field.toLowerCase() === 'lat'
       );
       
-      // Try to find a longitude column (case insensitive)
       const lngCol = fields.find(field => 
-        longColumns.includes(field.toLowerCase()) || 
         field.toLowerCase().includes('lon') || 
-        field.toLowerCase().includes('lng')
+        field.toLowerCase().includes('lng') || 
+        field.toLowerCase() === 'lon' || 
+        field.toLowerCase() === 'long'
       );
       
       if (latCol) setLatitudeColumn(latCol);
       if (lngCol) setLongitudeColumn(lngCol);
-      
-      // Log the auto-detected columns for debugging
-      console.log("Auto-detected columns:", {
-        nameColumn: fields[0],
-        valueColumn: numericColumn || fields[1],
-        statusColumn: statusCol,
-        latitudeColumn: latCol,
-        longitudeColumn: lngCol
-      });
     }
   };
 
   const handleCreateMap = () => {
     const mapData = {
       name: mapName,
-      type: mapType
+      type: mapType,
+      areaType: selectedAreaType
     };
     
-    // Handle area type appropriately based on map type
-    if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
-      // For point data, we use a special area type that doesn't rely on URL
-      mapData.areaType = {
-        value: 'custom',
-        label: 'Custom Data',
-        url: null  // No URL for custom data
-      };
-    } else {
-      // For heat maps and dot density, use the selected area type
-      mapData.areaType = selectedAreaType;
-    }
-    
-    if (mapType === 'comps' && customData) {
+    if (mapType === 'custom' && customData) {
       mapData.customData = customData;
       mapData.nameColumn = nameColumn;
       mapData.valueColumn = valueColumn;
       mapData.latitudeColumn = latitudeColumn;
       mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'comps';
-    } else if (mapType === 'pipeline' && customData) {
-      mapData.customData = customData;
-      mapData.nameColumn = nameColumn;
-      mapData.statusColumn = statusColumn;
-      mapData.latitudeColumn = latitudeColumn;
-      mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'pipeline';
-    } else if (mapType === 'custom' && customData) {
-      mapData.customData = customData;
-      mapData.nameColumn = nameColumn;
-      mapData.valueColumn = valueColumn;
-      mapData.latitudeColumn = latitudeColumn;
-      mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'custom';
     } else {
       mapData.visualizationType = selectedVisualization;
     }
-    
-    // Log the final map data configuration
-    console.log("Creating map with configuration:", mapData);
     
     onCreateMap(mapData);
     resetForm();
@@ -241,14 +187,13 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   const resetForm = () => {
     setStep(1);
     setMapName('New Map');
-    setMapType('comps');
+    setMapType('custom');
     setSelectedVisualization('');
     setSelectedAreaType(areaTypes[0]);
     setCustomData(null);
     setColumns([]);
     setNameColumn('');
     setValueColumn('');
-    setStatusColumn('');
     setLatitudeColumn('');
     setLongitudeColumn('');
     setFileError('');
@@ -263,7 +208,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   // Button to go to next step
   const nextStep = () => {
     if (step === 1) {
-      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
+      if (mapType === 'custom' && !customData) {
         setFileError('Please upload a file');
         return;
       }
@@ -272,25 +217,14 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         return;
       }
     }
-    if (step === 2) {
-      if (mapType === 'comps' || mapType === 'custom') {
-        if (!nameColumn || !valueColumn) {
-          setFileError('Please select both name and value columns');
-          return;
-        }
-        if (!latitudeColumn || !longitudeColumn) {
-          setFileError('Please select both latitude and longitude columns');
-          return;
-        }
-      } else if (mapType === 'pipeline') {
-        if (!nameColumn || !statusColumn) {
-          setFileError('Please select both name and status columns');
-          return;
-        }
-        if (!latitudeColumn || !longitudeColumn) {
-          setFileError('Please select both latitude and longitude columns');
-          return;
-        }
+    if (step === 2 && mapType === 'custom') {
+      if (!nameColumn || !valueColumn) {
+        setFileError('Please select both name and value columns');
+        return;
+      }
+      if (!latitudeColumn || !longitudeColumn) {
+        setFileError('Please select both latitude and longitude columns');
+        return;
       }
     }
     
@@ -375,33 +309,29 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Select Data Area Type
+                </label>
+                <select
+                  value={selectedAreaType.value}
+                  onChange={(e) => {
+                    const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
+                    setSelectedAreaType(newAreaType);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  {areaTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Map Type
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div 
-                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'comps' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
-                        : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
-                    }`}
-                    onClick={() => setMapType('comps')}
-                  >
-                    <div className="font-medium">Comps Map</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Comparable property data with value fields</div>
-                  </div>
-                  
-                  <div 
-                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'pipeline' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
-                        : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
-                    }`}
-                    onClick={() => setMapType('pipeline')}
-                  >
-                    <div className="font-medium">Pipeline Map</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Status-based property data (in progress, approved, etc.)</div>
-                  </div>
-                  
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div 
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'custom' 
@@ -410,12 +340,10 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     }`}
                     onClick={() => setMapType('custom')}
                   >
-                    <div className="font-medium">Custom Map</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Simple point data with name, location, and value</div>
+                    <div className="font-medium">Custom Data</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Upload your own data</div>
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
                   <div 
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'heatmap' 
@@ -442,34 +370,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                 </div>
               </div>
 
-              {/* Only show Area Type selection for heat maps and dot density */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Geography Level
-                </label>
-                {(mapType === 'heatmap' || mapType === 'dotdensity') ? (
-                  <select
-                    value={selectedAreaType.value}
-                    onChange={(e) => {
-                      const newAreaType = areaTypes.find(type => type.value === parseInt(e.target.value));
-                      setSelectedAreaType(newAreaType);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    {areaTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Geography level isn't applicable for point data maps. Your data will be displayed as individual points on the map.
-                  </p>
-                )}
-              </div>
-
-              {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
+              {mapType === 'custom' && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Upload Data File
@@ -552,7 +453,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
           {/* Step 2: Configure Data */}
           {step === 2 && (
             <div>
-              {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
+              {mapType === 'custom' && (
                 <div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -570,58 +471,25 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      This column will be used for point labels on the map
-                    </p>
                   </div>
                   
-                  {/* Value Column (for Comps and Custom) */}
-                  {(mapType === 'comps' || mapType === 'custom') && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Value Column
-                      </label>
-                      <select
-                        value={valueColumn}
-                        onChange={(e) => setValueColumn(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column will determine the data value for each point
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Status Column (for Pipeline) */}
-                  {mapType === 'pipeline' && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Status Column
-                      </label>
-                      <select
-                        value={statusColumn}
-                        onChange={(e) => setStatusColumn(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column will show the status for each point (e.g., "In Progress", "Approved", etc.)
-                      </p>
-                    </div>
-                  )}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Select Value Column
+                    </label>
+                    <select
+                      value={valueColumn}
+                      onChange={(e) => setValueColumn(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                      <option value="">Select column...</option>
+                      {columns.map((column) => (
+                        <option key={column} value={column}>
+                          {column}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -639,9 +507,6 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      This column should contain numeric latitude values (typically between -90 and 90)
-                    </p>
                   </div>
                   
                   <div className="mb-4">
@@ -660,117 +525,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      This column should contain numeric longitude values (typically between -180 and 180)
-                    </p>
                   </div>
                   
-                  {/* Data Preview for Comps */}
-                  {mapType === 'comps' && nameColumn && valueColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Data Preview
-                      </label>
-                      <div className="border rounded-md overflow-x-auto max-h-60">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Name ({nameColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Value ({valueColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lat ({latitudeColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lng ({longitudeColumn})
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
-                            {customData.slice(0, 5).map((row, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[nameColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[valueColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[latitudeColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[longitudeColumn]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {customData.length > 5 && (
-                          <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                            Showing 5 of {customData.length} rows
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Data Preview for Pipeline */}
-                  {mapType === 'pipeline' && nameColumn && statusColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Data Preview
-                      </label>
-                      <div className="border rounded-md overflow-x-auto max-h-60">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Name ({nameColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Status ({statusColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lat ({latitudeColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lng ({longitudeColumn})
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
-                            {customData.slice(0, 5).map((row, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[nameColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[statusColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[latitudeColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[longitudeColumn]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {customData.length > 5 && (
-                          <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                            Showing 5 of {customData.length} rows
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Data Preview for Custom */}
-                  {mapType === 'custom' && nameColumn && valueColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
+                  {nameColumn && valueColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Data Preview
@@ -831,7 +588,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       {filteredOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}
                     </p>
                     
-                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
+                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Area Type</h3>
                     <p className="text-gray-600 dark:text-gray-300">
                       {selectedAreaType?.label || 'None selected'}
                     </p>
@@ -861,22 +618,15 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
                 <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  {mapType === 'comps' ? 'Comps Map' : 
-                   mapType === 'pipeline' ? 'Pipeline Map' : 
-                   mapType === 'custom' ? 'Custom Map' : 
-                   mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
+                  {mapType === 'custom' ? 'Custom Data' : mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
                 </p>
                 
-                {(mapType === 'heatmap' || mapType === 'dotdensity') && (
-                  <>
-                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
-                    <p className="text-gray-600 dark:text-gray-300">
-                      {selectedAreaType?.label || 'None selected'}
-                    </p>
-                  </>
-                )}
+                <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Area Type</h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {selectedAreaType?.label || 'None selected'}
+                </p>
 
-                {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
+                {mapType === 'custom' && (
                   <>
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Data Source</h3>
                     <p className="text-gray-600 dark:text-gray-300">
@@ -886,19 +636,8 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Name Column</h3>
                     <p className="text-gray-600 dark:text-gray-300">{nameColumn}</p>
                     
-                    {(mapType === 'comps' || mapType === 'custom') && (
-                      <>
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Value Column</h3>
-                        <p className="text-gray-600 dark:text-gray-300">{valueColumn}</p>
-                      </>
-                    )}
-                    
-                    {mapType === 'pipeline' && (
-                      <>
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Status Column</h3>
-                        <p className="text-gray-600 dark:text-gray-300">{statusColumn}</p>
-                      </>
-                    )}
+                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Value Column</h3>
+                    <p className="text-gray-600 dark:text-gray-300">{valueColumn}</p>
                     
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Location Coordinates</h3>
                     <p className="text-gray-600 dark:text-gray-300">

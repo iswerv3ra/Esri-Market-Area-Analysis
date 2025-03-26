@@ -198,38 +198,57 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
 
     const queryFeaturesForMarketArea = async (marketArea) => {
         console.log("Querying features for market area:", marketArea.id);
-
+    
         if (!marketArea || !marketArea.locations || marketArea.locations.length === 0) {
             console.warn(`Market area ${marketArea.id} has no locations to query`);
             return [];
         }
-
+    
         if (!featureLayers || !mapView) {
             console.warn("Feature layers or map view not initialized");
             return [];
         }
-
+    
         try {
             const { default: Query } = await import("@arcgis/core/rest/support/Query");
-
+    
             const layer = featureLayers[marketArea.ma_type];
             if (!layer) {
                 console.warn(`No feature layer found for type ${marketArea.ma_type}`);
                 return [];
             }
-
+    
             // Build a where clause based on the market area type and locations
             let whereClause = "";
-
+    
             if (marketArea.ma_type === 'zip') {
-                // For ZIP codes, use the ZIP field
-                // But be more forgiving with the ZIP format (trim leading zeros, etc.)
-                whereClause = marketArea.locations.map(loc => {
-                    const zipValue = (loc.id || loc.name || "00000").trim();
-                    // Handle ZIP codes that might be stored as numbers (without leading zeros)
-                    return `ZIP = '${zipValue}' OR ZIP LIKE '${zipValue}%'`;
-                }).join(" OR ");
-
+                // For ZIP codes, create a more robust query with state filtering
+                const validZips = marketArea.locations
+                    .map(loc => {
+                        const zipValue = (loc.id || loc.name || "").trim();
+                        if (!zipValue) return null;
+                        
+                        // Get state information for filtering
+                        let stateFilter = "";
+                        const stateValue = loc.state || "CA"; // Default to CA if no state
+                        
+                        // Convert to FIPS code if needed
+                        let stateFips = STATE_MAPPINGS.getStateFips(stateValue);
+                        if (stateFips) {
+                            stateFilter = ` AND STATE = '${stateFips}'`;
+                        }
+                        
+                        // Format ZIP code and add state filter
+                        return `(ZIP = '${zipValue.padStart(5, '0')}'${stateFilter})`;
+                    })
+                    .filter(Boolean); // Remove null/empty values
+                
+                if (validZips.length === 0) {
+                    console.warn("No valid ZIP codes found for market area:", marketArea.id);
+                    return [];
+                }
+                
+                whereClause = validZips.join(" OR ");
                 console.log("ZIP where clause:", whereClause);
             }
             else if (marketArea.ma_type === 'county') {
@@ -239,21 +258,21 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                         .replace(/\s+County$/i, "") // Remove "County" suffix if present
                         .trim()
                         .replace(/'/g, "''"); // Escape single quotes
-
+    
                     // Get state information for filtering
                     let stateFilter = "";
                     const stateValue = loc.state || "CA";
-
+    
                     // Convert to FIPS code if needed
                     let stateFips = STATE_MAPPINGS.getStateFips(stateValue);
                     if (stateFips) {
                         stateFilter = ` AND STATE = '${stateFips}'`;
                     }
-
+    
                     console.log(`County filter: ${countyName} in state: ${stateValue} (FIPS: ${stateFips})`);
                     return `(UPPER(NAME) LIKE UPPER('%${countyName}%')${stateFilter})`;
                 }).join(" OR ");
-
+    
                 console.log("County where clause with state filtering:", whereClause);
             }
             else if (marketArea.ma_type === 'place') {
@@ -285,9 +304,15 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                 console.warn(`Unsupported market area type: ${marketArea.ma_type}`);
                 return [];
             }
-
+    
+            // Skip query if where clause is empty
+            if (!whereClause) {
+                console.warn(`Empty where clause for market area ${marketArea.id}`);
+                return [];
+            }
+    
             console.log(`Querying ${marketArea.ma_type} layer with where clause:`, whereClause);
-
+    
             // Create query with added timeout and error handling
             const query = new Query({
                 where: whereClause,
@@ -299,15 +324,15 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                 start: 0
                 // Removed returnDistinctValues: true to fix the conflict with returnGeometry
             });
-
+    
             // Query features with error handling
             let features = [];
-
+    
             // For group layers (layer.featureLayers), try each sublayer
             if (layer.featureLayers && Array.isArray(layer.featureLayers)) {
                 for (const sublayer of layer.featureLayers) {
                     if (!sublayer || !sublayer.queryFeatures) continue;
-
+    
                     try {
                         const result = await sublayer.queryFeatures(query);
                         if (result && result.features && result.features.length > 0) {
@@ -357,16 +382,26 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                                     const cleanName = (loc.id || loc.name || "")
                                         .split(/\s+/)[0]  // Take just first word of place name
                                         .replace(/'/g, "''");
+                                    if (!cleanName) return '';
+                                    
                                     const stateValue = loc.state || "CA";
                                     const stateFips = STATE_MAPPINGS.getStateFips(stateValue);
                                     const stateFilter = stateFips ? ` AND STATE = '${stateFips}'` : "";
                                     
                                     return `(UPPER(NAME) LIKE UPPER('${cleanName}%')${stateFilter})`;
-                                }).join(" OR "),
+                                })
+                                .filter(Boolean) // Remove empty clauses
+                                .join(" OR "),
                                 outFields: ["*"],
                                 returnGeometry: true,
                                 outSpatialReference: mapView.spatialReference
                             });
+                            
+                            // Skip if where clause is empty
+                            if (!simplifiedQuery.where) {
+                                console.warn("Simplified place query has empty where clause");
+                                return features;
+                            }
                             
                             console.log("Simplified place query:", simplifiedQuery.where);
                             const retryResult = await layer.queryFeatures(simplifiedQuery);
@@ -377,6 +412,44 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                             }
                         } catch (retryError) {
                             console.warn("Alternative place query approach also failed:", retryError);
+                        }
+                    }
+                    
+                    // Similar fallback for ZIP code queries
+                    if (marketArea.ma_type === 'zip' && features.length === 0) {
+                        console.log("Trying alternative approach for ZIP query...");
+                        
+                        try {
+                            // Try with a more flexible ZIP match
+                            const simplifiedQuery = new Query({
+                                where: marketArea.locations.map(loc => {
+                                    const zipValue = (loc.id || loc.name || "").trim();
+                                    if (!zipValue) return '';
+                                    
+                                    // Match on ZIP prefix without state filter as last resort
+                                    return `ZIP LIKE '${zipValue}%'`;
+                                })
+                                .filter(Boolean) // Remove empty clauses
+                                .join(" OR "),
+                                outFields: ["*"],
+                                returnGeometry: true,
+                                outSpatialReference: mapView.spatialReference
+                            });
+                            
+                            if (!simplifiedQuery.where) {
+                                console.warn("Simplified ZIP query has empty where clause");
+                                return features;
+                            }
+                            
+                            console.log("Simplified ZIP query:", simplifiedQuery.where);
+                            const retryResult = await layer.queryFeatures(simplifiedQuery);
+                            
+                            if (retryResult && retryResult.features && retryResult.features.length > 0) {
+                                features = retryResult.features;
+                                console.log(`Simplified ZIP query successful! Found ${features.length} features`);
+                            }
+                        } catch (retryError) {
+                            console.warn("Alternative ZIP query approach also failed:", retryError);
                         }
                     }
                     
@@ -395,12 +468,12 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                     }
                 }
             }
-
+    
             console.log(`Query result for ${marketArea.ma_type}:`, {
                 hasFeatures: features.length > 0,
                 count: features.length
             });
-
+    
             return features;
         } catch (error) {
             console.error(`Error querying features for market area ${marketArea.id}:`, error);
@@ -433,7 +506,7 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
         if (!effectiveProjectId) {
             console.error("No effective project ID found!");
         }
-
+    
         // Common settings for all types
         const normalizedData = {
             ma_type: marketArea.ma_type,
@@ -453,7 +526,7 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
             project_id: effectiveProjectId,
             description: `Imported from ${fileName}`
         };
-
+    
         // We only care about zip, place, and county types now
         normalizedData.locations = [];
         
@@ -461,9 +534,10 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
         if (marketArea.locations && Array.isArray(marketArea.locations)) {
             // When normalizing locations, make sure we have proper state information for each
             normalizedData.locations = marketArea.locations.map(loc => {
-                // Make sure we have state info for locations to aid in finding features
+                // ALWAYS ensure state info exists for ALL location types
                 const state = loc.state || "CA"; // Default to CA if no state
-
+                console.log(`Normalizing location with state: ${state} for ${marketArea.ma_type}`);
+    
                 // Create proper spatial reference for any existing geometry
                 let geometry = loc.geometry;
                 if (geometry && !geometry.spatialReference) {
@@ -472,16 +546,32 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                         spatialReference: { wkid: 4326 } // Add WGS84 spatial reference
                     };
                 }
-
+    
+                // For ZIP codes, ensure proper formatting
+                let id = loc.id || loc.name;
+                let name = loc.name || loc.id;
+                
+                if (marketArea.ma_type === 'zip' && id) {
+                    // Format ZIP code properly (ensure 5 digits for numeric values)
+                    if (/^\d+$/.test(id)) {
+                        id = id.padStart(5, '0');
+                        name = id; // Sync name with formatted ID
+                    }
+                }
+    
                 return {
-                    id: loc.id || loc.name,
-                    name: loc.name || loc.id,
-                    state,
-                    geometry
+                    id: id,
+                    name: name,
+                    state: state, // Always include state
+                    geometry: geometry
                 };
             });
         }
-
+    
+        // Log the normalized locations for debugging
+        console.log(`Normalized ${normalizedData.locations.length} locations for ${marketArea.name}:`, 
+            normalizedData.locations.map(loc => `${loc.name || loc.id} (${loc.state})`));
+        
         return normalizedData;
     };
 
@@ -673,7 +763,6 @@ export default function ImportDialog({ isOpen, onClose, projectId }) {
                 results.errors.push(`${marketArea.name}: ${error.message}`);
             }
         }
-
         return results;
     };
 

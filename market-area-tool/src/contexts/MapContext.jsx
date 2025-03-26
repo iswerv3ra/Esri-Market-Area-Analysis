@@ -214,8 +214,10 @@ const FEATURE_LAYERS = {
       "STATE_FIPS",
       "STATE_NAME",
       "FID",
+      "OBJECTID"
     ],
-    uniqueIdField: "FID",
+    uniqueIdField: "ZIP", // Changed from FID to ZIP since ZIP field works in queries
+    identifierField: "ZIP", // Add this to explicitly tell the app which field to use for queries
     title: "ZIP Codes",
     geometryType: "polygon",
     popupTemplate: {
@@ -226,11 +228,11 @@ const FEATURE_LAYERS = {
           fieldInfos: [
             { fieldName: "ZIP", label: "ZIP Code" },
             { fieldName: "PO_NAME", label: "Post Office Name" },
-            { fieldName: "STATE_NAME", label: "State" },
-          ],
-        },
-      ],
-    },
+            { fieldName: "STATE_NAME", label: "State" }
+          ]
+        }
+      ]
+    }
   },
   county: {
     url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/82",
@@ -2951,15 +2953,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         console.log("[MapContext] Update already in progress, skipping");
         return;
       }
-
+  
       if (!selectionGraphicsLayerRef.current || !mapView) {
         console.log("[MapContext] Cannot update styles: missing graphics layer or map view");
         return;
       }
-
+  
       // Set processing flag
       updateFeatureStyles.isProcessing = true;
-
+  
       try {
         const [
           { default: Graphic },
@@ -2972,7 +2974,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           import("@arcgis/core/geometry/geometryEngine"),
           import("@arcgis/core/rest/support/Query")
         ]);
-
+  
         // Group features by their marketAreaId
         const featuresByMarketArea = {};
         features.forEach((feature) => {
@@ -2980,21 +2982,21 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           if (!featuresByMarketArea[id]) featuresByMarketArea[id] = [];
           featuresByMarketArea[id].push(feature);
         });
-
+  
         // Check if these features are already displayed with the same styles
         const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(g =>
           g.attributes?.marketAreaId === Object.keys(featuresByMarketArea)[0] &&
           g.attributes?.FEATURE_TYPE === featureType
         );
-
+  
         if (existingGraphics.length > 0) {
           const graphicsItems = existingGraphics.items || existingGraphics;
-
+  
           if (graphicsItems && graphicsItems.length > 0) {
             const firstGraphic = graphicsItems[0];
-
+  
             const symbolJSON = firstGraphic.symbol?.toJSON ? firstGraphic.symbol.toJSON() : null;
-
+  
             let currentFill = symbolJSON?.color || [0, 0, 0, 0];
             let currentOutline = symbolJSON?.outline?.color ?
               {
@@ -3002,7 +3004,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: symbolJSON.outline.width || 0
               } :
               { color: [0, 0, 0, 0], width: 0 };
-
+  
             const stylesMatch =
               currentFill[0] === styles.fill[0] &&
               currentFill[1] === styles.fill[1] &&
@@ -3012,14 +3014,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               currentOutline.color[1] === styles.outline[1] &&
               currentOutline.color[2] === styles.outline[2] &&
               currentOutline.width === styles.outlineWidth;
-
+  
             if (stylesMatch && !immediate) {
               console.log("[MapContext] Features already displayed with same styles, skipping update");
               return;
             }
           }
         }
-
+  
         // Handle existing graphics with more precision
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
         let remainingGraphics = immediate
@@ -3028,15 +3030,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             g.attributes?.FEATURE_TYPE !== featureType)
           : selectionGraphicsLayerRef.current.graphics.filter(g =>
             !marketAreaIds.has(g.attributes?.marketAreaId));
-
+  
         // Clear and restore in one batch
         selectionGraphicsLayerRef.current.removeAll();
         if (remainingGraphics.length > 0) {
           selectionGraphicsLayerRef.current.addMany(remainingGraphics);
         }
-
+  
         const newGraphics = [];
-
+  
         // Process each market area's features
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
           console.log('[MapContext] Processing features:', {
@@ -3049,10 +3051,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               coordinates: f.geometry?.coordinates?.length
             }))
           });
-
+  
           // Get high resolution features for any layer type
           let highResPolygons = [];
-
+  
           try {
             const layer = featureLayersRef.current[featureType];
             if (layer) {
@@ -3061,15 +3063,46 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 hasFeatureLayers: !!layer.featureLayers,
                 layerCount: layer.featureLayers?.length || 1
               });
-
+  
               // Handle both single and group layers
               const layersToQuery = layer.featureLayers || [layer];
-
+  
               for (const queryLayer of layersToQuery) {
+                // Modified query construction to handle ZIP codes more robustly
+                const queryClauses = maFeatures.map(f => {
+                  // Specifically handle ZIP code layers
+                  if (featureType === 'zip') {
+                    // If we have a ZIP attribute, use that
+                    if (f.attributes.ZIP) {
+                      return `ZIP = '${f.attributes.ZIP}'`;
+                    }
+                    // If we have a name attribute that looks like a ZIP code, use that
+                    if (f.attributes.name && /^\d{5}(-\d{4})?$/.test(f.attributes.name)) {
+                      return `ZIP = '${f.attributes.name}'`;
+                    }
+                    // If we have an id attribute that looks like a ZIP code, use that
+                    if (f.attributes.id && /^\d{5}(-\d{4})?$/.test(f.attributes.id)) {
+                      return `ZIP = '${f.attributes.id}'`;
+                    }
+                    // No valid ZIP identifier found
+                    console.warn("[MapContext] ZIP feature missing ZIP attribute:", f.attributes);
+                    return '';
+                  }
+                  
+                  // For other layer types, use OBJECTID or FID if available
+                  const idField = queryLayer.objectIdField || 'OBJECTID';
+                  const idValue = f.attributes[idField] || f.attributes.FID;
+                  return idValue ? `${idField} = ${idValue}` : '';
+                }).filter(clause => clause !== ''); // Remove empty clauses
+                
+                // Skip query if no valid clauses were created
+                if (queryClauses.length === 0) {
+                  console.warn(`[MapContext] No valid query clauses for ${featureType} layer`);
+                  continue;
+                }
+                
                 const query = new Query({
-                  where: maFeatures.map(f =>
-                    `${queryLayer.objectIdField || 'OBJECTID'} = ${f.attributes.OBJECTID || f.attributes.FID}`
-                  ).join(' OR '),
+                  where: queryClauses.join(' OR '),
                   returnGeometry: true,
                   outSpatialReference: mapView.spatialReference,
                   maxAllowableOffset: 0,  // Force highest resolution
@@ -3077,7 +3110,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   resultType: "standard",
                   multipatchOption: "xyFootprint"
                 });
-
+              
                 try {
                   console.log(`[MapContext] Querying layer with:`, {
                     where: query.where,
@@ -3107,7 +3140,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           } catch (error) {
             console.warn('Error fetching high-res features:', error);
           }
-
+  
           // Fall back to original geometries if high-res query failed
           if (highResPolygons.length === 0) {
             console.log('[MapContext] Falling back to original geometries');
@@ -3117,12 +3150,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   console.warn('Feature missing geometry:', feature);
                   return null;
                 }
-
+  
                 const geomConfig = {
                   spatialReference: mapView.spatialReference,
                   type: "polygon",
                 };
-
+  
                 try {
                   if (feature.geometry.rings) {
                     return new Polygon({
@@ -3143,12 +3176,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               })
               .filter(Boolean);
           }
-
+  
           if (highResPolygons.length === 0) {
             console.warn(`No valid polygons for market area ${marketAreaId}`);
             continue;
           }
-
+  
           try {
             // Create unified boundary
             const unifiedGeometry = union(highResPolygons);
@@ -3156,11 +3189,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               console.warn(`Union failed for market area ${marketAreaId}`);
               continue;
             }
-
+  
             const simplifiedGeometry = simplify(unifiedGeometry);
             const totalArea = Math.abs(planarArea(simplifiedGeometry));
             const minHoleArea = totalArea * 0.001;
-
+  
             // Extract and filter rings
             const rings = simplifiedGeometry.rings;
             const { exteriorRings, holeRings } = rings.reduce(
@@ -3170,10 +3203,10 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                   spatialReference: mapView.spatialReference,
                   type: "polygon",
                 });
-
+  
                 const area = planarArea(ringPolygon);
                 const perimeter = planarLength(ringPolygon);
-
+  
                 if (area > 0) {
                   acc.exteriorRings.push(ring);
                 } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
@@ -3183,7 +3216,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               },
               { exteriorRings: [], holeRings: [] }
             );
-
+  
             // Create fill graphic with exact specified styles
             const fillSymbol = {
               type: "simple-fill",
@@ -3193,13 +3226,13 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: 0,
               },
             };
-
+  
             const fillGeometry = new Polygon({
               rings: [...exteriorRings, ...holeRings],
               spatialReference: mapView.spatialReference,
               type: "polygon",
             });
-
+  
             newGraphics.push(
               new Graphic({
                 geometry: fillGeometry,
@@ -3212,7 +3245,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 },
               })
             );
-
+  
             // Create outline graphics
             const outlineSymbol = {
               type: "simple-fill",
@@ -3222,7 +3255,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 width: styles.outlineWidth,
               },
             };
-
+  
             // Add hole outlines
             holeRings.forEach((holeRing, index) => {
               const holeGeometry = new Polygon({
@@ -3230,7 +3263,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 spatialReference: mapView.spatialReference,
                 type: "polygon",
               });
-
+  
               newGraphics.push(
                 new Graphic({
                   geometry: holeGeometry,
@@ -3247,14 +3280,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 })
               );
             });
-
+  
             // Add exterior outline
             const exteriorGeometry = new Polygon({
               rings: exteriorRings,
               spatialReference: mapView.spatialReference,
               type: "polygon",
             });
-
+  
             newGraphics.push(
               new Graphic({
                 geometry: exteriorGeometry,
@@ -3715,41 +3748,41 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const queryFeatures = useCallback(
     async (searchText) => {
       if (!activeLayers.length || !mapView) return [];
-
+  
       const allFeatures = [];
-
+  
       for (const type of activeLayers) {
         const layer = featureLayersRef.current[type];
         const layerConfig = FEATURE_LAYERS[type];
         if (!layer || !layerConfig) continue;
-
+  
         // Build layer-specific WHERE clause:
         let whereClause = "";
         const upperText = searchText.toUpperCase(); // for easier comparisons
-
+  
         switch (type) {
           case "zip":
             whereClause = /^\d+$/.test(searchText)
               ? `ZIP LIKE '${searchText}%'`
               : `UPPER(PO_NAME) LIKE UPPER('%${searchText}%')`;
             break;
-
+  
           case "county":
             whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
             break;
-
+  
           case "tract":
             whereClause = `(STATE_FIPS || COUNTY_FIPS || TRACT_FIPS) LIKE '${searchText}%'`;
             break;
-
+  
           case "blockgroup":
             whereClause = `(STATE_FIPS || COUNTY_FIPS || TRACT_FIPS || BLOCKGROUP_FIPS) LIKE '${searchText}%'`;
             break;
-
+  
           case "block":
             // Simplified block search using GEOID
             whereClause = `GEOID LIKE '${searchText}%'`;
-
+  
             // Add debug logging to check layer fields
             if (layer && layer.fields) {
               console.log(
@@ -3758,7 +3791,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               );
             }
             break;
-
+  
           case "place":
           case "cbsa":
           case "state":
@@ -3767,12 +3800,12 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             whereClause = `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
             break;
         }
-
+  
         try {
           const { default: Query } = await import(
             "@arcgis/core/rest/support/Query"
           );
-
+  
           const query = new Query({
             where: whereClause,
             outFields: ["*"],
@@ -3782,7 +3815,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
             units: "meters",
             spatialRel: "esriSpatialRelIntersects",
           });
-
+  
           // Some layers might be group layers containing multiple sub-layers
           let layersToQuery = [];
           if (layer.featureLayers) {
@@ -3790,14 +3823,14 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           } else {
             layersToQuery = [layer];
           }
-
+  
           // Query each sub-layer with error handling
           const queryPromises = layersToQuery.map(async (l) => {
             try {
               console.log(
                 `[MapContext] Querying layer ${type} with clause: ${whereClause}`
               );
-
+  
               // Check if the layer is properly loaded and has queryFeatures method
               if (!l || typeof l.queryFeatures !== "function") {
                 console.warn(
@@ -3805,15 +3838,15 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
                 );
                 return { features: [] };
               }
-
+  
               const result = await l.queryFeatures(query);
-
+  
               // Validate the result
               if (!result || !Array.isArray(result.features)) {
                 console.warn(`[MapContext] Invalid result format for ${type}`);
                 return { features: [] };
               }
-
+  
               console.log(
                 `[MapContext] Query done for layer ${type}, found ${result.features.length} features`
               );
@@ -3826,18 +3859,25 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
               return { features: [] };
             }
           });
-
+  
           const results = await Promise.all(queryPromises);
-
-          // Merge & remove duplicates by unique ID (OBJECTID or FID)
+  
+          // Merge & remove duplicates by unique ID, with enhanced handling for ZIP vs other types
           results.forEach((res) => {
             if (res && Array.isArray(res.features)) {
               const unique = res.features.filter((f) => {
+                // For ZIP code layers, use ZIP as the unique identifier
+                if (type === 'zip') {
+                  const zipCode = f.attributes.ZIP;
+                  return zipCode && !allFeatures.some(
+                    existing => existing.attributes.ZIP === zipCode
+                  );
+                }
+                
+                // For other layers, use OBJECTID or FID as the unique identifier
                 const fid = f.attributes.OBJECTID || f.attributes.FID;
-                return !allFeatures.some(
-                  (existing) =>
-                    (existing.attributes.OBJECTID ||
-                      existing.attributes.FID) === fid
+                return fid && !allFeatures.some(
+                  existing => (existing.attributes.OBJECTID || existing.attributes.FID) === fid
                 );
               });
               allFeatures.push(...unique);
@@ -3848,26 +3888,286 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
           toast.error(`Error searching in ${type} layer`);
         }
       }
-
+  
       // Sort the combined results by name if possible
       allFeatures.sort((a, b) => {
         const nameA = (
           a.attributes.NAME ||
           a.attributes.PO_NAME ||
+          a.attributes.ZIP ||
           ""
         ).toUpperCase();
         const nameB = (
           b.attributes.NAME ||
           b.attributes.PO_NAME ||
+          b.attributes.ZIP ||
           ""
         ).toUpperCase();
         return nameA.localeCompare(nameB);
       });
-
+  
       return allFeatures;
     },
     [activeLayers, mapView, featureLayersRef, FEATURE_LAYERS]
   );
+
+  const queryFeaturesForMarketArea = async (marketArea) => {
+    console.log("Querying features for market area:", marketArea.id);
+  
+    if (!marketArea || !marketArea.locations || marketArea.locations.length === 0) {
+      console.warn(`Market area ${marketArea.id} has no locations to query`);
+      return [];
+    }
+  
+    if (!featureLayers || !mapView) {
+      console.warn("Feature layers or map view not initialized");
+      return [];
+    }
+  
+    try {
+      const { default: Query } = await import("@arcgis/core/rest/support/Query");
+  
+      const layer = featureLayers[marketArea.ma_type];
+      if (!layer) {
+        console.warn(`No feature layer found for type ${marketArea.ma_type}`);
+        return [];
+      }
+  
+      // Build a where clause based on the market area type and locations
+      let whereClause = "";
+  
+      if (marketArea.ma_type === 'zip') {
+        // For ZIP codes, create a more robust query
+        const validZips = marketArea.locations
+          .map(loc => {
+            const zipValue = (loc.id || loc.name || "").trim();
+            if (!zipValue || zipValue === "00000") return null;
+            
+            // Format ZIP code properly (5 digits)
+            const formattedZip = zipValue.padStart(5, '0').substring(0, 5);
+            return formattedZip;
+          })
+          .filter(Boolean); // Remove null/empty values
+        
+        if (validZips.length === 0) {
+          console.warn("No valid ZIP codes found for market area:", marketArea.id);
+          return [];
+        }
+        
+        whereClause = validZips.map(zip => 
+          `ZIP = '${zip}'`
+        ).join(" OR ");
+        
+        console.log("ZIP where clause:", whereClause);
+      }
+      else if (marketArea.ma_type === 'county') {
+        // For counties, use the NAME field with LIKE operator and add state filtering
+        const validCounties = marketArea.locations
+          .map(loc => {
+            const countyName = (loc.id || loc.name || "")
+              .replace(/\s+County$/i, "") // Remove "County" suffix if present
+              .trim()
+              .replace(/'/g, "''"); // Escape single quotes
+            
+            if (!countyName) return null;
+  
+            // Get state information for filtering
+            let stateFilter = "";
+            const stateValue = loc.state || "CA";
+  
+            // Convert to FIPS code if needed
+            let stateFips = STATE_MAPPINGS.getStateFips(stateValue);
+            if (stateFips) {
+              stateFilter = ` AND STATE = '${stateFips}'`;
+            }
+  
+            return `(UPPER(NAME) LIKE UPPER('%${countyName}%')${stateFilter})`;
+          })
+          .filter(Boolean); // Remove null/empty values
+        
+        if (validCounties.length === 0) {
+          console.warn("No valid counties found for market area:", marketArea.id);
+          return [];
+        }
+        
+        whereClause = validCounties.join(" OR ");
+        console.log("County where clause with state filtering:", whereClause);
+      }
+      else if (marketArea.ma_type === 'place') {
+        // For places, use the NAME field with LIKE operator and add state filtering
+        const validPlaces = marketArea.locations
+          .map(loc => {
+            const placeName = (loc.id || loc.name || "")
+              .trim()
+              .replace(/\s+(city|town|village|borough|cdp)$/i, "") // Remove type suffix if present
+              .replace(/'/g, "''"); // Escape single quotes
+            
+            if (!placeName) return null;
+            
+            // Get state information for filtering
+            let stateFilter = "";
+            const stateValue = loc.state || "CA";
+            
+            // Convert to FIPS code if needed
+            let stateFips = STATE_MAPPINGS.getStateFips(stateValue);
+            if (stateFips) {
+              stateFilter = ` AND STATE = '${stateFips}'`;
+            }
+            
+            return `(UPPER(NAME) LIKE UPPER('%${placeName}%')${stateFilter})`;
+          })
+          .filter(Boolean); // Remove null/empty values
+        
+        if (validPlaces.length === 0) {
+          console.warn("No valid places found for market area:", marketArea.id);
+          return [];
+        }
+        
+        whereClause = validPlaces.join(" OR ");
+        console.log("Place where clause with state filtering:", whereClause);
+      }
+      else {
+        // We only support zip, county, and place - but this is a fallback
+        console.warn(`Unsupported market area type: ${marketArea.ma_type}`);
+        return [];
+      }
+  
+      // Skip query if where clause is empty
+      if (!whereClause) {
+        console.warn(`Empty where clause for market area ${marketArea.id}`);
+        return [];
+      }
+  
+      console.log(`Querying ${marketArea.ma_type} layer with where clause:`, whereClause);
+  
+      // Create query with added timeout and error handling
+      const query = new Query({
+        where: whereClause,
+        outFields: ["*"],
+        returnGeometry: true,
+        outSpatialReference: mapView.spatialReference,
+        maxRecordCount: 100, // Limit results
+        num: 100, // Limit results
+        start: 0
+      });
+  
+      // Query features with error handling
+      let features = [];
+  
+      // For group layers (layer.featureLayers), try each sublayer
+      if (layer.featureLayers && Array.isArray(layer.featureLayers)) {
+        for (const sublayer of layer.featureLayers) {
+          if (!sublayer || !sublayer.queryFeatures) continue;
+  
+          try {
+            const result = await sublayer.queryFeatures(query);
+            if (result && result.features && result.features.length > 0) {
+              features = result.features;
+              console.log(`Found ${features.length} features in sublayer for ${marketArea.ma_type}`);
+              break; // Found features, stop checking other sublayers
+            }
+          } catch (error) {
+            console.warn(`Error querying sublayer for ${marketArea.ma_type}:`, error);
+            // Try with a simpler query if needed (handling specific errors)
+            if (error.message && error.message.includes('Geometry is not supported with DISTINCT')) {
+              console.log('Retrying query without DISTINCT parameter');
+              try {
+                const retryResult = await sublayer.queryFeatures(query);
+                if (retryResult && retryResult.features && retryResult.features.length > 0) {
+                  features = retryResult.features;
+                  console.log(`Retry successful! Found ${features.length} features`);
+                  break;
+                }
+              } catch (retryError) {
+                console.warn('Retry also failed:', retryError);
+              }
+            }
+            // Continue to next sublayer
+          }
+        }
+      }
+      // For single layers
+      else if (layer.queryFeatures) {
+        try {
+          const result = await layer.queryFeatures(query);
+          if (result && result.features) {
+            features = result.features;
+            console.log(`Found ${features.length} features in layer for ${marketArea.ma_type}`);
+          }
+        } catch (error) {
+          console.warn(`Error querying features for ${marketArea.ma_type}:`, error);
+          
+          // Add specific handling for place layer errors
+          if (marketArea.ma_type === 'place') {
+            console.log("Trying alternative approach for place query...");
+            
+            try {
+              // Try with a simpler query - just match on the beginning of the name
+              const simplifiedQuery = new Query({
+                where: marketArea.locations.map(loc => {
+                  const cleanName = (loc.id || loc.name || "")
+                    .split(/\s+/)[0]  // Take just first word of place name
+                    .replace(/'/g, "''");
+                  if (!cleanName) return '';
+                  
+                  const stateValue = loc.state || "CA";
+                  const stateFips = STATE_MAPPINGS.getStateFips(stateValue);
+                  const stateFilter = stateFips ? ` AND STATE = '${stateFips}'` : "";
+                  
+                  return `(UPPER(NAME) LIKE UPPER('${cleanName}%')${stateFilter})`;
+                })
+                .filter(Boolean) // Remove empty clauses
+                .join(" OR "),
+                outFields: ["*"],
+                returnGeometry: true,
+                outSpatialReference: mapView.spatialReference
+              });
+              
+              // Skip if where clause is empty
+              if (!simplifiedQuery.where) {
+                console.warn("Simplified place query has empty where clause");
+                return features;
+              }
+              
+              console.log("Simplified place query:", simplifiedQuery.where);
+              const retryResult = await layer.queryFeatures(simplifiedQuery);
+              
+              if (retryResult && retryResult.features && retryResult.features.length > 0) {
+                features = retryResult.features;
+                console.log(`Simplified query successful! Found ${features.length} place features`);
+              }
+            } catch (retryError) {
+              console.warn("Alternative place query approach also failed:", retryError);
+            }
+          }
+          
+          // Existing error handling for DISTINCT error
+          if (error.message && error.message.includes('Geometry is not supported with DISTINCT')) {
+            console.log('Retrying query without DISTINCT parameter');
+            try {
+              const retryResult = await layer.queryFeatures(query);
+              if (retryResult && retryResult.features) {
+                features = retryResult.features;
+                console.log(`Retry successful! Found ${features.length} features`);
+              }
+            } catch (retryError) {
+              console.warn('Retry also failed:', retryError);
+            }
+          }
+        }
+      }
+  
+      console.log(`Query result for ${marketArea.ma_type}:`, {
+        hasFeatures: features.length > 0,
+        count: features.length
+      });
+  
+      return features;
+    } catch (error) {
+      console.error(`Error querying features for market area ${marketArea.id}:`, error);
+      return [];
+    }
+  };
 
   // Updated toggleActiveLayerType to skip 'radius'
   const toggleActiveLayerType = useCallback(
