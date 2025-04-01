@@ -5157,14 +5157,15 @@ export default function MapComponent({ onToggleLis }) {
     loadMapConfigurations(AUTO_SAVE_KEY, false);
   }, []);
 
-
   return (
     <div className="flex flex-col h-full">
+      {/* Header Section */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          {/* Tabs and New Map button on the left */}
+          {/* Left Side: Tabs and New Map button */}
           <div className="flex items-center space-x-2">
             <div className="flex space-x-2 overflow-x-auto">
+              {/* Map through tabs */}
               {tabs.map((tab) => (
                 <div key={tab.id} className="flex items-center">
                   <div
@@ -5175,6 +5176,7 @@ export default function MapComponent({ onToggleLis }) {
                       }`}
                   >
                     {tab.isEditing ? (
+                      // Input field for renaming tab
                       <input
                         type="text"
                         value={tab.name}
@@ -5195,47 +5197,30 @@ export default function MapComponent({ onToggleLis }) {
                         autoFocus
                       />
                     ) : (
+                      // Display tab name and controls
                       <div className="flex items-center">
                         <span>{tab.name}</span>
+                        {/* Show controls only for non-core tabs */}
                         {tab.id !== 1 && (
                           <>
+                            {/* Edit Tab Name Icon (Pencil) */}
                             <div
                               onClick={(e) => startEditing(tab.id, e)}
                               className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                              title="Edit tab name"
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                />
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                               </svg>
                             </div>
+                            {/* Delete Tab Icon (X) */}
                             <div
                               onClick={(e) => deleteTab(tab.id, e)}
-                              className="ml-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                              className="ml-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
                               title="Delete map"
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </div>
                           </>
@@ -5245,6 +5230,7 @@ export default function MapComponent({ onToggleLis }) {
                   </div>
                 </div>
               ))}
+              {/* New Map Button */}
               <button
                 onClick={addNewTab}
                 className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
@@ -5254,74 +5240,76 @@ export default function MapComponent({ onToggleLis }) {
             </div>
           </div>
 
+          {/* Right Side: Conditional Dropdowns, Edit Button, Save Button */}
           <div className="flex items-center space-x-2">
-            {activeTab !== 1 && (
-              <>
-                <select
-                  value={
-                    tabs.find((tab) => tab.id === activeTab)?.areaType?.value ||
-                    areaTypes[0].value
-                  }
-                  onChange={(e) => {
-                    const newAreaType = areaTypes.find(
-                      type => type.value === parseInt(e.target.value)
-                    );
-                    handleAreaTypeChange(activeTab, newAreaType);
-                  }}
-                  className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
-          focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {areaTypes.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+            {/* IIFE to manage scope and conditional rendering */}
+            {activeTab !== 1 && (() => { // Only show controls if not the Core Map tab
+              const activeTabData = tabs.find((tab) => tab.id === activeTab);
+              // Find the corresponding visualization option to check its type
+              const activeVisOption = visualizationOptions.find(opt => opt.value === activeTabData?.visualizationType);
+              // Dropdowns shown only if the active visualization option is heat or dot density
+              const showDropdowns = activeVisOption && (activeVisOption.type === 'class-breaks' || activeVisOption.type === 'dot-density');
+              // --- Corrected Edit Button Logic ---
+              // Edit button shown if the active tab is NOT the core map (ID 1)
+              const showEditButton = activeTab !== 1;
+              // --- End Corrected Edit Button Logic ---
 
-                {/* Replace the select element with the SearchableDropdown */}
-                <SearchableDropdown
-                  options={visualizationOptions}
-                  value={tabs.find((tab) => tab.id === activeTab)?.visualizationType || ""}
-                  onChange={(newValue) => handleVisualizationChange(activeTab, newValue)}
-                  placeholder="Select visualization"
-                  searchPlaceholder="Search visualizations..."
-                  className="w-56" // Make it a bit wider to accommodate the search functionality
-                />
+              return (
+                <>
+                  {/* Conditionally render Area Type and Visualization Dropdowns */}
+                  {showDropdowns && (
+                    <>
+                      <select
+                        value={activeTabData?.areaType?.value || areaTypes[0].value}
+                        onChange={(e) => {
+                          const newAreaType = areaTypes.find(
+                            type => type.value === parseInt(e.target.value)
+                          );
+                          handleAreaTypeChange(activeTab, newAreaType);
+                        }}
+                        className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
+                                   bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+                                   text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
+                                   focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {areaTypes.map(type => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
 
-                {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
-                  <button
-                    onClick={() => setIsEditorOpen(true)}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
-            dark:hover:text-gray-300 focus:outline-none"
-                    title="Edit layer properties"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      <SearchableDropdown
+                        options={visualizationOptions}
+                        value={activeTabData?.visualizationType || ""}
+                        onChange={(newValue) => handleVisualizationChange(activeTab, newValue)}
+                        placeholder="Select visualization"
+                        searchPlaceholder="Search visualizations..."
+                        className="w-56"
                       />
-                    </svg>
-                  </button>
-                )}
-              </>
-            )}
+                    </>
+                  )}
 
-            {/* Save button always visible */}
+                  {/* Conditionally render Edit Map/Legend Button */}
+                  {showEditButton && ( // Now shows for ANY non-core tab
+                    <button
+                      onClick={() => setIsEditorOpen(true)}
+                      className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
+                      title="Edit layer properties"
+                    >
+                      Edit Map/Legend
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Save Button (Always visible) */}
             <button
               onClick={async () => {
+                // --- Existing Save Logic ---
                 try {
                   setIsSaving(true);
-
                   const configurations = tabs
                     .filter(tab => tab.id !== 1)
                     .map((tab, index) => ({
@@ -5334,78 +5322,86 @@ export default function MapComponent({ onToggleLis }) {
                       order: index
                     }));
 
-                  const existingConfigs = await mapConfigurationsAPI.getAll(projectId);
-                  if (existingConfigs?.data?.length > 0) {
+                  const existingConfigsResponse = await mapConfigurationsAPI.getAll(projectId);
+                  const existingConfigs = existingConfigsResponse?.data;
+
+                  if (Array.isArray(existingConfigs) && existingConfigs.length > 0) {
                     await Promise.all(
-                      existingConfigs.data.map(config =>
-                        mapConfigurationsAPI.delete(config.id)
+                      existingConfigs.map(config =>
+                        mapConfigurationsAPI.delete(config.id).catch(err => console.error(`Failed to delete config ${config.id}:`, err))
                       )
                     );
+                    console.log(`Deleted ${existingConfigs.length} existing configurations.`);
                   }
 
+                  const createdConfigs = [];
                   for (const config of configurations) {
-                    await mapConfigurationsAPI.create(projectId, {
-                      ...config,
-                      project: projectId
-                    });
+                    const response = await mapConfigurationsAPI.create(projectId, config);
+                    if (response.data && response.data.id) {
+                       createdConfigs.push({ tabName: config.tab_name, configId: response.data.id });
+                    }
                   }
 
+                 // Update tab state with new config IDs
+                  setTabs(prevTabs => prevTabs.map(t => {
+                     const created = createdConfigs.find(c => c.tabName === t.name);
+                     return created ? { ...t, configId: created.configId } : t;
+                  }));
+
+                  console.log(`Saved ${configurations.length} map configurations.`);
                   alert('Map configurations saved successfully');
+
                 } catch (error) {
-                  console.error('[Save] Error:', error);
-                  alert('Failed to save map configurations');
+                  console.error('[Save] Error saving map configurations:', error.response?.data || error.message || error);
+                  alert('Failed to save map configurations. Check console for details.');
                 } finally {
                   setIsSaving(false);
                 }
+                // --- End Existing Save Logic ---
               }}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 
-                dark:hover:text-gray-300 focus:outline-none"
+              className={`p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400
+                          dark:hover:text-gray-300 focus:outline-none ${isSaving ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
               title="Save map configurations"
+              disabled={isSaving}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Main Map Area */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Map container */}
         <div className="flex-1 relative">
           <div ref={mapRef} className="w-full h-full">
+            {/* Zoom Alert Overlay */}
             <ZoomAlert />
           </div>
         </div>
 
-        {/* Layer Properties Editor - always positioned to the left of the Market Areas sidebar */}
-        <div className="relative">
-          {tabs.find((tab) => tab.id === activeTab)?.visualizationType && (
+        {/* Layer Properties Editor Panel */}
+        <div className="relative"> {/* Keep this relative for absolute positioning of the child */}
+           {/* Conditionally render editor panel container - check activeTab !== 1 AND isEditorOpen */}
+           {activeTab !== 1 && (
             <div
               className={`
-                w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200 
-                dark:border-gray-700 transform transition-all duration-300 ease-in-out
-                absolute h-full
+                w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200
+                dark:border-gray-700 transform transition-transform duration-300 ease-in-out
+                absolute h-full z-20 /* Ensure editor is above map */
                 ${isEditorOpen ? 'translate-x-0' : 'translate-x-full'}
               `}
+              // --- Restore specific positioning ---
               style={{
-                // Always position to the left of the Market Areas sidebar (350px width)
-                right: '440px',
+                right: '440px', // Position 440px from the right edge of the parent
                 top: '0'
               }}
+              // --- End Restore specific positioning ---
             >
               <LayerPropertiesEditor
-                isOpen={isEditorOpen}
+                isOpen={isEditorOpen} // Pass isOpen prop
                 onClose={() => setIsEditorOpen(false)}
                 visualizationType={
                   tabs.find((tab) => tab.id === activeTab)?.visualizationType
@@ -5424,11 +5420,12 @@ export default function MapComponent({ onToggleLis }) {
                 tabs={tabs}
               />
             </div>
-          )}
+           )}
         </div>
       </div>
 
-      <NewMapDialog 
+      {/* New Map Dialog */}
+      <NewMapDialog
         isOpen={isNewMapDialogOpen}
         onClose={() => setIsNewMapDialogOpen(false)}
         onCreateMap={handleCreateMap}

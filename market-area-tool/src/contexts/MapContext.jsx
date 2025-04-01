@@ -1035,47 +1035,47 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const ensureValidGeometry = async (geometry, spatialReference) => {
     if (!geometry) {
-      console.warn("Geometry is null or undefined");
-      return null;
+        console.warn("Geometry is null or undefined");
+        return null;
     }
 
     try {
-      const { default: Point } = await import("@arcgis/core/geometry/Point");
-      const { default: SpatialReference } = await import(
-        "@arcgis/core/geometry/SpatialReference"
-      );
+        const { default: Point } = await import("@arcgis/core/geometry/Point");
+        const { default: SpatialReference } = await import(
+            "@arcgis/core/geometry/SpatialReference"
+        );
 
-      // Ensure spatialReference is a valid SpatialReference object
-      const validSpatialReference =
-        spatialReference instanceof SpatialReference
-          ? spatialReference
-          : new SpatialReference(spatialReference || { wkid: 102100 });
+        // Ensure spatialReference is a valid SpatialReference object
+        const validSpatialReference =
+            spatialReference instanceof SpatialReference
+                ? spatialReference
+                : new SpatialReference(spatialReference || { wkid: 4326 });
 
-      // If geometry is a point-like object
-      if (geometry.longitude !== undefined && geometry.latitude !== undefined) {
-        return new Point({
-          longitude: geometry.longitude,
-          latitude: geometry.latitude,
-          spatialReference: validSpatialReference,
-        });
-      }
-
-      // If it's already a Point or other Geometry
-      if (geometry.type || geometry.spatialReference) {
-        // Ensure it has a valid spatial reference
-        if (!geometry.spatialReference) {
-          geometry.spatialReference = validSpatialReference;
+        // If geometry is a point-like object
+        if (geometry.longitude !== undefined && geometry.latitude !== undefined) {
+            return new Point({
+                longitude: geometry.longitude,
+                latitude: geometry.latitude,
+                spatialReference: validSpatialReference,
+            });
         }
-        return geometry;
-      }
 
-      console.warn("Unrecognized geometry format:", geometry);
-      return null;
+        // If it's already a Point or other Geometry
+        if (geometry.type || geometry.spatialReference) {
+            // Ensure it has a valid spatial reference
+            if (!geometry.spatialReference) {
+                geometry.spatialReference = validSpatialReference;
+            }
+            return geometry;
+        }
+
+        console.warn("Unrecognized geometry format:", geometry);
+        return null;
     } catch (error) {
-      console.error("Error in ensureValidGeometry:", error);
-      return null;
+        console.error("Error in ensureValidGeometry:", error);
+        return null;
     }
-  };
+};
 
   // Add these function implementations before your useMemo context value in MapContext.jsx
 
@@ -1371,7 +1371,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [selectionGraphicsLayerRef, calculateDriveTimePolygon]);
 
-
   // Helper function to create a fallback buffer
   const createFallbackBuffer = async (pointGeom, minutes) => {
     try {
@@ -1418,72 +1417,72 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
   const zoomToExtent = useCallback(async (extent) => {
     if (!mapView) {
-      console.log("[MapContext] Cannot zoom to extent: mapView not initialized");
-      return;
-    }
-
-    try {
-      await mapView.goTo(extent, {
-        duration: 1000,
-        easing: "ease-in-out"
-      });
-      console.log("[MapContext] Successfully zoomed to extent");
-    } catch (error) {
-      console.error("[MapContext] Error zooming to extent:", error);
-    }
-  }, [mapView]);
-
-  const zoomToMarketArea = useCallback(async (marketAreaId) => {
-    if (!mapView || !selectionGraphicsLayerRef.current) {
-      console.log("[MapContext] Cannot zoom to market area: prerequisites not met");
-      return;
-    }
-
-    try {
-      // Find all graphics associated with this market area
-      const marketAreaGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-        graphic => graphic.attributes?.marketAreaId === marketAreaId
-      );
-
-      if (marketAreaGraphics.length === 0) {
-        console.log(`[MapContext] No graphics found for market area: ${marketAreaId}`);
+        console.log("[MapContext] Cannot zoom to extent: mapView not initialized");
         return;
-      }
-
-      // Create a union of all geometries or get first geometry's extent
-      let targetExtent;
-
-      if (marketAreaGraphics.length === 1) {
-        targetExtent = marketAreaGraphics[0].geometry.extent;
-      } else {
-        const geometries = marketAreaGraphics.map(g => g.geometry).filter(Boolean);
-
-        if (geometries.length > 0) {
-          try {
-            // Try to get a union of all geometries
-            const union = await geometryEngineAsync.union(geometries);
-            targetExtent = union.extent;
-          } catch (error) {
-            console.warn("[MapContext] Failed to union geometries, using first geometry extent", error);
-            targetExtent = geometries[0].extent;
-          }
-        }
-      }
-
-      if (targetExtent) {
-        // Add a buffer to the extent for better visibility
-        targetExtent.expand(1.2);
-
-        await mapView.goTo(targetExtent, {
-          duration: 1000,
-          easing: "ease-in-out"
-        });
-        console.log(`[MapContext] Successfully zoomed to market area: ${marketAreaId}`);
-      }
-    } catch (error) {
-      console.error("[MapContext] Error zooming to market area:", error);
     }
-  }, [mapView]);
+
+    try {
+        await mapView.goTo(extent, {
+            duration: 1000,
+            easing: "ease-in-out"
+        });
+        console.log("[MapContext] Successfully zoomed to extent");
+    } catch (error) {
+        console.error("[MapContext] Error zooming to extent:", error);
+    }
+}, [mapView]);
+
+const zoomToMarketArea = useCallback(async (marketAreaId) => {
+    if (!mapView || !selectionGraphicsLayerRef.current) {
+        console.log("[MapContext] Cannot zoom to market area: prerequisites not met");
+        return;
+    }
+
+    try {
+        // Find all graphics associated with this market area
+        const marketAreaGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+            graphic => graphic.attributes?.marketAreaId === marketAreaId
+        );
+
+        if (marketAreaGraphics.length === 0) {
+            console.log(`[MapContext] No graphics found for market area: ${marketAreaId}`);
+            return;
+        }
+
+        // Create a union of all geometries or get first geometry's extent
+        let targetExtent;
+
+        if (marketAreaGraphics.length === 1) {
+            targetExtent = marketAreaGraphics[0].geometry.extent;
+        } else {
+            const geometries = marketAreaGraphics.map(g => g.geometry).filter(Boolean);
+
+            if (geometries.length > 0) {
+                try {
+                    // Try to get a union of all geometries
+                    const union = await geometryEngineAsync.union(geometries);
+                    targetExtent = union.extent;
+                } catch (error) {
+                    console.warn("[MapContext] Failed to union geometries, using first geometry extent", error);
+                    targetExtent = geometries[0].extent;
+                }
+            }
+        }
+
+        if (targetExtent) {
+            // Add a buffer to the extent for better visibility
+            targetExtent.expand(1.2);
+
+            await mapView.goTo(targetExtent, {
+                duration: 1000,
+                easing: "ease-in-out"
+            });
+            console.log(`[MapContext] Successfully zoomed to market area: ${marketAreaId}`);
+        }
+    } catch (error) {
+        console.error("[MapContext] Error zooming to market area:", error);
+    }
+}, [mapView]);
 
   // Add these state variables near the top of your component with the other useState declarations
   const [isOutsideZoomRange, setIsOutsideZoomRange] = useState(false);
@@ -2945,7 +2944,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     }
   }, [transformDriveTimePoint, drawDriveTimePolygon]);
 
-
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType, immediate = false) => {
       // Prevent multiple simultaneous calls
@@ -3504,7 +3502,6 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
       transformDriveTimePoint,
     ]
   );
-
 
 
   const extractRadiusProperties = (feature) => {

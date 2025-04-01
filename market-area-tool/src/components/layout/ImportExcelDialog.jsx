@@ -6,7 +6,6 @@ import { useMap } from "../../contexts/MapContext";
 import { useParams } from "react-router-dom";
 import { StyleSettingsPanel } from "../market-areas/StyleSettingsPanel";
 import ThemeSelector from "../market-areas/ThemeSelector";
-
 // Main ImportDialog component
 export default function ImportDialog({ isOpen, onClose, projectId }) {
     const [isProcessing, setIsProcessing] = useState(false);
@@ -1005,15 +1004,16 @@ const cleanupAfterImport = () => {
         return enhancedLocations;
     };
 
-    // Helper to find matching feature for a location
     const findMatchingFeature = (location, features, maType) => {
         if (!location || !features || features.length === 0) return null;
-
+    
         // Different matching logic based on market area type
         if (maType === 'zip') {
-            return features.find(feature =>
-                String(feature.attributes.ZIP || '').trim() === String(location.id || location.name || '').trim()
-            );
+            return features.find(feature => {
+                const featureZip = String(feature.attributes.ZIP || '').trim();
+                const locationId = String(location.id || location.name || '').trim();
+                return featureZip === locationId;
+            });
         }
         else if (maType === 'county') {
             const locName = String(location.name || location.id || '').toLowerCase().replace(/\s+county$/i, '').trim();
@@ -1029,18 +1029,20 @@ const cleanupAfterImport = () => {
                 return featureName.includes(locName) || locName.includes(featureName);
             });
         }
-
+    
         // Default matching using ID or name
         return features.find(feature => {
             const locId = String(location.id || '').trim();
             const locName = String(location.name || '').trim().toLowerCase();
-
+    
             return feature.attributes.OBJECTID === locId ||
                 feature.attributes.FID === locId ||
                 (feature.attributes.NAME &&
                     String(feature.attributes.NAME).toLowerCase().includes(locName));
         });
     };
+
+
 
     const handleImport = async (confirmedMarketAreas) => {
         setIsProcessing(true);
@@ -1190,6 +1192,8 @@ const cleanupAfterImport = () => {
             }
         }
         };
+
+
 
     // Excel file reading function with full style support
     const readExcelFile = (file) => {
