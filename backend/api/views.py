@@ -421,54 +421,87 @@ class MapConfigurationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Debugging: Print request parameters
+        print(f"[Backend View] MapConfigurationViewSet: Action = {self.action}")
+        print(f"[Backend View] MapConfigurationViewSet: Query Params = {self.request.query_params}")
+
         # For list action, filter by project
         if self.action == 'list':
-            project_id = self.request.query_params.get('project')
+            # Explicitly get the 'project' parameter
+            project_id = self.request.query_params.get('project', None) # Use None as default
+
             if project_id:
-                return MapConfiguration.objects.filter(
+                print(f"[Backend View] Filtering MapConfigurations for project_id: {project_id}")
+                queryset = MapConfiguration.objects.filter(
                     project_id=project_id
                 ).order_by('order')
-            return MapConfiguration.objects.none()
-        
-        # For other actions (retrieve, update, delete), return all configurations
-        return MapConfiguration.objects.all()
+                print(f"[Backend View] Found {queryset.count()} configurations for project {project_id}")
+                return queryset
+            else:
+                # Handle case where project_id is missing or invalid
+                print("[Backend View] No project_id provided in query params for list action. Returning empty queryset.")
+                # Decide behavior: return none, return all (potentially unsafe), or raise error?
+                # Returning none is safest if filtering by project is mandatory.
+                return MapConfiguration.objects.none()
+
+        # For other actions (retrieve, update, delete), default behavior is fine
+        # as they usually rely on the URL pk lookup.
+        print(f"[Backend View] Action is '{self.action}', returning all (will be filtered by pk later if applicable)")
+        return MapConfiguration.objects.all().order_by('order') # Ensure consistent ordering
 
     def create(self, request, *args, **kwargs):
+        # Optional: Add logging here too if creation seems problematic
+        print(f"[Backend View] Received create request data: {request.data}")
         try:
-            project_id = request.data.get('project')
-            tab_name = request.data.get('tab_name')
-            
-            # Make sure we're only deleting configurations for the specific project
-            existing_config = MapConfiguration.objects.filter(
-                project_id=project_id, 
-                tab_name=tab_name
-            ).first()
+            # The existing create logic seems okay, but ensure project ID lookup is robust
+            project_id = request.data.get('project') # Or 'project_id' depending on serializer/frontend
+            if not project_id:
+                return Response({"detail": "Project ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-            if existing_config:
-                existing_config.delete()
+            # Optional: Check if project exists before proceeding with serializer
+            try:
+                 Project.objects.get(id=project_id)
+            except Project.DoesNotExist:
+                 return Response({"detail": f"Project with ID {project_id} not found."}, status=status.HTTP_404_NOT_FOUND)
 
-            return super().create(request, *args, **kwargs)
-            
+            # Your existing logic (delete if same name exists, then create)
+            # tab_name = request.data.get('tab_name')
+            # existing_config = MapConfiguration.objects.filter(project_id=project_id, tab_name=tab_name).first()
+            # if existing_config:
+            #     print(f"[Backend View] Deleting existing config with same name: {tab_name} for project {project_id}")
+            #     existing_config.delete()
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            print(f"[Backend View] Successfully created MapConfiguration: {serializer.data}")
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
         except Exception as e:
-            print(f"Error in MapConfigurationViewSet.create: {str(e)}")
+            print(f"[Backend View] Error in MapConfigurationViewSet.create: {str(e)}")
             import traceback
             print(traceback.format_exc())
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Return a more specific error if possible (e.g., from serializer validation)
+            error_detail = getattr(e, 'detail', str(e))
+            status_code = getattr(e, 'status_code', status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": error_detail}, status=status_code)
+
+    def perform_create(self, serializer):
+        # Ensure the project FK is correctly handled by the serializer's create method
+        # If project is write_only=True, the serializer needs to handle the lookup
+        serializer.save() # Serializer's create method should handle project assignment
 
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
-            # Add logging to help debug
-            print(f"Deleting configuration with ID: {instance.id}")
-            result = super().destroy(request, *args, **kwargs)
-            print(f"Successfully deleted configuration")
-            return result
+            print(f"[Backend View] Attempting to delete configuration with ID: {instance.id}, Name: {instance.tab_name}")
+            self.perform_destroy(instance)
+            print(f"[Backend View] Successfully deleted configuration ID: {kwargs.get('pk')}")
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Http404:
+             print(f"[Backend View] Delete failed: Configuration with pk {kwargs.get('pk')} not found.")
+             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            print(f"Error deleting configuration: {str(e)}")
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            print(f"[Backend View] Error deleting configuration {kwargs.get('pk')}: {str(e)}")
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

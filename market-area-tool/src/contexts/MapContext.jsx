@@ -206,29 +206,33 @@ const FEATURE_LAYERS = {
     }
   },
   zip: {
-    url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_ZIP_Codes/FeatureServer/0",
+    url: "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services/Census_ZIP_Code_Tabulation_Areas_2010_v1/FeatureServer/0",
     outFields: [
-      "ZIP",
-      "PO_NAME",
-      "STATE",
-      "STATE_FIPS",
-      "STATE_NAME",
-      "FID",
+      "ZCTA5",
+      "NAME",
+      "GEOID",
+      "POP100",
+      "HU100",
+      "INTPTLAT",
+      "INTPTLON",
       "OBJECTID"
     ],
-    uniqueIdField: "ZIP", // Changed from FID to ZIP since ZIP field works in queries
-    identifierField: "ZIP", // Add this to explicitly tell the app which field to use for queries
+    uniqueIdField: "OBJECTID", // Using OBJECTID as it's the system-maintained unique ID
+    identifierField: "ZCTA5", // Using ZCTA5 for ZIP code identification
     title: "ZIP Codes",
     geometryType: "polygon",
     popupTemplate: {
-      title: "ZIP Code: {ZIP}",
+      title: "ZIP Code: {ZCTA5}",
       content: [
         {
           type: "fields",
           fieldInfos: [
-            { fieldName: "ZIP", label: "ZIP Code" },
-            { fieldName: "PO_NAME", label: "Post Office Name" },
-            { fieldName: "STATE_NAME", label: "State" }
+            { fieldName: "ZCTA5", label: "ZIP Code" },
+            { fieldName: "NAME", label: "Name" },
+            { fieldName: "POP100", label: "Population" },
+            { fieldName: "HU100", label: "Housing Units" },
+            { fieldName: "INTPTLAT", label: "Latitude" },
+            { fieldName: "INTPTLON", label: "Longitude" }
           ]
         }
       ]
@@ -774,7 +778,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
     const tractFips = attributes.TRACT || "";
     const blockGroupFips = attributes.BLOCKGROUP_FIPS || "";
     const blockVal = attributes.BLOCK || "";
-    const zipCode = attributes.ZIP || "";
+    const zipCode = attributes.ZCTA5 || "";
 
     // Original location name from attributes
     let rawName = attributes.NAME || attributes.BASENAME || "";
@@ -803,17 +807,19 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
 
     // For counties, places, and zips, use the STATE field directly to get state abbreviation
     let stateAbbr;
-    if (["county", "place", "zip"].includes(type)) {
+    if (["county", "place"].includes(type)) {
       if (!attributes.STATE) {
         return "Invalid Location - Missing State Information";
       }
       stateAbbr = STATE_ABBR_BY_FIPS[attributes.STATE] || attributes.STATE;
+    } else if (type === "zip") {
+      // For ZIP codes, we might not have a direct STATE field, use "Unknown" as fallback
+      stateAbbr = "US"; // Default for ZIP codes when state is unknown
     } else {
       stateAbbr =
         attributes.STATE_ABBR ||
         (stateFips ? STATE_ABBR_BY_FIPS[stateFips] : "Unknown");
     }
-
     switch (type) {
       case "county":
         if (!locationName) return "Invalid Location - Missing County Name";
@@ -826,9 +832,19 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         }
         return `${locationName}, ${stateAbbr}`;
 
-      case "zip":
-        if (!attributes.ZIP) return "Invalid Location - Missing ZIP Code";
-        return `${attributes.ZIP}, ${stateAbbr}`;
+        case "zip":
+          if (!attributes.ZCTA5) return "Invalid Location - Missing ZIP Code";
+          
+          // Get state info if available
+          const stateFips = getValidStateFips();
+          if (stateFips && STATE_ABBR_BY_FIPS[stateFips]) {
+            // We have valid state info, include it
+            const stateAbbr = STATE_ABBR_BY_FIPS[stateFips];
+            return `${attributes.ZCTA5}, ${stateAbbr}`;
+          }
+          
+          // Otherwise just show the ZIP code without state
+          return `${attributes.ZCTA5}`;
 
       case "tract":
         return attributes.FIPS || "Invalid Tract - Missing FIPS Code";
@@ -1864,7 +1880,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
         label = {
           field: "ZIP",
           expressionInfo: {
-            expression: "$feature.ZIP",
+            expression: "$feature.ZCTA5",
           },
         };
         break;
@@ -3071,8 +3087,8 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
                   // Specifically handle ZIP code layers
                   if (featureType === 'zip') {
                     // If we have a ZIP attribute, use that
-                    if (f.attributes.ZIP) {
-                      return `ZIP = '${f.attributes.ZIP}'`;
+                    if (f.attributes.ZCTA5) {
+                      return `ZIP = '${f.attributes.ZCTA5}'`;
                     }
                     // If we have a name attribute that looks like a ZIP code, use that
                     if (f.attributes.name && /^\d{5}(-\d{4})?$/.test(f.attributes.name)) {
@@ -3504,6 +3520,24 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   );
 
 
+  const createPipeLayer = (config) => {
+    console.log("Placeholder: Creating Pipe Layer GraphicsLayer", config);
+    return new GraphicsLayer({
+      title: config?.title || "Pipe Map Layer",
+      listMode: "show", // Or hide, depending on desired behavior
+      graphics: [] // Start empty
+    });
+  };
+  
+  const createCompLayer = (config) => {
+    console.log("Placeholder: Creating Comp Layer GraphicsLayer", config);
+    return new GraphicsLayer({
+      title: config?.title || "Comparison Map Layer",
+      listMode: "show",
+      graphics: []
+    });
+  };
+
   const extractRadiusProperties = (feature) => {
     // Attempt to extract radius info from various feature formats
     try {
@@ -3760,8 +3794,8 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
         switch (type) {
           case "zip":
             whereClause = /^\d+$/.test(searchText)
-              ? `ZIP LIKE '${searchText}%'`
-              : `UPPER(PO_NAME) LIKE UPPER('%${searchText}%')`;
+              ? `ZCTA5 LIKE '${searchText}%'`
+              : `UPPER(NAME) LIKE UPPER('%${searchText}%')`;
             break;
   
           case "county":
@@ -3865,9 +3899,9 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               const unique = res.features.filter((f) => {
                 // For ZIP code layers, use ZIP as the unique identifier
                 if (type === 'zip') {
-                  const zipCode = f.attributes.ZIP;
+                  const zipCode = f.attributes.ZCTA5;
                   return zipCode && !allFeatures.some(
-                    existing => existing.attributes.ZIP === zipCode
+                    existing => existing.attributes.ZCTA5 === zipCode
                   );
                 }
                 
@@ -3891,13 +3925,13 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
         const nameA = (
           a.attributes.NAME ||
           a.attributes.PO_NAME ||
-          a.attributes.ZIP ||
+          a.attributes.ZCTA5 ||
           ""
         ).toUpperCase();
         const nameB = (
           b.attributes.NAME ||
           b.attributes.PO_NAME ||
-          b.attributes.ZIP ||
+          b.attributes.ZCTA5 ||
           ""
         ).toUpperCase();
         return nameA.localeCompare(nameB);

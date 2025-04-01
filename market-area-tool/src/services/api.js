@@ -522,96 +522,30 @@ export const mapConfigurationsAPI = {
   getAll: async (projectId) => {
     try {
       if (!projectId) {
-        throw new Error('Project ID is required');
+        // Add a more specific error/warning if projectId is missing
+        console.error('[API] mapConfigurationsAPI.getAll called without projectId!');
+        throw new Error('Project ID is required to fetch map configurations');
       }
+
+      console.log(`[API] Fetching map configurations for project: ${projectId}`); // Log the ID being sent
 
       const response = await api.get('/api/map-configurations/', {
+        // Ensure the parameter name matches what the backend expects ('project')
         params: { project: projectId }
       });
-      
-      return response;
+
+      console.log(`[API] Received map configurations response status: ${response.status}`, response.data); // Log response
+
+      return response; // Return the full response object
     } catch (error) {
-      console.error('[API] Error fetching map configurations:', error);
-      throw error;
+      console.error(`[API] Error fetching map configurations for project ${projectId}:`, error.response?.data || error.message || error);
+      // Don't re-throw immediately, let the calling function handle it, but log it here.
+      // Consider returning a default structure or null if needed by the caller on error.
+       return { data: [] }; // Return an empty array structure on error to prevent crashes upstream
+      // throw error; // Or re-throw if the caller expects to catch it
     }
   },
-
-  create: async (projectId, configData) => {
-    try {
-      if (!projectId) {
-        throw new Error('Project ID is required');
-      }
-
-      const requestData = {
-        project: projectId,
-        project_id: projectId,
-        tab_name: configData.tab_name,
-        visualization_type: configData.visualization_type,
-        area_type: configData.area_type,
-        layer_configuration: configData.layer_configuration,
-        order: configData.order || 0
-      };
-
-      console.log('[API] Creating map configuration:', {
-        projectId,
-        requestData
-      });
-
-      const response = await api.post('/api/map-configurations/', requestData);
-      return response;
-    } catch (error) {
-      console.error('[API] Create error:', {
-        error,
-        response: error.response?.data,
-        sentData: configData
-      });
-      throw error;
-    }
-  },
-
-  update: async (configId, configData) => {
-    try {
-      if (!configId) {
-        console.error('[API] Config ID is missing for update request');
-        throw new Error('Configuration ID is required');
-      }
-
-      // Ensure trailing slash
-      const url = `/api/map-configurations/${configId}/`;
-      const response = await api.put(url, configData);
-      return response;
-    } catch (error) {
-      console.error(`[API] Error updating map configuration ${configId}:`, error);
-      throw error;
-    }
-  },
-
-  delete: async (configId) => {
-    try {
-      if (!configId) {
-        console.error('[API] Config ID is missing for delete request');
-        throw new Error('Configuration ID is required');
-      }
-
-      // Ensure trailing slash
-      const url = `/api/map-configurations/${configId}/`;
-      console.log('[API] Deleting configuration at URL:', url);
-      
-      const response = await api.delete(url);
-      return response;
-    } catch (error) {
-      if (error.response?.status === 404) {
-        console.warn(`[API] Map configuration ${configId} not found (already deleted)`);
-        return {
-          status: 200,
-          data: { message: 'Configuration already deleted or not found' }
-        };
-      }
-      console.error(`[API] Error deleting map configuration ${configId}:`, error);
-      throw error;
-    }
-  }
-};
+}
 
 // ---------------------------------------------------------
 // Admin API endpoints

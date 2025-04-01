@@ -1271,20 +1271,22 @@ const cleanupAfterImport = () => {
 
 
     const processTemplateData = (data, workbook) => {
+        const SUPPORTED_IMPORT_TYPES = ['zip', 'place', 'county']; // Define explicitly for import
+
         console.log("Processing template format data with support for only ZIP, Place, and County types");
 
-        // Define exact row indices based on Excel structure
-        const MARKET_AREA_NAME_ROW = 4;  // Row 5 in Excel
-        const SHORT_NAME_ROW = 6;        // Row 7 in Excel
-        const TEXT_COLOR_ROW = 8;        // Row 9 in Excel
-        const DEFINITION_TYPE_ROW = 10;  // Row 11 in Excel
-        const STATE_ROW = 12;            // Row 13 in Excel
-        const COUNTY_ROW = 14;           // Row 15 in Excel
-        const FILL_COLOR_ROW = 23;       // Row 24 in Excel
-        const TRANSPARENCY_ROW = 24;     // Row 25 in Excel
-        const BORDER_COLOR_ROW = 26;     // Row 27 in Excel
-        const BORDER_WEIGHT_ROW = 27;    // Row 28 in Excel
-        const DEFINITION_START_ROW = 29; // Row 30 in Excel (first definition value)
+        // Define exact row indices based on Excel structure (0-based)
+        const MARKET_AREA_NAME_ROW = 4;  // Excel Row 5
+        const SHORT_NAME_ROW = 6;        // Excel Row 7
+        // const TEXT_COLOR_ROW = 8;     // Excel Row 9 - Not typically used for MA style
+        const DEFINITION_TYPE_ROW = 10;  // Excel Row 11
+        const STATE_ROW = 12;            // Excel Row 13
+        const COUNTY_ROW = 14;           // Excel Row 15
+        const FILL_COLOR_ROW = 23;       // Excel Row 24
+        const TRANSPARENCY_ROW = 24;     // Excel Row 25
+        const BORDER_COLOR_ROW = 26;     // Excel Row 27
+        const BORDER_WEIGHT_ROW = 27;    // Excel Row 28
+        const DEFINITION_START_ROW = 29; // Excel Row 30 (first definition value)
 
         // Validate that we have enough data rows
         if (data.length < DEFINITION_START_ROW) {
@@ -1295,412 +1297,187 @@ const cleanupAfterImport = () => {
         // Enhanced helper function to get cell background color from workbook
         const getCellBackgroundColor = (row, col) => {
             if (!workbook) return null;
-            
             try {
-                // Get the first sheet
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                
-                // Convert from zero-based (JS) to one-based (Excel) indexing
                 const colLetter = XLSX.utils.encode_col(col);
                 const rowNumber = row + 1;
                 const cellAddress = `${colLetter}${rowNumber}`;
-                
-                console.log(`Checking for background color at cell ${cellAddress}`);
-                
-                // Check if cell exists
-                if (!sheet[cellAddress]) {
-                    console.log(`  - Cell ${cellAddress} not found in sheet`);
-                    return null;
-                }
-                
-                // Direct debug of cell properties
-                console.log(`  - Cell ${cellAddress} properties:`, JSON.stringify(sheet[cellAddress]));
-                
-                // Check for fill information
+                if (!sheet[cellAddress]) { return null; }
                 if (sheet[cellAddress].s && sheet[cellAddress].s.fill) {
                     const fill = sheet[cellAddress].s.fill;
-                    console.log(`  - Fill information found:`, JSON.stringify(fill));
-                    
-                    // Check for fill color (could be fgColor or bgColor)
-                    if (fill.fgColor && fill.fgColor.rgb) {
-                        const color = `#${fill.fgColor.rgb.substring(fill.fgColor.rgb.length - 6)}`;
-                        console.log(`  - Extracted foreground color: ${color}`);
-                        return color;
+                    if (fill.fgColor && fill.fgColor.rgb && fill.fgColor.rgb !== '00000000' && fill.fgColor.rgb !== 'FFFFFFFF') { // Ignore black/white default fills sometimes present
+                        return `#${fill.fgColor.rgb.substring(fill.fgColor.rgb.length - 6)}`;
                     }
-                    if (fill.bgColor && fill.bgColor.rgb) {
-                        const color = `#${fill.bgColor.rgb.substring(fill.bgColor.rgb.length - 6)}`;
-                        console.log(`  - Extracted background color: ${color}`);
-                        return color;
+                    if (fill.bgColor && fill.bgColor.rgb && fill.bgColor.rgb !== '00000000' && fill.bgColor.rgb !== 'FFFFFFFF') {
+                        return `#${fill.bgColor.rgb.substring(fill.bgColor.rgb.length - 6)}`;
                     }
                 }
-                
-                if (sheet[cellAddress].s) {
-                    console.log(`  - Cell has style but no fill: ${JSON.stringify(sheet[cellAddress].s)}`);
-                } else {
-                    console.log(`  - Cell has no style information`);
-                }
-                
-                return null; // No background color found
+                return null; // No specific background color found
             } catch (error) {
-                console.warn("Error getting cell background color:", error);
+                console.warn(`Error getting cell background color at ${row + 1}, ${col}:`, error);
                 return null;
             }
         };
 
-        // Find all market area columns 
+        // Find all market area columns
         const marketAreaColumns = [];
-        const maxCol = Math.max(
-            data[MARKET_AREA_NAME_ROW]?.length || 0,
-            data[DEFINITION_TYPE_ROW]?.length || 0
-        );
+        const maxCol = data.reduce((max, row) => Math.max(max, row ? row.length : 0), 0); // Find max columns across all rows
 
-        for (let col = 3; col < maxCol; col += 2) {
-            const marketAreaName = String(data[MARKET_AREA_NAME_ROW][col] || "").trim();
-            const definitionType = String(data[DEFINITION_TYPE_ROW][col] || "").trim();
+        // Check headers in specific rows to find columns
+        const nameRowData = data[MARKET_AREA_NAME_ROW] || [];
+        const typeRowData = data[DEFINITION_TYPE_ROW] || [];
+
+        for (let col = 3; col < maxCol; col += 2) { // Start from Col D, step by 2
+            const marketAreaName = String(nameRowData[col] || "").trim();
+            const definitionType = String(typeRowData[col] || "").trim();
 
             if (marketAreaName && definitionType) {
-                // Map definition type to market area type
-                const maType = mapDefinitionTypeToMAType(definitionType);
-                
-                // Only process supported market area types
-                if (SUPPORTED_MARKET_AREA_TYPES.includes(maType)) {
-                    console.log(`Found supported market area in column ${col} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType})`);
+                const maType = mapDefinitionTypeToMAType(definitionType); // Returns null if unsupported
+
+                // --- Filter for Supported Import Types ---
+                if (maType && SUPPORTED_IMPORT_TYPES.includes(maType)) {
+                    console.log(`Found supported market area for import in column ${col + 1} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType})`);
                     marketAreaColumns.push(col);
                 } else {
-                    console.log(`Skipping unsupported market area in column ${col} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType})`);
+                    console.log(`Skipping unsupported market area in column ${col + 1} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType || 'unsupported'})`);
                 }
+                // --- End Filter ---
             }
         }
 
-        console.log(`Found ${marketAreaColumns.length} supported market areas in columns: ${marketAreaColumns.map(col => String.fromCharCode(65 + col)).join(', ')}`);
+        console.log(`Found ${marketAreaColumns.length} supported market areas in template columns: ${marketAreaColumns.map(col => String.fromCharCode(65 + col)).join(', ')}`);
 
-        // No valid market areas found
         if (marketAreaColumns.length === 0) {
-            console.warn("No supported market areas found in the template");
+            console.warn("No supported market areas found in the template columns.");
             return [];
         }
 
-        // Process each market area
+        // Process each market area column
         const marketAreas = [];
-
         for (const col of marketAreaColumns) {
-            const marketAreaName = String(data[MARKET_AREA_NAME_ROW][col] || "").trim();
-            const definitionType = String(data[DEFINITION_TYPE_ROW][col] || "").trim();
-            const maType = mapDefinitionTypeToMAType(definitionType);
+            const marketAreaName = String(nameRowData[col] || "").trim();
+            const definitionType = String(typeRowData[col] || "").trim();
+            const maType = mapDefinitionTypeToMAType(definitionType); // Already verified as supported
 
-            console.log(`Processing market area in column ${col} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType})`);
+            console.log(`Processing market area in column ${col + 1} (${String.fromCharCode(65 + col)}): ${marketAreaName} (${definitionType} -> ${maType})`);
 
-            // Extract all settings for this market area
-            const shortName = data[SHORT_NAME_ROW] ? String(data[SHORT_NAME_ROW][col] || "").trim() : "";
-            const state = data[STATE_ROW] ? String(data[STATE_ROW][col] || "").trim() : "CA"; // Default CA
-            const county = data[COUNTY_ROW] ? String(data[COUNTY_ROW][col] || "").trim() : "";
+            const shortName = (data[SHORT_NAME_ROW] ? String(data[SHORT_NAME_ROW][col] || "").trim() : "") || marketAreaName.substring(0, 20);
+            const state = (data[STATE_ROW] ? String(data[STATE_ROW][col] || "").trim() : "") || "CA"; // Default state if empty
+            // County field might be relevant for filtering later, but not directly used for location definition here
+            // const county = data[COUNTY_ROW] ? String(data[COUNTY_ROW][col] || "").trim() : "";
 
-            // Style settings - Default values
-            let fillColor = "#0078D4"; // Default blue
-            let fillOpacity = 0.3;      // Default 30% opacity
-            let borderColor = "#0078D4"; // Default blue
-            let borderWidth = 2;         // Default width
-            let noFill = false;
-            let noBorder = false;
-            let themeName = "Default";
-
-            // Debug current row positions
-            console.log(`Style row positions - Fill Color: ${FILL_COLOR_ROW+1}, Transparency: ${TRANSPARENCY_ROW+1}, Border Color: ${BORDER_COLOR_ROW+1}, Border Weight: ${BORDER_WEIGHT_ROW+1}`);
-
-            // Extract fill color - try to get cell background color first
-            console.log(`Attempting to get fill color for column ${col}...`);
-            const fillCellBackgroundColor = getCellBackgroundColor(FILL_COLOR_ROW, col);
-            const fillTextValue = data[FILL_COLOR_ROW] && data[FILL_COLOR_ROW][col] 
-                ? String(data[FILL_COLOR_ROW][col]).trim() 
-                : "";
-            
-            // Log what we found
-            console.log(`Fill color - Cell background: ${fillCellBackgroundColor || 'none'}, Text value: ${fillTextValue || 'none'}`);
-            
-            // If the cell text says "No Fill", set noFill to true and mark that we've explicitly seen this
-            if (fillTextValue === "No Fill") {
-                noFill = true;
-                fillOpacity = 0;
-                console.log(`  Market area ${marketAreaName}: Using No Fill (100% transparency)`);
-            } 
-            // Otherwise use cell background color or text value if available
-            else if (fillCellBackgroundColor) {
-                fillColor = fillCellBackgroundColor;
-                console.log(`  Market area ${marketAreaName}: Using cell background color for fill: ${fillColor}`);
-            } 
-            else if (fillTextValue && fillTextValue !== "Text Color") {
-                fillColor = fillTextValue;
-                console.log(`  Market area ${marketAreaName}: Using text value for fill color: ${fillColor}`);
-            }
-
-            // Flag to track if "No Fill" was explicitly specified in the fill color cell
-            const wasNoFillSpecified = fillTextValue === "No Fill";
-
-            // Extract transparency - but only if we didn't already set noFill
-            if (data[TRANSPARENCY_ROW] && data[TRANSPARENCY_ROW][col]) {
-                const transparency = String(data[TRANSPARENCY_ROW][col]).trim();
-                console.log(`Transparency value: "${transparency}"`);
-                
-                // Only apply transparency if "No Fill" wasn't already specified
-                if (!wasNoFillSpecified) {
-                    if (transparency === "No Fill") {
-                        noFill = true;
-                        fillOpacity = 0;
-                        console.log(`  Market area ${marketAreaName}: Setting No Fill from transparency row`);
-                    } else if (transparency.endsWith("%")) {
-                        // Convert percentage to decimal (e.g., 70% -> 0.3 opacity)
-                        const percent = parseInt(transparency);
-                        if (!isNaN(percent)) {
-                            fillOpacity = (100 - percent) / 100;
-                            console.log(`  Market area ${marketAreaName}: Setting transparency to ${percent}% (opacity: ${fillOpacity})`);
-                        }
-                    } else if (!isNaN(parseFloat(transparency))) {
-                        fillOpacity = parseFloat(transparency);
-                        // If it's a decimal between 0-1, use as is, otherwise assume percentage
-                        if (fillOpacity > 1) {
-                            fillOpacity = (100 - fillOpacity) / 100;
-                        }
-                        console.log(`  Market area ${marketAreaName}: Setting opacity to ${fillOpacity}`);
-                    }
-                } else {
-                    console.log(`  Skipping transparency setting because No Fill was already specified`);
-                }
-            }
-
-            // Extract border color - try cell background color first
-            console.log(`Attempting to get border color for column ${col}...`);
-            const borderCellBackgroundColor = getCellBackgroundColor(BORDER_COLOR_ROW, col);
-            const borderTextValue = data[BORDER_COLOR_ROW] && data[BORDER_COLOR_ROW][col] 
-                ? String(data[BORDER_COLOR_ROW][col]).trim() 
-                : "";
-            
-            // Log what we found
-            console.log(`Border color - Cell background: ${borderCellBackgroundColor || 'none'}, Text value: ${borderTextValue || 'none'}`);
-            
-            // If the cell text says "No Border", set noBorder to true and mark that we've explicitly seen this
-            if (borderTextValue === "No Border") {
-                noBorder = true;
-                borderWidth = 0;
-                console.log(`  Market area ${marketAreaName}: Using No Border (border width = 0)`);
-            } 
-            // Otherwise use cell background color or text value if available
-            else if (borderCellBackgroundColor) {
-                borderColor = borderCellBackgroundColor;
-                console.log(`  Market area ${marketAreaName}: Using cell background color for border: ${borderColor}`);
-            } 
-            else if (borderTextValue && borderTextValue !== "Text Color") {
-                borderColor = borderTextValue;
-                console.log(`  Market area ${marketAreaName}: Using text value for border color: ${borderColor}`);
-            }
-
-            // Flag to track if "No Border" was explicitly specified in the border color cell
-            const wasNoBorderSpecified = borderTextValue === "No Border";
-
-            // Extract border width - but only if we didn't already set noBorder
-            if (data[BORDER_WEIGHT_ROW] && data[BORDER_WEIGHT_ROW][col]) {
-                const weight = String(data[BORDER_WEIGHT_ROW][col]).trim();
-                console.log(`Border weight value: "${weight}"`);
-                
-                // Only apply border width if "No Border" wasn't already specified
-                if (!wasNoBorderSpecified) {
-                    if (weight === "No Border") {
-                        noBorder = true;
-                        borderWidth = 0;
-                        console.log(`  Market area ${marketAreaName}: Setting No Border from border weight row`);
-                    } else if (!isNaN(parseInt(weight))) {
-                        borderWidth = parseInt(weight);
-                        console.log(`  Market area ${marketAreaName}: Setting border width to ${borderWidth}`);
-                    }
-                } else {
-                    console.log(`  Skipping border weight setting because No Border was already specified`);
-                }
-            }
-
-            // Final consistency check - ensure noFill and noBorder take precedence
-            if (noFill) {
-                fillOpacity = 0;
-            }
-            if (noBorder) {
-                borderWidth = 0;
-            }
-
-            // Create style settings object with consistent values
+            // --- Style Extraction Logic (Same as processStandardData, adapted for template rows) ---
             const styleSettings = {
-                fillColor: fillColor,
-                fillOpacity: fillOpacity,
-                noFill: noFill,
-                borderColor: borderColor,
-                borderWidth: borderWidth,
-                noBorder: noBorder,
-                themeName: themeName,
-                excelFill: "#ffffff",
-                excelText: "#000000"
+                fillColor: "#0078D4", fillOpacity: 0.35, borderColor: "#0078D4",
+                borderWidth: 2, noFill: false, noBorder: false, themeName: "Default",
+                excelFill: "#ffffff", excelText: "#000000"
             };
 
-            console.log(`FINAL style settings for ${marketAreaName}:`, {
-                fillColor: styleSettings.fillColor, 
-                fillOpacity: styleSettings.fillOpacity,
-                noFill: styleSettings.noFill,
-                borderColor: styleSettings.borderColor,
-                borderWidth: styleSettings.borderWidth,
-                noBorder: styleSettings.noBorder
-            });
+            // Fill Color
+            const fillCellBackgroundColor = getCellBackgroundColor(FILL_COLOR_ROW, col);
+            const fillTextValue = (data[FILL_COLOR_ROW] && data[FILL_COLOR_ROW][col] != null) ? String(data[FILL_COLOR_ROW][col]).trim() : "";
+             if (fillTextValue.toLowerCase() === "no fill") {
+                styleSettings.noFill = true; styleSettings.fillOpacity = 0;
+            } else if (fillCellBackgroundColor) {
+                styleSettings.fillColor = fillCellBackgroundColor;
+            } else if (fillTextValue && fillTextValue.toLowerCase() !== "text color") {
+                styleSettings.fillColor = ensureHexColor(fillTextValue);
+            }
+
+            // Transparency/Opacity (only if not 'noFill')
+            const transparencyValue = (data[TRANSPARENCY_ROW] && data[TRANSPARENCY_ROW][col] != null) ? String(data[TRANSPARENCY_ROW][col]).trim() : "";
+            if (!styleSettings.noFill && transparencyValue) {
+                if (transparencyValue.toLowerCase() === "no fill") {
+                    styleSettings.noFill = true; styleSettings.fillOpacity = 0;
+                } else if (transparencyValue.endsWith("%")) {
+                    const transparencyPercent = parseInt(transparencyValue);
+                    if (!isNaN(transparencyPercent)) { styleSettings.fillOpacity = Math.max(0, Math.min(1, (100 - transparencyPercent) / 100)); }
+                } else {
+                    let opacity = Number(transparencyValue);
+                    if (!isNaN(opacity)) {
+                        if (opacity > 1 && opacity <= 100) { opacity = (100 - opacity) / 100; }
+                        styleSettings.fillOpacity = Math.max(0, Math.min(1, opacity));
+                    }
+                }
+                if (styleSettings.fillOpacity === 0) { styleSettings.noFill = true; }
+            }
+
+            // Border Color
+            const borderCellBackgroundColor = getCellBackgroundColor(BORDER_COLOR_ROW, col);
+            const borderTextValue = (data[BORDER_COLOR_ROW] && data[BORDER_COLOR_ROW][col] != null) ? String(data[BORDER_COLOR_ROW][col]).trim() : "";
+             if (borderTextValue.toLowerCase() === "no border") {
+                styleSettings.noBorder = true; styleSettings.borderWidth = 0;
+            } else if (borderCellBackgroundColor) {
+                styleSettings.borderColor = borderCellBackgroundColor;
+            } else if (borderTextValue && borderTextValue.toLowerCase() !== "text color") {
+                styleSettings.borderColor = ensureHexColor(borderTextValue);
+            }
+
+            // Border Width (only if not 'noBorder')
+            const borderWidthValue = (data[BORDER_WEIGHT_ROW] && data[BORDER_WEIGHT_ROW][col] != null) ? String(data[BORDER_WEIGHT_ROW][col]).trim() : "";
+            if (!styleSettings.noBorder && borderWidthValue) {
+                 if (borderWidthValue.toLowerCase() === "no border") {
+                    styleSettings.noBorder = true; styleSettings.borderWidth = 0;
+                } else if (!isNaN(parseFloat(borderWidthValue))) {
+                    styleSettings.borderWidth = Math.max(0, Number(borderWidthValue));
+                }
+                 if (styleSettings.borderWidth === 0) { styleSettings.noBorder = true; }
+            }
+            // --- End Style Extraction ---
+
+
+            // Extract Definition Values
+            const definitionValues = [];
+            for (let i = DEFINITION_START_ROW; i < data.length; i++) {
+                if (!data[i] || data[i][col] == null) continue; // Check for null/undefined
+                const rawValue = data[i][col];
+                const value = String(rawValue).trim();
+
+                if (value && !value.startsWith("*")) { // Simple check to exclude helper text
+                    // Split potentially delimited values within a single cell
+                    const potentialValues = value.split(/[,;\n]+/).map(v => v.trim()).filter(Boolean);
+                    for (const pv of potentialValues) {
+                        // Add basic type validation if needed (e.g., ensure ZIPs look like ZIPs)
+                        if (maType === 'zip' && !/^\d{5}(-\d{4})?$/.test(pv)) {
+                            console.warn(`Skipping invalid ZIP format "${pv}" in column ${col + 1}, row ${i + 1}`);
+                            continue;
+                        }
+                        if ((maType === 'county' || maType === 'place') && /^\d+$/.test(pv)) {
+                            console.warn(`Skipping numeric-only value "${pv}" for ${maType} in column ${col + 1}, row ${i + 1}`);
+                            continue;
+                        }
+                         if (!definitionValues.includes(pv)) { // Avoid duplicates
+                            definitionValues.push(pv);
+                        }
+                    }
+                }
+            }
+
+            console.log(`Found ${definitionValues.length} definition values for ${marketAreaName}: ${definitionValues.slice(0, 10).join(', ')}${definitionValues.length > 10 ? '...' : ''}`);
+
+            // Skip if no valid definition values found
+            if (definitionValues.length === 0) {
+                console.warn(`No valid definition values found for market area ${marketAreaName} in column ${col + 1}, skipping.`);
+                continue;
+            }
 
             // Create the market area object
             const marketArea = {
                 name: marketAreaName,
-                short_name: shortName || marketAreaName?.substring(0, 20) || "Imported",
+                short_name: shortName,
                 ma_type: maType,
-                description: `Imported from ${fileName}`,
+                description: `Imported from ${fileName} (template)`,
                 style_settings: styleSettings,
                 project: effectiveProjectId,
-                project_id: effectiveProjectId
+                project_id: effectiveProjectId,
+                locations: definitionValues.map(val => ({
+                    id: val, // Use the value itself as ID for zip/county/place name
+                    name: val, // Use the value as name
+                    state: state // Assign the state read from the template header
+                }))
             };
 
-            // For regular types, extract definition values
-            const definitionValues = [];
-
-            // Create a set of values to exclude (style settings, etc.)
-            const excludeValues = new Set([
-                "No Fill", "No Border", "Text Color", "0.7", "70%",
-                marketAreaName, shortName, definitionType,
-                state, county, "&", "NaN", "#NAME?",
-                "County, Place, ZCTA", "Tract"
-            ]);
-
-            // First collect all possible definition values across all rows
-            const allPossibleValues = [];
-            
-            // Scan rows 30-70 for definition values
-            for (let i = DEFINITION_START_ROW; i < Math.min(data.length, DEFINITION_START_ROW + 300); i++) {
-                // Skip if row doesn't exist or has no value in our column
-                if (!data[i] || data[i][col] === undefined) continue;
-                
-                // Get the value and clean it
-                const rawValue = data[i][col];
-                const value = String(rawValue || "").trim();
-                
-                console.log(`Checking row ${i+1} (Excel row ${i+2}) for ${maType}: Raw value "${rawValue}", Trimmed: "${value}"`);
-                
-                // Skip empty values
-                if (!value) continue;
-                
-                // Skip obvious non-definition values
-                if (value.startsWith("*") || 
-                    value.includes("required for:") ||
-                    value === "No Fill" || 
-                    value === "No Border" ||
-                    value === "Text Color" ||
-                    value === "&" ||
-                    value === "#NAME?" ||
-                    /^\d+%$/.test(value)) {
-                    console.log(`  - Skipping obvious non-definition: "${value}"`);
-                    continue;
-                }
-                
-                // Add to potential values list for processing
-                allPossibleValues.push({row: i+1, value});
-            }
-            
-            // Now process all potential values based on market area type
-            for (const {row, value} of allPossibleValues) {
-                if (excludeValues.has(value)) {
-                    console.log(`  - Row ${row}: Skipping excluded value: "${value}"`);
-                    continue;
-                }
-                
-                if (maType === 'zip') {
-                    // For ZIP codes, allow splitting on delimiters
-                    const potentialZips = value.split(/[\s,;]+/).filter(Boolean);
-                    
-                    for (const zip of potentialZips) {
-                        const cleanZip = zip.trim();
-                        if (cleanZip && !definitionValues.includes(cleanZip)) {
-                            console.log(`  - Row ${row}: Adding ZIP: "${cleanZip}"`);
-                            definitionValues.push(cleanZip);
-                        }
-                    }
-                }
-                else if (maType === 'county') {
-                    // For counties, skip pure numbers
-                    if (/^\d+$/.test(value)) {
-                        console.log(`  - Row ${row}: Skipping numeric-only value for county: "${value}"`);
-                        continue;
-                    }
-                    
-                    if (!definitionValues.includes(value)) {
-                        console.log(`  - Row ${row}: Adding county: "${value}"`);
-                        definitionValues.push(value);
-                    }
-                }
-                else if (maType === 'place') {
-                    // For places, skip pure numbers
-                    if (/^\d+$/.test(value)) {
-                        console.log(`  - Row ${row}: Skipping numeric-only value for place: "${value}"`);
-                        continue;
-                    }
-                    
-                    if (!definitionValues.includes(value)) {
-                        console.log(`  - Row ${row}: Adding place: "${value}"`);
-                        definitionValues.push(value);
-                    }
-                }
-            }
-
-            // Log summary of collected definition values
-            console.log(`Total definition values found for ${marketAreaName} (${maType}): ${definitionValues.length}`);
-            if (definitionValues.length > 0) {
-                console.log(`Values: ${definitionValues.join(', ')}`);
-            } else {
-                console.log(`No definition values found for ${marketAreaName}`);
-            }
-
-            // For county type, default to Orange County if no values
-            if (maType === 'county' && definitionValues.length === 0) {
-                console.log(`No county values found for ${marketAreaName}, using "Orange County" as default`);
-                definitionValues.push("Orange County");
-            }
-
-            // Skip if no definition values found
-            if (definitionValues.length === 0) {
-                console.warn(`No definition values found for market area ${marketAreaName}, skipping`);
-                continue;
-            }
-
-            // Create locations based on ma_type
-            if (maType === 'zip') {
-                marketArea.locations = definitionValues.map(zip => ({
-                    id: zip,
-                    name: zip,
-                    state: state || "CA" // Ensure state is preserved
-                }));
-            }
-            else if (maType === 'county') {
-                const stateValue = data[STATE_ROW] ? String(data[STATE_ROW][col] || "").trim() : "CA";
-                console.log(`Found state "${stateValue}" for county market area ${marketAreaName}`);
-
-                marketArea.locations = definitionValues.map(value => ({
-                    id: value,
-                    name: value,
-                    state: stateValue || "CA" // Ensure state is preserved from the template
-                }));
-            }
-            else if (maType === 'place') {
-                marketArea.locations = definitionValues.map(value => ({
-                    id: value,
-                    name: value,
-                    state: state || "CA"
-                }));
-            }
-            else {
-                // This should not happen with our filtering, but just in case
-                console.warn(`Skipping unsupported market area type: ${maType}`);
-                continue;
-            }
-
-            console.log(`Created ${maType} market area ${marketAreaName} with ${definitionValues.length} locations:`,
-                marketArea.locations.map(l => l.id).join(', '));
-
+            console.log(`Processed column ${col + 1} into market area:`, { name: marketArea.name, type: marketArea.ma_type, locCount: marketArea.locations.length, style: marketArea.style_settings });
             marketAreas.push(marketArea);
         }
 
@@ -1738,269 +1515,203 @@ const cleanupAfterImport = () => {
 
     // Process standard format with color support
     const processStandardData = (data, workbook) => {
+        const SUPPORTED_IMPORT_TYPES = ['zip', 'place', 'county']; // Define explicitly for import
+
         // Check if we have data with at least 2 rows (headers + data)
         if (!data || data.length < 2) {
             throw new Error("Invalid data format: The Excel file must have headers and at least one row of data");
         }
 
         console.log("Processing standard format data:", data);
-        const headers = data[0];
+        const headers = data[0].map(h => String(h || '').trim().toLowerCase()); // Normalize headers
 
         // Helper function to get cell background color from workbook
         const getCellBackgroundColor = (row, col) => {
+            if (!workbook) return null;
             try {
-                // Get the first sheet
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                
-                // Convert from zero-based (JS) to one-based (Excel) indexing
                 const colLetter = XLSX.utils.encode_col(col);
-                const rowNumber = row + 1;
+                const rowNumber = row + 1; // Data starts at row 1 in sheet (Excel row 2)
                 const cellAddress = `${colLetter}${rowNumber}`;
-                
-                // Check if cell exists and has fill information
                 if (sheet[cellAddress] && sheet[cellAddress].s && sheet[cellAddress].s.fill) {
                     const fill = sheet[cellAddress].s.fill;
-                    
-                    // Check for fill color (could be fgColor or bgColor)
-                    if (fill.fgColor && fill.fgColor.rgb) {
-                        return `#${fill.fgColor.rgb.substring(fill.fgColor.rgb.length - 6)}`;
-                    }
-                    if (fill.bgColor && fill.bgColor.rgb) {
-                        return `#${fill.bgColor.rgb.substring(fill.bgColor.rgb.length - 6)}`;
-                    }
-                }
-                return null; // No background color found
-            } catch (error) {
-                console.warn("Error getting cell background color:", error);
-                return null;
-            }
+                    if (fill.fgColor && fill.fgColor.rgb) { return `#${fill.fgColor.rgb.substring(fill.fgColor.rgb.length - 6)}`; }
+                    if (fill.bgColor && fill.bgColor.rgb) { return `#${fill.bgColor.rgb.substring(fill.bgColor.rgb.length - 6)}`; }
+                } return null;
+            } catch (error) { console.warn("Error getting cell background color:", error); return null; }
         };
 
-        // Find key columns and their indices
-        const nameIndex = headers.findIndex(h =>
-            typeof h === 'string' && h.toLowerCase().includes('name'));
-        const typeIndex = headers.findIndex(h =>
-            typeof h === 'string' && (h.toLowerCase().includes('type') || h.toLowerCase().includes('ma_type')));
-        const fillColorIndex = headers.findIndex(h =>
-            typeof h === 'string' && h.toLowerCase().includes('fill') && h.toLowerCase().includes('color'));
-        const borderColorIndex = headers.findIndex(h =>
-            typeof h === 'string' && (h.toLowerCase().includes('border') || h.toLowerCase().includes('outline')) && h.toLowerCase().includes('color'));
-        const borderWidthIndex = headers.findIndex(h =>
-            typeof h === 'string' && ((h.toLowerCase().includes('border') || h.toLowerCase().includes('outline')) && h.toLowerCase().includes('width')));
-        const fillOpacityIndex = headers.findIndex(h =>
-            typeof h === 'string' && (h.toLowerCase().includes('opacity') || h.toLowerCase().includes('transparency')));
-        const locationsIndex = headers.findIndex(h =>
-            typeof h === 'string' && (h.toLowerCase().includes('locations') || h.toLowerCase().includes('areas')));
-        const stateIndex = headers.findIndex(h =>
-            typeof h === 'string' && h.toLowerCase() === 'state');
+        // Find key columns and their indices (case-insensitive)
+        const findIndex = (possibleHeaders) => headers.findIndex(h => possibleHeaders.some(ph => h.includes(ph)));
+
+        const nameIndex = findIndex(['name']);
+        const typeIndex = findIndex(['type', 'ma_type']);
+        const fillColorIndex = findIndex(['fill color', 'fillcolor']);
+        const borderColorIndex = findIndex(['border color', 'bordercolor', 'outline color']);
+        const borderWidthIndex = findIndex(['border width', 'borderwidth', 'outline width']);
+        const fillOpacityIndex = findIndex(['opacity', 'transparency']);
+        const locationsIndex = findIndex(['locations', 'areas', 'definition', 'values']);
+        const stateIndex = findIndex(['state', 'st']); // Look for 'st' as well
 
         // Ensure we have the minimum required fields
         if (nameIndex === -1 || typeIndex === -1) {
-            throw new Error("Required columns missing: The Excel file must include 'Name' and 'Type' columns");
+            console.error("Headers found:", headers);
+            throw new Error("Required columns missing: The Excel file must include 'Name' and 'Type' columns (case-insensitive).");
         }
 
         const marketAreas = [];
 
-        // Process each row (skip header)
+        // Process each row (skip header row 0)
         for (let i = 1; i < data.length; i++) {
             const row = data[i];
 
-            // Skip empty rows
+            // Skip empty rows or rows missing required data
             if (!row || !row.length || !row[nameIndex] || !row[typeIndex]) {
-                continue;
+                 console.log(`Skipping empty or incomplete row ${i + 1}`);
+                 continue;
             }
-            
-            console.log(`Processing row ${i}:`, row);
 
-            // Extract state information if available
-            const state = stateIndex !== -1 && row[stateIndex] ? String(row[stateIndex]).trim() : "CA";
+            console.log(`Processing Excel row ${i + 1}:`, row);
+
+            // Extract state information if available, default to CA
+            const state = (stateIndex !== -1 && row[stateIndex]) ? String(row[stateIndex]).trim() : "CA";
 
             // Determine the market area type and normalize it
-            const maType = normalizeMarketAreaType(String(row[typeIndex]));
+            const maTypeRaw = String(row[typeIndex]);
+            const maType = normalizeMarketAreaType(maTypeRaw); // Returns null for unsupported
 
-            // Skip unsupported market area types
-            if (!SUPPORTED_MARKET_AREA_TYPES.includes(maType)) {
-                console.log(`Skipping unsupported market area type: ${maType} for row ${i}`);
+            // --- Explicitly skip unsupported types for IMPORT ---
+            if (!maType || !SUPPORTED_IMPORT_TYPES.includes(maType)) {
+                console.log(`Skipping row ${i + 1}: Unsupported or invalid market area type "${maTypeRaw}" (Normalized: ${maType}) for import.`);
                 continue;
             }
+            // --- End explicit check ---
 
             // Extract locations data if available
             let locations = [];
-            if (locationsIndex !== -1 && row[locationsIndex]) {
+            if (locationsIndex !== -1 && row[locationsIndex] != null) { // Check for null/undefined explicitly
                 try {
-                    // Handle different location formats:
-                    // Could be JSON string, comma-separated IDs, or other serialized format
                     const locationData = row[locationsIndex];
+                    let parsedLocations = [];
 
                     if (typeof locationData === 'string') {
-                        // Try to parse as JSON first
-                        try {
-                            locations = JSON.parse(locationData);
-                        } catch {
-                            // If not JSON, assume comma-separated values
-                            locations = locationData.split(',').map(loc => ({
-                                id: loc.trim(),
-                                name: loc.trim(),
-                                state: state // Add state info to each location
-                            }));
+                        if (locationData.trim().startsWith('[')) { // Crude check for JSON array
+                           try { parsedLocations = JSON.parse(locationData); } catch { /* ignore parse error */ }
+                        }
+                        if (parsedLocations.length === 0) { // If not JSON or parse failed, treat as delimited
+                           parsedLocations = locationData.split(/[,;\n]+/).map(loc => loc.trim()).filter(Boolean);
                         }
                     } else if (Array.isArray(locationData)) {
-                        locations = locationData;
+                        parsedLocations = locationData;
+                    } else if (typeof locationData === 'number') { // Handle single number case
+                        parsedLocations = [String(locationData)];
                     }
 
-                    // Ensure each location has state info
-                    locations = locations.map(loc => ({
-                        ...loc,
-                        state: loc.state || state
-                    }));
+                    // Convert parsed data into standard {id, name, state} format
+                    locations = parsedLocations.map(loc => {
+                        if (typeof loc === 'object' && loc !== null && (loc.id || loc.name)) {
+                             // Assume it's already in {id, name} format, add state
+                            return { id: String(loc.id || loc.name), name: String(loc.name || loc.id), state: loc.state || state };
+                        } else {
+                            // Assume it's a simple value (string/number)
+                            const valStr = String(loc).trim();
+                            return { id: valStr, name: valStr, state: state };
+                        }
+                    }).filter(loc => loc.id); // Ensure ID exists
+
                 } catch (error) {
-                    console.warn(`Failed to parse locations for row ${i}:`, error);
+                    console.warn(`Failed to parse locations for row ${i + 1}:`, error);
                 }
             }
+             // If locations array is still empty after parsing or no column found,
+             // create a single location based on the market area name and type.
+             if (locations.length === 0 && SUPPORTED_IMPORT_TYPES.includes(maType)) {
+                 const nameVal = String(row[nameIndex]);
+                 locations = [{ id: nameVal, name: nameVal, state: state }];
+                 console.log(`No locations found or parsed for row ${i+1}, using market area name "${nameVal}" as the single location.`);
+             }
+
 
             // Create style settings object with defaults
             const styleSettings = {
-                fillColor: "#0078D4", // Default blue
-                fillOpacity: 0.35,    // Default opacity
-                borderColor: "#0078D4", // Default blue
-                borderWidth: 2,       // Default width
-                noFill: false,
-                noBorder: false
+                fillColor: "#0078D4", fillOpacity: 0.35, borderColor: "#0078D4",
+                borderWidth: 2, noFill: false, noBorder: false, themeName: "Default", // Added themeName default
+                excelFill: "#ffffff", excelText: "#000000" // Added Excel defaults
             };
 
-            // Try to get cell background color for fill
+            // Extract styles (Fill Color)
             if (fillColorIndex !== -1) {
                 const cellBgColor = getCellBackgroundColor(i, fillColorIndex);
-                const textValue = row[fillColorIndex] ? String(row[fillColorIndex]) : "";
-                
-                if (textValue === "No Fill") {
-                    styleSettings.noFill = true;
-                    styleSettings.fillOpacity = 0;
-                    console.log(`Row ${i}: Using No Fill (100% transparency)`);
-                } 
-                else if (cellBgColor) {
+                const textValue = row[fillColorIndex] != null ? String(row[fillColorIndex]).trim() : ""; // Use != null check
+                if (textValue.toLowerCase() === "no fill") {
+                    styleSettings.noFill = true; styleSettings.fillOpacity = 0;
+                } else if (cellBgColor) {
                     styleSettings.fillColor = cellBgColor;
-                    console.log(`Row ${i}: Using cell background color for fill: ${cellBgColor}`);
-                }
-                else if (textValue && textValue !== "Text Color") {
+                } else if (textValue && textValue.toLowerCase() !== "text color") {
                     styleSettings.fillColor = ensureHexColor(textValue);
-                    console.log(`Row ${i}: Using fill color from text: ${styleSettings.fillColor}`);
                 }
             }
 
-            // Try to get cell background color for border
+            // Extract styles (Border Color)
             if (borderColorIndex !== -1) {
                 const cellBgColor = getCellBackgroundColor(i, borderColorIndex);
-                const textValue = row[borderColorIndex] ? String(row[borderColorIndex]) : "";
-                
-                if (textValue === "No Border") {
-                    styleSettings.noBorder = true;
-                    styleSettings.borderWidth = 0;
-                    console.log(`Row ${i}: Using No Border (border width = 0)`);
-                } 
-                else if (cellBgColor) {
+                const textValue = row[borderColorIndex] != null ? String(row[borderColorIndex]).trim() : "";
+                if (textValue.toLowerCase() === "no border") {
+                    styleSettings.noBorder = true; styleSettings.borderWidth = 0;
+                } else if (cellBgColor) {
                     styleSettings.borderColor = cellBgColor;
-                    console.log(`Row ${i}: Using cell background color for border: ${cellBgColor}`);
-                }
-                else if (textValue && textValue !== "Text Color") {
+                } else if (textValue && textValue.toLowerCase() !== "text color") {
                     styleSettings.borderColor = ensureHexColor(textValue);
-                    console.log(`Row ${i}: Using border color from text: ${styleSettings.borderColor}`);
                 }
             }
 
-            // Handle transparency/opacity
-            if (fillOpacityIndex !== -1 && row[fillOpacityIndex] !== undefined) {
-                const transparencyValue = String(row[fillOpacityIndex] || "").trim();
-                
-                if (transparencyValue === "No Fill") {
-                    styleSettings.noFill = true;
-                    styleSettings.fillOpacity = 0;
-                    console.log(`Row ${i}: Using No Fill from transparency column`);
-                }
-                else if (transparencyValue.endsWith("%")) {
-                    // Convert percentage transparency to opacity (e.g., 70% transparency → 0.3 opacity)
+            // Extract styles (Opacity/Transparency) - handle only if not already 'noFill'
+            if (fillOpacityIndex !== -1 && row[fillOpacityIndex] != null && !styleSettings.noFill) {
+                const transparencyValue = String(row[fillOpacityIndex]).trim();
+                if (transparencyValue.toLowerCase() === "no fill") {
+                     styleSettings.noFill = true; styleSettings.fillOpacity = 0;
+                } else if (transparencyValue.endsWith("%")) {
                     const transparencyPercent = parseInt(transparencyValue);
-                    if (!isNaN(transparencyPercent)) {
-                        styleSettings.fillOpacity = (100 - transparencyPercent) / 100;
-                        console.log(`Row ${i}: Setting transparency to ${transparencyPercent}% (opacity: ${styleSettings.fillOpacity})`);
-                    }
-                }
-                else {
-                    // Convert to 0-1 range if value is 0-100
+                    if (!isNaN(transparencyPercent)) { styleSettings.fillOpacity = Math.max(0, Math.min(1, (100 - transparencyPercent) / 100)); }
+                } else {
                     let opacity = Number(transparencyValue);
                     if (!isNaN(opacity)) {
-                        if (opacity > 1 && opacity <= 100) {
-                            // If it's like "70" (meaning 70% transparency)
-                            styleSettings.fillOpacity = (100 - opacity) / 100;
-                        } else {
-                            // Assume it's already an opacity value
-                            styleSettings.fillOpacity = opacity;
-                        }
-                        
-                        // Add noFill flag based on opacity
-                        styleSettings.noFill = styleSettings.fillOpacity === 0;
-                        console.log(`Row ${i}: Setting opacity to ${styleSettings.fillOpacity}`);
+                        if (opacity > 1 && opacity <= 100) { opacity = (100 - opacity) / 100; } // Assume % transparency if > 1
+                        styleSettings.fillOpacity = Math.max(0, Math.min(1, opacity));
                     }
                 }
+                if (styleSettings.fillOpacity === 0) { styleSettings.noFill = true; } // Sync noFill if opacity becomes 0
             }
 
-            // Handle border width
-            if (borderWidthIndex !== -1 && row[borderWidthIndex] !== undefined) {
-                const borderWidthValue = String(row[borderWidthIndex] || "").trim();
-                
-                if (borderWidthValue === "No Border") {
-                    styleSettings.noBorder = true;
-                    styleSettings.borderWidth = 0;
-                    console.log(`Row ${i}: Setting No Border from border width column`);
+             // Extract styles (Border Width) - handle only if not already 'noBorder'
+            if (borderWidthIndex !== -1 && row[borderWidthIndex] != null && !styleSettings.noBorder) {
+                const borderWidthValue = String(row[borderWidthIndex]).trim();
+                 if (borderWidthValue.toLowerCase() === "no border") {
+                    styleSettings.noBorder = true; styleSettings.borderWidth = 0;
+                } else if (!isNaN(parseFloat(borderWidthValue))) {
+                    styleSettings.borderWidth = Math.max(0, Number(borderWidthValue));
                 }
-                else if (!isNaN(parseInt(borderWidthValue))) {
-                    styleSettings.borderWidth = Number(borderWidthValue) || 1;
-                    styleSettings.noBorder = styleSettings.borderWidth === 0;
-                    console.log(`Row ${i}: Setting border width to ${styleSettings.borderWidth}`);
-                }
+                if (styleSettings.borderWidth === 0) { styleSettings.noBorder = true; } // Sync noBorder if width becomes 0
             }
 
-            // Create market area object
+            // Create final market area object
+            const marketAreaName = String(row[nameIndex]);
             const marketArea = {
-                name: String(row[nameIndex]),
-                short_name: String(row[nameIndex]).substring(0, 20),
+                name: marketAreaName,
+                short_name: marketAreaName.substring(0, 20), // Simple truncation for short name
                 ma_type: maType,
                 description: `Imported from ${fileName}`,
                 style_settings: styleSettings,
                 project: effectiveProjectId,
-                project_id: effectiveProjectId
+                project_id: effectiveProjectId,
+                locations: locations // Assign processed locations
             };
 
-            // If locations array is empty, create a simple one based on the market area type
-            if (locations.length === 0) {
-                if (maType === 'zip') {
-                    // Default to a simple location with state info
-                    locations = [{
-                        id: marketArea.name,
-                        name: marketArea.name,
-                        state: state || "CA"
-                    }];
-                } else if (maType === 'county') {
-                    locations = [{
-                        id: marketArea.name,
-                        name: marketArea.name,
-                        state: state || "CA"
-                    }];
-                } else if (maType === 'place') {
-                    locations = [{
-                        id: marketArea.name,
-                        name: marketArea.name,
-                        state: state || "CA"
-                    }];
-                }
-            }
-
-            // Assign the locations to the market area
-            marketArea.locations = locations;
-
+            console.log(`Processed row ${i+1} into market area:`, { name: marketArea.name, type: marketArea.ma_type, locCount: marketArea.locations.length, style: marketArea.style_settings });
             marketAreas.push(marketArea);
         }
 
+         console.log(`Finished processing standard data. Found ${marketAreas.length} supported market areas.`);
         return marketAreas;
     };
 
