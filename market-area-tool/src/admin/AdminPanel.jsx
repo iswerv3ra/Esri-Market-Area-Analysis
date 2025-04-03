@@ -9,10 +9,12 @@ import {
   ShieldCheckIcon,
   TrashIcon,
   ChartBarIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { adminAPI } from '../services/api';
+import ExportUsageReportModal from './ExportUsageReportModal';
 
 const POLL_INTERVAL = 3000000;
 
@@ -29,6 +31,7 @@ const AdminPanel = ({ isOpen, onClose }) => {
   const [userToDelete, setUserToDelete] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const fetchAllUserUsage = useCallback(async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
@@ -322,18 +325,30 @@ const AdminPanel = ({ isOpen, onClose }) => {
             </svg>
           </div>
         </div>
-        <button
-          onClick={handleManualRefresh}
-          disabled={isRefreshing}
-          className="ml-4 text-gray-400 hover:text-gray-500 disabled:opacity-50"
-          title="Refresh usage statistics"
-        >
-          <ArrowPathIcon className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </button>
       </div>
 
-      <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Last updated: {lastRefresh.toLocaleTimeString()}
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          Last updated: {lastRefresh.toLocaleTimeString()}
+        </div>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="text-gray-400 hover:text-gray-500 disabled:opacity-50"
+            title="Refresh usage statistics"
+          >
+            <ArrowPathIcon className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="inline-flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            title="Export usage report"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+            Export Report
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 -mx-6">
@@ -501,6 +516,11 @@ const AdminPanel = ({ isOpen, onClose }) => {
 
       <UsageStatsModal />
       <DeleteConfirmationModal />
+      <ExportUsageReportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        users={users}
+      />
     </>
   );
 };

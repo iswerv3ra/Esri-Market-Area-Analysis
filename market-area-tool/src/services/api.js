@@ -571,6 +571,90 @@ export const adminAPI = {
     }
   },
 
+// Add this to the adminAPI object in your api.js file
+
+  exportUserUsageStats: async (params) => {
+    try {
+      const { startDate, endDate, userIds } = params;
+      
+      // Create query parameters
+      const queryParams = new URLSearchParams();
+      if (startDate) queryParams.append('start_date', startDate);
+      if (endDate) queryParams.append('end_date', endDate);
+      if (userIds && userIds.length > 0) {
+        userIds.forEach(id => queryParams.append('user_id', id));
+      }
+      
+      console.log('Exporting user stats with params:', {
+        startDate,
+        endDate,
+        userCount: userIds?.length || 'all'
+      });
+      
+      // Make the API call with proper headers for download
+      const response = await api.get(
+        `/api/admin/users/export_usage_stats/?${queryParams.toString()}`,
+        {
+          responseType: 'blob', // Important for file downloads
+          // Remove the Accept header to let the server determine content type
+          // The server will set the proper Content-Type in the response
+        }
+      );
+      
+      // Create a download link and trigger download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get the filename from the Content-Disposition header if available
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'user_usage_report.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch && filenameMatch.length === 2) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      // Set a default filename with date range if not provided by server
+      if (!contentDisposition) {
+        const dateRange = startDate && endDate 
+          ? `_${startDate}_to_${endDate}` 
+          : '';
+        filename = `user_usage_report${dateRange}.csv`;
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      link.remove();
+      
+      return true;
+    } catch (error) {
+      console.error('Error exporting user usage statistics:', error);
+      
+      // Check if the error response is a blob and extract the error message
+      if (error.response && error.response.data instanceof Blob && 
+          error.response.data.type.includes('application/json')) {
+        const reader = new FileReader();
+        reader.onload = function() {
+          try {
+            const errorJson = JSON.parse(reader.result);
+            console.error('Server error details:', errorJson);
+          } catch (e) {
+            console.error('Failed to parse error response:', e);
+          }
+        };
+        reader.readAsText(error.response.data);
+      }
+      
+      throw error;
+    }
+  },
+
   updateUser: async (userId, userData) => {
     try {
       const response = await api.patch(`/api/admin/users/${userId}/`, userData);

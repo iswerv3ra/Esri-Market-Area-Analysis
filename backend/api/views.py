@@ -1,13 +1,13 @@
 from rest_framework import generics, status, viewsets, permissions, serializers
-
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action, permission_classes, api_view
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
-from datetime import timedelta
+from django.http import HttpResponse
+from datetime import timedelta, datetime
 from .models import (
     Project, 
     MarketArea, 
@@ -16,7 +16,7 @@ from .models import (
     ColorKey, 
     TcgTheme, 
     EnrichmentUsage,
-    MapConfiguration  # Add this line
+    MapConfiguration
 )
 from .serializers import (
     UserSerializer, 
@@ -31,9 +31,10 @@ from .serializers import (
     AdminUserUpdateSerializer, 
     PasswordResetSerializer, 
     EnrichmentUsageSerializer,
-    MapConfigurationSerializer  # Add this line
+    MapConfigurationSerializer
 )
-from decimal import Decimal, ROUND_HALF_UP  # Add at top of file
+from decimal import Decimal, ROUND_HALF_UP
+import csv
 
 
 class ColorKeyViewSet(viewsets.ModelViewSet):
@@ -64,6 +65,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     serializer_class = AdminUserSerializer
     permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
+
 
     def get_serializer_class(self):
         if self.action == 'reset_password':
@@ -170,7 +172,107 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 {'error': 'Internal server error', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
         
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='export_usage_stats',
+        url_name='export-usage-stats'
+    )
+    def export_usage_stats(self, request):
+        """
+        Export user usage statistics as CSV with only selected columns:
+        Email, Date, Project Name, Cost
+        """
+        try:
+            # Parse query parameters
+            start_date_str = request.query_params.get('start_date')
+            end_date_str = request.query_params.get('end_date')
+            user_ids = request.query_params.getlist('user_id')
+            
+            # Convert date strings to datetime objects
+            start_date = None
+            end_date = None
+            
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').replace(
+                    hour=0, minute=0, second=0, microsecond=0,
+                    tzinfo=timezone.get_current_timezone()
+                )
+            
+            if end_date_str:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').replace(
+                    hour=23, minute=59, second=59, microsecond=999999,
+                    tzinfo=timezone.get_current_timezone()
+                )
+            
+            # Create filename with date information
+            today = timezone.now().strftime('%Y-%m-%d')
+            date_range = ""
+            if start_date_str and end_date_str:
+                date_range = f"_{start_date_str}_to_{end_date_str}"
+            
+            filename = f"user_usage_report{date_range}_{today}.csv"
+            
+            # Set up the HTTP response
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            # Create CSV writer
+            writer = csv.writer(response)
+            
+            # Only include the requested columns
+            writer.writerow([
+                'Email', 
+                'Date', 
+                'Project Name', 
+                'Cost'
+            ])
+            
+            # Query the usage records based on filters
+            query = EnrichmentUsage.objects.all().select_related('user', 'project').order_by('user__username', '-timestamp')
+            
+            # Apply date filters if provided
+            if start_date:
+                query = query.filter(timestamp__gte=start_date)
+            if end_date:
+                query = query.filter(timestamp__lte=end_date)
+            
+            # Apply user filters if provided
+            if user_ids and len(user_ids) > 0:
+                # Remove any trailing slashes from user_ids
+                cleaned_user_ids = [user_id.rstrip('/') for user_id in user_ids]
+                query = query.filter(user__id__in=cleaned_user_ids)
+            
+            # Log query details for debugging
+            print(f"Export query filters: start_date={start_date}, end_date={end_date}, user_ids={user_ids}")
+            print(f"Total records in query: {query.count()}")
+            
+            # Write data rows with only the requested columns
+            for record in query:
+                writer.writerow([
+                    record.user.email,
+                    record.timestamp.strftime('%Y-%m-%d %H:%M'),
+                    record.project.project_number if record.project else 'N/A',
+                    f"{record.cost:.2f}" if record.cost is not None else 'N/A'
+                ])
+            
+            return response
+            
+        except Exception as e:
+            import traceback
+            print(f"Error in export_usage_stats: {e}")
+            print(traceback.format_exc())
+            # Return error as JSON
+            return Response(
+                {'error': 'Failed to export usage statistics', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )       
+            
+            
+            
+            
 class EnrichmentUsageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = EnrichmentUsageSerializer
