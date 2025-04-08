@@ -1,6 +1,136 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import chroma from 'chroma-js'; // Import chroma-js for color ramps
+
+// Helper function to generate color ramp
+const generateColorRamp = (color1, color2, count) => {
+  const validCount = Math.max(1, count);
+  if (validCount === 1) return [color1];
+  return chroma.scale([color1, color2]).mode('lch').colors(validCount);
+};
+
+// Helper function to generate class breaks for point data
+const generateClassBreaksForPoints = (data, valueColumn, numClasses = 5, baseSymbolStyle = {}) => {
+  if (!data || data.length === 0 || !valueColumn) {
+    console.log("generateClassBreaks: Missing data or valueColumn.");
+    return null;
+  }
+
+  const values = data
+    .map(item => {
+        const rawValue = item[valueColumn];
+        if (rawValue === null || rawValue === undefined || rawValue === '') return NaN;
+        const num = Number(rawValue);
+        return isNaN(num) ? NaN : num;
+    })
+    .filter(val => !isNaN(val));
+
+  if (values.length < 2) {
+     console.log(`generateClassBreaks: Not enough valid numeric data found in column '${valueColumn}'. Found:`, values.length);
+     return null;
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  console.log(`generateClassBreaks: Column '${valueColumn}', Min: ${minValue}, Max: ${maxValue}, Valid Values: ${values.length}`);
+
+  if (minValue === maxValue) {
+     console.log("generateClassBreaks: All valid numeric values are the same. Generating single break.");
+      const color = generateColorRamp('#3182CE', '#E53E3E', 1)[0];
+      const baseSize = baseSymbolStyle.size !== undefined ? Number(baseSymbolStyle.size) : 10;
+      const baseOutlineColor = baseSymbolStyle.outline?.color || '#FFFFFF';
+      const baseOutlineWidth = baseSymbolStyle.outline?.width !== undefined ? Number(baseSymbolStyle.outline.width) : 1;
+      const baseStyle = baseSymbolStyle.style || 'circle';
+      return [{
+           minValue: minValue,
+           maxValue: maxValue,
+           label: `${minValue.toLocaleString()}`, // Format single value label
+           symbol: {
+               type: "simple-marker", style: baseStyle, color: color, size: baseSize,
+               outline: { color: baseOutlineColor, width: baseOutlineWidth }
+           }
+       }];
+  }
+
+  const validNumClasses = Math.max(1, Math.min(numClasses, values.length));
+  const range = maxValue - minValue;
+  // Avoid division by zero if range is zero (handled above, but defensive)
+  const interval = range > 0 ? range / validNumClasses : 0;
+  const breaks = [];
+
+  // Choose a Color Ramp (e.g., Blue to Red)
+  const colors = generateColorRamp('#3182CE', '#E53E3E', validNumClasses);
+
+  // Define Base Symbol Properties
+  const baseSize = baseSymbolStyle.size !== undefined ? Number(baseSymbolStyle.size) : 10;
+  const baseOutlineColor = baseSymbolStyle.outline?.color || '#FFFFFF';
+  const baseOutlineWidth = baseSymbolStyle.outline?.width !== undefined ? Number(baseSymbolStyle.outline.width) : 1;
+  const baseStyle = baseSymbolStyle.style || 'circle';
+
+  for (let i = 0; i < validNumClasses; i++) {
+    const classMinValue = minValue + (i * interval);
+    const classMaxValue = (i === validNumClasses - 1) ? maxValue : (minValue + ((i + 1) * interval));
+
+    breaks.push({
+      minValue: classMinValue,
+      maxValue: classMaxValue,
+      // Use localeString for better number formatting in labels
+      label: `${classMinValue.toLocaleString()} - ${classMaxValue.toLocaleString()}`,
+      symbol: {
+        type: "simple-marker",
+        style: baseStyle,
+        color: colors[i],
+        size: baseSize,
+        outline: {
+          color: baseOutlineColor,
+          width: baseOutlineWidth,
+        }
+      }
+    });
+  }
+
+   // Adjustment for overlapping boundaries if interval is not perfect
+   for (let i = 0; i < breaks.length - 1; i++) {
+       if (breaks[i].maxValue >= breaks[i+1].minValue) {
+            // Adjust based on expected precision - using a small relative epsilon might be better
+            const epsilon = Math.abs(breaks[i+1].minValue * 0.000001) || 0.000001;
+            breaks[i].maxValue = breaks[i+1].minValue - epsilon;
+            // Ensure label reflects adjustment if needed, though toLocaleString might hide it
+             breaks[i].label = `${breaks[i].minValue.toLocaleString()} - ${breaks[i].maxValue.toLocaleString()}`;
+       }
+   }
+   // Ensure the last break max value is exactly the max value from data
+   if (breaks.length > 0) {
+       breaks[breaks.length - 1].maxValue = maxValue;
+       breaks[breaks.length - 1].label = `${breaks[breaks.length - 1].minValue.toLocaleString()} - ${maxValue.toLocaleString()}`;
+   }
+
+  console.log("Generated Class Breaks:", breaks);
+  return breaks;
+};
+
+// Helper to infer value format
+const getValueFormatForColumn = (columnName, value) => {
+  const name = columnName?.toLowerCase() || '';
+  const sample = value;
+
+  if (name.includes('price') || name.includes('value') || name.includes('income') || name.includes('cost') || name.includes('sales')) return { prefix: '$', decimals: 0, multiplier: 1 };
+  if (name.includes('percent') || name.includes('rate') || name.includes('pct')) return { suffix: '%', decimals: 1, multiplier: 1 };
+  if (name.includes('density')) return { suffix: '/sq mi', decimals: 0, multiplier: 1 };
+  if (name.includes('age')) return { suffix: ' yrs', decimals: 1, multiplier: 1 };
+  if (name.includes('count') || name.includes('total') || name.includes('number')) return { decimals: 0, multiplier: 1 };
+  if (typeof sample === 'number') {
+      // Refined checks for percentage/currency
+      if (!Number.isInteger(sample) && sample > 0 && sample < 1) return { suffix: '%', decimals: 1, multiplier: 100 }; // Likely 0-1 range percent
+      if (sample >= 1 && sample <= 100 && (name.includes('%') || name.includes('rate'))) return { suffix: '%', decimals: 1, multiplier: 1 }; // Likely 1-100 range percent
+      if (sample > 1000) return { prefix: '$', decimals: 0, multiplier: 1 }; // Likely currency
+
+      return { decimals: Number.isInteger(sample) ? 0 : 2, multiplier: 1 }; // Default numeric format
+  }
+  return { decimals: 0, prefix: '', suffix: '', multiplier: 1 }; // Default fallback
+};
 
 // NewMapDialog Component
 const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, areaTypes }) => {
@@ -17,7 +147,25 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   const [latitudeColumn, setLatitudeColumn] = useState('');
   const [longitudeColumn, setLongitudeColumn] = useState('');
   const [fileError, setFileError] = useState('');
+  const [generatedClassBreaks, setGeneratedClassBreaks] = useState(null); // State for generated breaks
   const fileInputRef = useRef(null);
+
+  // Effect to generate breaks when value column changes for comp/custom
+  useEffect(() => {
+    if ((mapType === 'comps' || mapType === 'custom') && customData && valueColumn) {
+      console.log(`Effect: Triggering break generation for column '${valueColumn}'`);
+      // Define a default base symbol style for generation
+      const baseSymbol = { size: 10, outline: { color: '#FFFFFF', width: 1 }, style: 'circle' };
+      const breaks = generateClassBreaksForPoints(customData, valueColumn, 5, baseSymbol);
+      setGeneratedClassBreaks(breaks);
+    } else {
+      // Clear breaks if map type, data, or value column changes to something not applicable
+      if (generatedClassBreaks !== null) { // Avoid clearing if already null
+        console.log("Effect: Clearing generated breaks.");
+        setGeneratedClassBreaks(null);
+      }
+    }
+  }, [customData, valueColumn, mapType]); // Dependencies: re-run when these change
 
   // Filter visualization options based on type (heat map or dot density)
   const filteredOptions = visualizationOptions.filter(option => 
@@ -28,7 +176,18 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
+    // Reset everything related to the previous file
     setFileError('');
+    setCustomData(null);
+    setColumns([]);
+    setNameColumn('');
+    setValueColumn('');
+    setStatusColumn('');
+    setLatitudeColumn('');
+    setLongitudeColumn('');
+    setGeneratedClassBreaks(null);
+    // Clear the file input visually
+    if (fileInputRef.current) fileInputRef.current.value = '';
     
     if (!file) return;
     
@@ -40,7 +199,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     const fileExtension = file.name.split('.').pop().toLowerCase();
     
     if (fileExtension === 'csv') {
-      // Handle CSV files with PapaParse (existing implementation)
+      // Handle CSV files with PapaParse
       handleCSVFile(file);
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       // Handle Excel files with SheetJS
@@ -55,12 +214,44 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     Papa.parse(file, {
       header: true,
       dynamicTyping: true,
-      skipEmptyLines: true,
+      skipEmptyLines: 'greedy', // Skip lines that are truly empty or just whitespace
+      transformHeader: header => header.trim(), // Trim header whitespace
       complete: (results) => {
-        processFileData(results.data, results.meta.fields || []);
+        if (results.errors.length > 0) {
+            console.warn("CSV Parsing Errors:", results.errors);
+            setFileError(`CSV parsing encountered issues. Check file format near row ${results.errors[0].row}.`);
+            // Optionally proceed with results.data if partially parsed
+        }
+        if (!results.data || results.data.length === 0) {
+           setFileError("CSV file appears empty or couldn't be parsed correctly.");
+           return;
+        }
+
+        // Refined type conversion post-PapaParse
+        const typedData = results.data.map(row => {
+            const newRow = {};
+            for (const key in row) {
+                const value = row[key];
+                // Try explicit number conversion for non-null/non-empty strings
+                 if (typeof value === 'string' && value.trim() !== '' && !isNaN(Number(value))) {
+                    newRow[key] = Number(value);
+                 }
+                 // Keep numbers that PapaParse already correctly identified (and aren't NaN)
+                 else if (typeof value === 'number' && !isNaN(value)) {
+                    newRow[key] = value;
+                 }
+                 // Otherwise, keep the value as is (string, boolean, null, etc.)
+                 else {
+                    newRow[key] = value;
+                 }
+            }
+            return newRow;
+        });
+        console.log("CSV Processed Data Sample (first row types):", typedData.length > 0 ? Object.fromEntries(Object.entries(typedData[0]).map(([k,v]) => [k, v === null ? 'null' : typeof v])) : {});
+        processFileData(typedData, results.meta.fields || []);
       },
       error: (error) => {
-        setFileError(`Error parsing CSV: ${error.message}`);
+        setFileError(`Error parsing CSV file: ${error.message}`);
         setCustomData(null);
         setColumns([]);
       }
@@ -75,165 +266,222 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { 
           type: 'array',
-          cellDates: true,
-          cellNF: true,
-          cellStyles: true
+          cellDates: true, // Recognize dates
+          cellNF: false, // Get raw cell values
+          cellStyles: false
         });
         
-        // Get the first sheet
         const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) throw new Error("Workbook contains no sheets.");
         const worksheet = workbook.Sheets[firstSheetName];
+        if (!worksheet) throw new Error(`Sheet '${firstSheetName}' could not be read.`);
         
-        // Convert to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        // Convert to JSON array of objects
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+            raw: true, // Get raw values (numbers, booleans) instead of formatted strings
+            defval: null // Represent empty cells as null
+        });
         
-        if (jsonData.length < 2) {
-          setFileError('Excel file must contain at least a header row and one data row.');
+        if (jsonData.length === 0) {
+          setFileError('Excel sheet appears to have no data rows.');
           return;
         }
         
-        // Extract header row (first row)
-        const headers = jsonData[0];
+        // Get headers from the keys of the first data object
+        const headers = Object.keys(jsonData[0]);
         
-        // Create data objects from rows
-        const dataRows = [];
-        for (let i = 1; i < jsonData.length; i++) {
-          const row = jsonData[i];
-          const dataObj = {};
-          
-          // Map each cell to its header
-          headers.forEach((header, index) => {
-            if (header) { // Only include cells with valid headers
-              dataObj[header] = row[index];
-            }
-          });
-          
-          dataRows.push(dataObj);
-        }
+        // Data should already have inferred types from SheetJS with raw:true
+        console.log("Excel Processed Data Sample (first row types):", jsonData.length > 0 ? Object.fromEntries(Object.entries(jsonData[0]).map(([k,v]) => [k, v === null ? 'null' : typeof v])) : {});
         
-        processFileData(dataRows, headers);
+        processFileData(jsonData, headers);
       } catch (error) {
-        setFileError(`Error parsing Excel file: ${error.message}`);
+        console.error("Excel Parsing Error:", error);
+        setFileError(`Error parsing Excel file: ${error.message}. Ensure the first sheet has data.`);
         setCustomData(null);
         setColumns([]);
       }
     };
     
-    reader.onerror = () => {
-      setFileError('Error reading file');
+    reader.onerror = (readError) => {
+      console.error("File Reading Error:", readError);
+      setFileError('Error reading the selected file.');
     };
     
     reader.readAsArrayBuffer(file);
   };
   
   const processFileData = (data, fields) => {
+    const validFields = fields.filter(f => f !== undefined && f !== null && String(f).trim() !== '');
     setCustomData(data);
-    setColumns(fields);
+    setColumns(validFields);
+    setGeneratedClassBreaks(null); // Reset breaks
     
-    // Auto-select first column as name and second (if numeric) as value
-    if (fields && fields.length > 0) {
-      setNameColumn(fields[0]);
+    // Reset selections
+    setNameColumn('');
+    setValueColumn('');
+    setStatusColumn('');
+    setLatitudeColumn('');
+    setLongitudeColumn('');
+    
+    if (validFields.length > 0) {
+      // Auto-select name column (more robust)
+      const potentialNameCols = ['name', 'title', 'label', 'property', 'id', 'address', 'site'];
+      const nameCol = validFields.find(f => potentialNameCols.some(p => f.toLowerCase().includes(p))) || validFields[0];
+      setNameColumn(nameCol);
       
-      // Find first numeric column for value
-      const numericColumn = fields.find(field => {
-        return data.length > 0 && typeof data[0][field] === 'number';
+      // Auto-select FIRST numeric column for value (excluding lat/lon and potentially ID-like fields)
+      const potentialLatLon = ['lat', 'lon', 'lng', 'latitude', 'longitude', 'x', 'y', 'coord', 'east', 'north'];
+      const potentialIds = ['id', 'objectid', 'fid', 'pk', 'key'];
+      const numericColumn = validFields.find(field => {
+        // Check type of first few non-null values in the column for robustness
+        let isNum = false;
+        let checked = 0;
+        for(let i = 0; i < data.length && checked < 5; i++) {
+            const value = data[i]?.[field];
+            if (value !== null && value !== undefined) {
+                isNum = typeof value === 'number' && !isNaN(value);
+                checked++;
+                if (!isNum) break; // If we find a non-number, stop checking this col
+            }
+        }
+        const isNotLatLon = !potentialLatLon.some(p => field.toLowerCase().includes(p));
+        const isNotId = !potentialIds.some(p => field.toLowerCase() === p); // Exact match for IDs
+        return isNum && isNotLatLon && isNotId;
       });
       
       if (numericColumn) {
         setValueColumn(numericColumn);
-      } else if (fields.length > 1) {
-        setValueColumn(fields[1]);
+        // NOTE: useEffect hook handles break generation based on this state change
       }
       
-      // Auto-detect status column for pipeline maps
-      const statusColumns = ['status', 'state', 'condition', 'phase'];
-      const statusCol = fields.find(field => 
-        statusColumns.includes(field.toLowerCase()) || 
-        field.toLowerCase().includes('status')
-      );
-      
+      // Auto-detect status column
+      const statusColumns = ['status', 'state', 'condition', 'phase', 'stage'];
+      const statusCol = validFields.find(field => statusColumns.some(p => field.toLowerCase().includes(p)));
       if (statusCol) setStatusColumn(statusCol);
       
-      // Auto-detect latitude and longitude columns
-      // More comprehensive detection of lat/long columns with multiple possible names
-      const latColumns = ['latitude', 'lat', 'y', 'lat_y', 'laty'];
-      const longColumns = ['longitude', 'long', 'lng', 'lon', 'x', 'lng_x', 'longx'];
-      
-      // Try to find a latitude column (case insensitive)
-      const latCol = fields.find(field => 
-        latColumns.includes(field.toLowerCase()) || 
-        field.toLowerCase().includes('lat')
-      );
-      
-      // Try to find a longitude column (case insensitive)
-      const lngCol = fields.find(field => 
-        longColumns.includes(field.toLowerCase()) || 
-        field.toLowerCase().includes('lon') || 
-        field.toLowerCase().includes('lng')
-      );
+      // Auto-detect lat/long (more robust)
+      const latColumns = ['latitude', 'lat', 'ycoord', 'y'];
+      const longColumns = ['longitude', 'long', 'lng', 'xcoord', 'x'];
+      // Prioritize exact matches, then broader contains checks
+      let latCol = validFields.find(f => latColumns.includes(f.toLowerCase()));
+      if (!latCol) latCol = validFields.find(f => f.toLowerCase().includes('lat'));
+      let lngCol = validFields.find(f => longColumns.includes(f.toLowerCase()));
+      if (!lngCol) lngCol = validFields.find(f => f.toLowerCase().includes('lon') || f.toLowerCase().includes('lng'));
       
       if (latCol) setLatitudeColumn(latCol);
       if (lngCol) setLongitudeColumn(lngCol);
       
-      // Log the auto-detected columns for debugging
-      console.log("Auto-detected columns:", {
-        nameColumn: fields[0],
-        valueColumn: numericColumn || fields[1],
-        statusColumn: statusCol,
-        latitudeColumn: latCol,
-        longitudeColumn: lngCol
-      });
+      console.log("Auto-detected columns:", { nameCol, numericColumn, statusCol, latCol, lngCol });
     }
   };
 
+  // Helper to get a sample value for format inference
+  const getSampleValue = (col) => {
+    if (!customData || !col) return undefined;
+    // Find first non-null value in the column
+    for (const row of customData) {
+      if (row && row[col] !== null && row[col] !== undefined) {
+        return row[col];
+      }
+    }
+    return undefined;
+  };
+
   const handleCreateMap = () => {
+    // --- Base mapData object ---
     const mapData = {
-      name: mapName,
-      type: mapType
+      name: mapName.trim() || 'New Map', // Ensure a name exists
+      // We still set top-level type/vizType for context in Map.jsx's handleCreateMap
+      type: mapType,
+      visualizationType: mapType, // Initially set to the selected mapType
     };
-    
-    // Handle area type appropriately based on map type
+
+    // --- Default Symbol ---
+    const defaultBaseSymbol = {
+      type: "simple-marker", // Explicitly set type
+      style: 'circle',
+      size: 10,
+      outline: { color: '#FFFFFF', width: 1 }
+    };
+
+    // --- Configuration specific to map type ---
     if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
-      // For point data, we use a special area type that doesn't rely on URL
-      mapData.areaType = {
-        value: 'custom',
-        label: 'Custom Data',
-        url: null  // No URL for custom data
+      // Point-based maps
+      mapData.areaType = { value: 'custom', label: 'Custom Data', url: null }; // Set area type for point data
+
+      // --- Build the layerConfiguration object ---
+      const layerConfig = {
+        // Core properties expected by layer creators
+        title: mapData.name,
+        type: mapType, // *** CRITICAL: Ensure 'type' is set within layerConfig ***
+
+        // Column references needed by layer creators
+        nameColumn: nameColumn,
+        latitudeColumn: latitudeColumn,
+        longitudeColumn: longitudeColumn,
+
+        // Base symbol configuration
+        symbol: {
+          ...defaultBaseSymbol,
+          // Assign default color based on type
+          color: mapType === 'pipe' ? '#FFA500' : (mapType === 'comps' ? '#800080' : '#FF0000'),
+        },
+
+        // Data payload (nested structure expected by graphics layer creators)
+        customData: {
+            data: customData || [] // Pass the data array, ensure it's at least empty
+        }
       };
+
+      // Add type-specific properties to layerConfig
+      if (mapType === 'comps' || mapType === 'custom') {
+        layerConfig.valueColumn = valueColumn; // Add value column
+        if (valueColumn && generatedClassBreaks && generatedClassBreaks.length > 0) {
+          layerConfig.classBreakInfos = generatedClassBreaks;
+          layerConfig.rendererType = 'classBreaks'; // Hint for renderer type
+          const sampleValue = getSampleValue(valueColumn);
+          layerConfig.valueFormat = getValueFormatForColumn(valueColumn, sampleValue);
+          console.log(`[NewMapDialog] Config for ${mapType}: Using generated class breaks for '${valueColumn}'.`);
+        } else {
+          layerConfig.rendererType = 'simple'; // Hint for renderer type
+          console.log(`[NewMapDialog] Config for ${mapType}: No value column or breaks not generated. Using simple renderer.`);
+        }
+      } else if (mapType === 'pipeline') {
+        layerConfig.statusColumn = statusColumn; // Add status column
+        layerConfig.rendererType = 'uniqueValue'; // Hint for renderer type (prefer uniqueValue if status exists)
+         // Add default status colors here if desired, or let Map.jsx handle defaults
+        // layerConfig.statusColors = { ... };
+        console.log(`[NewMapDialog] Config for ${mapType}: Status column '${statusColumn}'. Using unique value renderer hint.`);
+      }
+      // --- End building layerConfiguration ---
+
+      // Assign the fully built configuration object to mapData
+      mapData.layerConfiguration = layerConfig;
+      // Ensure top-level viz type is also correct (redundant but safe)
+      mapData.visualizationType = mapType;
+
     } else {
-      // For heat maps and dot density, use the selected area type
-      mapData.areaType = selectedAreaType;
-    }
-    
-    if (mapType === 'comps' && customData) {
-      mapData.customData = customData;
-      mapData.nameColumn = nameColumn;
-      mapData.valueColumn = valueColumn;
-      mapData.latitudeColumn = latitudeColumn;
-      mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'comps';
-    } else if (mapType === 'pipeline' && customData) {
-      mapData.customData = customData;
-      mapData.nameColumn = nameColumn;
-      mapData.statusColumn = statusColumn;
-      mapData.latitudeColumn = latitudeColumn;
-      mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'pipeline';
-    } else if (mapType === 'custom' && customData) {
-      mapData.customData = customData;
-      mapData.nameColumn = nameColumn;
-      mapData.valueColumn = valueColumn;
-      mapData.latitudeColumn = latitudeColumn;
-      mapData.longitudeColumn = longitudeColumn;
-      mapData.visualizationType = 'custom';
-    } else {
+      // Heatmap or Dot Density (Standard Layers)
+      mapData.areaType = selectedAreaType; // Set the selected area type (e.g., Tract, County)
+      // For standard types, visualizationType is the *specific* variable (e.g., 'income_HEAT')
       mapData.visualizationType = selectedVisualization;
+      // Standard types don't pass a layerConfig initially; Map.jsx looks it up
+      mapData.layerConfiguration = null;
     }
-    
-    // Log the final map data configuration
-    console.log("Creating map with configuration:", mapData);
-    
+
+    // Log the final object being sent to the parent
+    console.log("[NewMapDialog handleCreateMap] Final mapData object being sent:", JSON.stringify(mapData, (key, value) => {
+        // Custom replacer to avoid logging the full data array
+        if (key === 'data' && Array.isArray(value)) {
+            return `[${value.length} items]`;
+        }
+        return value;
+    }, 2));
+
+    // Call the parent function to create the map/tab
     onCreateMap(mapData);
+
+    // Reset the dialog form and close
     resetForm();
     onClose();
   };
@@ -252,6 +500,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setLatitudeColumn('');
     setLongitudeColumn('');
     setFileError('');
+    setGeneratedClassBreaks(null); // Reset generated breaks
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -262,34 +511,76 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
   // Button to go to next step
   const nextStep = () => {
+    // Step 1 validation
     if (step === 1) {
+      if (!mapName.trim()) {
+        setFileError('Please enter a map name.'); 
+        return;
+      }
       if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
-        setFileError('Please upload a file');
+        setFileError('Please upload a data file.'); 
         return;
       }
       if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
-        setFileError('Please select a visualization type');
+        setFileError('Please select a visualization variable.'); 
         return;
       }
     }
-    if (step === 2) {
-      if (mapType === 'comps' || mapType === 'custom') {
-        if (!nameColumn || !valueColumn) {
-          setFileError('Please select both name and value columns');
-          return;
+    // Step 2 validation (only for point types)
+    if (step === 2 && (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom')) {
+      if (!nameColumn) { 
+        setFileError('Please select the Name column.'); 
+        return; 
+      }
+      if (!latitudeColumn || !longitudeColumn) { 
+        setFileError('Please select both Latitude and Longitude columns.'); 
+        return; 
+      }
+      // Specific checks
+      if ((mapType === 'comps' || mapType === 'custom') && !valueColumn) {
+        console.warn("Proceeding without a selected Value column for Comp/Custom map."); // Allow proceeding
+        if (generatedClassBreaks) setGeneratedClassBreaks(null); // Ensure breaks are cleared if no value col
+      }
+      if (mapType === 'pipeline' && !statusColumn) { 
+        setFileError('Please select the Status column.'); 
+        return; 
+      }
+
+      // Check lat/lon contain numbers (more robust check across a few rows)
+      if (customData && customData.length > 0) {
+        let latValid = false, lonValid = false, valValid = true; // Assume value is valid unless proven otherwise
+        let checked = 0;
+        for(let i = 0; i < customData.length && checked < 5; i++) {
+          const row = customData[i];
+          if (row) {
+            const latValue = row[latitudeColumn];
+            const lonValue = row[longitudeColumn];
+            if (latValue !== null && latValue !== undefined && !isNaN(Number(latValue))) latValid = true;
+            if (lonValue !== null || lonValue !== undefined && !isNaN(Number(lonValue))) lonValid = true;
+
+            // Check value column ONLY if it's selected for comp/custom
+            if ((mapType === 'comps' || mapType === 'custom') && valueColumn) {
+              const valValue = row[valueColumn];
+              // If we find a non-null value that's NOT a number, mark as invalid
+              if (valValue !== null && valValue !== undefined && valValue !== '' && isNaN(Number(valValue))) {
+                valValid = false;
+              }
+            }
+            checked++;
+          }
         }
-        if (!latitudeColumn || !longitudeColumn) {
-          setFileError('Please select both latitude and longitude columns');
-          return;
+        if (!latValid) { 
+          setFileError(`Selected Latitude column ('${latitudeColumn}') doesn't seem to contain valid numbers.`); 
+          return; 
         }
-      } else if (mapType === 'pipeline') {
-        if (!nameColumn || !statusColumn) {
-          setFileError('Please select both name and status columns');
-          return;
+        if (!lonValid) { 
+          setFileError(`Selected Longitude column ('${longitudeColumn}') doesn't seem to contain valid numbers.`); 
+          return; 
         }
-        if (!latitudeColumn || !longitudeColumn) {
-          setFileError('Please select both latitude and longitude columns');
-          return;
+        if (!valValid) {
+          setFileError(`Selected Value column ('${valueColumn}') contains non-numeric data. Automatic legend requires numbers.`);
+          setGeneratedClassBreaks(null); // Clear potentially invalid breaks
+          // Allow proceeding, but user is warned, and legend won't generate.
         }
       }
     }
@@ -328,28 +619,28 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         <div className="px-6 py-4">
           {/* Step indicators */}
           <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
-            <div 
+            <div
               className={`pb-2 px-4 border-b-2 ${
-                step >= 1 
-                  ? 'border-blue-500 text-blue-500' 
+                step >= 1
+                  ? 'border-blue-500 text-blue-500'
                   : 'border-transparent text-gray-500'
               }`}
             >
               1. Map Type
             </div>
-            <div 
+            <div
               className={`pb-2 px-4 border-b-2 ${
-                step >= 2 
-                  ? 'border-blue-500 text-blue-500' 
+                step >= 2
+                  ? 'border-blue-500 text-blue-500'
                   : 'border-transparent text-gray-500'
               }`}
             >
               2. Configuration
             </div>
-            <div 
+            <div
               className={`pb-2 px-4 border-b-2 ${
-                step >= 3 
-                  ? 'border-blue-500 text-blue-500' 
+                step >= 3
+                  ? 'border-blue-500 text-blue-500'
                   : 'border-transparent text-gray-500'
               }`}
             >
@@ -378,10 +669,10 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                   Map Type
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div 
+                  <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'comps' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                      mapType === 'comps'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                         : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => setMapType('comps')}
@@ -389,11 +680,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <div className="font-medium">Comps Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Comparable property data with value fields</div>
                   </div>
-                  
-                  <div 
+
+                  <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'pipeline' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                      mapType === 'pipeline'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                         : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => setMapType('pipeline')}
@@ -401,11 +692,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <div className="font-medium">Pipeline Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Status-based property data (in progress, approved, etc.)</div>
                   </div>
-                  
-                  <div 
+
+                  <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'custom' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                      mapType === 'custom'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                         : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => setMapType('custom')}
@@ -414,12 +705,12 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <div className="text-sm text-gray-500 dark:text-gray-400">Simple point data with name, location, and value</div>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div 
+                  <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'heatmap' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                      mapType === 'heatmap'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                         : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => setMapType('heatmap')}
@@ -427,11 +718,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <div className="font-medium">Heat Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Color-coded gradient data</div>
                   </div>
-                  
-                  <div 
+
+                  <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'dotdensity' 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                      mapType === 'dotdensity'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                         : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => setMapType('dotdensity')}
@@ -574,7 +865,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       This column will be used for point labels on the map
                     </p>
                   </div>
-                  
+
                   {/* Value Column (for Comps and Custom) */}
                   {(mapType === 'comps' || mapType === 'custom') && (
                     <div className="mb-4">
@@ -598,7 +889,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       </p>
                     </div>
                   )}
-                  
+
                   {/* Status Column (for Pipeline) */}
                   {mapType === 'pipeline' && (
                     <div className="mb-4">
@@ -622,7 +913,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       </p>
                     </div>
                   )}
-                  
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Select Latitude Column
@@ -643,7 +934,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       This column should contain numeric latitude values (typically between -90 and 90)
                     </p>
                   </div>
-                  
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Select Longitude Column
@@ -664,161 +955,67 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       This column should contain numeric longitude values (typically between -180 and 180)
                     </p>
                   </div>
-                  
-                  {/* Data Preview for Comps */}
-                  {mapType === 'comps' && nameColumn && valueColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
+
+                  {/* Data Preview (simplified conditional rendering) */}
+                  {customData && customData.length > 0 && (nameColumn || valueColumn || statusColumn) && latitudeColumn && longitudeColumn && (
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Data Preview
-                      </label>
-                      <div className="border rounded-md overflow-x-auto max-h-60">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Name ({nameColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Value ({valueColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lat ({latitudeColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lng ({longitudeColumn})
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
-                            {customData.slice(0, 5).map((row, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[nameColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[valueColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[latitudeColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[longitudeColumn]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {customData.length > 5 && (
-                          <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                            Showing 5 of {customData.length} rows
-                          </div>
-                        )}
-                      </div>
+                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Data Preview (First 5 Rows)
+                        </label>
+                       <div className="border rounded-md overflow-x-auto max-h-60">
+                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                           <thead className="bg-gray-50 dark:bg-gray-800">
+                             <tr>
+                               {nameColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name ({nameColumn})</th>}
+                               {valueColumn && (mapType === 'comps' || mapType === 'custom') && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Value ({valueColumn})</th>}
+                               {statusColumn && mapType === 'pipeline' && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status ({statusColumn})</th>}
+                               {latitudeColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Lat ({latitudeColumn})</th>}
+                               {longitudeColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Lng ({longitudeColumn})</th>}
+                             </tr>
+                           </thead>
+                           <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
+                             {customData.slice(0, 5).map((row, index) => (
+                               <tr key={index}>
+                                 {nameColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[nameColumn]}</td>}
+                                 {valueColumn && (mapType === 'comps' || mapType === 'custom') && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[valueColumn]}</td>}
+                                 {statusColumn && mapType === 'pipeline' && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[statusColumn]}</td>}
+                                 {latitudeColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[latitudeColumn]}</td>}
+                                 {longitudeColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[longitudeColumn]}</td>}
+                               </tr>
+                             ))}
+                           </tbody>
+                         </table>
+                         {customData.length > 5 && (
+                           <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                             Showing 5 of {customData.length} rows
+                           </div>
+                         )}
+                       </div>
                     </div>
                   )}
-                  
-                  {/* Data Preview for Pipeline */}
-                  {mapType === 'pipeline' && nameColumn && statusColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Data Preview
-                      </label>
-                      <div className="border rounded-md overflow-x-auto max-h-60">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Name ({nameColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Status ({statusColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lat ({latitudeColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lng ({longitudeColumn})
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
-                            {customData.slice(0, 5).map((row, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[nameColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[statusColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[latitudeColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[longitudeColumn]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {customData.length > 5 && (
-                          <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                            Showing 5 of {customData.length} rows
-                          </div>
-                        )}
-                      </div>
+
+
+                  {/* Legend Preview for Comp/Custom */}
+                  {(mapType === 'comps' || mapType === 'custom') && valueColumn && (
+                    <div className="mt-4 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
+                      <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Generated Legend Preview (Based on '{valueColumn}')</h4>
+                      {generatedClassBreaks ? (
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {generatedClassBreaks.map((breakInfo, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <div style={{ width: '12px', height: '12px', backgroundColor: breakInfo.symbol.color, borderRadius: '50%', border: `${breakInfo.symbol.outline.width}px solid ${breakInfo.symbol.outline.color}`, flexShrink: 0 }} />
+                              <span className="text-xs text-gray-700 dark:text-gray-300">{breakInfo.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400">Could not generate legend. Ensure '{valueColumn}' contains valid numeric data. A single point style will be used.</p>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Legend automatically generated. You can edit this after creating the map.</p>
                     </div>
                   )}
-                  
-                  {/* Data Preview for Custom */}
-                  {mapType === 'custom' && nameColumn && valueColumn && latitudeColumn && longitudeColumn && customData && customData.length > 0 && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Data Preview
-                      </label>
-                      <div className="border rounded-md overflow-x-auto max-h-60">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Name ({nameColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Value ({valueColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lat ({latitudeColumn})
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Lng ({longitudeColumn})
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
-                            {customData.slice(0, 5).map((row, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[nameColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[valueColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[latitudeColumn]}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                  {row[longitudeColumn]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {customData.length > 5 && (
-                          <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                            Showing 5 of {customData.length} rows
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {(mapType === 'comps' || mapType === 'custom') && !valueColumn && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">Select a numeric 'Value Column' to automatically generate a legend based on data ranges.</p>
                   )}
                 </div>
               )}
@@ -830,12 +1027,12 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <p className="text-gray-600 dark:text-gray-300">
                       {filteredOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}
                     </p>
-                    
+
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
                     <p className="text-gray-600 dark:text-gray-300">
                       {selectedAreaType?.label || 'None selected'}
                     </p>
-                    
+
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                     <p className="text-gray-600 dark:text-gray-300">
                       {mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
@@ -843,7 +1040,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                   </div>
                 </div>
               )}
-              
+
               {fileError && (
                 <div className="text-red-500 mt-2 text-sm">
                   {fileError}
@@ -861,12 +1058,12 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
                 <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  {mapType === 'comps' ? 'Comps Map' : 
-                   mapType === 'pipeline' ? 'Pipeline Map' : 
-                   mapType === 'custom' ? 'Custom Map' : 
+                  {mapType === 'comps' ? 'Comps Map' :
+                   mapType === 'pipeline' ? 'Pipeline Map' :
+                   mapType === 'custom' ? 'Custom Map' :
                    mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
                 </p>
-                
+
                 {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                   <>
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
@@ -882,28 +1079,45 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     <p className="text-gray-600 dark:text-gray-300">
                       Custom Data File ({customData?.length || 0} rows)
                     </p>
-                    
+
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Name Column</h3>
                     <p className="text-gray-600 dark:text-gray-300">{nameColumn}</p>
-                    
+
                     {(mapType === 'comps' || mapType === 'custom') && (
                       <>
                         <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Value Column</h3>
-                        <p className="text-gray-600 dark:text-gray-300">{valueColumn}</p>
+                        <p className="text-gray-600 dark:text-gray-300">{valueColumn || <span className="italic text-gray-400">None Selected</span>}</p>
                       </>
                     )}
-                    
+
                     {mapType === 'pipeline' && (
                       <>
                         <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Status Column</h3>
                         <p className="text-gray-600 dark:text-gray-300">{statusColumn}</p>
                       </>
                     )}
-                    
+
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Location Coordinates</h3>
                     <p className="text-gray-600 dark:text-gray-300">
                       Latitude: {latitudeColumn} | Longitude: {longitudeColumn}
                     </p>
+
+                    {/* Legend Information */}
+                    {(mapType === 'comps' || mapType === 'custom') && valueColumn && generatedClassBreaks && (
+                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                        Legend: <span className="text-green-600 dark:text-green-400">✅ Auto-generated (based on '{valueColumn}')</span>
+                      </h3>
+                    )}
+                    {(mapType === 'comps' || mapType === 'custom') && (!valueColumn || !generatedClassBreaks) && (
+                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                        Legend: <span className="text-gray-600 dark:text-gray-400">⚫ Single symbol style will be used</span>
+                      </h3>
+                    )}
+                    {mapType === 'pipeline' && (
+                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                        Legend: <span className="text-blue-600 dark:text-blue-400">🚦 Status-based (Edit colors later)</span>
+                      </h3>
+                    )}
                   </>
                 )}
 
@@ -937,7 +1151,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
               Cancel
             </button>
           )}
-          
+
           {step < 3 ? (
             <button
               onClick={nextStep}
@@ -959,4 +1173,4 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   );
 };
 
-export default NewMapDialog;
+export default NewMapDialog; // <--- This IS a default export

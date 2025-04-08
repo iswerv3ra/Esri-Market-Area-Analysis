@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react"; // Add useCallback
 import esriConfig from "@arcgis/core/config";
 import Map from "@arcgis/core/Map";
 import MapView from "@arcgis/core/views/MapView";
@@ -18,12 +18,13 @@ import { mapConfigurationsAPI } from "../../services/api";
 import SearchableDropdown from "./SearchableDropdown";
 import NewMapDialog from "./NewMapDialog";
 import { processCustomMapData } from "./CustomDataHandler";
-import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer"; // <--- ADD THIS LINE
+import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer"; // 
 import Point from "@arcgis/core/geometry/Point"; // Import Point
 import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol"; // Import SimpleMarkerSymbol
 import Color from "@arcgis/core/Color"; // Import Color
 import Graphic from "@arcgis/core/Graphic";
 import PopupTemplate from "@arcgis/core/PopupTemplate";
+import CustomLegend from './CustomLegend';
 
 // Replace the hardcoded API_KEY with the environment variable
 const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
@@ -4044,611 +4045,903 @@ const visualizationOptions = [
     type: "dot-density",
   },
 ];
-
-const createPipeLayer = (config) => {
-  console.log("Creating Pipe Layer GraphicsLayer with config:", config);
-  return new GraphicsLayer({
-    title: config?.title || "Pipe Map Layer",
-    listMode: "show", // Or hide
-    graphics: [], // Start empty, visualization handler will populate
-    // Add any specific layer properties needed for pipe maps
-  });
-};
+// Modified createCompLayer function
+// Inside Map.jsx - Modify createCompLayer
 
 const createCompLayer = (config) => {
-  console.log("Creating Comp Layer GraphicsLayer with config:", config);
-  return new GraphicsLayer({
+  // Add a log to see the exact config received
+  console.log("[createCompLayer] Received config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v)); // Log received config
+
+  // Create the graphics layer
+  const graphicsLayer = new GraphicsLayer({
     title: config?.title || "Comparison Map Layer",
-    listMode: "show", // Or hide
-    graphics: [], // Start empty, visualization handler will populate
-    // Add any specific layer properties needed for comp maps
+    listMode: "show"
   });
+
+  // --- Corrected Extraction ---
+  const data = config?.customData?.data || []; // Get the actual data array
+  const nameColumn = config?.nameColumn;
+  const valueColumn = config?.valueColumn; // Get valueColumn directly
+  const latitudeColumn = config?.latitudeColumn;
+  const longitudeColumn = config?.longitudeColumn;
+  const symbol = config?.symbol || {};
+  const classBreakInfos = config?.classBreakInfos || [];
+  // Prioritize rendererType from config, THEN calculate default
+  const rendererType = config?.rendererType || (classBreakInfos.length > 0 ? 'classBreaks' : 'simple');
+  const valueFormat = config?.valueFormat; // Get formatting info
+  // --- End Corrected Extraction ---
+
+
+  // Force numeric type for size to prevent string values
+  const symbolSize = symbol.size !== undefined ? Number(symbol.size) : 12;
+  const defaultColor = symbol.color || "#800080"; // Default purple for comp
+  const outlineColor = symbol.outline?.color || "#FFFFFF";
+  const outlineWidth = symbol.outline?.width !== undefined ?
+    Number(symbol.outline.width) : 1;
+  const pointStyle = symbol.style || "circle";
+
+  // Log comprehensive symbol properties AND crucial config values
+  console.log("[createCompLayer] Using effective properties:", {
+    size: symbolSize,
+    defaultColor: defaultColor,
+    style: pointStyle,
+    outlineColor: outlineColor,
+    outlineWidth: outlineWidth,
+    rendererType: rendererType, // Log the *effective* rendererType
+    hasBreaks: classBreakInfos.length > 0,
+    valueColumn: valueColumn, // Log the *effective* valueColumn
+    numDataPoints: data.length
+  });
+
+  // Helper function to determine point color based on class breaks
+  const getColorForValue = (value) => {
+    // If no value, value column missing, no breaks, or not classBreaks type - use default color
+    if (value === undefined || value === null || value === '' ||
+        !valueColumn || // Check if valueColumn NAME is missing
+        !classBreakInfos || classBreakInfos.length === 0 ||
+        rendererType !== 'classBreaks') { // CRITICAL: Check effective rendererType
+      // console.log(`[getColorForValue] Using default color. Value: ${value}, ValueCol: ${valueColumn}, Breaks: ${classBreakInfos?.length}, Renderer: ${rendererType}`);
+      return defaultColor;
+    }
+
+    // Convert value to number
+    const numValue = Number(value);
+    if (isNaN(numValue)) {
+      console.warn(`[getColorForValue] Value "${value}" cannot be converted to a number for column "${valueColumn}". Using default color.`);
+      return defaultColor;
+    }
+
+    // Find the appropriate break
+    for (const breakInfo of classBreakInfos) {
+       // Handle potential Infinity in maxValue for the last break
+       const maxVal = (breakInfo.maxValue === Infinity || breakInfo.maxValue === undefined || breakInfo.maxValue === null)
+                      ? Infinity
+                      : Number(breakInfo.maxValue);
+       const minVal = (breakInfo.minValue === -Infinity || breakInfo.minValue === undefined || breakInfo.minValue === null)
+                      ? -Infinity
+                      : Number(breakInfo.minValue);
+
+       // Check if numValue falls within the break range (inclusive)
+       // Handle first break (no min), last break (no max/infinity), and middle breaks
+       const isMinMet = (minVal === -Infinity || numValue >= minVal);
+       const isMaxMet = (maxVal === Infinity || numValue <= maxVal);
+
+       if (isMinMet && isMaxMet) {
+        // console.log(`[getColorForValue] Value ${numValue} matches break [${minVal}-${maxVal}]. Color: ${breakInfo.symbol?.color}`);
+        return breakInfo.symbol?.color || defaultColor; // Return break color or default if symbol/color missing
+      }
+    }
+
+    // If no matching break found, use default
+    console.warn(`[getColorForValue] Value ${numValue} did not match any class breaks. Using default color.`);
+    return defaultColor;
+  };
+
+  // Check if we have the necessary data
+  if (Array.isArray(data) && data.length > 0 && // Check the extracted 'data' array
+      latitudeColumn && longitudeColumn) {
+
+    // Create graphics for each data point
+    data.forEach((item, index) => { // Iterate over the extracted 'data' array
+      // Skip if missing coordinates
+      if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+
+      const lat = parseFloat(item[latitudeColumn]);
+      const lon = parseFloat(item[longitudeColumn]);
+
+      // Skip invalid coordinates
+      if (isNaN(lat) || isNaN(lon)) return;
+
+      // Get the value for this point (if using class breaks)
+      const pointValue = valueColumn ? item[valueColumn] : null; // Use effective valueColumn
+      // Determine the color based on the value and class breaks
+      const pointColor = getColorForValue(pointValue); // Call the helper
+
+      // Create the point geometry
+      const point = new Point({
+        longitude: lon,
+        latitude: lat,
+        spatialReference: { wkid: 4326 }
+      });
+
+      // Create the symbol with the specified styling
+      const pointSymbol = new SimpleMarkerSymbol({
+        style: pointStyle,
+        size: symbolSize,
+        color: new Color(pointColor), // Use determined color
+        outline: {
+          color: new Color(outlineColor),
+          width: outlineWidth
+        }
+      });
+
+      // Create the graphic with attributes
+      const graphic = new Graphic({
+        geometry: point,
+        symbol: pointSymbol,
+        attributes: {
+          ...item,
+          OBJECTID: index,
+          displayValue: pointValue, // Value used for classification
+          displayName: item[nameColumn] || `Point ${index + 1}`
+        },
+        popupTemplate: new PopupTemplate({
+          title: "{displayName}",
+          content: valueColumn ? [ // Only show value field if valueColumn is defined
+            {
+              type: "fields",
+              fieldInfos: [
+                {
+                  fieldName: "displayValue", // Use the unified displayValue attribute
+                  label: valueColumn || "Value", // Use the actual column name as label
+                  format: valueFormat ? { // Apply formatting if available
+                    digitSeparator: true,
+                    places: valueFormat.decimals ?? 0,
+                    prefix: valueFormat.prefix || '',
+                    suffix: valueFormat.suffix || ''
+                  } : { digitSeparator: true, places: 2 } // Default format
+                }
+              ]
+            }
+          ] : [{ type: "text", text: "No value column selected for display."}] // Fallback if no value column
+        })
+      });
+
+      // Add the graphic to the layer
+      graphicsLayer.add(graphic);
+    });
+
+    console.log(`[createCompLayer] Added ${graphicsLayer.graphics.length} points to comp layer "${graphicsLayer.title}".`);
+  } else {
+    console.warn("[createCompLayer] Missing required data for comp layer: customData array, latitudeColumn, or longitudeColumn");
+  }
+
+  return graphicsLayer;
 };
-// --- End Placeholder Layer Creators ---
+
+const createPipeLayer = (config) => {
+  console.log("Creating Pipe Layer with config:", config);
+  
+  // Early validation check - quit if critical data is missing
+  if (!config || !config.customData || !Array.isArray(config.customData.data) || 
+      config.customData.data.length === 0 || !config.latitudeColumn || !config.longitudeColumn) {
+    console.warn("Missing required data for pipeline layer: customData, latitudeColumn, or longitudeColumn");
+    // Return a valid but empty layer instead of null to avoid errors
+    return new GraphicsLayer({
+      title: config?.title || "Pipeline Map Layer (Empty)",
+      listMode: "show"
+    });
+  }
+  
+  // Create the graphics layer
+  const graphicsLayer = new GraphicsLayer({
+    title: config?.title || "Pipeline Map Layer",
+    listMode: "show"
+  });
+  
+  // Extract needed configuration
+  const { 
+    customData, 
+    nameColumn, 
+    statusColumn, 
+    valueColumn,  // Add support for numeric value column
+    latitudeColumn, 
+    longitudeColumn,
+    symbol = {},
+    statusColors = {},
+    classBreakInfos = [],
+    rendererType = classBreakInfos.length > 0 ? 'classBreaks' : (statusColumn ? 'uniqueValue' : 'simple')
+  } = config;
+  
+  // Define default symbol properties
+  const defaultSymbol = {
+    type: "simple-marker",
+    style: "circle",
+    size: 12,
+    color: "#FFA500", // Orange default for pipe
+    outline: {
+      color: "#FFFFFF",
+      width: 1
+    }
+  };
+  
+  // Force numeric type for size to prevent string values
+  const symbolSize = symbol.size !== undefined ? Number(symbol.size) : defaultSymbol.size;
+  
+  // Create a complete symbol object with proper type handling
+  const completeSymbol = {
+    type: symbol.type || defaultSymbol.type,
+    style: symbol.style || defaultSymbol.style,
+    size: symbolSize,
+    color: symbol.color || defaultSymbol.color,
+    outline: {
+      color: symbol.outline?.color || defaultSymbol.outline.color,
+      width: symbol.outline?.width !== undefined ? 
+        Number(symbol.outline.width) : defaultSymbol.outline.width
+    }
+  };
+  
+  // Log the symbol properties we're using for debugging
+  console.log("Using pipe symbol properties:", {
+    size: completeSymbol.size,
+    color: completeSymbol.color,
+    style: completeSymbol.style,
+    outlineColor: completeSymbol.outline.color,
+    outlineWidth: completeSymbol.outline.width,
+    rendererType: rendererType,
+    hasValueColumn: !!valueColumn,
+    hasStatusColumn: !!statusColumn,
+    hasBreaks: classBreakInfos.length > 0
+  });
+  
+  // Status color mapping with defaults
+  const defaultStatusColors = {
+    "In Progress": "#FFB900",
+    "Approved": "#107C10",
+    "Pending": "#0078D4",
+    "Completed": "#107C10",
+    "Rejected": "#D13438",
+    "default": completeSymbol.color // Use the main color as default
+  };
+  
+  // Merge default status colors with provided ones
+  const mergedStatusColors = {
+    ...defaultStatusColors,
+    ...statusColors
+  };
+  
+  // Helper function to determine point color based on class breaks
+  const getColorForValue = (value) => {
+    // If no value, value column, or class breaks - use default color
+    if (value === undefined || value === null || 
+        !valueColumn || 
+        !classBreakInfos || classBreakInfos.length === 0 || 
+        rendererType !== 'classBreaks') {
+      return completeSymbol.color;
+    }
+    
+    // Convert value to number
+    const numValue = Number(value);
+    if (isNaN(numValue)) {
+      console.warn(`Value "${value}" cannot be converted to a number. Using default color.`);
+      return completeSymbol.color;
+    }
+    
+    // Find the appropriate break
+    for (const breakInfo of classBreakInfos) {
+      if ((breakInfo.minValue === undefined || numValue >= breakInfo.minValue) && 
+          (breakInfo.maxValue === undefined || numValue <= breakInfo.maxValue)) {
+        return breakInfo.symbol?.color || completeSymbol.color;
+      }
+    }
+    
+    // If no matching break found, use default
+    return completeSymbol.color;
+  };
+  
+  try {
+    // Extract the data array correctly
+    const dataArray = customData.data || customData;
+    
+    if (!Array.isArray(dataArray) || dataArray.length === 0) {
+      console.warn("Pipeline layer has no valid data points");
+      return graphicsLayer; // Return empty layer
+    }
+    
+    // Debug data
+    console.log(`Processing ${dataArray.length} pipeline data points with columns:`, {
+      name: nameColumn,
+      lat: latitudeColumn,
+      lon: longitudeColumn,
+      status: statusColumn,
+      value: valueColumn
+    });
+    
+    // Create graphics for each data point
+    let addedCount = 0;
+    let skippedCount = 0;
+    const graphicsToAdd = [];
+    
+    dataArray.forEach((item, index) => {
+      // Skip if missing coordinates
+      if (!item[latitudeColumn] || !item[longitudeColumn]) {
+        skippedCount++;
+        return;
+      }
+      
+      const lat = parseFloat(item[latitudeColumn]);
+      const lon = parseFloat(item[longitudeColumn]);
+      
+      // Skip invalid coordinates
+      if (isNaN(lat) || isNaN(lon)) {
+        skippedCount++;
+        return;
+      }
+      
+      // Determine point color based on rendering type
+      let pointColor = completeSymbol.color; // Default
+      
+      if (rendererType === 'classBreaks' && valueColumn) {
+        // Class breaks based on numeric value
+        const pointValue = item[valueColumn];
+        pointColor = getColorForValue(pointValue);
+      } 
+      else if (rendererType === 'uniqueValue' || rendererType === 'uniqueValueOrSimple') {
+        // Status-based coloring
+        const status = item[statusColumn] || "default";
+        pointColor = mergedStatusColors[status] || mergedStatusColors.default;
+      }
+      
+      try {
+        // Create the point geometry
+        const point = new Point({
+          longitude: lon,
+          latitude: lat,
+          spatialReference: { wkid: 4326 }
+        });
+        
+        // Create the symbol with status-based color and explicit properties
+        const pointSymbol = new SimpleMarkerSymbol({
+          style: completeSymbol.style,
+          size: completeSymbol.size,
+          color: new Color(pointColor),
+          outline: {
+            color: new Color(completeSymbol.outline.color),
+            width: completeSymbol.outline.width
+          }
+        });
+        
+        // Create content for popup based on available columns
+        const fieldInfos = [];
+        
+        if (statusColumn && item[statusColumn]) {
+          fieldInfos.push({ fieldName: "status", label: statusColumn || "Status" });
+        }
+        
+        if (valueColumn && item[valueColumn] !== undefined) {
+          fieldInfos.push({ 
+            fieldName: "value", 
+            label: valueColumn || "Value",
+            format: config.valueFormat ? {
+              digitSeparator: true,
+              places: config.valueFormat.decimals || 0,
+              prefix: config.valueFormat.prefix || '',
+              suffix: config.valueFormat.suffix || ''
+            } : null
+          });
+        }
+        
+        // Create the graphic with attributes
+        const graphic = new Graphic({
+          geometry: point,
+          symbol: pointSymbol,
+          attributes: {
+            ...item,
+            OBJECTID: index,
+            displayName: item[nameColumn] || `Point ${index + 1}`,
+            status: item[statusColumn] || "Unknown",
+            value: valueColumn ? item[valueColumn] : null
+          },
+          popupTemplate: new PopupTemplate({
+            title: "{displayName}",
+            content: fieldInfos.length > 0 ? [
+              {
+                type: "fields",
+                fieldInfos: fieldInfos
+              }
+            ] : "No additional information available"
+          })
+        });
+        
+        // Add to batch array instead of directly to layer
+        graphicsToAdd.push(graphic);
+        addedCount++;
+      } catch (pointError) {
+        console.error(`Error creating point graphic at index ${index}:`, pointError);
+        skippedCount++;
+      }
+    });
+    
+    // Add all graphics at once for performance
+    if (graphicsToAdd.length > 0) {
+      graphicsLayer.addMany(graphicsToAdd);
+    }
+    
+    console.log(`Pipeline layer creation complete: Added ${addedCount} points, skipped ${skippedCount} invalid points`);
+  } catch (error) {
+    console.error("Error during pipeline layer creation:", error);
+  }
+  
+  // Always return a valid layer, even if empty
+  return graphicsLayer;
+};
+
 
 const createLayers = async (
-  // Marked async as createGraphicsLayerFromCustomData might be async
   visualizationType,
   configOverride = null,
-  layerConfigs = initialLayerConfigurations,
+  layerConfigs = initialLayerConfigurations, // Keep using the global one passed down
   selectedAreaType = areaTypes[0]
 ) => {
-  // Validate inputs
-  if (!visualizationType) {
-    console.error("No visualization type provided");
+  // --- Input Validation and Config Setup ---
+  if (!visualizationType && !configOverride?.type) {
+    console.error("[createLayers] No visualization type or config type provided.");
     return null;
   }
 
-  // Get configuration
-  let config = configOverride || layerConfigs[visualizationType];
+  const baseConfig = layerConfigs[visualizationType];
+  let config = configOverride || baseConfig;
+
   if (!config) {
-    // Check if override exists and has enough info, or if visualizationType itself is a type
-    if (!configOverride || (!configOverride.type && !visualizationType)) {
-      console.warn(
-        `No configuration found or provided for visualization type: ${visualizationType}. Using minimal default.`
-      );
-      // Create a minimal config if absolutely nothing is found
-      config = {
-        type: visualizationType,
-        field: "OBJECTID",
-        title: visualizationType,
-      };
-    } else {
-      // Use the override directly if standard config is missing but override exists/has type
-      config = { ...configOverride }; // Clone override to avoid modifying original
-      // Ensure config has a type if override didn't provide it explicitly
-      if (!config.type) config.type = visualizationType;
-      console.log(
-        `Using provided config override for ${visualizationType}:`,
-        config
-      );
-    }
-  } else if (!config.type) {
-    // Add type to config if it was found in layerConfigs but lacks the type property itself
-    config.type = visualizationType;
+     console.warn(`[createLayers] No specific config found for '${visualizationType}'. Using minimal defaults based on type.`);
+     // Create a minimal structure, the specific creators will handle defaults
+     config = { type: visualizationType };
+  } else if (configOverride) {
+      console.log("[createLayers] Using provided config override:", configOverride);
+      config = { ...configOverride }; // Clone override
+  } else {
+      console.log(`[createLayers] Using initial config for '${visualizationType}'.`);
+      config = { ...baseConfig }; // Clone base config
   }
+
+  // Ensure config always has a type property, prioritizing override/base, then visualizationType
+  if (!config.type) {
+      config.type = visualizationType;
+  }
+  // --- End Config Setup ---
+
 
   // --- Normalize Type ---
-  let effectiveVizType = config.type || visualizationType; // Prioritize type from config
-  if (effectiveVizType === "pipeline") {
-    console.log(
-      `Mapping 'pipeline' type to 'pipe' in createLayers for config:`,
-      config
-    );
-    effectiveVizType = "pipe";
-    // Optionally update the config object itself if needed elsewhere
-    // config.type = 'pipe'; // Be careful if config is used elsewhere
-  } else if (effectiveVizType === "comps") {
-    console.log(
-      `Mapping 'comps' type to 'comp' in createLayers for config:`,
-      config
-    );
-    effectiveVizType = "comp";
+  let effectiveVizType = config.type; // Start with type from config
+  if (effectiveVizType === "pipeline") effectiveVizType = "pipe";
+  if (effectiveVizType === "comps") effectiveVizType = "comp";
+  // Further normalization based on legacy naming, if needed
+  if (effectiveVizType && effectiveVizType.endsWith('_HEAT')) {
+      console.log(`[createLayers] Normalizing HEAT type ${effectiveVizType} to class-breaks`);
+      effectiveVizType = 'class-breaks';
+      config.type = 'class-breaks'; // Update config type as well
   }
+  // Use base config type if type is still ambiguous (e.g., just 'income')
+  if (baseConfig && baseConfig.type && !['pipe', 'comp', 'custom', 'class-breaks', 'dot-density'].includes(effectiveVizType)) {
+      console.log(`[createLayers] Using base config type '${baseConfig.type}' for ambiguous type '${effectiveVizType}'`);
+      effectiveVizType = baseConfig.type;
+      config.type = effectiveVizType; // Update config type
+  }
+
+  console.log(`[createLayers] Effective visualization type determined as: ${effectiveVizType}`);
   // --- End Normalize Type ---
 
-  // --- Handle Custom/Pipe/Comp Types ---
+
+  // --- Handle Special GraphicsLayer Types ---
   const specialTypes = ["pipe", "comp", "custom"];
-  // Check normalized effectiveVizType OR if customData exists
-  const isSpecialType =
-    specialTypes.includes(effectiveVizType) ||
-    (config.customData &&
-      Array.isArray(config.customData.data) &&
-      config.customData.data.length > 0);
+  const hasCustomData = config.customData && Array.isArray(config.customData.data) && config.customData.data.length > 0;
 
-  if (isSpecialType) {
-    console.log(`Creating GraphicsLayer for special type: ${effectiveVizType}`);
-    let graphicsLayer = null;
-    let GraphicsLayer; // Declare here to use after import
+  // **Revised Logic: Prioritize explicit type match**
+  if (specialTypes.includes(effectiveVizType)) {
+      console.log(`[createLayers] Explicitly handling special type: ${effectiveVizType}`);
+      let graphicsLayer = null;
+      try {
+          if (effectiveVizType === "pipe") {
+              graphicsLayer = createPipeLayer(config); // Pass full config
+          } else if (effectiveVizType === "comp") {
+              graphicsLayer = createCompLayer(config); // Pass full config
+          } else if (effectiveVizType === "custom") {
+              graphicsLayer = await createGraphicsLayerFromCustomData(config); // Pass full config
+          }
 
-    try {
-      // Dynamically import GraphicsLayer if not already available globally
-      // This assumes GraphicsLayer might not be imported at the top level in all contexts
-      ({ default: GraphicsLayer } = await import(
-        "@arcgis/core/layers/GraphicsLayer"
-      ));
-
-      if (
-        effectiveVizType === "custom" ||
-        (config.customData &&
-          Array.isArray(config.customData.data) &&
-          config.customData.data.length > 0)
-      ) {
-        // createGraphicsLayerFromCustomData might need to be async
-        console.log(
-          `Calling createGraphicsLayerFromCustomData for config:`,
-          config
-        );
-        graphicsLayer = await createGraphicsLayerFromCustomData(config); // Make sure this function is defined and async
-        if (graphicsLayer) {
-          // Ensure visualizationType is set correctly for custom data layers
-          graphicsLayer.visualizationType = "custom"; // Standardize type after creation
-          graphicsLayer.isCustomDataLayer = true; // Add flag if needed elsewhere
-        }
-      } else if (effectiveVizType === "pipe") {
-        graphicsLayer = createPipeLayer(config); // Ensure this function returns a GraphicsLayer instance
-        if (graphicsLayer) graphicsLayer.visualizationType = "pipe";
-      } else if (effectiveVizType === "comp") {
-        graphicsLayer = createCompLayer(config); // Ensure this function returns a GraphicsLayer instance
-        if (graphicsLayer) graphicsLayer.visualizationType = "comp";
-      } else {
-        // This case should ideally not be reached if types are handled correctly
-        console.warn(
-          `Unknown special type '${effectiveVizType}', creating empty GraphicsLayer.`
-        );
-        graphicsLayer = new GraphicsLayer({
-          title: config?.title || effectiveVizType,
-          graphics: [],
-        });
-        if (graphicsLayer) graphicsLayer.visualizationType = effectiveVizType;
+          // Add standard flags AFTER creation if not done inside creators
+          if (graphicsLayer instanceof GraphicsLayer) {
+              graphicsLayer.isVisualizationLayer = true;
+              // Type is already set inside creators now
+              console.log(`[createLayers] Successfully created GraphicsLayer: "${graphicsLayer.title}", type: "${graphicsLayer.visualizationType}"`);
+              return graphicsLayer;
+          } else {
+              console.error(`[createLayers] Failed to create a valid GraphicsLayer for type ${effectiveVizType}.`);
+              return null;
+          }
+      } catch (error) {
+          console.error(`[createLayers] Error creating GraphicsLayer for ${effectiveVizType}:`, error);
+          return null;
       }
-
-      if (graphicsLayer && graphicsLayer instanceof GraphicsLayer) {
-        // *** Use direct property assignment ***
-        graphicsLayer.isVisualizationLayer = true;
-        // visualizationType is set within the specific branches above
-
-        console.log(
-          `GraphicsLayer created with title: "${graphicsLayer.title}", type: "${graphicsLayer.visualizationType}"`
-        );
-      } else {
-        console.error(
-          `Failed to create a valid GraphicsLayer object for type ${effectiveVizType}. Received:`,
-          graphicsLayer
-        );
-        return null; // Return null if creation failed
-      }
-    } catch (error) {
-      console.error(
-        `Error during GraphicsLayer creation or related async operation for type ${effectiveVizType}:`,
-        error
-      );
-      return null;
-    }
-
-    return graphicsLayer; // Return the GraphicsLayer or null
   }
-  // --- End Handle Custom/Pipe/Comp Types ---
+  // --- Fallback for custom types if type wasn't explicitly set but data exists ---
+  else if (hasCustomData && !['class-breaks', 'dot-density'].includes(effectiveVizType)) {
+      console.log(`[createLayers] Handling as 'custom' based on customData presence and non-standard type '${effectiveVizType}'.`);
+      try {
+          // Force type to custom in config if needed
+          config.type = 'custom';
+          const graphicsLayer = await createGraphicsLayerFromCustomData(config);
+           if (graphicsLayer instanceof GraphicsLayer) {
+              graphicsLayer.isVisualizationLayer = true;
+              // Type is set inside creator
+              console.log(`[createLayers] Successfully created fallback custom GraphicsLayer: "${graphicsLayer.title}", type: "${graphicsLayer.visualizationType}"`);
+              return graphicsLayer;
+           } else {
+               console.error(`[createLayers] Failed to create fallback custom GraphicsLayer.`);
+               return null;
+           }
+      } catch (error) {
+           console.error(`[createLayers] Error creating fallback custom GraphicsLayer:`, error);
+           return null;
+      }
+  }
+  // --- End Handle Special GraphicsLayer Types ---
+
 
   // --- Standard Heatmap/Dot Density Logic (using FeatureLayer) ---
-  if (!selectedAreaType || !selectedAreaType.url) {
-    console.error(
-      `Invalid area type for standard visualization '${visualizationType}': No URL provided`,
-      selectedAreaType
-    );
-    return null;
-  }
+  console.log(`[createLayers] Handling as standard type: ${effectiveVizType}`);
 
-  // Default dotValue for dot-density if missing in config
-  if (
-    config.type === "dot-density" &&
-    (config.dotValue === undefined || config.dotValue === null)
-  ) {
-    config.dotValue = selectedAreaType.value === 12 ? 10 : 100; // Tract vs County default
-    console.log(
-      `Applied default dotValue ${config.dotValue} for ${selectedAreaType.label}`
-    );
+  if (!selectedAreaType?.url) {
+    console.error(`[createLayers] Invalid area type for standard visualization '${effectiveVizType}': No URL.`, selectedAreaType);
+    return null;
   }
 
   // Renderer creation logic (ensure FeatureLayer is imported)
-  const createRenderer = (config) => {
-    if (!config || !config.type) {
-      console.warn("Cannot create renderer: Invalid config provided", config);
+  const createRenderer = (rendererConfig, areaType) => { // Pass areaType for defaults
+    if (!rendererConfig || !rendererConfig.type) {
+      console.warn("[createLayers->createRenderer] Invalid config provided", rendererConfig);
       return null;
     }
-    if (
-      !config.field &&
-      (config.type === "dot-density" || config.type === "class-breaks")
-    ) {
-      console.error(
-        `Cannot create renderer for type ${config.type}: Config is missing required 'field' property.`
-      );
-      return null; // Field is essential for these renderer types
+    if (!rendererConfig.field && (rendererConfig.type === "dot-density" || rendererConfig.type === "class-breaks")) {
+      console.error(`[createLayers->createRenderer] Cannot create renderer for type ${rendererConfig.type}: Missing required 'field'.`);
+      return null;
     }
 
-    switch (config.type) {
+    switch (rendererConfig.type) {
       case "dot-density":
-        // Ensure attributes exist and have necessary fields, assign dotValue correctly
-        const currentDotValue =
-          config.dotValue !== undefined
-            ? config.dotValue
-            : selectedAreaType.value === 12
-            ? 10
-            : 100;
-        // Make sure attributes array exists and is correctly structured
-        let attributes = config.attributes;
+        // Determine default dot value based on area type
+        const defaultDotVal = (areaType?.value === 12 || String(areaType?.value).toLowerCase() === 'tract') ? 10 : 100;
+        const currentDotValue = rendererConfig.dotValue !== undefined ? Number(rendererConfig.dotValue) : defaultDotVal;
+
+        // Ensure attributes exist and are correctly structured
+        let attributes = rendererConfig.attributes;
         if (!Array.isArray(attributes) || attributes.length === 0) {
-          // Provide a default attribute structure if missing
-          attributes = [
-            {
-              field: config.field,
-              color: "#E60049",
-              label: config.field || "Value",
-            },
-          ];
-          console.warn(
-            `Dot density config missing 'attributes', creating default for field: ${config.field}`
-          );
+          attributes = [{
+            field: rendererConfig.field,
+            color: "#E60049", // Default color
+            label: rendererConfig.label || rendererConfig.field || "Value",
+          }];
+          console.warn(`[createLayers->createRenderer] Dot density config missing 'attributes', created default for field: ${rendererConfig.field}`);
         }
-        // Map over attributes to ensure they are well-formed
-        attributes = attributes.map((attr) => ({
-          field: attr.field || config.field, // Fallback to main field
-          color: attr.color || "#E60049", // Default color
-          label: attr.label || attr.field || config.field, // Default label
-          // Note: 'value' property on attributes within the renderer is NOT standard for dotValue
-          // dotValue is a top-level property of the renderer itself.
-          // However, if you need per-attribute values for some reason, that's a different setup.
+
+        attributes = attributes.map(attr => ({
+          field: attr.field || rendererConfig.field,
+          color: attr.color || "#E60049",
+          label: attr.label || attr.field || rendererConfig.field,
         }));
 
         return {
           type: "dot-density",
-          field: config.field, // Field remains the primary field for density calculation
+          field: rendererConfig.field,
           dotValue: currentDotValue,
-          dotBlending: config.dotBlending || "additive",
-          dotSize: config.dotSize || 2,
-          outline: config.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
-          legendOptions: config.legendOptions || { unit: "value" },
-          attributes: attributes, // The processed attributes array
+          dotBlending: rendererConfig.dotBlending || "additive",
+          dotSize: rendererConfig.dotSize !== undefined ? Number(rendererConfig.dotSize) : 2,
+          outline: rendererConfig.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
+          legendOptions: rendererConfig.legendOptions || { unit: "value" },
+          attributes: attributes,
         };
+
       case "class-breaks":
-        // Ensure classBreakInfos exists and is an array
-        const classBreakInfos = Array.isArray(config.classBreakInfos)
-          ? config.classBreakInfos
-          : [];
+        const classBreakInfos = Array.isArray(rendererConfig.classBreakInfos) ? rendererConfig.classBreakInfos : [];
         if (classBreakInfos.length === 0) {
-          console.warn(
-            `Class breaks config for field ${config.field} is missing 'classBreakInfos'. Renderer might not display correctly.`
-          );
+          console.warn(`[createLayers->createRenderer] Class breaks config for field ${rendererConfig.field} is missing 'classBreakInfos'. Renderer might not display correctly.`);
         }
         return {
           type: "class-breaks",
-          field: config.field,
-          defaultSymbol: config.defaultSymbol || {
+          field: rendererConfig.field,
+          defaultSymbol: rendererConfig.defaultSymbol || {
             type: "simple-fill",
-            color: [0, 0, 0, 0],
-            outline: { color: [50, 50, 50, 0.2], width: 0.5 },
+            color: [0, 0, 0, 0], // Transparent fill
+            outline: { color: [150, 150, 150, 0.5], width: 0.5 }, // Default outline
           },
-          defaultLabel: config.defaultLabel || "No data",
+          defaultLabel: rendererConfig.defaultLabel || "No data",
           classBreakInfos: classBreakInfos,
         };
       default:
-        console.error("Unsupported standard renderer type:", config.type);
+        console.error("[createLayers->createRenderer] Unsupported standard renderer type:", rendererConfig.type);
         return null;
     }
   };
 
-  // Layer definitions (remains the same - assuming this is correct)
-  const layerDefinitions = {
-    // Your existing definitions - example structure:
-    income_HEAT: {
-      title: "Median Household Income", // Example title
-      fieldName: "MEDHINC_CY", // Example field name for popup
-      format: { digitSeparator: true, places: 0 }, // Example format
-    },
-    // ... add definitions for ALL your visualizationTypes that use FeatureLayer
-    // to ensure popups work correctly. Use the 'field' from the config if needed.
-    // Example fallback:
-    default: {
-      title:
-        config?.attributes?.[0]?.label || config?.field || visualizationType,
-      fieldName: config?.field,
-      format: { digitSeparator: true, places: 0 }, // generic number format
-    },
+  // Layer definitions for Popups (Simplified)
+  const getLayerDefinition = (vizType, cfg) => {
+      // Prefer label/field from config if available
+      const label = cfg?.attributes?.[0]?.label || cfg?.label || cfg?.field || vizType.replace(/_/g, ' ');
+      const field = cfg?.field;
+      // Basic number format as default
+      const format = cfg?.valueFormat || { digitSeparator: true, places: (cfg?.type === 'class-breaks' ? 1 : 0) };
+
+      return { title: label, fieldName: field, format: format };
   };
 
-  // Get the specific definition or a default based on the config's field
-  const layerDef =
-    layerDefinitions[visualizationType] ||
-    layerDefinitions[config.type] ||
-    layerDefinitions.default;
-  // If layerDef is default, try to use the specific field/title from the config
-  if (layerDef === layerDefinitions.default) {
-    layerDef.title =
-      config?.attributes?.[0]?.label || config?.field || visualizationType;
-    layerDef.fieldName = config?.field;
-  }
-
-  // Field info creation (remains the same, ensure it handles missing defs)
-  const createFieldInfo = (conf, layerDefinition) => {
-    return {
-      fieldName: layerDefinition?.fieldName || conf?.field, // Use field from config as fallback
-      label:
-        layerDefinition?.title || conf?.attributes?.[0]?.label || conf?.field, // Use label/field as fallback
-      format: layerDefinition?.format || { digitSeparator: true, places: 0 }, // Default format
-    };
-  };
+  const layerDef = getLayerDefinition(effectiveVizType, config);
 
   // Create and return the FeatureLayer
   let featureLayer = null;
-  let FeatureLayer; // Declare here
-
   try {
-    // FeatureLayer needs to be imported
-    ({ default: FeatureLayer } = await import(
-      "@arcgis/core/layers/FeatureLayer"
-    ));
-
-    const renderer = createRenderer(config);
+    const renderer = createRenderer(config, selectedAreaType); // Pass area type
 
     if (!renderer) {
-      console.error(
-        `Failed to create renderer for type ${config.type} with config:`,
-        config
-      );
-      return null; // Cannot create layer without renderer
+      console.error(`[createLayers] Failed to create renderer for type ${config.type}.`);
+      return null;
     }
 
-    // Essential fields for popup and rendering
-    // Requesting all fields (*) is simpler but less performant.
-    // Use ["*"] for now to ensure fields are available.
-    // const essentialFields = ["NAME", renderer.field]; // Assume NAME exists for title
-    // if (layerDef?.fieldName && !essentialFields.includes(layerDef.fieldName)) {
-    //     essentialFields.push(layerDef.fieldName);
-    // }
+    // Simplified popup - assuming 'NAME' field exists on the service for area name
+    const popupTemplate = layerDef.fieldName ? {
+      title: `${selectedAreaType.label} {NAME}`,
+      content: [{
+        type: "fields",
+        fieldInfos: [{
+          fieldName: layerDef.fieldName,
+          label: layerDef.title,
+          format: layerDef.format
+        }]
+      }]
+    } : {
+        title: `${selectedAreaType.label} {NAME}`,
+        content: "No specific data field configured for popup."
+    };
 
-    const popupTemplate =
-      layerDef && renderer.field
-        ? {
-            title: `${selectedAreaType.label} {NAME}`, // Assuming 'NAME' field exists
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [createFieldInfo(config, layerDef)],
-              },
-            ],
-          }
-        : {
-            // Minimal fallback popup if definitions are missing
-            title: `${selectedAreaType.label} {NAME}`,
-            content: `Field: ${renderer.field}<br>Value: {${renderer.field}}`,
-          };
+    // MinScale based on area type
+    const minScale = (selectedAreaType?.value === 12 || String(selectedAreaType?.value).toLowerCase() === 'tract')
+                     ? 2500000
+                     : 25000000; // Larger scale for County etc.
 
     featureLayer = new FeatureLayer({
       url: selectedAreaType.url,
       renderer: renderer,
       popupTemplate: popupTemplate,
-      // Use a title from the config or definition, fallback to viz type
-      title:
-        config?.attributes?.[0]?.label ||
-        layerDef?.title ||
-        visualizationType.replace(/_/g, " "),
-      minScale: selectedAreaType.value === 12 ? 2500000 : 25000000,
-      outFields: ["*"], // Request all fields simplifies things
+      title: layerDef.title, // Use title from definition
+      minScale: minScale,
+      outFields: ["*", "NAME"], // Ensure NAME and all other fields are requested
+      definitionExpression: config.definitionExpression || null // Add support for definition expressions if needed
     });
 
-    // *** Use direct property assignment ***
+    // Add standard flags
     featureLayer.isVisualizationLayer = true;
-    featureLayer.visualizationType = visualizationType;
+    featureLayer.visualizationType = effectiveVizType; // Store the *effective* type
 
-    console.log(
-      `FeatureLayer created with title: "${featureLayer.title}", type: "${featureLayer.visualizationType}"`
-    );
+    console.log(`[createLayers] FeatureLayer created: "${featureLayer.title}", type: "${featureLayer.visualizationType}"`);
+
   } catch (error) {
-    console.error("Failed to import or create FeatureLayer:", error);
+    console.error("[createLayers] Failed to create FeatureLayer:", error);
     return null;
   }
 
   return featureLayer;
 };
-
 // *** ENTIRE FUNCTION ***
 async function createGraphicsLayerFromCustomData(config) {
-  // Ensure GraphicsLayer is imported or available
-  let GraphicsLayer, Graphic, SimpleMarkerSymbol, PopupTemplate, Color, Point;
-  try {
-    // Use Promise.all for concurrent dynamic imports
-    [
-      { default: GraphicsLayer },
-      { default: Graphic },
-      { default: SimpleMarkerSymbol },
-      { default: PopupTemplate },
-      { default: Color },
-      { default: Point },
-    ] = await Promise.all([
-      import("@arcgis/core/layers/GraphicsLayer"),
-      import("@arcgis/core/Graphic"),
-      import("@arcgis/core/symbols/SimpleMarkerSymbol"),
-      import("@arcgis/core/PopupTemplate"),
-      import("@arcgis/core/Color"),
-      import("@arcgis/core/geometry/Point"),
-    ]);
+  // Log the received config
+  console.log("[createGraphicsLayerFromCustomData] Creating graphics layer with config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
 
-    console.log("Creating graphics layer from custom data", config);
-
-    // Basic validation of config structure
-    if (
-      !config ||
-      !config.customData ||
-      !Array.isArray(config.customData.data)
-    ) {
-      console.error("Invalid configuration for custom data layer:", config);
-      return null;
-    }
-
-    // Create a graphics layer
-    const customLayer = new GraphicsLayer({
-      title: config.title || "Custom Data Points",
-      listMode: "show", // Or "hide" depending on preference
-    });
-
-    // *** Use direct property assignment ***
-    customLayer.isVisualizationLayer = true;
-    customLayer.isCustomDataLayer = true; // Flag for specific custom data handling
-    customLayer.visualizationType = "custom"; // Standardize type
-
-    // Extract data from configuration
-    const data = config.customData.data || [];
-    if (data.length === 0) {
-      console.warn("No data points found in configuration for custom layer.");
-      return customLayer; // Return empty layer
-    }
-
-    // Determine name, value, lat, lon columns - provide fallbacks or error handling
-    const nameColumn = config.customData.nameColumn;
-    const valueColumn = config.field || config.customData.valueColumn; // Use 'field' from main config if available
-    const latitudeColumn = config.customData.latitudeColumn || "latitude"; // Common defaults
-    const longitudeColumn = config.customData.longitudeColumn || "longitude"; // Common defaults
-
-    // Log determined columns
-    console.log(`Processing ${data.length} custom data points using:
-          Name Column: ${nameColumn || "Not Specified"}
-          Value Column: ${valueColumn || "Not Specified"}
-          Latitude Column: ${latitudeColumn}
-          Longitude Column: ${longitudeColumn}`);
-
-    // Create popup template - only if name and value columns are specified
-    let popupTemplate = null;
-    if (nameColumn && valueColumn) {
-      popupTemplate = new PopupTemplate({
-        title: `{${nameColumn}}`, // Use the dynamic name column
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
-              {
-                fieldName: valueColumn,
-                label: valueColumn, // Use the column name as the label
-                format: { digitSeparator: true, places: 2 }, // Example formatting
-              },
-            ],
-          },
-        ],
-      });
-    } else {
-      console.warn(
-        "Popup template not created: Missing nameColumn or valueColumn in configuration."
-      );
-      // Optional: Create a minimal popup showing coordinates or ID
-      popupTemplate = new PopupTemplate({
-        title: "Custom Point",
-        content: `Latitude: {latitude}<br>Longitude: {longitude}<br>ID: {ID}`, // Requires attributes below
-      });
-    }
-
-    // Add each data point as a graphic
-    let addedCount = 0;
-    let errorCount = 0;
-    const graphicsToAdd = [];
-
-    data.forEach((item, index) => {
-      // Robustly get latitude and longitude
-      let latitude, longitude;
-
-      // Check common places for coordinates
-      if (
-        item.geometry &&
-        typeof item.geometry.y === "number" &&
-        typeof item.geometry.x === "number"
-      ) {
-        latitude = item.geometry.y;
-        longitude = item.geometry.x;
-      } else if (
-        typeof item[latitudeColumn] === "number" &&
-        typeof item[longitudeColumn] === "number"
-      ) {
-        latitude = item[latitudeColumn];
-        longitude = item[longitudeColumn];
-      } else if (
-        typeof item["lat"] === "number" &&
-        typeof item["lon"] === "number"
-      ) {
-        // Common alternatives
-        latitude = item["lat"];
-        longitude = item["lon"];
-      } else if (
-        typeof item["latitude"] === "number" &&
-        typeof item["longitude"] === "number"
-      ) {
-        // Explicit fallback
-        latitude = item["latitude"];
-        longitude = item["longitude"];
-      } else {
-        console.warn(
-          `Item ${index} missing valid coordinates using columns '${latitudeColumn}' and '${longitudeColumn}'. Item data:`,
-          item
-        );
-        errorCount++;
-        return; // Skip this item
-      }
-
-      // Validate coordinates are numbers
-      if (isNaN(latitude) || isNaN(longitude)) {
-        console.warn(
-          `Item ${index} has invalid NaN coordinates (Lat: ${latitude}, Lon: ${longitude}). Skipping.`
-        );
-        errorCount++;
-        return; // Skip this item
-      }
-
-      try {
-        // Create a point geometry
-        const point = new Point({
-          x: longitude, // Use x for longitude
-          y: latitude, // Use y for latitude
-          spatialReference: { wkid: 4326 }, // Assume WGS84 GCS
-        });
-
-        // Create a default marker symbol (can be overridden by config later if needed)
-        const markerSymbol = new SimpleMarkerSymbol({
-          // Style for custom points - consider making this configurable
-          color: new Color([255, 0, 0, 0.75]), // Red marker
-          size: "12px",
-          outline: {
-            color: new Color([255, 255, 255, 0.8]),
-            width: 1.5,
-          },
-        });
-
-        // Prepare attributes for the graphic, ensuring required fields for popup exist
-        const attributes = {
-          ...item, // Include all original data from the item
-          ID: index, // Add a simple unique ID for reference
-          // Ensure fields needed by minimal popup exist
-          latitude: latitude,
-          longitude: longitude,
-        };
-        // Ensure the dynamic name/value fields exist in attributes, even if null/undefined
-        if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
-        if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null; // Use null for potentially numeric fields
-
-        // Create the graphic
-        const pointGraphic = new Graphic({
-          geometry: point,
-          symbol: markerSymbol,
-          attributes: attributes,
-          popupTemplate: popupTemplate, // Assign the created popup template
-        });
-
-        graphicsToAdd.push(pointGraphic); // Add to batch array
-        addedCount++;
-      } catch (graphicError) {
-        console.error(
-          `Error creating graphic for custom data point ${index}:`,
-          graphicError,
-          "Item:",
-          item
-        );
-        errorCount++;
-      }
-    });
-
-    // Add graphics to the layer in a batch
-    if (graphicsToAdd.length > 0) {
-      customLayer.addMany(graphicsToAdd);
-    }
-
-    console.log(
-      `Added ${addedCount} points to custom graphics layer. ${errorCount} errors occurred.`
-    );
-    return customLayer;
-  } catch (error) {
-    console.error(
-      "Error importing modules or creating custom graphics layer:",
-      error
-    );
-    return null; // Return null on failure
+  if (!config || !config.customData || !Array.isArray(config.customData.data)) {
+    console.error("[createGraphicsLayerFromCustomData] Invalid configuration for custom data layer:", config);
+    return null;
   }
+
+  // Ensure GraphicsLayer and other modules are imported
+  let GraphicsLayer, Point, SimpleMarkerSymbol, PopupTemplate, Color, Graphic;
+   try {
+       [{ default: GraphicsLayer }, { default: Point }, { default: SimpleMarkerSymbol }, { default: PopupTemplate }, { default: Color }, { default: Graphic }] = await Promise.all([
+           import("@arcgis/core/layers/GraphicsLayer"),
+           import("@arcgis/core/geometry/Point"),
+           import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+           import("@arcgis/core/PopupTemplate"),
+           import("@arcgis/core/Color"),
+           import("@arcgis/core/Graphic")
+       ]);
+   } catch (importError) {
+       console.error("Failed to import ArcGIS Core modules:", importError);
+       return null;
+   }
+
+
+  const customLayer = new GraphicsLayer({
+    title: config.title || "Custom Data Points",
+    listMode: "show",
+  });
+  // Set flags
+  customLayer.isVisualizationLayer = true;
+  customLayer.isCustomDataLayer = true;
+  customLayer.visualizationType = "custom"; // Explicitly set type
+
+  // --- Corrected Extraction ---
+  const data = config.customData.data || [];
+  const nameColumn = config.nameColumn || config.customData.nameColumn;
+  const valueColumn = config.field || config.valueColumn || config.customData.valueColumn;
+  const latitudeColumn = config.latitudeColumn || config.customData.latitudeColumn || "latitude";
+  const longitudeColumn = config.longitudeColumn || config.customData.longitudeColumn || "longitude";
+  const symbolConfig = config.symbol || {};
+  const classBreakInfos = config.classBreakInfos || [];
+  const rendererType = config.rendererType || (classBreakInfos.length > 0 ? 'classBreaks' : 'simple');
+  const valueFormat = config.valueFormat;
+  // --- End Corrected Extraction ---
+
+  if (data.length === 0) {
+    console.warn("[createGraphicsLayerFromCustomData] No data points found in configuration for custom layer.");
+    return customLayer; // Return empty layer
+  }
+
+  // --- Default Symbol Properties ---
+  const defaultColor = '#FF0000'; // Default Red for custom
+  const defaultSize = 10;
+  const defaultOutlineColor = '#FFFFFF';
+  const defaultOutlineWidth = 1;
+  const defaultStyle = 'circle';
+
+  const pointColor = symbolConfig.color || defaultColor;
+  const pointSize = typeof symbolConfig.size === 'number' && !isNaN(symbolConfig.size)
+                      ? symbolConfig.size : defaultSize;
+  const outlineConfig = symbolConfig.outline || {};
+  const outlineColor = outlineConfig.color || defaultOutlineColor;
+  const outlineWidth = typeof outlineConfig.width === 'number' && !isNaN(outlineConfig.width)
+                         ? outlineConfig.width : defaultOutlineWidth;
+  const pointStyle = symbolConfig.style || defaultStyle;
+  // --- End Default Symbol ---
+
+  console.log("[createGraphicsLayerFromCustomData] Using symbol style:", {
+      style: pointStyle, size: pointSize, defaultColor: pointColor,
+      outlineColor: outlineColor, outlineWidth: outlineWidth,
+      rendererType: rendererType, valueColumn: valueColumn, hasBreaks: classBreakInfos.length > 0
+  });
+
+  // Helper function (same as in createCompLayer)
+  const getColorForValue = (value) => {
+     if (value === undefined || value === null || value === '' ||
+         !valueColumn || !classBreakInfos || classBreakInfos.length === 0 ||
+         rendererType !== 'classBreaks') {
+       return pointColor; // Use default custom color if not class breaks
+     }
+     const numValue = Number(value);
+     if (isNaN(numValue)) { return pointColor; }
+     for (const breakInfo of classBreakInfos) {
+         const maxVal = (breakInfo.maxValue === Infinity || breakInfo.maxValue === undefined || breakInfo.maxValue === null) ? Infinity : Number(breakInfo.maxValue);
+         const minVal = (breakInfo.minValue === -Infinity || breakInfo.minValue === undefined || breakInfo.minValue === null) ? -Infinity : Number(breakInfo.minValue);
+         const isMinMet = (minVal === -Infinity || numValue >= minVal);
+         const isMaxMet = (maxVal === Infinity || numValue <= maxVal);
+         if (isMinMet && isMaxMet) { return breakInfo.symbol?.color || pointColor; }
+     }
+     return pointColor;
+  };
+
+  // Create popup template based on available columns
+  let popupTemplate = null;
+  const fieldInfos = [];
+  // Always add name if column exists
+  if (nameColumn) fieldInfos.push({ fieldName: nameColumn, label: nameColumn || "Name" });
+  // Add value if column exists
+  if (valueColumn) fieldInfos.push({
+      fieldName: valueColumn, // Use original value column name for binding
+      label: valueColumn || "Value",
+      format: valueFormat ? {
+        digitSeparator: true,
+        places: valueFormat.decimals ?? 0,
+        prefix: valueFormat.prefix || '',
+        suffix: valueFormat.suffix || ''
+      } : { digitSeparator: true, places: 2 } // Default format
+  });
+   // Add Lat/Lon
+  fieldInfos.push({ fieldName: latitudeColumn, label: 'Latitude', format: { places: 6 } });
+  fieldInfos.push({ fieldName: longitudeColumn, label: 'Longitude', format: { places: 6 } });
+
+  popupTemplate = new PopupTemplate({
+      // Use nameColumn for title if available, otherwise a generic title
+      title: nameColumn ? `{${nameColumn}}` : "Custom Point",
+      content: [{ type: "fields", fieldInfos: fieldInfos }]
+  });
+
+
+  let addedCount = 0;
+  let errorCount = 0;
+  const graphicsToAdd = [];
+
+  data.forEach((item, index) => {
+    let latitude, longitude;
+    // Robust coordinate extraction
+     if (item[latitudeColumn] !== undefined && item[longitudeColumn] !== undefined) {
+        latitude = parseFloat(item[latitudeColumn]); longitude = parseFloat(item[longitudeColumn]);
+    } else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
+        latitude = item.geometry.y; longitude = item.geometry.x;
+    } else if (typeof item["lat"] === "number" && typeof item["lon"] === "number") {
+        latitude = item["lat"]; longitude = item["lon"];
+    } else if (typeof item["latitude"] === "number" && typeof item["longitude"] === "number") {
+        latitude = item["latitude"]; longitude = item["longitude"];
+    } else {
+        console.warn(`[createGraphicsLayerFromCustomData] Item ${index} missing valid coordinates using columns '${latitudeColumn}' and '${longitudeColumn}'. Skipping.`);
+        errorCount++; return;
+    }
+
+    if (isNaN(latitude) || isNaN(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        console.warn(`[createGraphicsLayerFromCustomData] Item ${index} has invalid coordinates (Lat: ${latitude}, Lon: ${longitude}). Skipping.`);
+        errorCount++; return;
+    }
+
+    try {
+      const point = new Point({
+        longitude: longitude,
+        latitude: latitude,
+        spatialReference: { wkid: 4326 },
+      });
+
+      // Get the value and determine color based on class breaks/rendererType
+      const pointValue = valueColumn ? item[valueColumn] : null;
+      const itemColor = getColorForValue(pointValue);
+
+      const markerSymbol = new SimpleMarkerSymbol({
+        style: pointStyle,
+        color: new Color(itemColor), // Use determined color
+        size: pointSize,
+        outline: {
+          color: new Color(outlineColor),
+          width: outlineWidth
+        },
+      });
+
+      // Prepare attributes, ensuring popup fields exist
+      const attributes = {
+        ...item, // Include all original data
+        OBJECTID: index, // Standard field
+        // Ensure columns needed for popup binding exist
+        [latitudeColumn]: latitude,
+        [longitudeColumn]: longitude,
+        ...(nameColumn && { [nameColumn]: item[nameColumn] ?? "N/A" }),
+        ...(valueColumn && { [valueColumn]: item[valueColumn] ?? null }),
+      };
+
+      const pointGraphic = new Graphic({
+        geometry: point,
+        symbol: markerSymbol,
+        attributes: attributes,
+        popupTemplate: popupTemplate, // Use the single template
+      });
+
+      graphicsToAdd.push(pointGraphic);
+      addedCount++;
+    } catch (graphicError) {
+      console.error(`[createGraphicsLayerFromCustomData] Error creating graphic for custom data point ${index}:`, graphicError, "Item:", item);
+      errorCount++;
+    }
+  });
+
+  if (graphicsToAdd.length > 0) {
+    customLayer.addMany(graphicsToAdd);
+  }
+
+  console.log(`[createGraphicsLayerFromCustomData] Added ${addedCount} points to custom graphics layer "${customLayer.title}". ${errorCount} errors occurred.`);
+  return customLayer;
 }
+
+const renderCustomLegend = () => {
+  // Only show if we have an active special visualization type
+  if (!customLegendContent) return null;
+
+  return (
+    <div className="absolute bottom-4 left-4 z-10">
+      <CustomLegend type={customLegendContent.type} config={customLegendContent.config} />
+    </div>
+  );
+};
 
 // Helper function to create a dot density configuration
 const createDotDensityConfig = (field, label, dotValue = 100) => ({
@@ -4710,6 +5003,8 @@ export default function MapComponent({ onToggleLis }) {
   const isDrawingRef = useRef(false);
   const drawStartPointRef = useRef(null);
   const drawEndPointRef = useRef(null);
+  const activeLayersRef = useRef({}); 
+
   // Use the first available project ID
   const projectId =
     routeProjectId || localStorageProjectId || sessionStorageProjectId;
@@ -5035,71 +5330,106 @@ export default function MapComponent({ onToggleLis }) {
       }
     });
   
-    // Mouseup - End drawing and zoom to selected area
-    view.container.addEventListener('mouseup', async (e) => {
-      if (!isDrawingRef.current || e.button !== 2) return;
-  
-      console.log("Right mouse up - End drawing");
-      const startPoint = drawStartPointRef.current;
-      const endPoint = { x: e.offsetX, y: e.offsetY };
-      const rectElement = rectangleRef.current;
-  
-      // Reset drawing state
-      isDrawingRef.current = false;
-      drawStartPointRef.current = null;
-      drawEndPointRef.current = null;
-      setIsDrawing(false);
-      setDrawStartPoint(null);
-      setDrawEndPoint(null);
-  
-      if (rectElement) {
-        rectElement.style.display = 'none';
+    view.container.addEventListener('mouseup', async (e) => { // Ensure async
+
+      // --- PRIMARY CHECK: Only process right mouse button up ---
+      if (e.button !== 2) {
+        return; // Ignore left/middle mouse button releases
       }
-      
-      if (!startPoint) {
-        console.warn("Missing startPoint on mouseup.");
+
+      // --- Stop event bubbling immediately for right-click ---
+      e.preventDefault(); // Already preventing context menu, but good practice
+      e.stopPropagation(); // Prevent this event from triggering other listeners
+
+      // --- Check if we were actively drawing ---
+      // Use a temporary variable to capture the state *before* resetting
+      const wasDrawingActive = isDrawingRef.current;
+
+      // Log the state *before* potentially resetting
+      console.log(`Right mouse up detected. Button: ${e.button}, Was Drawing (Ref): ${wasDrawingActive}`);
+
+      // --- Proceed ONLY if we were actively drawing ---
+      if (!wasDrawingActive) {
+        console.log("Ignoring mouseup because isDrawingRef was already false.");
+        // This log should NOT appear after a successful drag-zoom sequence if this fix works.
+        // If it *still* appears, something more complex is happening.
         return;
       }
-  
-      // Check if the draw rectangle is large enough to warrant a zoom
+
+      // --- Reset drawing state ---
+      // We know we were drawing, so reset now.
+      isDrawingRef.current = false;
+      const startPoint = drawStartPointRef.current; // Capture start point *before* clearing ref
+      drawStartPointRef.current = null;
+      drawEndPointRef.current = null;
+      setIsDrawing(false); // Update React state
+      setDrawStartPoint(null);
+      setDrawEndPoint(null);
+      console.log("Drawing state reset.");
+      // --- End Reset ---
+
+
+      // --- Hide Rectangle ---
+      const rectElement = rectangleRef.current;
+      if (rectElement) {
+        rectElement.style.display = 'none';
+        console.log("Draw rectangle hidden.");
+      } else {
+        console.warn("Rectangle element ref was missing on mouseup.");
+      }
+      // --- End Hide Rectangle ---
+
+
+      // --- Validate Start Point (crucial after reset logic) ---
+      if (!startPoint) {
+        console.error("CRITICAL: startPoint was null even though wasDrawingActive was true. State inconsistency?");
+        return;
+      }
+      // --- End Validate Start Point ---
+
+
+      // --- Calculations and Zoom Logic (from previous correct version) ---
+      const endPoint = { x: e.offsetX, y: e.offsetY };
+      console.log("Start Point (Captured):", startPoint);
+      console.log("End Point (Event):", endPoint);
+
       const width = Math.abs(endPoint.x - startPoint.x);
       const height = Math.abs(endPoint.y - startPoint.y);
       const minDragSize = 10;
-      
+
       if (width < minDragSize || height < minDragSize) {
-        console.log("Drag rectangle too small, not zooming.", { width, height });
+        console.log(`Drag rectangle too small (w: ${width}, h: ${height}). Not zooming.`);
         return;
       }
-  
+      console.log(`Drag size sufficient. Proceeding with zoom.`);
+
       try {
-        // Dynamically import Extent
         const { default: Extent } = await import("@arcgis/core/geometry/Extent");
-        
-        // Get the screen coordinates for the top-left and bottom-right corners
+
         const screenTopLeft = {
           x: Math.min(startPoint.x, endPoint.x),
           y: Math.min(startPoint.y, endPoint.y)
         };
-        
         const screenBottomRight = {
           x: Math.max(startPoint.x, endPoint.x),
           y: Math.max(startPoint.y, endPoint.y)
         };
-        
-        console.log("Screen Coordinates:", { screenTopLeft, screenBottomRight });
-  
-        // Convert screen coordinates to map coordinates
+        console.log("Calculated Screen Coordinates:", { screenTopLeft, screenBottomRight });
+
         const mapTopLeft = view.toMap(screenTopLeft);
         const mapBottomRight = view.toMap(screenBottomRight);
-        
+
         if (!mapTopLeft || !mapBottomRight) {
           console.error("Failed to convert screen coordinates to map coordinates.");
           return;
         }
-        
         console.log("Converted Map Coordinates:", { mapTopLeft, mapBottomRight });
-  
-        // Create the target extent from the map coordinates
+
+        if (isNaN(mapTopLeft.x) || isNaN(mapTopLeft.y) || isNaN(mapBottomRight.x) || isNaN(mapBottomRight.y)) {
+            console.error("One or more map coordinates are NaN.");
+            return;
+        }
+
         const targetExtent = new Extent({
           xmin: Math.min(mapTopLeft.x, mapBottomRight.x),
           ymin: Math.min(mapTopLeft.y, mapBottomRight.y),
@@ -5107,50 +5437,51 @@ export default function MapComponent({ onToggleLis }) {
           ymax: Math.max(mapTopLeft.y, mapBottomRight.y),
           spatialReference: view.spatialReference
         });
-  
+
         const mapWidth = targetExtent.width;
         const mapHeight = targetExtent.height;
-        
+        console.log("Calculated Map Extent Object:", targetExtent.toJSON());
         console.log("Calculated Map Extent Dimensions:", { mapWidth, mapHeight });
-  
-        if (!targetExtent || mapWidth <= 0 || mapHeight <= 0) {
-          console.warn("Calculated extent is invalid or has zero size. Cannot zoom.", targetExtent);
+
+        if (!targetExtent || isNaN(mapWidth) || isNaN(mapHeight) || mapWidth <= 0 || mapHeight <= 0) {
+          console.warn("Calculated extent is invalid. Cannot zoom.");
           return;
         }
-  
-        console.log("Calculated Zoom Extent Object:", targetExtent);
+
         console.log("View zoom BEFORE goTo:", view.zoom);
-        console.log("View center BEFORE goTo:", view.center?.latitude, view.center?.longitude);
-  
-        // Execute the zoom
-        console.log("Attempting zoom with view.goTo...");
-        await view.goTo(targetExtent, {
-          animate: false,
-          duration: 0
+        console.log("Attempting zoom with view.goTo...", { target: targetExtent.toJSON() });
+
+        await view.goTo(targetExtent, { animate: false });
+
+        console.log("view.goTo promise resolved.");
+
+        // --- Verification and Redraw (in rAF) ---
+        requestAnimationFrame(() => {
+            if (!view) return;
+            console.log("View state AFTER goTo (in rAF):");
+            console.log("  Zoom:", view.zoom);
+            // ... (other verification logs) ...
+
+            // Padding Trick
+            console.log("Applying padding trick...");
+            const originalPadding = JSON.parse(JSON.stringify(view.padding || { top: 0, right: 0, bottom: 0, left: 0 }));
+            const currentBottomPadding = originalPadding.bottom || 0;
+            view.padding = { ...originalPadding, bottom: currentBottomPadding + 1 };
+            requestAnimationFrame(() => {
+                if (view) {
+                    view.padding = originalPadding;
+                    console.log("Padding reset.");
+                }
+            });
         });
-        
-        console.log("Zoom successful (animate: false).");
-        console.log("View zoom AFTER goTo:", view.zoom);
-        console.log("View center AFTER goTo:", view.center?.latitude, view.center?.longitude);
-        console.log("View extent AFTER goTo (width):", view.extent?.width);
-        
-        // Force a redraw by temporarily changing the padding
-        console.log("Forcing redraw...");
-        const currentPadding = view.padding || { top: 0, right: 0, bottom: 0, left: 0 };
-        view.padding = { ...currentPadding, bottom: (currentPadding.bottom || 0) + 1 };
-        
-        // Reset padding immediately
-        setTimeout(() => {
-          if (view) {
-            view.padding = currentPadding;
-            console.log("Redraw forced (padding reset).");
-          }
-        }, 0);
-  
+        // --- End Verification ---
+
       } catch (error) {
-        console.error("Error processing zoom on mouseup:", error);
+        console.error("Error during zoom processing on mouseup:", error);
       }
-    });
+      // --- End Calculations and Zoom Logic ---
+
+    }); // End mouseup listener
   
     // Mouseleave - Cancel drawing if mouse leaves map container
     view.container.addEventListener('mouseleave', () => {
@@ -5495,515 +5826,75 @@ export default function MapComponent({ onToggleLis }) {
     };
   }, []);
 
-  const handlePipeVisualization = async (tabData) => {
-    console.log("Attempting to visualize Pipe Map with data:", tabData);
 
-    if (!mapView?.map) {
-      console.warn("Map view not available for pipe visualization.");
-      return;
+  const handlePipeVisualization = async (tabData, layer = null) => { // Keep layer param
+    const tabId = tabData?.id;
+    let targetLayer = null;
+  
+    console.log(`[handlePipeVisualization] Handling visualization for tab ${tabId}. Direct layer passed: ${!!layer}`);
+  
+    // *** FIX: Prioritize checking the ref ***
+    if (activeLayersRef.current[tabId]) {
+      targetLayer = activeLayersRef.current[tabId];
+      console.log(`[handlePipeVisualization] Found layer in ref for tab ${tabId}:`, targetLayer.id);
     }
-    if (!tabData || !tabData.layerConfiguration) {
-      console.warn(
-        "Pipe visualization cancelled: Missing tabData or layerConfiguration."
+    // *** End FIX ***
+     // Use passed layer as secondary option
+    else if (layer) {
+        targetLayer = layer;
+        console.log(`[handlePipeVisualization] Using directly passed layer for tab ${tabId}:`, targetLayer.id);
+        // Optionally update the ref if it was missing
+        // activeLayersRef.current[tabId] = targetLayer;
+    }
+     // Fallback: Try finding on map (least reliable)
+    else {
+      console.warn(`[handlePipeVisualization] Layer not in ref or passed directly for tab ${tabId}. Attempting map find...`);
+      targetLayer = mapView?.map?.layers.find( // Add safe navigation
+        (l) => l && l.isVisualizationLayer === true && l.visualizationType === "pipe" && l instanceof GraphicsLayer
       );
-      return;
-    }
-
-    // --- Layer Finding ---
-    // Find the GraphicsLayer specifically created for 'pipe' visualization.
-    // Since we remove/add layers on tab switch, there should ideally be only one.
-    const pipeLayer = mapView.map.layers.find(
-      (l) =>
-        l && l.isVisualizationLayer === true && l.visualizationType === "pipe"
-    );
-
-    if (!pipeLayer) {
-      console.error(
-        "Pipe GraphicsLayer not found on the map. Cannot add graphics."
-      );
-      return; // Exit if no layer found
-    }
-    console.log(`Found target Pipe layer: "${pipeLayer.title}"`);
-
-    // --- Data Extraction ---
-    const config = tabData.layerConfiguration;
-    const customData = config?.customData; // The array of data points
-    const nameColumn = config?.nameColumn; // Column for popup title/content
-    // Get coordinate columns, provide defaults if missing
-    const latitudeColumn = config?.latitudeColumn || "Latitude";
-    const longitudeColumn = config?.longitudeColumn || "Longitude";
-    // Get the symbol configuration
-    const symbolConfig = config?.symbol;
-
-    if (!Array.isArray(customData) || customData.length === 0) {
-      console.log(
-        "No custom data points found in configuration for pipe visualization."
-      );
-      pipeLayer.removeAll(); // Clear any old graphics even if no new data
-      return;
-    }
-    if (!nameColumn) {
-      console.warn("Missing nameColumn in configuration for pipe popups.");
-      // Proceed without full popups, or return if required
-    }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error(
-        "Missing latitudeColumn or longitudeColumn configuration for pipe points."
-      );
-      pipeLayer.removeAll(); // Clear layer as we can't proceed
-      return; // Cannot create points
-    }
-    if (!symbolConfig) {
-      console.warn(
-        "Missing symbol configuration in layerConfiguration for pipe visualization. Using default symbol."
-      );
-      // Define a default symbol if none is provided in config
-      // symbolConfig = { type: 'simple-marker', color: '#FFA500', size: 10, outline: { color: '#FFFFFF', width: 1 } };
-    }
-
-    console.log(
-      `Processing ${customData.length} pipe points using name='${nameColumn}', lat='${latitudeColumn}', lon='${longitudeColumn}'`
-    );
-
-    try {
-      // --- Dynamic Imports (ensure they are available - already added above) ---
-      // If imports are static at top, these variables are already populated.
-      // If dynamic import is needed elsewhere:
-      /*
-        const [
-            { default: Graphic }, { default: Point }, { default: SimpleMarkerSymbol },
-            { default: PopupTemplate }, { default: Color }
-        ] = await Promise.all([
-            import("@arcgis/core/Graphic"), import("@arcgis/core/geometry/Point"),
-            import("@arcgis/core/symbols/SimpleMarkerSymbol"), import("@arcgis/core/PopupTemplate"),
-            import("@arcgis/core/Color")
-        ]);
-        */
-
-      // --- Clear Existing Graphics ---
-      pipeLayer.removeAll();
-      console.log(`Cleared existing graphics from layer "${pipeLayer.title}".`);
-
-      // --- Create Popup Template (if nameColumn exists) ---
-      const popupTemplate = nameColumn
-        ? new PopupTemplate({
-            title: `{${nameColumn}}`, // Use the dynamic name column
-            content: `Address: {${
-              config.addressColumn || "Address"
-            }}<br>Submarket: {${config.submarketColumn || "Submarket"}}`, // Example: Add more fields if needed
-            // Or use fields array:
-            // content: [{
-            //     type: "fields",
-            //     fieldInfos: [
-            //          { fieldName: nameColumn, label: nameColumn },
-            //          { fieldName: config.addressColumn || 'Address', label: 'Address' },
-            //          // Add other relevant fields
-            //      ]
-            // }]
-          })
-        : null; // No popup if name column is missing
-
-      // --- Create Symbol from Config ---
-      let pointSymbol = null;
-      if (symbolConfig) {
-        try {
-          // Assuming symbolConfig is a valid JS API symbol JSON structure
-          // For SimpleMarkerSymbol specifically:
-          if (symbolConfig.type === "simple-marker") {
-            pointSymbol = new SimpleMarkerSymbol({
-              style: symbolConfig.style || "circle",
-              color: new Color(symbolConfig.color || "#FFA500"), // Default to orange
-              size: symbolConfig.size || "10px",
-              outline: symbolConfig.outline
-                ? {
-                    // Handle outline structure carefully
-                    color: new Color(symbolConfig.outline.color || "#FFFFFF"),
-                    width: symbolConfig.outline.width || 1,
-                  }
-                : null, // No outline if not specified
-            });
-          } else {
-            console.warn(
-              `Symbol type '${symbolConfig.type}' not explicitly handled for pipe visualization. Trying generic SimpleMarkerSymbol.`
-            );
-            // Fallback or handle other symbol types if necessary
-            pointSymbol = new SimpleMarkerSymbol({
-              color: "#FFA500",
-              size: "10px",
-            });
-          }
-        } catch (symbolError) {
-          console.error(
-            "Error creating symbol from config:",
-            symbolError,
-            "Using default."
-          );
-          pointSymbol = new SimpleMarkerSymbol({
-            color: "#FFA500",
-            size: "10px",
-          });
-        }
+      if (targetLayer) {
+          console.log(`[handlePipeVisualization] Found target layer ID: ${targetLayer.id}`);
       } else {
-        // Default symbol if config was missing entirely
-        pointSymbol = new SimpleMarkerSymbol({
-          color: "#FFA500",
-          size: "10px",
-        });
+          console.error(`[handlePipeVisualization] FAILED TO FIND TARGET LAYER for tab ${tabId}`);
+          return; // Prevent further errors
       }
-
-      // --- Create and Add Graphics ---
-      const graphicsToAdd = [];
-      let addedCount = 0;
-      let errorCount = 0;
-
-      customData.forEach((item, index) => {
-        // Get lat/lon robustly
-        let latitude, longitude;
-        if (
-          item.geometry &&
-          typeof item.geometry.y === "number" &&
-          typeof item.geometry.x === "number"
-        ) {
-          latitude = item.geometry.y;
-          longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
-        } else if (
-          typeof item["lat"] === "number" &&
-          typeof item["lon"] === "number"
-        ) {
-          // Common alternatives
-          latitude = item["lat"];
-          longitude = item["lon"];
-        } else {
-          console.warn(
-            `Skipping pipe item ${index} due to missing/invalid coordinates (LatCol: ${latitudeColumn}, LonCol: ${longitudeColumn}). Data:`,
-            item
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Validate coordinates
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping pipe item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Basic bounds check (optional but helpful)
-        if (
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          console.warn(
-            `Skipping pipe item ${index} due to out-of-bounds coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return;
-        }
-
-        try {
-          const point = new Point({
-            longitude: longitude,
-            latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
-          });
-
-          // Prepare attributes - include all original data + ensure popup fields exist
-          const attributes = {
-            ...item, // Include all original data
-            _internalId: `pipe-${index}`, // Add an internal ID if needed
-          };
-          // Ensure the name field exists even if null/undefined
-          if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
-
-          const graphic = new Graphic({
-            geometry: point,
-            symbol: pointSymbol, // Use the symbol created from config
-            attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template (or null)
-          });
-
-          graphicsToAdd.push(graphic);
-          addedCount++;
-        } catch (graphicError) {
-          console.error(
-            `Error creating graphic for pipe item ${index}:`,
-            graphicError,
-            item
-          );
-          errorCount++;
-        }
-      });
-
-      // Add all created graphics at once
-      if (graphicsToAdd.length > 0) {
-        pipeLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} pipe graphics to layer "${pipeLayer.title}".`
-        );
-        if (errorCount > 0) {
-          console.warn(
-            `Failed to add ${errorCount} pipe graphics due to errors.`
-          );
-        }
-
-        // --- Optional: Zoom to Graphics ---
-        // Debounce or delay slightly to ensure graphics are rendered
-        setTimeout(() => {
-          if (mapView?.goTo && pipeLayer.graphics.length > 0) {
-            console.log("Zooming to pipe graphics extent.");
-            // Use graphics directly from the layer
-            mapView
-              .goTo(pipeLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to pipe graphics:", err)
-              );
-          }
-        }, 500); // Delay 500ms
-      } else {
-        console.log("No valid pipe graphics were created to add.");
-      }
-    } catch (error) {
-      console.error("Error during pipe visualization processing:", error);
-      // Clear the layer in case of partial failure during processing
-      if (pipeLayer) {
-        pipeLayer.removeAll();
-      }
-    }
+  
+    console.log(`[handlePipeVisualization] Using final target Pipe layer: "${targetLayer.title}" (ID: ${targetLayer.id})`);
+    // --- End Zooming Logic ---
   };
+  }
 
+  // Similar updates for handleCompVisualization
   const handleCompVisualization = async (tabData) => {
-    console.log("Visualizing Comp Map with data:", tabData);
+    console.log("[handleCompVisualization] Finding and zooming to Comp Map layer for tab:", tabData?.id);
+
     if (!mapView?.map) {
-      console.warn("Map view not available for comp visualization.");
+      console.warn("[handleCompVisualization] Map view not available.");
       return;
     }
-
-    // --- Layer Finding ---
-    // Find the specific GraphicsLayer created for this tab, matching by title and type
-    // This assumes the layer title matches the tab name, which createLayers should ensure
-    const targetLayerTitle = tabData.name; // Use the tab's name as the expected layer title
-    const compLayer = mapView.map.layers.find(
-      (l) => l && l.title === targetLayerTitle && l.visualizationType === "comp"
-    );
-
-    if (!compLayer) {
-      console.warn(
-        `Comp GraphicsLayer titled "${targetLayerTitle}" not found on map.`
-      );
-      // Attempt to find *any* comp layer as a fallback, though less ideal
-      const fallbackLayer = mapView.map.layers.find(
-        (l) => l && l.visualizationType === "comp"
-      );
-      if (fallbackLayer) {
-        console.warn(
-          `Falling back to the first found layer with type 'comp': ${fallbackLayer.title}`
-        );
-        // compLayer = fallbackLayer; // Uncomment carefully if fallback is desired
-      } else {
-        console.error("No suitable 'comp' layer found to add graphics to.");
-        return; // Exit if no layer found
-      }
-      // If using fallback, ensure you want to add graphics to potentially the wrong layer.
-      // It's usually better to ensure layer creation and finding logic aligns.
-      return; // Exit for now to avoid adding to wrong layer
-    }
-
-    console.log(`Found target Comp layer: "${compLayer.title}"`);
-
-    // --- Data Extraction ---
-    const config = tabData.layerConfiguration;
-    const customData = config?.customData; // The array of data points
-    const nameColumn = config?.nameColumn;
-    const valueColumn = config?.valueColumn;
-    // Assuming your customData items have geometry.x and geometry.y directly
-    // OR, use specific latitude/longitude columns if available from config/detection
-    const latitudeColumn = config?.latitudeColumn || "Latitude"; // Default or from config
-    const longitudeColumn = config?.longitudeColumn || "Longitude"; // Default or from config
-
-    if (!Array.isArray(customData) || customData.length === 0) {
-      console.log("No custom data points found in configuration to visualize.");
-      compLayer.removeAll(); // Clear any old graphics even if no new data
+    if (!tabData) {
+      console.warn("[handleCompVisualization] Missing tabData.");
       return;
     }
-    if (!nameColumn || !valueColumn) {
-      console.warn(
-        "Missing nameColumn or valueColumn in configuration for popups."
-      );
-      // Proceed without full popups, or return if required
-    }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error("Missing latitudeColumn or longitudeColumn configuration.");
-      return; // Cannot create points
-    }
-
-    console.log(
-      `Processing ${customData.length} comp points using name='${nameColumn}', value='${valueColumn}', lat='${latitudeColumn}', lon='${longitudeColumn}'`
-    );
 
     try {
-      // --- Dynamic Imports (within async function) ---
-      const [
-        { default: Graphic },
-        { default: Point },
-        { default: SimpleMarkerSymbol },
-        { default: PopupTemplate },
-        { default: Color },
-      ] = await Promise.all([
-        import("@arcgis/core/Graphic"),
-        import("@arcgis/core/geometry/Point"),
-        import("@arcgis/core/symbols/SimpleMarkerSymbol"),
-        import("@arcgis/core/PopupTemplate"),
-        import("@arcgis/core/Color"),
-      ]);
+      // Find the specific GraphicsLayer for 'comp'
+      const compLayer = mapView.map.layers.find(
+        (l) => l && l.isVisualizationLayer === true && l.visualizationType === "comp" && l instanceof GraphicsLayer
+      );
 
-      // --- Clear Existing Graphics ---
-      compLayer.removeAll();
-      console.log(`Cleared existing graphics from layer "${compLayer.title}".`);
-
-      // --- Create Popup Template ---
-      // Create popup only if name and value columns are available
-      const popupTemplate =
-        nameColumn && valueColumn
-          ? new PopupTemplate({
-              title: `{${nameColumn}}`, // Use the dynamic name column
-              content: [
-                {
-                  type: "fields",
-                  fieldInfos: [
-                    {
-                      fieldName: valueColumn, // Use the dynamic value column
-                      label: valueColumn, // Use the column name as label
-                      format: { digitSeparator: true, places: 2 }, // Example formatting
-                    },
-                  ],
-                },
-              ],
-            })
-          : null; // No popup if columns missing
-
-      // --- Create and Add Graphics ---
-      const graphicsToAdd = [];
-      let addedCount = 0;
-      let errorCount = 0;
-
-      customData.forEach((item, index) => {
-        // Get lat/lon, handling potential nested geometry or direct properties
-        let latitude, longitude;
-        if (
-          item.geometry &&
-          typeof item.geometry.y === "number" &&
-          typeof item.geometry.x === "number"
-        ) {
-          latitude = item.geometry.y;
-          longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
-        } else {
-          console.warn(
-            `Skipping item ${index} due to missing or invalid coordinates.`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Validate coordinates
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        try {
-          const point = new Point({
-            longitude: longitude,
-            latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
-          });
-
-          const markerSymbol = new SimpleMarkerSymbol({
-            // Style specifically for 'comp' points
-            color: new Color([128, 0, 128, 0.8]), // Purple
-            size: "10px", // Slightly smaller maybe?
-            outline: {
-              color: new Color([255, 255, 255, 0.7]),
-              width: 1,
-            },
-          });
-
-          // Prepare attributes - ensure name and value fields exist even if null
-          const attributes = {
-            ...item, // Include all original data
-            // Ensure the fields used in the popup exist
-            [nameColumn]: item[nameColumn] ?? "N/A",
-            [valueColumn]: item[valueColumn] ?? null,
-            _internalId: `comp-${index}`, // Add an internal ID if needed
-          };
-
-          const graphic = new Graphic({
-            geometry: point,
-            symbol: markerSymbol,
-            attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template (or null)
-          });
-
-          graphicsToAdd.push(graphic);
-          addedCount++;
-        } catch (graphicError) {
-          console.error(
-            `Error creating graphic for item ${index}:`,
-            graphicError,
-            item
-          );
-          errorCount++;
-        }
-      });
-
-      // Add all created graphics at once for potentially better performance
-      if (graphicsToAdd.length > 0) {
-        compLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} comp graphics to layer "${compLayer.title}".`
-        );
-        if (errorCount > 0) {
-          console.warn(
-            `Failed to add ${errorCount} comp graphics due to errors.`
-          );
-        }
-
-        // --- Optional: Zoom to Graphics ---
-        // Debounce or delay slightly to ensure map is ready
-        setTimeout(() => {
-          if (mapView?.goTo && compLayer.graphics.length > 0) {
-            console.log("Zooming to comp graphics extent.");
-            mapView
-              .goTo(compLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to comp graphics:", err)
-              );
-          }
-        }, 300);
-      } else {
-        console.log("No valid comp graphics were created to add.");
+      if (!compLayer) {
+        console.error(`[handleCompVisualization] Comp GraphicsLayer not found on map for tab ${tabData.id}. Layer might not have been created or added correctly.`);
+        return;
       }
+
+      console.log(`[handleCompVisualization] Found target Comp layer: "${compLayer.title}"`);
+
     } catch (error) {
-      console.error("Error during comp visualization processing:", error);
+      console.error("[handleCompVisualization] Error during comp visualization handling (finding layer or zooming):", error);
+       if (error.name === "AbortError") {
+         console.log("[handleCompVisualization] Zoom animation was interrupted.");
+       }
     }
   };
 
@@ -6079,191 +5970,181 @@ export default function MapComponent({ onToggleLis }) {
     }
   }, [activeTab, legend, tabs, isEditorOpen, mapView?.ready]);
 
+
   useEffect(() => {
-    if (!mapView?.ready || !mapView.map || isConfigLoading) return; // Add legend check maybe later
+    console.log("[VizUpdate Effect] TRIGGERED. Active Tab:", activeTab, "Tabs Count:", tabs.length);
+    if (!mapView?.map || isConfigLoading || !legend) {
+      console.log("[VizUpdate Effect] Map/Legend not ready or configs loading, skipping update.");
+      return;
+    }
+
+    let isMounted = true;
 
     const updateVisualizationAndLegend = async () => {
-      if (!mapView?.map || isConfigLoading) {
-        console.log("[VizUpdate] Map not ready or configs loading, skipping.");
-        return;
-      }
-      console.log("[VizUpdate] Starting update...");
+      console.log("[VizUpdate Effect] Starting update...");
+       if (!mapView?.map || !isMounted) { // Check mount status here too
+           console.warn("[VizUpdate Effect] Map unavailable or component unmounted during async operation.");
+           return;
+       }
 
-      try {
-        // --- Layer Removal ---
-        const layersToRemove = [];
-        mapView.map.layers.forEach((layer) => {
-          if (layer && layer.isVisualizationLayer === true) {
-            layersToRemove.push(layer);
-          }
+      // --- Layer Removal ---
+      const layersToRemove = [];
+      const remainingLayerIds = new Set(); // Keep track of layers NOT removed
+      mapView.map.layers.forEach((layer) => {
+        if (layer && layer.isVisualizationLayer === true) {
+          layersToRemove.push(layer);
+        } else if (layer) {
+          remainingLayerIds.add(layer.id); // Track non-viz layers
+        }
+      });
+
+      if (layersToRemove.length > 0) {
+        console.log(`[VizUpdate Effect] Removing ${layersToRemove.length} existing visualization layers.`);
+        mapView.map.removeMany(layersToRemove);
+        // Clean up refs for removed layers
+        Object.keys(activeLayersRef.current).forEach(tabIdKey => {
+            const layerInstance = activeLayersRef.current[tabIdKey];
+            // Check if the layer instance ID is NOT among the remaining layers
+            if (layerInstance && !remainingLayerIds.has(layerInstance.id)) {
+                 console.log(`[VizUpdate Effect] Clearing ref for removed layer (Tab ID: ${tabIdKey})`);
+                 delete activeLayersRef.current[tabIdKey];
+            }
         });
-        if (layersToRemove.length > 0) {
-          console.log(
-            `[VizUpdate] Removing ${layersToRemove.length} existing visualization layers.`
-          );
-          mapView.map.removeMany(layersToRemove);
-        }
-        // --- End Layer Removal ---
-
-        const activeTabData = tabs.find((tab) => tab.id === activeTab);
-        console.log("[VizUpdate] Active Tab Data:", activeTabData);
-
-        let newLayer = null; // To hold the newly created layer
-        let showEsriLegend = false; // Flag to control standard legend
-        let customLegendData = null; // To hold data for custom legend
-
-        if (activeTab !== 1 && activeTabData?.visualizationType) {
-          let vizType = activeTabData.visualizationType;
-          if (vizType === "pipeline") vizType = "pipe";
-          if (vizType === "comps") vizType = "comp";
-
-          const config = activeTabData.layerConfiguration;
-          const areaType = activeTabData.areaType;
-          console.log(
-            `[VizUpdate] Creating/Updating visualization for active type: ${vizType}`,
-            { config, areaType: areaType?.label }
-          );
-
-          const specialTypes = ["pipe", "comp", "custom"];
-          const isSpecialType =
-            specialTypes.includes(vizType) ||
-            specialTypes.includes(config?.type) ||
-            (config?.customData && config.customData.data);
-
-          if (isSpecialType) {
-            newLayer = await createLayers(vizType, config); // createLayers handles GraphicsLayer
-            if (newLayer) {
-              console.log(
-                `[VizUpdate] Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
-              );
-              mapView.map.add(newLayer, 0);
-
-              // Handle specific drawing/zooming AFTER adding layer
-              if (vizType === "pipe")
-                await handlePipeVisualization(activeTabData);
-              else if (vizType === "comp")
-                await handleCompVisualization(activeTabData);
-              else if (
-                vizType === "custom" /* ... custom data handling ... */
-              ) {
-                // ... zoom logic for custom ...
-                if (newLayer.graphics && newLayer.graphics.length > 0) {
-                  setTimeout(() => {
-                    if (mapView?.goTo)
-                      mapView
-                        .goTo(newLayer.graphics)
-                        .catch((err) =>
-                          console.warn("Error zooming to custom graphics:", err)
-                        );
-                  }, 500);
-                }
+      } else {
+         // If no layers removed, still ensure ref is clean if activeTab has no viz
+         const activeTabDataForCheck = tabs.find(t => t.id === activeTab);
+         if (activeTab === 1 || !activeTabDataForCheck?.visualizationType) {
+              if (activeLayersRef.current[activeTab]) {
+                 console.log(`[VizUpdate Effect] Clearing ref for active tab ${activeTab} as it has no visualization.`);
+                 delete activeLayersRef.current[activeTab];
               }
-
-              // --- Prepare Custom Legend Data for pipe/comp ---
-              if (
-                (vizType === "pipe" || vizType === "comp") &&
-                config?.symbol &&
-                config?.legendInfo
-              ) {
-                customLegendData = {
-                  symbol: config.symbol,
-                  label: config.legendInfo.label,
-                };
-                console.log(
-                  "[VizUpdate] Prepared custom legend data:",
-                  customLegendData
-                );
-              }
-              // ----------------------------------------------
-            } else {
-              console.error(
-                `[VizUpdate] Failed to create GraphicsLayer for type: ${vizType}`
-              );
-            }
-          } else {
-            // Standard Heatmap/Dot Density use FeatureLayer
-            newLayer = await createLayers(
-              vizType,
-              config,
-              initialLayerConfigurations,
-              areaType
-            );
-            if (newLayer) {
-              console.log(
-                `[VizUpdate] Adding FeatureLayer titled "${newLayer.title}" for type "${vizType}"`
-              );
-              mapView.map.add(newLayer, 0);
-              showEsriLegend = true; // Show standard Esri legend for these types
-            } else {
-              console.error(
-                `[VizUpdate] Failed to create FeatureLayer for type: ${vizType}`
-              );
-            }
-          }
-
-          // --- Update Standard Esri Legend ---
-          if (legend) {
-            if (showEsriLegend && newLayer && !isEditorOpen) {
-              try {
-                await newLayer.when(); // Wait for FeatureLayer
-                console.log(
-                  `[VizUpdate] Updating standard Esri legend for layer: ${
-                    newLayer.title || vizType
-                  }`
-                );
-                legend.layerInfos = [
-                  {
-                    layer: newLayer,
-                    title: newLayer.title || vizType,
-                    hideLayersNotInCurrentView: false,
-                  },
-                ];
-                legend.visible = true;
-              } catch (layerError) {
-                console.error(
-                  "[VizUpdate] Error waiting for FeatureLayer or updating Esri legend:",
-                  layerError
-                );
-                legend.visible = false;
-              }
-            } else {
-              // Hide standard legend if not applicable (e.g., pipe/comp) or editor is open
-              console.log(
-                `[VizUpdate] Hiding standard Esri legend. ShowEsriLegend: ${showEsriLegend}, isEditorOpen: ${isEditorOpen}`
-              );
-              legend.visible = false;
-            }
-          }
-          // --- End Update Standard Esri Legend ---
-        } else {
-          // Core Map or no visualization selected
-          if (legend) {
-            console.log(
-              "[VizUpdate] Hiding standard Esri legend: Core Map or no visualization."
-            );
-            legend.visible = false;
-          }
-        }
-
-        // --- Update Custom Legend State ---
-        setCustomLegendContent(customLegendData); // Set state for custom legend display
-      } catch (error) {
-        console.error("[VizUpdate] Error during visualization update:", error);
-        if (legend) legend.visible = false;
-        setCustomLegendContent(null); // Clear custom legend on error
-      } finally {
-        console.log("[VizUpdate] Update finished.");
+         }
       }
+      // --- End Layer Removal & Ref Cleanup ---
+
+
+      const activeTabData = tabs.find((tab) => tab.id === activeTab);
+      console.log("[VizUpdate Effect] Active Tab Data:", activeTabData ? { id: activeTabData.id, name: activeTabData.name, type: activeTabData.visualizationType } : 'None');
+
+      let newLayer = null;
+      let showEsriLegend = false;
+      let customLegendData = null;
+
+      if (activeTab !== 1 && activeTabData?.visualizationType) {
+        let vizType = activeTabData.visualizationType;
+        if (vizType === "pipeline") vizType = "pipe";
+        if (vizType === "comps") vizType = "comp";
+
+        const config = activeTabData.layerConfiguration;
+        const areaType = activeTabData.areaType;
+        console.log(`[VizUpdate Effect] Creating/Updating layer for active type: ${vizType}`);
+
+        newLayer = await createLayers(
+          vizType,
+          config,
+          initialLayerConfigurations,
+          areaType
+        );
+
+        if (newLayer && (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)) {
+          if (!isMounted) return;
+          console.log(`[VizUpdate Effect] Adding layer "${newLayer.title}" (type: ${newLayer.visualizationType}, ID: ${newLayer.id}) to map.`);
+          mapView.map.add(newLayer, 0);
+
+          // *** FIX: Store the newly added layer in the ref ***
+          activeLayersRef.current[activeTab] = newLayer;
+          console.log(`[VizUpdate Effect] Stored layer in ref for tab ${activeTab}:`, newLayer.id);
+          // *** End FIX ***
+
+          try {
+            await newLayer.when(); // Wait for layer readiness
+             if (!isMounted) return;
+            console.log(`[VizUpdate Effect] Layer "${newLayer.title}" is ready.`);
+
+            const specialTypes = ["pipe", "comp", "custom"];
+            const effectiveLayerType = newLayer.visualizationType || vizType;
+
+            if (specialTypes.includes(effectiveLayerType)) {
+              // *** Pass the layer reference explicitly ***
+              // The handlers will now also check the ref first as a backup
+              console.log(`[VizUpdate Effect] Calling handler for special type: ${effectiveLayerType}`);
+              if (effectiveLayerType === "pipe") {
+                await handlePipeVisualization(activeTabData, newLayer); // Pass layer
+              } else if (effectiveLayerType === "comp") {
+                await handleCompVisualization(activeTabData, newLayer); // Pass layer
+              } else if (effectiveLayerType === "custom") {
+                await handleCustomDataVisualization(activeTabData, newLayer); // Pass layer
+              }
+            } else {
+              showEsriLegend = true;
+            }
+
+             // Prepare custom legend for pipe/comp (if applicable)
+            if ((effectiveLayerType === "pipe" || effectiveLayerType === "comp") && config?.symbol && config?.legendInfo) {
+                 customLegendData = { /* ... */ };
+            }
+
+          } catch (layerWhenError) {
+            console.warn(`[VizUpdate Effect] Error waiting for layer "${newLayer.title}" or calling handler:`, layerWhenError.message);
+            // Attempt to clean up the ref if handler failed
+            if (activeLayersRef.current[activeTab] === newLayer) {
+                delete activeLayersRef.current[activeTab];
+            }
+          }
+        } else {
+          console.error(`[VizUpdate Effect] Failed to create layer for type: ${vizType}`);
+          // Ensure ref is cleared if layer creation failed
+          delete activeLayersRef.current[activeTab];
+        }
+      } else {
+        console.log("[VizUpdate Effect] Core Map active or no visualization selected. No layer added.");
+        // Ensure ref is cleared for the active tab if it's Core Map
+        delete activeLayersRef.current[activeTab];
+      }
+
+      // Update Legends
+      if (legend) {
+        if (showEsriLegend && newLayer && !isEditorOpen) {
+            try {
+                // Esri Legend setup...
+                 await newLayer.when();
+                 if (!isMounted) return;
+                 console.log(`[VizUpdate Effect] Updating standard Esri legend for layer: ${newLayer.title}`);
+                 legend.layerInfos = [{ layer: newLayer, title: newLayer.title || vizType, hideLayersNotInCurrentView: false }];
+                 legend.visible = true;
+            } catch (layerError) {
+                console.error("[VizUpdate Effect] Error updating Esri legend:", layerError);
+                if (legend) legend.visible = false;
+            }
+        } else {
+            console.log(`[VizUpdate Effect] Hiding standard Esri legend. ShowEsriLegend: ${showEsriLegend}, isEditorOpen: ${isEditorOpen}`);
+            legend.visible = false;
+        }
+      }
+      if (isMounted) {
+          setCustomLegendContent(customLegendData);
+      }
+
+    }; // end updateVisualizationAndLegend
+
+    updateVisualizationAndLegend().catch(err => {
+        console.error("[VizUpdate Effect] Unhandled error in updateVisualizationAndLegend:", err);
+    }).finally(() => {
+         console.log("[VizUpdate Effect] Update finished.");
+    });
+
+    // Cleanup
+    return () => {
+      isMounted = false;
+      console.log("[VizUpdate Effect] Cleanup: Component unmounted or dependencies changed.");
     };
 
-    updateVisualizationAndLegend();
-  }, [activeTab, tabs, mapView, legend, isEditorOpen, isConfigLoading]); // Dependencies
+  }, [activeTab, tabs, mapView, legend, isEditorOpen, isConfigLoading, initialLayerConfigurations]); // Dependencies
 
-  // *** ENTIRE FUNCTION ***
-  // (Make sure necessary imports like Graphic, Point, SimpleMarkerSymbol, etc. are at the top of Map.jsx)
+  
   const handleCustomDataVisualization = async (tabData) => {
     console.log("Attempting to visualize Custom Data Map with data:", tabData);
-
+  
     if (!mapView?.map) {
       console.warn("Map view not available for custom data visualization.");
       return;
@@ -6274,118 +6155,79 @@ export default function MapComponent({ onToggleLis }) {
       );
       return;
     }
-
-    // --- Layer Finding ---
-    // Find the GraphicsLayer specifically created for 'custom' visualization.
+  
+    // Find the GraphicsLayer for 'custom' visualization
     const customLayer = mapView.map.layers.find(
       (l) =>
-        l &&
-        l.isVisualizationLayer === true &&
-        l.visualizationType === "custom" &&
-        l.isCustomDataLayer === true
+        l && l.isVisualizationLayer === true && l.visualizationType === "custom"
     );
-
+  
     if (!customLayer) {
       console.error(
-        "Custom Data GraphicsLayer not found on the map. Cannot add graphics."
+        "Custom Data GraphicsLayer not found on the map. Cannot update graphics."
       );
-      return; // Exit if no layer found
-    }
-    console.log(`Found target Custom Data layer: "${customLayer.title}"`);
-
-    // --- Data Extraction ---
-    const config = tabData.layerConfiguration;
-    const customData = config?.customData?.data; // Access the nested 'data' array
-    const nameColumn = config?.customData?.nameColumn; // Column for popup title/content
-    const valueColumn = config?.field || config?.customData?.valueColumn; // Use 'field' or nested valueColumn
-    // Get coordinate columns, provide defaults if missing
-    const latitudeColumn = config?.customData?.latitudeColumn || "latitude"; // Common defaults
-    const longitudeColumn = config?.customData?.longitudeColumn || "longitude"; // Common defaults
-    // Get the symbol configuration
-    const symbolConfig = config?.symbol;
-
-    // Check if customData is actually an array
-    if (!Array.isArray(customData) || customData.length === 0) {
-      console.log(
-        "No valid custom data points array found in configuration for custom visualization."
-      );
-      customLayer.removeAll(); // Clear any old graphics even if no new data
       return;
     }
-    if (!nameColumn) {
-      console.warn(
-        "Missing nameColumn in customData configuration for popups."
-      );
+    console.log(`Found target Custom Data layer: "${customLayer.title}"`);
+  
+    // Always clear existing graphics to ensure a fresh start
+    customLayer.removeAll();
+    console.log(`Cleared existing graphics from layer "${customLayer.title}".`);
+  
+    // Extract configuration data
+    const config = tabData.layerConfiguration;
+    const customData = config?.customData?.data || []; // Get data array
+    const nameColumn = config?.customData?.nameColumn; // Column for popup title
+    const valueColumn = config?.field || config?.customData?.valueColumn; // Use field or valueColumn
+    const latitudeColumn = config?.customData?.latitudeColumn || "latitude";
+    const longitudeColumn = config?.customData?.longitudeColumn || "longitude";
+    const symbolConfig = config?.symbol;
+  
+    console.log(`Processing ${customData.length} custom points using name='${nameColumn}', value='${valueColumn || "N/A"}', lat='${latitudeColumn}', lon='${longitudeColumn}'`);
+  
+    if (!Array.isArray(customData) || customData.length === 0) {
+      console.log("No custom data points found for visualization.");
+      return;
     }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error(
-        "Missing latitudeColumn or longitudeColumn in customData configuration."
-      );
-      customLayer.removeAll();
-      return; // Cannot create points
-    }
-    if (!symbolConfig) {
-      console.warn(
-        "Missing symbol configuration in layerConfiguration for custom visualization. Using default symbol."
-      );
-    }
-
-    console.log(
-      `Processing ${
-        customData.length
-      } custom points using name='${nameColumn}', value='${
-        valueColumn || "N/A"
-      }', lat='${latitudeColumn}', lon='${longitudeColumn}'`
-    );
-
+  
     try {
-      // --- Dynamic Imports (Ensure they are available) ---
-      // Assuming Graphic, Point, SimpleMarkerSymbol, PopupTemplate, Color are imported at the top
-
-      // --- Clear Existing Graphics ---
-      customLayer.removeAll();
-      console.log(
-        `Cleared existing graphics from custom data layer "${customLayer.title}".`
-      );
-
-      // --- Create Popup Template (if nameColumn exists) ---
-      let popupTemplate = null;
-      if (nameColumn) {
-        const fieldInfos = [{ fieldName: nameColumn, label: nameColumn }];
-        if (valueColumn) {
-          fieldInfos.push({
-            fieldName: valueColumn,
-            label: valueColumn,
-            format: { digitSeparator: true, places: 2 }, // Generic formatting
-          });
-        }
-        // Add coordinate fields if desired
-        // fieldInfos.push({ fieldName: 'latitude', label: 'Latitude', format: { places: 5 } });
-        // fieldInfos.push({ fieldName: 'longitude', label: 'Longitude', format: { places: 5 } });
-
-        popupTemplate = new PopupTemplate({
-          title: `{${nameColumn}}`,
-          content: [{ type: "fields", fieldInfos: fieldInfos }],
-        });
-      } else {
-        console.warn(
-          "Popup template not created for custom data: Missing nameColumn."
-        );
-        // Optional minimal popup
-        popupTemplate = new PopupTemplate({
-          title: "Custom Point",
-          content: `Latitude: {latitude}<br>Longitude: {longitude}<br>ID: {ID}`,
-        });
-      }
-
-      // --- Create Symbol from Config ---
+      // Ensure required modules are imported
+      const [
+        { default: Graphic },
+        { default: Point },
+        { default: SimpleMarkerSymbol },
+        { default: PopupTemplate },
+        { default: Color },
+      ] = await Promise.all([
+        import("@arcgis/core/Graphic"),
+        import("@arcgis/core/geometry/Point"),
+        import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+        import("@arcgis/core/PopupTemplate"),
+        import("@arcgis/core/Color"),
+      ]);
+  
+      // Create popup template
+      const popupTemplate = nameColumn
+        ? new PopupTemplate({
+            title: `{${nameColumn}}`,
+            content: [{
+              type: "fields",
+              fieldInfos: [
+                { fieldName: nameColumn, label: nameColumn },
+                { fieldName: valueColumn, label: valueColumn || "Value" }
+              ]
+            }]
+          })
+        : null;
+  
+      // Create symbol from config
       let pointSymbol = null;
       if (symbolConfig) {
         try {
           if (symbolConfig.type === "simple-marker") {
             pointSymbol = new SimpleMarkerSymbol({
               style: symbolConfig.style || "circle",
-              color: new Color(symbolConfig.color || "#FF0000"), // Default to red for custom
+              color: new Color(symbolConfig.color || "#FF0000"), // Default red for custom
               size: symbolConfig.size || "10px",
               outline: symbolConfig.outline
                 ? {
@@ -6395,13 +6237,10 @@ export default function MapComponent({ onToggleLis }) {
                 : null,
             });
           } else {
-            console.warn(
-              `Symbol type '${symbolConfig.type}' not explicitly handled for custom visualization. Using default.`
-            );
             pointSymbol = new SimpleMarkerSymbol({
               color: "#FF0000",
               size: "10px",
-            }); // Default red
+            });
           }
         } catch (symbolError) {
           console.error(
@@ -6418,137 +6257,74 @@ export default function MapComponent({ onToggleLis }) {
         pointSymbol = new SimpleMarkerSymbol({
           color: "#FF0000",
           size: "10px",
-        }); // Default red
+        });
       }
-
-      // --- Create and Add Graphics ---
+  
+      // Create and add graphics
       const graphicsToAdd = [];
       let addedCount = 0;
       let errorCount = 0;
-
+  
       customData.forEach((item, index) => {
-        // Get lat/lon robustly
+        // Get coordinates
         let latitude, longitude;
-        if (
-          item.geometry &&
-          typeof item.geometry.y === "number" &&
-          typeof item.geometry.x === "number"
-        ) {
+        if (item[latitudeColumn] !== undefined && item[longitudeColumn] !== undefined) {
+          latitude = parseFloat(item[latitudeColumn]);
+          longitude = parseFloat(item[longitudeColumn]);
+        } else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
           latitude = item.geometry.y;
           longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
-        } else if (
-          typeof item["lat"] === "number" &&
-          typeof item["lon"] === "number"
-        ) {
+        } else if (typeof item["lat"] === "number" && typeof item["lon"] === "number") {
           latitude = item["lat"];
           longitude = item["lon"];
         } else {
-          console.warn(
-            `Skipping custom item ${index} due to missing/invalid coordinates (LatCol: ${latitudeColumn}, LonCol: ${longitudeColumn}). Data:`,
-            item
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping custom item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-        if (
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          console.warn(
-            `Skipping custom item ${index} due to out-of-bounds coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
+          console.warn(`Skipping custom item ${index} - missing valid coordinates`);
           errorCount++;
           return;
         }
-
+  
+        if (isNaN(latitude) || isNaN(longitude)) {
+          console.warn(`Skipping custom item ${index} - invalid coordinates`);
+          errorCount++;
+          return;
+        }
+  
         try {
           const point = new Point({
             longitude: longitude,
             latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
+            spatialReference: { wkid: 4326 },
           });
-
-          // Prepare attributes
+  
           const attributes = {
             ...item,
-            ID: index, // Add simple ID
-            latitude: latitude, // Ensure coords are in attributes for minimal popup
-            longitude: longitude,
+            _internalId: `custom-${index}`,
           };
           if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
           if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null;
-
+  
           const graphic = new Graphic({
             geometry: point,
-            symbol: pointSymbol, // Use the symbol
+            symbol: pointSymbol,
             attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template
+            popupTemplate: popupTemplate,
           });
-
+  
           graphicsToAdd.push(graphic);
           addedCount++;
         } catch (graphicError) {
-          console.error(
-            `Error creating graphic for custom item ${index}:`,
-            graphicError,
-            item
-          );
+          console.error(`Error creating graphic for custom item ${index}:`, graphicError);
           errorCount++;
         }
       });
-
-      // Add all created graphics at once
-      if (graphicsToAdd.length > 0) {
-        customLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} custom graphics to layer "${customLayer.title}".`
-        );
-        if (errorCount > 0) {
-          console.warn(
-            `Failed to add ${errorCount} custom graphics due to errors.`
-          );
-        }
-
-        // --- Optional: Zoom to Graphics ---
-        setTimeout(() => {
-          if (mapView?.goTo && customLayer.graphics.length > 0) {
-            console.log("Zooming to custom graphics extent.");
-            mapView
-              .goTo(customLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to custom graphics:", err)
-              );
-          }
-        }, 500);
-      } else {
-        console.log("No valid custom graphics were created to add.");
-      }
     } catch (error) {
-      console.error(
-        "Error during custom data visualization processing:",
-        error
-      );
-      if (customLayer) {
-        customLayer.removeAll();
-      }
+      console.error("Error during custom data visualization:", error);
     }
   };
+
+
+
+
   const updateVisualizationLayer = async () => {
     if (!mapView?.map || isConfigLoading) {
       console.log(
@@ -6605,34 +6381,28 @@ export default function MapComponent({ onToggleLis }) {
           specialTypes.includes(config?.type) ||
           (config?.customData && config.customData.data);
 
-        if (isSpecialType) {
-          newLayer = await createLayers(vizType, config); // createLayers handles GraphicsLayer creation
-          if (newLayer) {
-            console.log(
-              `Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
-            );
-            mapView.map.add(newLayer, 0); // Add GraphicsLayer
-            // Call specific visualization handlers
-            if (vizType === "pipe")
-              await handlePipeVisualization(activeTabData);
-            else if (vizType === "comp")
-              await handleCompVisualization(activeTabData);
-            else if (vizType === "custom" || (config && config.customData)) {
-              if (newLayer.graphics && newLayer.graphics.length > 0) {
-                console.log(
-                  `Zooming to ${newLayer.graphics.length} custom graphics.`
-                );
-                setTimeout(() => {
-                  if (mapView && mapView.goTo) {
-                    mapView
-                      .goTo(newLayer.graphics)
-                      .catch((err) =>
-                        console.warn("Error zooming to custom graphics:", err)
-                      );
-                  }
-                }, 500);
+          if (isSpecialType) {
+            newLayer = await createLayers(vizType, config); // createLayers handles GraphicsLayer creation
+            if (newLayer) {
+              console.log(
+                `Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
+              );
+              mapView.map.add(newLayer, 0); // Add GraphicsLayer
+              // Call specific visualization handlers
+              if (vizType === "pipe")
+                await handlePipeVisualization(activeTabData);
+              else if (vizType === "comp")
+                await handleCompVisualization(activeTabData);
+              else if (vizType === "custom" || (config && config.customData)) {
+                if (newLayer.graphics && newLayer.graphics.length > 0) {
+                  console.log(
+                    `Custom layer "${newLayer.title}" contains ${newLayer.graphics.length} graphics`
+                  );
+                  // Removed auto-zooming code to prevent zoom when loading custom maps
+                  // Only log information about the graphics
+                }
               }
-            }
+            
           } else {
             console.error(
               `Failed to create GraphicsLayer for type: ${vizType}`
@@ -6863,23 +6633,20 @@ export default function MapComponent({ onToggleLis }) {
         const isSpecialType = specialTypes.includes(newLayer.visualizationType);
 
         if (isSpecialType) {
-          if (newLayer.visualizationType === "pipe")
+          // Replace any code blocks like this:
+          if (newLayer.visualizationType === "pipe") 
             await handlePipeVisualization(selectedTab);
           else if (newLayer.visualizationType === "comp")
             await handleCompVisualization(selectedTab);
           else if (newLayer.visualizationType === "custom") {
-            // Zoom logic for custom layers
-            if (newLayer.graphics && newLayer.graphics.length > 0) {
-              console.log("[TabClick] Zooming to custom graphics.");
-              setTimeout(() => {
-                if (mapView?.goTo)
-                  mapView
-                    .goTo(newLayer.graphics)
-                    .catch((err) =>
-                      console.warn("Error zooming to custom graphics:", err)
-                    );
-              }, 500);
-            }
+            // Remove or comment out the zooming part, if present
+            // if (newLayer.graphics && newLayer.graphics.length > 0) {
+            //   console.log("[TabClick] Zooming to custom graphics.");
+            //   setTimeout(() => {
+            //     if (mapView?.goTo)
+            //       mapView.goTo(newLayer.graphics).catch(err => console.warn("Error zooming to custom graphics:", err));
+            //   }, 500);
+            // }
           }
         }
 
@@ -7187,83 +6954,109 @@ export default function MapComponent({ onToggleLis }) {
   };
 
   const handleCreateMap = (mapData) => {
-    console.log("[handleCreateMap] Received map data:", mapData);
+    // Log the data received from the dialog
+    console.log("[MapComponent handleCreateMap] Received map data:", JSON.stringify(mapData, (k,v) => k === 'data' ? `[${v?.length} items]` : v, 2));
 
-    // ... (logic to determine nextTabNumber, newTabId, newTabName) ...
-    const existingTabNumbers = tabs; // ... (same logic as before) ...
-    const nextTabNumber = existingTabNumbers.length > 0; // ... (same logic as before) ...
+    // --- Calculate the next default map number (e.g., "Map 2", "Map 3") ---
+    const existingTabNumbers = tabs
+      .filter(tab => tab.id !== 1 && tab.name && tab.name.startsWith('Map ')) // Filter non-core tabs named like "Map X"
+      .map(tab => parseInt(tab.name.replace('Map ', ''), 10)) // Extract the number
+      .filter(num => !isNaN(num)); // Keep only valid numbers
+
+    let nextTabNumber = 2; // Start default numbering at 2 (since "Core Map" is 1)
+    if (existingTabNumbers.length > 0) {
+      // Find the maximum existing number and add 1
+      nextTabNumber = Math.max(...existingTabNumbers) + 1;
+    }
+    // Find the lowest available number starting from 2 if there are gaps
+    let currentNum = 2;
+    const sortedNumbers = existingTabNumbers.sort((a, b) => a - b);
+    for (const num of sortedNumbers) {
+        if (num === currentNum) {
+            currentNum++;
+        } else {
+            // Found a gap
+            nextTabNumber = currentNum;
+            break;
+        }
+    }
+    if (currentNum > Math.max(...sortedNumbers, 0)) {
+        nextTabNumber = currentNum; // Use the next number if no gaps found
+    }
+    // --- End calculating next tab number ---
+
+    // Generate a unique ID for the new tab
     const newTabId = Date.now();
-    const newTabName = mapData.name?.trim() || `Map ${nextTabNumber}`;
 
-    let vizType = mapData.visualizationType || mapData.type;
+    // --- Determine the Tab Name ---
+    // Use the name from the dialog if provided and not empty, otherwise use the calculated default name.
+    // This is where the previous 'mapName is not defined' error likely occurred if 'mapData.name' wasn't used correctly.
+    const newTabName = mapData.name?.trim() ? mapData.name.trim() : `Map ${nextTabNumber}`;
+    // --- End Determine Tab Name ---
+
+
+    // --- Process map type and configuration ---
+    let vizType = mapData.visualizationType || mapData.type; // Get type from mapData
+    // Normalize type names if needed (e.g., pipeline -> pipe)
     if (vizType === "pipeline") vizType = "pipe";
     if (vizType === "comps") vizType = "comp";
-    console.log(`[handleCreateMap] Normalized visualization type: ${vizType}`);
+    console.log(`[MapComponent handleCreateMap] Normalized visualization type: ${vizType}`);
 
-    let layerConfiguration = null;
-    const areaType = mapData.areaType || areaTypes[0];
+    let layerConfiguration = mapData.layerConfiguration; // Start with config from dialog
+    const areaType = mapData.areaType || areaTypes[0]; // Use areaType from dialog or default
 
-    const defaultSymbol = (type) => ({
-      type: "simple-marker",
-      color: type === "pipe" ? "#FFA500" : "#800080", // Orange for pipe, Purple for comp
-      size: 10,
-      outline: { color: "#FFFFFF", width: 1 },
-    });
-    const defaultLegend = (type) => ({
-      label: type === "pipe" ? "Pipe Location" : "Comparison Point",
-    });
-
-    if (vizType === "custom" && mapData.customData) {
-      // ... (existing custom data processing) ...
-      layerConfiguration = processCustomMapData({
-        customData: mapData.customData,
-        nameColumn: mapData.nameColumn,
-        valueColumn: mapData.valueColumn,
-        type: "custom",
-      });
-      if (layerConfiguration) layerConfiguration.type = "custom";
-    } else if (vizType === "pipe" || vizType === "comp") {
-      layerConfiguration = {
-        type: vizType,
-        title: newTabName,
-        customData: mapData.customData,
-        nameColumn: mapData.nameColumn,
-        valueColumn: mapData.valueColumn,
-        latitudeColumn: mapData.latitudeColumn,
-        longitudeColumn: mapData.longitudeColumn,
-        symbol: defaultSymbol(vizType), // Add default symbol
-        legendInfo: defaultLegend(vizType), // <-- ADD default legendInfo
-      };
-      console.log(
-        `[handleCreateMap] Initial layer config for ${vizType}:`,
-        layerConfiguration
-      );
-    } else if (vizType) {
-      // For standard heat/dot, use the default layer configuration
-      layerConfiguration = initialLayerConfigurations[vizType];
-      if (layerConfiguration && !layerConfiguration.type) {
-        layerConfiguration.type = vizType;
-      }
+    // If it's a standard heatmap/dot density, Map.jsx might need to look up the initial config
+    // The dialog *should* pass null for layerConfiguration in this case.
+    if ((mapData.type === 'heatmap' || mapData.type === 'dotdensity') && vizType && !layerConfiguration) {
+        console.log(`[MapComponent handleCreateMap] Looking up initial config for standard type: ${vizType}`);
+        layerConfiguration = initialLayerConfigurations[vizType];
+        // Ensure the 'type' property is set within the looked-up config if it wasn't already
+        if (layerConfiguration && !layerConfiguration.type) {
+            layerConfiguration.type = vizType;
+        }
+    } else if (layerConfiguration) {
+        // Ensure the 'type' property is consistent in the passed config
+        if (!layerConfiguration.type) {
+          layerConfiguration.type = vizType;
+        }
+        // Log the configuration being used for pipe/comp/custom
+        console.log(`[MapComponent handleCreateMap] Using layerConfiguration passed from dialog for type ${vizType}:`, layerConfiguration);
+    } else {
+        console.warn(`[MapComponent handleCreateMap] No layerConfiguration found or determined for type: ${vizType}`);
+        // Assign null explicitly if configuration couldn't be determined
+        layerConfiguration = null;
     }
+    // --- End Process map type and configuration ---
 
-    const newTab = {
-      id: newTabId,
-      configId: null,
-      name: newTabName,
-      originalName: newTabName,
-      active: true,
-      visualizationType: vizType,
-      areaType: areaType,
-      layerConfiguration: layerConfiguration,
-      isEditing: false,
-    };
-    console.log("[handleCreateMap] Creating new tab:", newTab);
-
-    const newTabs = [...tabs.map((tab) => ({ ...tab, active: false })), newTab];
-    setTabs(newTabs);
-    setActiveTab(newTabId);
-    setIsNewMapDialogOpen(false);
+  // Create the new tab object to add to the state
+  const newTab = {
+    id: newTabId,
+    configId: null, // Database ID will be assigned after saving
+    name: newTabName,
+    originalName: newTabName, // Store original name for editing
+    active: true, // Set the new tab as active
+    visualizationType: vizType,
+    areaType: areaType, // Use the determined areaType object
+    layerConfiguration: layerConfiguration, // Use the determined configuration
+    isEditing: false,
   };
+  console.log("[MapComponent handleCreateMap] Creating new tab object:", newTab);
+
+  // Update the tabs state: deactivate old tabs, add the new active tab
+  const newTabs = [...tabs.map((tab) => ({ ...tab, active: false })), newTab];
+  setTabs(newTabs);
+
+  // Set the active tab ID state
+  setActiveTab(newTabId);
+
+  // Close the dialog
+  setIsNewMapDialogOpen(false);
+
+  // Note: The useEffect hook watching [activeTab, tabs, ...] will handle
+  // removing old layers and adding/rendering the new layer for this tab.
+};
+
+
   const handleNameKeyDown = (tabId, e) => {
     if (e.key === "Enter") {
       handleNameChange(tabId, e.target.value);
@@ -7756,216 +7549,268 @@ export default function MapComponent({ onToggleLis }) {
     }
   }, [mapView]);
 
-  // Update handleLayerConfigChange to save to the specific tab
-  const handleLayerConfigChange = (newConfig) => {
-    const newTabs = tabs.map((tab) =>
-      tab.id === activeTab && tab.visualizationType
-        ? {
-            ...tab,
-            layerConfiguration: newConfig,
-          }
-        : tab
-    );
-    setTabs(newTabs);
-    updateVisualizationLayer(
-      tabs.find((tab) => tab.id === activeTab)?.visualizationType,
-      newConfig
-    );
+
+
+  const handleLayerConfigChange = useCallback((newConfig) => {
+      console.log("[ConfigChange] Updating tabs state with new config:", newConfig);
+
+      setTabs(prevTabs => {
+          return prevTabs.map((tab) =>
+              tab.id === activeTab && tab.visualizationType
+              ? {
+                  ...tab,
+                  layerConfiguration: {
+                      ...newConfig,
+                      // Preserve symbol structure if not explicitly changed by newConfig
+                      symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
+                      // Ensure type is consistent
+                      type: newConfig.type || tab.layerConfiguration?.type || tab.visualizationType,
+                  },
+                }
+              : tab
+          );
+      });
+
+      // --- REMOVED onPreview CALL ---
+      // The main useEffect watching `tabs` will now handle re-rendering
+      // the layer based on this state update when the user implicitly
+      // confirms the change (e.g., by closing editor or saving).
+      // If live preview *on the main map* is essential during editing,
+      // the `onPreview` prop and `handleConfigPreview` function need
+      // careful implementation to manage temporary layers without
+      // conflicting with the main state/useEffect loop.
+      console.log("[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update.");
+
+  }, [activeTab, setTabs, tabs]); // Include dependencies for useCallback
+
+
+  // Add this function to extract style properties consistently:
+  const extractSymbolProperties = (config) => {
+    const symbol = config?.symbol || {};
+    return {
+      size: symbol.size !== undefined ? Number(symbol.size) : 12,
+      color: symbol.color || "#800080", // Default purple for comp
+      outline: {
+        color: symbol.outline?.color || "#FFFFFF",
+        width: symbol.outline?.width !== undefined ? Number(symbol.outline.width) : 1
+      },
+      style: symbol.style || "circle"
+    };
   };
+
   // Handler for configuration previews
   const handleConfigPreview = async (previewConfig) => {
-    // Guard clauses: Ensure mapView and map are ready
     if (!mapView?.map) {
-      console.warn("Map view or map not ready for preview.");
+      console.warn("[Preview] Map view not ready.");
       return;
     }
     if (!previewConfig) {
-      console.warn("Preview cancelled: No configuration provided.");
+      console.warn("[Preview] No preview config provided.");
       return;
     }
 
-    console.log("[Preview] Starting preview with config:", previewConfig);
+    console.log("[Preview] Starting preview with config:", JSON.stringify(previewConfig, (k,v) => k === 'customData' ? `[${v?.data?.length} items]` : v));
 
     try {
       // --- Layer Removal ---
       const layersToRemove = [];
-      // Use forEach to avoid potential issues with Collection filtering/toArray
       mapView.map.layers.forEach((layer) => {
-        // Check using direct property access (safer)
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
       });
-
       if (layersToRemove.length > 0) {
-        console.log(
-          `[Preview] Removing ${layersToRemove.length} existing visualization layers.`
-        );
-        mapView.map.removeMany(layersToRemove); // Remove identified layers
+        console.log(`[Preview] Removing ${layersToRemove.length} existing visualization layers.`);
+        mapView.map.removeMany(layersToRemove);
       }
       // --- End Layer Removal ---
 
-      // Find the active tab data
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
       if (!activeTabData) {
         console.error("[Preview] Could not find active tab data.");
+        await updateVisualizationLayer(); // Restore original
         return;
       }
 
-      // Determine the visualization type from the active tab
-      let visualizationType = activeTabData.visualizationType;
-      if (!visualizationType) {
-        console.warn(
-          "[Preview] Active tab has no visualization type set. Cannot preview."
-        );
-        // Optionally restore original layer if needed, or just return
-        // await updateVisualizationLayer(); // Re-apply the saved state?
-        return;
+      // --- Determine Effective Type FROM PREVIEW CONFIG ---
+      let effectiveType = previewConfig.type; // Prioritize type from preview config
+      if (!effectiveType) {
+           console.warn("[Preview] Preview config missing 'type'. Attempting to infer or use active tab type.");
+           effectiveType = activeTabData.visualizationType; // Fallback to active tab type
+           if (previewConfig.customData && !effectiveType) effectiveType = 'custom'; // Infer if custom data exists
+           if (!effectiveType) {
+               console.error("[Preview] Could not determine effective type for preview.");
+               await updateVisualizationLayer(); // Restore original
+               return;
+           }
       }
 
-      // Normalize type (e.g., pipeline -> pipe)
-      if (visualizationType === "pipeline") visualizationType = "pipe";
-      if (visualizationType === "comps") visualizationType = "comp";
+      // Normalize type
+      if (effectiveType === "pipeline") effectiveType = "pipe";
+      if (effectiveType === "comps") effectiveType = "comp";
+      if (effectiveType && effectiveType.endsWith('_HEAT')) effectiveType = 'class-breaks';
 
-      // Determine if it's a special type (pipe, comp, custom) or standard (heatmap, dot)
-      const specialTypes = ["pipe", "comp", "custom"];
-      // Check type from previewConfig FIRST, then tab, then customData presence
-      const effectiveType = previewConfig.type || visualizationType;
-      const hasCustomData =
-        previewConfig.customData &&
-        Array.isArray(previewConfig.customData.data) &&
-        previewConfig.customData.data.length > 0;
-      const isSpecialType =
-        specialTypes.includes(effectiveType) || hasCustomData;
+      console.log(`[Preview] Effective Preview Type: ${effectiveType}`);
+      // --- End Determine Effective Type ---
 
-      console.log(
-        `[Preview] Effective type for creation: ${effectiveType}, Is Special: ${isSpecialType}`
-      );
-
-      // Create the new layer using the PREVIEW configuration
+      // Create the new layer using the PREVIEW configuration and determined type
       let newLayer = null;
+      const specialTypes = ["pipe", "comp", "custom"];
+      const isSpecialType = specialTypes.includes(effectiveType) || (previewConfig.customData && !['class-breaks', 'dot-density'].includes(effectiveType));
+
+
       if (isSpecialType) {
-        // If it's custom data, ensure createGraphicsLayerFromCustomData is used
-        if (effectiveType === "custom" || hasCustomData) {
-          console.log(
-            "[Preview] Creating custom GraphicsLayer using preview config:",
-            previewConfig
-          );
-          newLayer = await createGraphicsLayerFromCustomData(previewConfig);
-          if (newLayer) {
-            newLayer.visualizationType = "custom"; // Ensure type consistency
-            newLayer.isCustomDataLayer = true;
+          // Ensure the preview config has the correct type set for the creator function
+          const configForCreator = { ...previewConfig, type: effectiveType };
+          console.log(`[Preview] Creating GraphicsLayer (${effectiveType}) using preview config.`);
+
+          if (effectiveType === "pipe") {
+              newLayer = createPipeLayer(configForCreator);
+          } else if (effectiveType === "comp") {
+              newLayer = createCompLayer(configForCreator);
+          } else { // Assume custom if not pipe or comp
+              newLayer = await createGraphicsLayerFromCustomData(configForCreator);
           }
-        } else {
-          // Handle pipe/comp types - using createLayers which calls createPipe/CompLayer
-          console.log(
-            `[Preview] Creating special GraphicsLayer (${effectiveType}) using createLayers with preview config.`
-          );
-          newLayer = await createLayers(effectiveType, previewConfig); // Pass type and config
-        }
       } else {
         // Standard visualization type (heatmap, dot-density)
-        console.log(
-          `[Preview] Creating standard FeatureLayer (${effectiveType}) using createLayers with preview config.`
-        );
+        console.log(`[Preview] Creating FeatureLayer (${effectiveType}) using preview config.`);
         newLayer = await createLayers(
           effectiveType, // Pass the determined type
-          previewConfig, // Pass the preview configuration object
-          initialLayerConfigurations, // Pass the base configurations (might not be needed if override is complete)
+          previewConfig, // Pass the PREVIEW configuration object
+          initialLayerConfigurations,
           activeTabData.areaType || selectedAreaType // Use area type from the active tab
         );
       }
 
       // --- Add Layer and Update Legend ---
-      if (
-        newLayer &&
-        (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)
-      ) {
-        console.log(
-          `[Preview] Successfully created layer: "${newLayer.title}", type: "${
-            newLayer.visualizationType || effectiveType
-          }". Adding to map.`
-        );
-        // *** Use direct property assignment ***
+      if (newLayer && (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)) {
+        console.log(`[Preview] Successfully created layer: "${newLayer.title}", type: "${newLayer.visualizationType || effectiveType}". Adding to map.`);
+        // Ensure flag is set (should be done in creators)
         newLayer.isVisualizationLayer = true;
-        // visualizationType should be set correctly inside createLayers/createGraphicsLayerFromCustomData
 
-        mapView.map.add(newLayer, 0); // Add layer at the bottom
+        mapView.map.add(newLayer, 0);
 
-        // Update legend ONLY if the editor is NOT open (previews shouldn't necessarily update final legend)
-        // However, for immediate feedback during preview, we might want to update it temporarily.
-        // Let's update it for now, assuming the user wants to see the preview legend.
+        // Update legend
         if (legend) {
           try {
-            await newLayer.when(); // Wait for layer to be ready before updating legend
-            console.log(
-              "[Preview] Updating legend for preview layer:",
-              newLayer.title
-            );
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                // Use a clear title for the preview legend
-                title: newLayer.title
-                  ? `${newLayer.title} (Preview)`
-                  : `${effectiveType} (Preview)`,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = true; // Make sure legend is visible for preview
+            await newLayer.when();
+            console.log("[Preview] Updating legend for preview layer:", newLayer.title);
+            legend.layerInfos = [{
+              layer: newLayer,
+              title: `${newLayer.title || effectiveType} (Preview)`,
+              hideLayersNotInCurrentView: false,
+            }];
+            legend.visible = true;
           } catch (legendError) {
-            console.error(
-              "[Preview] Error waiting for layer or updating legend:",
-              legendError
-            );
+            console.error("[Preview] Error updating legend:", legendError);
             legend.visible = false;
           }
         }
-        // If it was a custom layer, potentially zoom
-        if (
-          newLayer instanceof GraphicsLayer &&
-          newLayer.graphics &&
-          newLayer.graphics.length > 0
-        ) {
-          console.log("[Preview] Zooming to preview graphics.");
-          // Optional: slight delay for rendering
-          setTimeout(() => {
-            mapView
-              .goTo(newLayer.graphics)
-              .catch((err) =>
-                console.warn("[Preview] Error zooming to graphics:", err)
-              );
-          }, 300);
-        }
       } else {
-        console.error(
-          `[Preview] Failed to create a valid layer for preview. Layer object:`,
-          newLayer
-        );
-        // Optionally restore the original layer state if preview fails
-        console.log(
-          "[Preview] Restoring original visualization state after failed preview."
-        );
-        await updateVisualizationLayer(); // Re-apply the saved state from the active tab
+        console.error(`[Preview] Failed to create layer for preview type ${effectiveType}.`);
+        await updateVisualizationLayer(); // Restore original state
       }
       // --- End Add Layer and Update Legend ---
+
     } catch (error) {
-      console.error("Error during handleConfigPreview:", error);
-      // Attempt to restore original state on error
-      console.log(
-        "[Preview] Restoring original visualization state after error."
-      );
-      await updateVisualizationLayer();
+      console.error("[Preview] Error during preview:", error);
+      await updateVisualizationLayer(); // Restore original state
     } finally {
       console.log("[Preview] Preview update finished.");
     }
-  };
-
+};
   // Add these useEffects after your existing ones
   useEffect(() => {
     // Load auto-saved configurations on mount
     loadMapConfigurations(AUTO_SAVE_KEY, false);
   }, []);
+
+// In MapComponent.jsx - Add this useEffect to listen for refresh events
+useEffect(() => {
+  // Event listener for forced visualization refreshes
+  const handleRefreshVisualization = (event) => {
+    const { tabId, config } = event.detail;
+    console.log("[RefreshEvent] Received refresh event for tab", tabId, "with config:", config);
+    
+    if (!tabId || !mapView?.map) return;
+    
+    // Get the tab data
+    const tabData = tabs.find(tab => tab.id === tabId);
+    if (!tabData) {
+      console.error("[RefreshEvent] Could not find tab data for ID:", tabId);
+      return;
+    }
+    
+    // Get the visualization type
+    let vizType = tabData.visualizationType;
+    if (!vizType) return;
+    
+    // Normalize visualization type
+    if (vizType === "pipeline") vizType = "pipe";
+    if (vizType === "comps") vizType = "comp";
+    
+    console.log(`[RefreshEvent] Refreshing visualization for tab ${tabId}, type: ${vizType}`);
+    
+    // Force layer removal first
+    const layersToRemove = [];
+    mapView.map.layers.forEach(layer => {
+      if (layer && layer.isVisualizationLayer === true) {
+        layersToRemove.push(layer);
+      }
+    });
+    
+    if (layersToRemove.length > 0) {
+      console.log(`[RefreshEvent] Removing ${layersToRemove.length} existing visualization layers`);
+      mapView.map.removeMany(layersToRemove);
+    }
+    
+    // Create a new layer with the updated configuration
+    createLayers(vizType, config || tabData.layerConfiguration, initialLayerConfigurations, tabData.areaType)
+      .then(newLayer => {
+        if (!newLayer) {
+          console.error("[RefreshEvent] Failed to create new layer");
+          return;
+        }
+        
+        // Add the new layer to the map
+        console.log(`[RefreshEvent] Adding new ${vizType} layer to map`);
+        mapView.map.add(newLayer, 0);
+        
+        // Special handling for specific layer types
+        if (vizType === "pipe") {
+          console.log("[RefreshEvent] Refreshing pipe visualization");
+          handlePipeVisualization(tabData);
+        } else if (vizType === "comp") {
+          console.log("[RefreshEvent] Refreshing comp visualization");
+          handleCompVisualization(tabData);
+        } else if (vizType === "custom") {
+          console.log("[RefreshEvent] Refreshing custom visualization");
+          handleCustomDataVisualization(tabData);
+        }
+        
+        // Update legend if necessary
+        if (legend) {
+          legend.layerInfos = [{
+            layer: newLayer,
+            title: newLayer.title || vizType,
+            hideLayersNotInCurrentView: false
+          }];
+          legend.visible = !isEditorOpen;
+        }
+      })
+      .catch(error => {
+        console.error("[RefreshEvent] Error creating or updating layer:", error);
+      });
+  };
+  
+  // Add event listener for refresh events
+  window.addEventListener('refreshVisualization', handleRefreshVisualization);
+  
+  // Clean up event listener when component unmounts
+  return () => {
+    window.removeEventListener('refreshVisualization', handleRefreshVisualization);
+  };
+}, [mapView, tabs, legend, isEditorOpen, handlePipeVisualization, handleCompVisualization, handleCustomDataVisualization]);
 
   return (
     <div className="flex flex-col h-full">

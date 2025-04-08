@@ -522,30 +522,73 @@ export const mapConfigurationsAPI = {
   getAll: async (projectId) => {
     try {
       if (!projectId) {
-        // Add a more specific error/warning if projectId is missing
         console.error('[API] mapConfigurationsAPI.getAll called without projectId!');
         throw new Error('Project ID is required to fetch map configurations');
       }
 
-      console.log(`[API] Fetching map configurations for project: ${projectId}`); // Log the ID being sent
+      console.log(`[API] Fetching map configurations for project: ${projectId}`);
 
       const response = await api.get('/api/map-configurations/', {
-        // Ensure the parameter name matches what the backend expects ('project')
         params: { project: projectId }
       });
 
-      console.log(`[API] Received map configurations response status: ${response.status}`, response.data); // Log response
+      console.log(`[API] Received map configurations response status: ${response.status}`, response.data);
 
-      return response; // Return the full response object
+      return response;
     } catch (error) {
       console.error(`[API] Error fetching map configurations for project ${projectId}:`, error.response?.data || error.message || error);
-      // Don't re-throw immediately, let the calling function handle it, but log it here.
-      // Consider returning a default structure or null if needed by the caller on error.
-       return { data: [] }; // Return an empty array structure on error to prevent crashes upstream
-      // throw error; // Or re-throw if the caller expects to catch it
+      return { data: [] };
     }
   },
-}
+  
+  create: async (projectId, configData) => {
+    try {
+      if (!projectId) {
+        console.error('[API] mapConfigurationsAPI.create called without projectId!');
+        throw new Error('Project ID is required to create map configuration');
+      }
+
+      // Deep clone config to avoid reference issues
+      const preparedData = { ...configData };
+      
+      // Ensure layer_configuration is properly serialized
+      if (preparedData.layer_configuration && typeof preparedData.layer_configuration !== 'string') {
+        preparedData.layer_configuration = JSON.stringify(preparedData.layer_configuration);
+      }
+      
+      console.log(`[API] Creating map configuration for project: ${projectId}`, preparedData);
+
+      const response = await api.post('/api/map-configurations/', preparedData);
+      console.log(`[API] Created map configuration, response status: ${response.status}`, response.data);
+      return response;
+    } catch (error) {
+      console.error(`[API] Error creating map configuration for project ${projectId}:`, error.response?.data || error.message || error);
+      
+      if (error.response?.status === 400) {
+        console.error('[API] Validation errors:', error.response.data);
+      }
+      
+      throw error;
+    }
+  },
+  
+  delete: async (configId) => {
+    try {
+      if (!configId) {
+        console.error('[API] mapConfigurationsAPI.delete called without configId!');
+        throw new Error('Config ID is required to delete map configuration');
+      }
+
+      console.log(`[API] Deleting map configuration: ${configId}`);
+      const response = await api.delete(`/api/map-configurations/${configId}/`);
+      console.log(`[API] Deleted map configuration, response status: ${response.status}`);
+      return response;
+    } catch (error) {
+      console.error(`[API] Error deleting map configuration ${configId}:`, error.response?.data || error.message || error);
+      throw error;
+    }
+  }
+};
 
 // ---------------------------------------------------------
 // Admin API endpoints
