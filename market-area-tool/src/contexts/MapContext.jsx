@@ -3520,23 +3520,220 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   );
 
 
-  const createPipeLayer = (config) => {
-    console.log("Placeholder: Creating Pipe Layer GraphicsLayer", config);
-    return new GraphicsLayer({
-      title: config?.title || "Pipe Map Layer",
-      listMode: "show", // Or hide, depending on desired behavior
-      graphics: [] // Start empty
-    });
-  };
-  
+  // Modified createCompLayer function
   const createCompLayer = (config) => {
-    console.log("Placeholder: Creating Comp Layer GraphicsLayer", config);
-    return new GraphicsLayer({
+    console.log("Creating Comp Layer with config:", config);
+    
+    // Create the graphics layer
+    const graphicsLayer = new GraphicsLayer({
       title: config?.title || "Comparison Map Layer",
-      listMode: "show",
-      graphics: []
+      listMode: "show"
     });
+    
+    // Extract needed configuration
+    const { 
+      customData, 
+      nameColumn, 
+      valueColumn, 
+      latitudeColumn, 
+      longitudeColumn,
+      symbol = {} 
+    } = config;
+    
+    // Force numeric type for size to prevent string values
+    const symbolSize = symbol.size !== undefined ? Number(symbol.size) : 12;
+    const pointColor = symbol.color || "#800080"; // Default purple for comp
+    const outlineColor = symbol.outline?.color || "#FFFFFF";
+    const outlineWidth = symbol.outline?.width !== undefined ? 
+      Number(symbol.outline.width) : 1;
+    const pointStyle = symbol.style || "circle";
+    
+    // Log comprehensive symbol properties
+    console.log("Using symbol properties:", {
+      size: symbolSize,
+      color: pointColor,
+      style: pointStyle,
+      outlineColor: outlineColor,
+      outlineWidth: outlineWidth
+    });
+    
+    // Check if we have the necessary data
+    if (Array.isArray(customData) && customData.length > 0 && 
+        latitudeColumn && longitudeColumn) {
+      
+      // Create graphics for each data point
+      customData.forEach((item, index) => {
+        // Skip if missing coordinates
+        if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+        
+        const lat = parseFloat(item[latitudeColumn]);
+        const lon = parseFloat(item[longitudeColumn]);
+        
+        // Skip invalid coordinates
+        if (isNaN(lat) || isNaN(lon)) return;
+        
+        // Create the point geometry
+        const point = new Point({
+          longitude: lon,
+          latitude: lat,
+          spatialReference: { wkid: 4326 }
+        });
+        
+        // Create the symbol with the specified styling
+        const pointSymbol = new SimpleMarkerSymbol({
+          style: pointStyle,
+          size: symbolSize,
+          color: new Color(pointColor),
+          outline: {
+            color: new Color(outlineColor),
+            width: outlineWidth
+          }
+        });
+        
+        // Create the graphic with attributes
+        const graphic = new Graphic({
+          geometry: point,
+          symbol: pointSymbol,
+          attributes: {
+            ...item,
+            OBJECTID: index,
+            displayValue: item[valueColumn],
+            displayName: item[nameColumn] || `Point ${index + 1}`
+          },
+          popupTemplate: new PopupTemplate({
+            title: "{displayName}",
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  { fieldName: "displayValue", label: valueColumn || "Value" }
+                ]
+              }
+            ]
+          })
+        });
+        
+        // Add the graphic to the layer
+        graphicsLayer.add(graphic);
+      });
+      
+      console.log(`Added ${graphicsLayer.graphics.length} points to comp layer`);
+    } else {
+      console.warn("Missing required data for comp layer: customData, latitudeColumn, or longitudeColumn");
+    }
+    
+    return graphicsLayer;
   };
+  // Similarly update your createPipeLayer function with the same pattern
+  const createPipeLayer = (config) => {
+    console.log("Creating Pipe Layer with config:", config);
+    
+    // Create the graphics layer
+    const graphicsLayer = new GraphicsLayer({
+      title: config?.title || "Pipeline Map Layer",
+      listMode: "show"
+    });
+    
+    // Extract needed configuration
+    const { 
+      customData, 
+      nameColumn, 
+      statusColumn, 
+      latitudeColumn, 
+      longitudeColumn,
+      symbol = {} 
+    } = config;
+    
+    // Default symbol properties if not specified
+    const pointSize = symbol.size || 12;
+    const defaultColor = "#0078D4";
+    const outlineColor = symbol.outline?.color || "#FFFFFF";
+    const outlineWidth = symbol.outline?.width || 1;
+    
+    // Status color mapping
+    const statusColors = config.statusColors || {
+      "In Progress": "#FFB900",
+      "Approved": "#107C10",
+      "Pending": "#0078D4",
+      "Completed": "#107C10",
+      "Rejected": "#D13438",
+      "default": defaultColor
+    };
+    
+    // Check if we have the necessary data
+    if (Array.isArray(customData) && customData.length > 0 && 
+        latitudeColumn && longitudeColumn) {
+      
+      // Create graphics for each data point
+      customData.forEach((item, index) => {
+        // Skip if missing coordinates
+        if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+        
+        const lat = parseFloat(item[latitudeColumn]);
+        const lon = parseFloat(item[longitudeColumn]);
+        
+        // Skip invalid coordinates
+        if (isNaN(lat) || isNaN(lon)) return;
+        
+        // Get the status and corresponding color
+        const status = item[statusColumn] || "default";
+        const pointColor = statusColors[status] || statusColors.default || defaultColor;
+        
+        // Create the point geometry
+        const point = {
+          type: "point",
+          longitude: lon,
+          latitude: lat,
+          spatialReference: { wkid: 4326 }
+        };
+        
+        // Create the symbol with status-based color
+        const pointSymbol = {
+          type: "simple-marker",
+          style: symbol.style || "circle",
+          size: pointSize,
+          color: pointColor,
+          outline: {
+            color: outlineColor,
+            width: outlineWidth
+          }
+        };
+        
+        // Create the graphic with attributes
+        const graphic = new Graphic({
+          geometry: point,
+          symbol: pointSymbol,
+          attributes: {
+            ...item,
+            OBJECTID: index,
+            displayName: item[nameColumn] || `Point ${index + 1}`,
+            status: item[statusColumn] || "Unknown"
+          },
+          popupTemplate: {
+            title: "{displayName}",
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  { fieldName: "status", label: statusColumn || "Status" }
+                ]
+              }
+            ]
+          }
+        });
+        
+        // Add the graphic to the layer
+        graphicsLayer.add(graphic);
+      });
+      
+      console.log(`Added ${graphicsLayer.graphics.length} points to pipeline layer`);
+    } else {
+      console.warn("Missing required data for pipeline layer: customData, latitudeColumn, or longitudeColumn");
+    }
+    
+    return graphicsLayer;
+  };
+
 
   const extractRadiusProperties = (feature) => {
     // Attempt to extract radius info from various feature formats

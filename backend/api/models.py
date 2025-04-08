@@ -81,6 +81,7 @@ class MarketArea(models.Model):
         ('cbsa', 'CBSA'),
         ('state', 'State'),
         ('usa', 'USA'),
+        ('custom', 'Custom Data'),  # Add this line to include 'custom' type
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

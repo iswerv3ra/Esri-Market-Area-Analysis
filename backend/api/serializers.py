@@ -1,7 +1,8 @@
+import json
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Count
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage, MapConfiguration  
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage, MapConfiguration
 
 class ColorKeySerializer(serializers.ModelSerializer):
     class Meta:
@@ -177,6 +178,7 @@ class VariablePresetSerializer(serializers.ModelSerializer):
         data['is_global'] = True
         return data
     
+# serializers.py - Update the MapConfigurationSerializer
 
 class MapConfigurationSerializer(serializers.ModelSerializer):
     project = serializers.UUIDField(write_only=True)
@@ -195,11 +197,41 @@ class MapConfigurationSerializer(serializers.ModelSerializer):
         if value not in valid_choices:
             raise serializers.ValidationError(f"Invalid area_type. Valid choices are: {list(valid_choices.keys())}")
         return value
+        
+    def validate_layer_configuration(self, value):
+        """
+        Ensure layer_configuration is properly handled whether it's a 
+        JSON string or a Python dict
+        """
+        if value is None:
+            return value
+            
+        # If it's already a dictionary (parsed JSON), return as is
+        if isinstance(value, dict):
+            return value
+            
+        # If it's a string, try to parse it to ensure it's valid JSON
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError("layer_configuration must be valid JSON")
+                
+        # If it's neither a dict nor a string, raise an error
+        raise serializers.ValidationError("layer_configuration must be a JSON string or a dictionary")
 
     def create(self, validated_data):
         try:
             project_id = validated_data.pop('project')
             project = Project.objects.get(id=project_id)
+            
+            # Ensure layer_configuration is stored correctly
+            layer_config = validated_data.get('layer_configuration')
+            if layer_config and isinstance(layer_config, dict):
+                # If it's a dict, it's already been validated above
+                # Django's JSONField will handle serialization
+                pass
+                
             return MapConfiguration.objects.create(project=project, **validated_data)
         except Project.DoesNotExist:
             raise serializers.ValidationError({"project": "Project does not exist"})
