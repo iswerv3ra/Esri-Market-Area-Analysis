@@ -24,7 +24,6 @@ import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol"; // Imp
 import Color from "@arcgis/core/Color"; // Import Color
 import Graphic from "@arcgis/core/Graphic";
 import PopupTemplate from "@arcgis/core/PopupTemplate";
-import CustomLegend from './CustomLegend';
 
 // Replace the hardcoded API_KEY with the environment variable
 const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
