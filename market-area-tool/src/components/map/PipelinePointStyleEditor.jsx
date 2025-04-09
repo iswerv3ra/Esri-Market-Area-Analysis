@@ -156,7 +156,7 @@ const PipelinePointStyleEditor = ({ config, onChange, onPreview }) => {
             {/* Basic configuration */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Map Title
+                    Legend Title
                 </label>
                 <input
                     type="text"

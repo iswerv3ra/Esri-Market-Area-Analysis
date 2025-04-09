@@ -163,12 +163,18 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
   const currentClassBreaks = config?.classBreakInfos || [];
   const renderType = config?.rendererType || (currentClassBreaks.length > 0 ? 'classBreaks' : 'simple');
 
-  const currentSize = currentSymbol.size ?? defaultSymbolProps.size;
-  const currentColor = currentSymbol.color ?? defaultSymbolProps.color;
-  const currentOutline = currentSymbol.outline ?? {};
-  const currentOutlineWidth = currentOutline.width ?? defaultSymbolProps.outline.width;
-  const currentOutlineColor = currentOutline.color ?? defaultSymbolProps.outline.color;
-  const currentLegendLabel = currentLegendInfo.label ?? defaultLegendProps.label;
+  // Create a working copy of the config to accumulate changes
+  const [workingConfig, setWorkingConfig] = useState(JSON.parse(JSON.stringify(config)));
+  
+  // Get values from the working config
+  const workingSymbol = workingConfig?.symbol ?? defaultSymbolProps;
+  const workingLegendInfo = workingConfig?.legendInfo ?? defaultLegendProps;
+  const workingSize = workingSymbol.size ?? defaultSymbolProps.size;
+  const workingColor = workingSymbol.color ?? defaultSymbolProps.color;
+  const workingOutline = workingSymbol.outline ?? {};
+  const workingOutlineWidth = workingOutline.width ?? defaultSymbolProps.outline.width;
+  const workingOutlineColor = workingOutline.color ?? defaultSymbolProps.outline.color;
+  const workingLegendLabel = workingLegendInfo.label ?? defaultLegendProps.label;
 
   // State for class breaks editing
   const [classBreaks, setClassBreaks] = useState(currentClassBreaks.length > 0 ? currentClassBreaks : []);
@@ -188,6 +194,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
 
   // Update local state when config changes
   useEffect(() => {
+    setWorkingConfig(JSON.parse(JSON.stringify(config)));
     setClassBreaks(config?.classBreakInfos?.length > 0 ? [...config.classBreakInfos] : []);
     setUseClassBreaks(config?.rendererType === 'classBreaks' || (config?.classBreakInfos?.length > 0));
     setValueColumn(config?.valueColumn || 'AvgBasePSF');
@@ -196,8 +203,8 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
 
   // --- Handler for simple style changes ---
   const handleConfigChange = (propPath, value) => {
-    // Start with a deep clone of the existing config
-    const updatedConfig = JSON.parse(JSON.stringify(config));
+    // Start with a deep clone of the existing working config
+    const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
 
     // Ensure base objects exist before setting nested properties
     if (propPath.startsWith('symbol.') && !updatedConfig.symbol) {
@@ -231,12 +238,8 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
     // Mark that we have unsaved changes
     setHasUnsavedChanges(true);
     
-    // Propagate changes up
-    onChange(updatedConfig);
-    if (onPreview) {
-      // Debounce preview slightly
-      setTimeout(() => onPreview(updatedConfig), 100);
-    }
+    // Update working config
+    setWorkingConfig(updatedConfig);
   };
 
   // --- Handler for class breaks changes ---
@@ -245,8 +248,8 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
     setClassBreaks(newBreaks);
     setHasUnsavedChanges(true);
     
-    // Clone the config to avoid mutations
-    const updatedConfig = JSON.parse(JSON.stringify(config));
+    // Clone the working config to avoid mutations
+    const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
     
     // Update class breaks and renderer type
     updatedConfig.classBreakInfos = newBreaks;
@@ -263,32 +266,24 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
       });
     }
     
-    console.log("Updated config with class breaks:", updatedConfig);
-    
-    // Propagate changes up
-    onChange(updatedConfig);
+    // Update working config
+    setWorkingConfig(updatedConfig);
+  };
+
+  // Preview changes
+  const previewChanges = () => {
+    // Call the preview function with the working config
     if (onPreview) {
-      setTimeout(() => onPreview(updatedConfig), 100);
+      onPreview(workingConfig);
     }
   };
 
-  // Function to submit changes
-  const submitChanges = () => {
-    // Clone the config to avoid mutations
-    const updatedConfig = JSON.parse(JSON.stringify(config));
-    
-    if (useClassBreaks) {
-      updatedConfig.classBreakInfos = classBreaks;
-      updatedConfig.rendererType = 'classBreaks';
-      updatedConfig.valueColumn = valueColumn;
-    } else {
-      updatedConfig.rendererType = 'simple';
-    }
-    
+  // Apply changes
+  const applyChanges = () => {
     // Propagate changes up
-    onChange(updatedConfig);
+    onChange(workingConfig);
     if (onPreview) {
-      setTimeout(() => onPreview(updatedConfig), 100);
+      onPreview(workingConfig);
     }
     
     setHasUnsavedChanges(false);
@@ -301,7 +296,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
     setHasUnsavedChanges(true);
     
     // Clone config
-    const updatedConfig = JSON.parse(JSON.stringify(config));
+    const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
     
     if (useClasses) {
       // Switching to class breaks
@@ -326,11 +321,8 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
       // Keep classBreakInfos for when user toggles back
     }
     
-    // Propagate changes
-    onChange(updatedConfig);
-    if (onPreview) {
-      setTimeout(() => onPreview(updatedConfig), 100);
-    }
+    // Update working config
+    setWorkingConfig(updatedConfig);
   };
   
   // --- Add a new class break ---
@@ -364,10 +356,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
         type: "simple-marker",
         style: "circle",
         color: colors[colorIndex],
-        size: currentSize, // Use current symbol size
+        size: workingSize, // Use working symbol size
         outline: {
-          color: currentOutlineColor,
-          width: currentOutlineWidth
+          color: workingOutlineColor,
+          width: workingOutlineWidth
         }
       }
     };
@@ -444,10 +436,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
   
   // --- Generate Class Breaks Based on Data ---
   const generateClassBreaksFromData = () => {
-    if (!config?.customData?.data || !valueColumn) return;
+    if (!workingConfig?.customData?.data || !valueColumn) return;
     
     // Extract values from data
-    const values = config.customData.data
+    const values = workingConfig.customData.data
       .map(item => parseFloat(item[valueColumn]))
       .filter(value => !isNaN(value));
     
@@ -480,10 +472,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
           type: "simple-marker",
           style: "circle",
           color: colors[i],
-          size: currentSize,
+          size: workingSize,
           outline: {
-            color: currentOutlineColor,
-            width: currentOutlineWidth
+            color: workingOutlineColor,
+            width: workingOutlineWidth
           }
         }
       });
@@ -502,10 +494,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
         {/* Symbol Preview */}
         <div
           style={{
-            width: `${currentSize}px`,
-            height: `${currentSize}px`,
-            backgroundColor: currentColor,
-            border: `${currentOutlineWidth}px solid ${currentOutlineColor}`,
+            width: `${workingSize}px`,
+            height: `${workingSize}px`,
+            backgroundColor: workingColor,
+            border: `${workingOutlineWidth}px solid ${workingOutlineColor}`,
             borderRadius: '50%', // Assuming circle marker
             flexShrink: 0,
           }}
@@ -513,7 +505,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
         />
         {/* Label Preview */}
         <span className="text-sm text-gray-800 dark:text-gray-100 break-all">
-          {currentLegendLabel || '(No Label)'}
+          {workingLegendLabel || '(No Label)'}
         </span>
       </div>
     </div>
@@ -532,10 +524,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
               {/* Symbol Preview */}
               <div
                 style={{
-                  width: `${breakInfo.symbol?.size || currentSize}px`,
-                  height: `${breakInfo.symbol?.size || currentSize}px`,
+                  width: `${breakInfo.symbol?.size || workingSize}px`,
+                  height: `${breakInfo.symbol?.size || workingSize}px`,
                   backgroundColor: breakInfo.symbol?.color,
-                  border: `${breakInfo.symbol?.outline?.width || currentOutlineWidth}px solid ${breakInfo.symbol?.outline?.color || currentOutlineColor}`,
+                  border: `${breakInfo.symbol?.outline?.width || workingOutlineWidth}px solid ${breakInfo.symbol?.outline?.color || workingOutlineColor}`,
                   borderRadius: '50%', // Assuming circle marker
                   flexShrink: 0,
                 }}
@@ -606,7 +598,20 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
         </div>
       </div>
 
-
+      {/* Render Type Toggle */}
+      <div className="flex items-center mb-4">
+        <span className="text-sm text-gray-700 dark:text-gray-300 mr-2">Simple Style</span>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={useClassBreaks}
+            onChange={handleToggleClassBreaks}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+        </label>
+        <span className="text-sm text-gray-700 dark:text-gray-300 ml-2">Class Breaks</span>
+      </div>
 
       {/* --- Value Column Input (for Class Breaks) --- */}
       {useClassBreaks && renderValueColumnInput()}
@@ -624,7 +629,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
           <input
             id="point-size-comp"
             type="number"
-            value={currentSize}
+            value={workingSize}
             onChange={(e) => {
               const newSize = Math.max(1, Math.min(30, parseFloat(e.target.value) || 1));
               handleConfigChange('symbol.size', newSize);
@@ -642,7 +647,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
             <input
               id="point-color-comp"
               type="color"
-              value={currentColor} // Input type color expects hex
+              value={workingColor} // Input type color expects hex
               onChange={(e) => handleConfigChange('symbol.color', e.target.value)}
               className="w-full h-8 p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded cursor-pointer"
             />
@@ -656,7 +661,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
           <input
             id="outline-width-comp"
             type="number"
-            value={currentOutlineWidth}
+            value={workingOutlineWidth}
             onChange={(e) => {
               const newWidth = Math.max(0, Math.min(5, parseFloat(e.target.value) || 0));
               handleConfigChange('symbol.outline.width', newWidth);
@@ -673,7 +678,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
           <input
             id="outline-color-comp"
             type="color"
-            value={currentOutlineColor} // Input type color expects hex
+            value={workingOutlineColor} // Input type color expects hex
             onChange={(e) => handleConfigChange('symbol.outline.color', e.target.value)}
             className="w-full h-8 p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded cursor-pointer"
           />
@@ -691,7 +696,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
             <input
               id="legend-label-comp"
               type="text"
-              value={currentLegendLabel}
+              value={workingLegendLabel}
               onChange={(e) => handleConfigChange('legendInfo.label', e.target.value)}
               placeholder="e.g., Comparable Property"
               className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
@@ -748,6 +753,38 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
                     </button>
                   </div>
                 </div>
+                
+                {/* Break-specific action buttons */}
+                {hasUnsavedChanges && (
+                  <div className="flex justify-end space-x-2 mt-3 mb-1">
+                    <button
+                      onClick={() => {
+                        // Reset this break to original
+                        const originalBreak = config?.classBreakInfos?.[index];
+                        if (originalBreak) {
+                          const newBreaks = [...classBreaks];
+                          newBreaks[index] = JSON.parse(JSON.stringify(originalBreak));
+                          handleClassBreaksChange(newBreaks);
+                        }
+                      }}
+                      className="px-3 py-1 text-xs bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={previewChanges}
+                      className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      onClick={applyChanges}
+                      className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    >
+                      Apply Changes
+                    </button>
+                  </div>
+                )}
                 
                 {/* Min/Max Value */}
                 <div className="grid grid-cols-2 gap-2">
@@ -858,6 +895,23 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
             </svg>
             Unsaved changes
           </div>
+        )}
+        
+        {hasUnsavedChanges && (
+          <>
+            <button
+              onClick={previewChanges}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
+            >
+              Preview
+            </button>
+            <button
+              onClick={applyChanges}
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+            >
+              Apply Changes
+            </button>
+          </>
         )}
       </div>
     </div>

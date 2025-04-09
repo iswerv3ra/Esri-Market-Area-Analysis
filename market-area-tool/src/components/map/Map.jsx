@@ -24,7 +24,7 @@ import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol"; // Imp
 import Color from "@arcgis/core/Color"; // Import Color
 import Graphic from "@arcgis/core/Graphic";
 import PopupTemplate from "@arcgis/core/PopupTemplate";
-
+import CustomLegend from "./CustomLegend";
 // Replace the hardcoded API_KEY with the environment variable
 const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
 
@@ -4931,16 +4931,6 @@ async function createGraphicsLayerFromCustomData(config) {
   return customLayer;
 }
 
-const renderCustomLegend = () => {
-  // Only show if we have an active special visualization type
-  if (!customLegendContent) return null;
-
-  return (
-    <div className="absolute bottom-4 left-4 z-10">
-      <CustomLegend type={customLegendContent.type} config={customLegendContent.config} />
-    </div>
-  );
-};
 
 // Helper function to create a dot density configuration
 const createDotDensityConfig = (field, label, dotValue = 100) => ({
@@ -4993,7 +4983,7 @@ export default function MapComponent({ onToggleLis }) {
   const localStorageProjectId = localStorage.getItem("currentProjectId");
   const sessionStorageProjectId = sessionStorage.getItem("currentProjectId");
   const [isSaving, setIsSaving] = useState(false);
-  const [customLegendContent, setCustomLegendContent] = useState(null); // State for custom legend
+  const [customLegendContent, setCustomLegendContent] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStartPoint, setDrawStartPoint] = useState(null);
   const [drawEndPoint, setDrawEndPoint] = useState(null);
@@ -5007,6 +4997,21 @@ export default function MapComponent({ onToggleLis }) {
   // Use the first available project ID
   const projectId =
     routeProjectId || localStorageProjectId || sessionStorageProjectId;
+    
+    
+    const renderCustomLegend = () => {
+      // Only show if we have active special visualization type with valid config
+      if (!customLegendContent || !customLegendContent.config) {
+        return null;
+      }
+    
+      // Return a single div that contains the legend
+      return (
+        <div className="absolute bottom-4 left-4 z-10">
+          <CustomLegend type={customLegendContent.type} config={customLegendContent.config} />
+        </div>
+      );
+    };
 
   useEffect(() => {
     if (!projectId) {
@@ -6063,17 +6068,12 @@ export default function MapComponent({ onToggleLis }) {
             const specialTypes = ["pipe", "comp", "custom"];
             const effectiveLayerType = newLayer.visualizationType || vizType;
 
-            if (specialTypes.includes(effectiveLayerType)) {
-              // *** Pass the layer reference explicitly ***
-              // The handlers will now also check the ref first as a backup
-              console.log(`[VizUpdate Effect] Calling handler for special type: ${effectiveLayerType}`);
-              if (effectiveLayerType === "pipe") {
-                await handlePipeVisualization(activeTabData, newLayer); // Pass layer
-              } else if (effectiveLayerType === "comp") {
-                await handleCompVisualization(activeTabData, newLayer); // Pass layer
-              } else if (effectiveLayerType === "custom") {
-                await handleCustomDataVisualization(activeTabData, newLayer); // Pass layer
-              }
+            if ((effectiveLayerType === "pipe" || effectiveLayerType === "comp" || effectiveLayerType === "custom") && config) {
+              customLegendData = {
+                type: effectiveLayerType,
+                config: config
+              };
+              console.log(`[VizUpdate Effect] Setting custom legend for ${effectiveLayerType} visualization`);
             } else {
               showEsriLegend = true;
             }
@@ -8121,6 +8121,8 @@ useEffect(() => {
           <div ref={mapRef} className="w-full h-full">
             {/* Zoom Alert Overlay */}
             <ZoomAlert />
+            {renderCustomLegend()}
+
           </div>
         </div>
 
