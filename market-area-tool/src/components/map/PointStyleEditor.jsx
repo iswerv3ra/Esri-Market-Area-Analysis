@@ -41,7 +41,7 @@ const smartRound = (value) => {
   }
 };
 
-const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) => {
+const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'comps' }) => {
   if (!config) {
     console.warn("PointStyleEditor received null config.");
     return <div className="p-4 text-gray-500 dark:text-gray-400">Loading configuration...</div>;
@@ -163,8 +163,15 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
   const currentClassBreaks = config?.classBreakInfos || [];
   const renderType = config?.rendererType || (currentClassBreaks.length > 0 ? 'classBreaks' : 'simple');
 
-  // Create a working copy of the config to accumulate changes
+  // Initialize state variables
   const [workingConfig, setWorkingConfig] = useState(JSON.parse(JSON.stringify(config)));
+  const [classBreaks, setClassBreaks] = useState(currentClassBreaks.length > 0 ? currentClassBreaks : []);
+  const [useClassBreaks, setUseClassBreaks] = useState(renderType === 'classBreaks');
+  const [valueColumn, setValueColumn] = useState(config?.valueColumn || 'AvgBasePSF');
+  const [availableColumns, setAvailableColumns] = useState([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Original configuration backup for cancel operation
+  const [originalConfig] = useState(JSON.parse(JSON.stringify(config)));
   
   // Get values from the working config
   const workingSymbol = workingConfig?.symbol ?? defaultSymbolProps;
@@ -175,13 +182,6 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
   const workingOutlineWidth = workingOutline.width ?? defaultSymbolProps.outline.width;
   const workingOutlineColor = workingOutline.color ?? defaultSymbolProps.outline.color;
   const workingLegendLabel = workingLegendInfo.label ?? defaultLegendProps.label;
-
-  // State for class breaks editing
-  const [classBreaks, setClassBreaks] = useState(currentClassBreaks.length > 0 ? currentClassBreaks : []);
-  const [useClassBreaks, setUseClassBreaks] = useState(renderType === 'classBreaks');
-  const [valueColumn, setValueColumn] = useState(config?.valueColumn || 'AvgBasePSF');
-  const [availableColumns, setAvailableColumns] = useState([]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get list of available columns from custom data
   useEffect(() => {
@@ -278,16 +278,133 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
     }
   };
 
-  // Apply changes
   const applyChanges = () => {
-    // Propagate changes up
+    // First apply the changes to the configuration
     onChange(workingConfig);
+    
+    // Apply preview if needed
     if (onPreview) {
       onPreview(workingConfig);
     }
     
+    // Reset local state
     setHasUnsavedChanges(false);
+    
+    // Call onClose directly
+    if (typeof onClose === 'function') {
+      console.log("Applying changes and closing editor via onClose prop");
+      onClose();
+    } else {
+      console.warn("onClose function is not available. Component may not close properly.");
+      
+      // Fallback mechanisms to try to close the editor
+      try {
+        // Fallback 1: Dispatch the escape key event
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Escape',
+          code: 'Escape',
+          keyCode: 27,
+          which: 27,
+          bubbles: true
+        }));
+        
+        // Fallback 2: Dispatch a custom event
+        const closeEvent = new CustomEvent('point-style-editor-close', { 
+          detail: { applied: true, configId: workingConfig.id || 'unknown' } 
+        });
+        window.dispatchEvent(closeEvent);
+      } catch (e) {
+        console.error("Fallback closing methods failed:", e);
+      }
+    }
   };
+  
+  // Cancel changes and close
+  const cancelChanges = () => {
+    // Reset working config to original
+    setWorkingConfig(JSON.parse(JSON.stringify(originalConfig)));
+    
+    // Reset class breaks if they exist in original
+    setClassBreaks(originalConfig?.classBreakInfos?.length > 0 ? 
+      [...originalConfig.classBreakInfos] : []);
+    
+    // Reset use class breaks flag
+    setUseClassBreaks(originalConfig?.rendererType === 'classBreaks' || 
+      (originalConfig?.classBreakInfos?.length > 0));
+    
+    // Reset value column
+    setValueColumn(originalConfig?.valueColumn || 'AvgBasePSF');
+    
+    // Reset unsaved changes flag
+    setHasUnsavedChanges(false);
+    
+    // Preview original config
+    if (onPreview) {
+      onPreview(originalConfig);
+    }
+    
+    // Call onClose directly
+    if (typeof onClose === 'function') {
+      console.log("Canceling changes and closing editor via onClose prop");
+      onClose();
+    } else {
+      console.warn("onClose function is not available. Component may not close properly.");
+      
+      // Fallback mechanisms to try to close the editor
+      try {
+        // Fallback 1: Dispatch the escape key event
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Escape',
+          code: 'Escape',
+          keyCode: 27,
+          which: 27,
+          bubbles: true
+        }));
+        
+        // Fallback 2: Dispatch a custom event
+        const closeEvent = new CustomEvent('point-style-editor-close', { 
+          detail: { applied: false, configId: originalConfig.id || 'unknown' } 
+        });
+        window.dispatchEvent(closeEvent);
+      } catch (e) {
+        console.error("Fallback closing methods failed:", e);
+      }
+    }
+  };
+
+  // Add a component did mount effect to listen for external close events
+  React.useEffect(() => {
+    // Add a class to the component root element to help with DOM selection
+    const rootEl = document.getElementById('point-style-editor-root');
+    if (rootEl) {
+      rootEl.classList.add('point-style-editor');
+    }
+    
+    // Setup listener for parent component that might want to close this
+    const handleExternalClose = () => {
+      if (hasUnsavedChanges) {
+        // Maybe show a confirmation dialog here
+        console.warn("Component received external close with unsaved changes");
+      }
+      // Reset state
+      setHasUnsavedChanges(false);
+      // Try standard close
+      if (typeof onClose === 'function') {
+        onClose();
+      }
+    };
+    
+    window.addEventListener('close-point-style-editor', handleExternalClose);
+    
+    // Debug log to check if onClose is available
+    console.log("PointStyleEditor received onClose prop:", !!onClose);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('close-point-style-editor', handleExternalClose);
+      console.log("PointStyleEditor unmounted");
+    };
+  }, [hasUnsavedChanges, onClose]);
 
   // --- Toggle between simple styling and class breaks ---
   const handleToggleClassBreaks = (e) => {
@@ -754,38 +871,6 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
                   </div>
                 </div>
                 
-                {/* Break-specific action buttons */}
-                {hasUnsavedChanges && (
-                  <div className="flex justify-end space-x-2 mt-3 mb-1">
-                    <button
-                      onClick={() => {
-                        // Reset this break to original
-                        const originalBreak = config?.classBreakInfos?.[index];
-                        if (originalBreak) {
-                          const newBreaks = [...classBreaks];
-                          newBreaks[index] = JSON.parse(JSON.stringify(originalBreak));
-                          handleClassBreaksChange(newBreaks);
-                        }
-                      }}
-                      className="px-3 py-1 text-xs bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={previewChanges}
-                      className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      onClick={applyChanges}
-                      className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
-                    >
-                      Apply Changes
-                    </button>
-                  </div>
-                )}
-                
                 {/* Min/Max Value */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
@@ -886,33 +971,47 @@ const PointStyleEditor = ({ config, onChange, onPreview, mapType = 'comps' }) =>
         </ul>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex justify-end space-x-4 mt-6">
-        {hasUnsavedChanges && (
-          <div className="flex items-center text-sm text-amber-600 dark:text-amber-400 mr-auto">
-            <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
-            </svg>
-            Unsaved changes
-          </div>
-        )}
-        
-        {hasUnsavedChanges && (
-          <>
+      {/* Add padding at the bottom to prevent content from being hidden behind the fixed footer */}
+      <div className="pb-20"></div>
+      
+      {/* Fixed footer with action buttons */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-800 dark:bg-gray-900 py-3 px-4 border-t border-gray-700 shadow-lg z-10">
+        <div className="container mx-auto max-w-screen-lg flex items-center justify-between">
+          {hasUnsavedChanges && (
+            <div className="flex items-center text-sm text-amber-400">
+              <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+              </svg>
+              Unsaved changes
+            </div>
+          )}
+          
+          <div className="flex ml-auto space-x-3">
+            <button
+              onClick={cancelChanges}
+              className="px-4 py-2 text-sm bg-transparent hover:bg-gray-700 text-white rounded border border-gray-600"
+              disabled={!hasUnsavedChanges}
+            >
+              Cancel
+            </button>
+            
             <button
               onClick={previewChanges}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600"
+              className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded"
+              disabled={!hasUnsavedChanges}
             >
               Preview
             </button>
+            
             <button
               onClick={applyChanges}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded"
+              disabled={!hasUnsavedChanges}
             >
               Apply Changes
             </button>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );

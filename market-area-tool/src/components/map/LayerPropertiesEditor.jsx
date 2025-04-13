@@ -399,6 +399,7 @@ const LayerPropertiesEditor = ({
           config={currentConfig}
           onChange={handleConfigChange}
           onPreview={onPreview}
+          onClose={onClose} // Add this line
         />
       );
     }
@@ -411,6 +412,7 @@ const LayerPropertiesEditor = ({
           onChange={handleConfigChange}
           onPreview={onPreview}
           mapType={effectiveType}
+          onClose={onClose} // Add this line to pass the onClose prop
         />
       );
     }
