@@ -3,6 +3,32 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import chroma from 'chroma-js'; // Import chroma-js for color ramps
 
+// Helper function to smartly round numbers based on their magnitude
+const smartRound = (value) => {
+  if (typeof value !== 'number' || isNaN(value) || value === Infinity) return value;
+  
+  // For values less than 10, round to nearest whole number
+  if (Math.abs(value) < 10) {
+    return Math.round(value);
+  }
+  // For values between 10-100, round to nearest 10
+  else if (Math.abs(value) < 100) {
+    return Math.round(value / 10) * 10;
+  }
+  // For values between 100-1000, round to nearest 100
+  else if (Math.abs(value) < 1000) {
+    return Math.round(value / 100) * 100;
+  }
+  // For values between 1000-10000, round to nearest 1000
+  else if (Math.abs(value) < 10000) {
+    return Math.round(value / 1000) * 1000;
+  }
+  // For larger values, round to nearest 10000
+  else {
+    return Math.round(value / 10000) * 10000;
+  }
+};
+
 // Helper function to generate color ramp
 const generateColorRamp = (color1, color2, count) => {
   const validCount = Math.max(1, count);
@@ -19,16 +45,16 @@ const generateClassBreaksForPoints = (data, valueColumn, numClasses = 5, baseSym
 
   const values = data
     .map(item => {
-        const rawValue = item[valueColumn];
-        if (rawValue === null || rawValue === undefined || rawValue === '') return NaN;
-        const num = Number(rawValue);
-        return isNaN(num) ? NaN : num;
+      const rawValue = item[valueColumn];
+      if (rawValue === null || rawValue === undefined || rawValue === '') return NaN;
+      const num = Number(rawValue);
+      return isNaN(num) ? NaN : num;
     })
     .filter(val => !isNaN(val));
 
   if (values.length < 2) {
-     console.log(`generateClassBreaks: Not enough valid numeric data found in column '${valueColumn}'. Found:`, values.length);
-     return null;
+    console.log(`generateClassBreaks: Not enough valid numeric data found in column '${valueColumn}'. Found:`, values.length);
+    return null;
   }
 
   const minValue = Math.min(...values);
@@ -36,27 +62,31 @@ const generateClassBreaksForPoints = (data, valueColumn, numClasses = 5, baseSym
 
   console.log(`generateClassBreaks: Column '${valueColumn}', Min: ${minValue}, Max: ${maxValue}, Valid Values: ${values.length}`);
 
+  // Apply smart rounding to overall min/max (for display purposes)
+  const roundedMin = smartRound(minValue);
+  const roundedMax = smartRound(maxValue);
+
   if (minValue === maxValue) {
-     console.log("generateClassBreaks: All valid numeric values are the same. Generating single break.");
-      const color = generateColorRamp('#3182CE', '#E53E3E', 1)[0];
-      const baseSize = baseSymbolStyle.size !== undefined ? Number(baseSymbolStyle.size) : 10;
-      const baseOutlineColor = baseSymbolStyle.outline?.color || '#FFFFFF';
-      const baseOutlineWidth = baseSymbolStyle.outline?.width !== undefined ? Number(baseSymbolStyle.outline.width) : 1;
-      const baseStyle = baseSymbolStyle.style || 'circle';
-      return [{
-           minValue: minValue,
-           maxValue: maxValue,
-           label: `${minValue.toLocaleString()}`, // Format single value label
-           symbol: {
-               type: "simple-marker", style: baseStyle, color: color, size: baseSize,
-               outline: { color: baseOutlineColor, width: baseOutlineWidth }
-           }
-       }];
+    console.log("generateClassBreaks: All valid numeric values are the same. Generating single break.");
+    const color = generateColorRamp('#3182CE', '#E53E3E', 1)[0];
+    const baseSize = baseSymbolStyle.size !== undefined ? Number(baseSymbolStyle.size) : 10;
+    const baseOutlineColor = baseSymbolStyle.outline?.color || '#FFFFFF';
+    const baseOutlineWidth = baseSymbolStyle.outline?.width !== undefined ? Number(baseSymbolStyle.outline.width) : 1;
+    const baseStyle = baseSymbolStyle.style || 'circle';
+    return [{
+      minValue: roundedMin, // Use rounded value
+      maxValue: roundedMin, // Same as min since they're equal
+      label: `${roundedMin.toLocaleString()}`, // Format single value label
+      symbol: {
+        type: "simple-marker", style: baseStyle, color: color, size: baseSize,
+        outline: { color: baseOutlineColor, width: baseOutlineWidth }
+      }
+    }];
   }
 
   const validNumClasses = Math.max(1, Math.min(numClasses, values.length));
+  // Use original min/max for interval calculation to avoid classification issues
   const range = maxValue - minValue;
-  // Avoid division by zero if range is zero (handled above, but defensive)
   const interval = range > 0 ? range / validNumClasses : 0;
   const breaks = [];
 
@@ -73,11 +103,15 @@ const generateClassBreaksForPoints = (data, valueColumn, numClasses = 5, baseSym
     const classMinValue = minValue + (i * interval);
     const classMaxValue = (i === validNumClasses - 1) ? maxValue : (minValue + ((i + 1) * interval));
 
+    // Apply smart rounding to min/max values for better readability
+    const roundedClassMin = smartRound(classMinValue);
+    const roundedClassMax = smartRound(classMaxValue);
+
     breaks.push({
-      minValue: classMinValue,
-      maxValue: classMaxValue,
+      minValue: roundedClassMin, // Use smart-rounded value
+      maxValue: roundedClassMax, // Use smart-rounded value
       // Use localeString for better number formatting in labels
-      label: `${classMinValue.toLocaleString()} - ${classMaxValue.toLocaleString()}`,
+      label: `${roundedClassMin.toLocaleString()} - ${roundedClassMax.toLocaleString()}`,
       symbol: {
         type: "simple-marker",
         style: baseStyle,
@@ -91,23 +125,24 @@ const generateClassBreaksForPoints = (data, valueColumn, numClasses = 5, baseSym
     });
   }
 
-   // Adjustment for overlapping boundaries if interval is not perfect
-   for (let i = 0; i < breaks.length - 1; i++) {
-       if (breaks[i].maxValue >= breaks[i+1].minValue) {
-            // Adjust based on expected precision - using a small relative epsilon might be better
-            const epsilon = Math.abs(breaks[i+1].minValue * 0.000001) || 0.000001;
-            breaks[i].maxValue = breaks[i+1].minValue - epsilon;
-            // Ensure label reflects adjustment if needed, though toLocaleString might hide it
-             breaks[i].label = `${breaks[i].minValue.toLocaleString()} - ${breaks[i].maxValue.toLocaleString()}`;
-       }
-   }
-   // Ensure the last break max value is exactly the max value from data
-   if (breaks.length > 0) {
-       breaks[breaks.length - 1].maxValue = maxValue;
-       breaks[breaks.length - 1].label = `${breaks[breaks.length - 1].minValue.toLocaleString()} - ${maxValue.toLocaleString()}`;
-   }
+  // Adjustment for overlapping boundaries if interval is not perfect
+  for (let i = 0; i < breaks.length - 1; i++) {
+    if (breaks[i].maxValue >= breaks[i+1].minValue) {
+      // Adjust based on expected precision - using a small relative epsilon might be better
+      const epsilon = Math.abs(breaks[i+1].minValue * 0.000001) || 0.000001;
+      breaks[i].maxValue = breaks[i+1].minValue - epsilon;
+      // Ensure label reflects adjustment if needed, though toLocaleString might hide it
+      breaks[i].label = `${breaks[i].minValue.toLocaleString()} - ${breaks[i].maxValue.toLocaleString()}`;
+    }
+  }
+  
+  // Ensure the last break max value is exactly the rounded max value from data
+  if (breaks.length > 0) {
+    breaks[breaks.length - 1].maxValue = roundedMax; // Use rounded max
+    breaks[breaks.length - 1].label = `${breaks[breaks.length - 1].minValue.toLocaleString()} - ${roundedMax.toLocaleString()}`;
+  }
 
-  console.log("Generated Class Breaks:", breaks);
+  console.log("Generated Class Breaks with Smart Rounding:", breaks);
   return breaks;
 };
 
@@ -122,12 +157,12 @@ const getValueFormatForColumn = (columnName, value) => {
   if (name.includes('age')) return { suffix: ' yrs', decimals: 1, multiplier: 1 };
   if (name.includes('count') || name.includes('total') || name.includes('number')) return { decimals: 0, multiplier: 1 };
   if (typeof sample === 'number') {
-      // Refined checks for percentage/currency
-      if (!Number.isInteger(sample) && sample > 0 && sample < 1) return { suffix: '%', decimals: 1, multiplier: 100 }; // Likely 0-1 range percent
-      if (sample >= 1 && sample <= 100 && (name.includes('%') || name.includes('rate'))) return { suffix: '%', decimals: 1, multiplier: 1 }; // Likely 1-100 range percent
-      if (sample > 1000) return { prefix: '$', decimals: 0, multiplier: 1 }; // Likely currency
+    // Refined checks for percentage/currency
+    if (!Number.isInteger(sample) && sample > 0 && sample < 1) return { suffix: '%', decimals: 1, multiplier: 100 }; // Likely 0-1 range percent
+    if (sample >= 1 && sample <= 100 && (name.includes('%') || name.includes('rate'))) return { suffix: '%', decimals: 1, multiplier: 1 }; // Likely 1-100 range percent
+    if (sample > 1000) return { prefix: '$', decimals: 0, multiplier: 1 }; // Likely currency
 
-      return { decimals: Number.isInteger(sample) ? 0 : 2, multiplier: 1 }; // Default numeric format
+    return { decimals: Number.isInteger(sample) ? 0 : 2, multiplier: 1 }; // Default numeric format
   }
   return { decimals: 0, prefix: '', suffix: '', multiplier: 1 }; // Default fallback
 };
@@ -141,13 +176,25 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   const [customData, setCustomData] = useState(null);
   const [columns, setColumns] = useState([]);
-  const [nameColumn, setNameColumn] = useState('');
+  const [labelColumn, setLabelColumn] = useState('');
+  const [variable1Column, setVariable1Column] = useState('');
+  const [variable2Column, setVariable2Column] = useState('');
   const [valueColumn, setValueColumn] = useState('');
   const [statusColumn, setStatusColumn] = useState('');
   const [latitudeColumn, setLatitudeColumn] = useState('');
   const [longitudeColumn, setLongitudeColumn] = useState('');
   const [fileError, setFileError] = useState('');
-  const [generatedClassBreaks, setGeneratedClassBreaks] = useState(null); // State for generated breaks
+  const [generatedClassBreaks, setGeneratedClassBreaks] = useState(null);
+  
+  // New state for label configuration
+  const [labelOptions, setLabelOptions] = useState({
+    includeVariables: true,      // Whether to include variables in labels
+    avoidCollisions: true,       // Whether to avoid label collisions
+    visibleAtAllZooms: false,    // Whether labels are visible at all zoom levels
+    fontSize: 10,                // Default label font size
+    showLabelConfig: false       // UI toggle for label settings
+  });
+  
   const fileInputRef = useRef(null);
 
   // Effect to generate breaks when value column changes for comp/custom
@@ -180,7 +227,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setFileError('');
     setCustomData(null);
     setColumns([]);
-    setNameColumn('');
+    setLabelColumn('');
+    setVariable1Column('');
+    setVariable2Column('');
     setValueColumn('');
     setStatusColumn('');
     setLatitudeColumn('');
@@ -317,41 +366,63 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setGeneratedClassBreaks(null); // Reset breaks
     
     // Reset selections
-    setNameColumn('');
+    setLabelColumn('');
+    setVariable1Column('');
+    setVariable2Column('');
     setValueColumn('');
     setStatusColumn('');
     setLatitudeColumn('');
     setLongitudeColumn('');
     
     if (validFields.length > 0) {
-      // Auto-select name column (more robust)
-      const potentialNameCols = ['name', 'title', 'label', 'property', 'id', 'address', 'site'];
-      const nameCol = validFields.find(f => potentialNameCols.some(p => f.toLowerCase().includes(p))) || validFields[0];
-      setNameColumn(nameCol);
+      // Auto-select label column (more robust)
+      const potentialLabelCols = ['name', 'title', 'label', 'property', 'id', 'address', 'site'];
+      const labelCol = validFields.find(f => potentialLabelCols.some(p => f.toLowerCase().includes(p))) || validFields[0];
+      setLabelColumn(labelCol);
       
-      // Auto-select FIRST numeric column for value (excluding lat/lon and potentially ID-like fields)
+      // Auto-select variable columns if possible
+      // Use heuristics to find potential variable columns (looking for quantitative data columns)
+      const numericColumns = [];
+      
+      // Find numeric columns that aren't lat/lon and ID fields
       const potentialLatLon = ['lat', 'lon', 'lng', 'latitude', 'longitude', 'x', 'y', 'coord', 'east', 'north'];
       const potentialIds = ['id', 'objectid', 'fid', 'pk', 'key'];
-      const numericColumn = validFields.find(field => {
-        // Check type of first few non-null values in the column for robustness
-        let isNum = false;
+      validFields.forEach(field => {
+        // Check if the field contains mostly numeric values
+        let isNumeric = false;
         let checked = 0;
-        for(let i = 0; i < data.length && checked < 5; i++) {
-            const value = data[i]?.[field];
-            if (value !== null && value !== undefined) {
-                isNum = typeof value === 'number' && !isNaN(value);
-                checked++;
-                if (!isNum) break; // If we find a non-number, stop checking this col
-            }
+        for (let i = 0; i < data.length && checked < 5; i++) {
+          const value = data[i]?.[field];
+          if (value !== null && value !== undefined) {
+            isNumeric = typeof value === 'number' && !isNaN(value);
+            checked++;
+            if (!isNumeric) break;
+          }
         }
+        
         const isNotLatLon = !potentialLatLon.some(p => field.toLowerCase().includes(p));
-        const isNotId = !potentialIds.some(p => field.toLowerCase() === p); // Exact match for IDs
-        return isNum && isNotLatLon && isNotId;
+        const isNotId = !potentialIds.some(p => field.toLowerCase() === p);
+        
+        if (isNumeric && isNotLatLon && isNotId) {
+          numericColumns.push(field);
+        }
       });
       
-      if (numericColumn) {
-        setValueColumn(numericColumn);
-        // NOTE: useEffect hook handles break generation based on this state change
+      // Select the first and second numeric columns for variable1 and variable2
+      if (numericColumns.length > 0) {
+        setVariable1Column(numericColumns[0]);
+        
+        // If we have a second numeric column, use it for variable2
+        if (numericColumns.length > 1) {
+          setVariable2Column(numericColumns[1]);
+        }
+        
+        // If we have a third column, use it for value (or first column if no variable2)
+        if (numericColumns.length > 2) {
+          setValueColumn(numericColumns[2]);
+        } else if (numericColumns.length > 0) {
+          setValueColumn(numericColumns[0]);
+        }
       }
       
       // Auto-detect status column
@@ -371,7 +442,15 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       if (latCol) setLatitudeColumn(latCol);
       if (lngCol) setLongitudeColumn(lngCol);
       
-      console.log("Auto-detected columns:", { nameCol, numericColumn, statusCol, latCol, lngCol });
+      console.log("Auto-detected columns:", { 
+        labelCol, 
+        variable1: numericColumns[0], 
+        variable2: numericColumns.length > 1 ? numericColumns[1] : null,
+        valueColumn: numericColumns.length > 2 ? numericColumns[2] : numericColumns[0],
+        statusCol, 
+        latCol, 
+        lngCol 
+      });
     }
   };
 
@@ -387,10 +466,41 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     return undefined;
   };
 
+  // Helper to generate a formatted title
+  const generateFormattedTitle = () => {
+    // Start with the label column
+    const hasLabel = !!labelColumn;
+    const hasVar1 = !!variable1Column;
+    const hasVar2 = !!variable2Column;
+    
+    // Build title parts
+    const parts = [];
+    
+    // First part is always the label
+    parts.push(labelColumn || "Label");
+    
+    // If we have variables, add them
+    if (hasVar1 || hasVar2) {
+      const variableParts = [];
+      if (hasVar1) variableParts.push(variable1Column);
+      if (hasVar2) variableParts.push(variable2Column);
+      
+      if (variableParts.length > 0) {
+        parts.push(variableParts.join(" / "));
+      }
+    }
+    
+    // Join the parts with a comma
+    return parts.join(", ");
+  };
+
   const handleCreateMap = () => {
+    // --- Generate the title using the label and variables ---
+    const formattedTitle = generateFormattedTitle();
+    
     // --- Base mapData object ---
     const mapData = {
-      name: mapName.trim() || 'New Map', // Ensure a name exists
+      name: mapName.trim() || formattedTitle, // Use formatted title if no custom name provided
       // We still set top-level type/vizType for context in Map.jsx's handleCreateMap
       type: mapType,
       visualizationType: mapType, // Initially set to the selected mapType
@@ -412,11 +522,13 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       // --- Build the layerConfiguration object ---
       const layerConfig = {
         // Core properties expected by layer creators
-        title: mapData.name,
+        title: formattedTitle, // Use the formatted title for display
         type: mapType, // *** CRITICAL: Ensure 'type' is set within layerConfig ***
 
         // Column references needed by layer creators
-        nameColumn: nameColumn,
+        labelColumn: labelColumn,
+        variable1Column: variable1Column,
+        variable2Column: variable2Column,
         latitudeColumn: latitudeColumn,
         longitudeColumn: longitudeColumn,
 
@@ -424,12 +536,24 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         symbol: {
           ...defaultBaseSymbol,
           // Assign default color based on type
-          color: mapType === 'pipe' ? '#FFA500' : (mapType === 'comps' ? '#800080' : '#FF0000'),
+          color: mapType === 'pipeline' ? '#FFA500' : (mapType === 'comps' ? '#800080' : '#FF0000'),
         },
 
         // Data payload (nested structure expected by graphics layer creators)
         customData: {
             data: customData || [] // Pass the data array, ensure it's at least empty
+        },
+        
+        // Add new label configuration options
+        labelOptions: {
+          ...labelOptions,
+          // Set default label options based on map type
+          fontSize: labelOptions.fontSize,
+          includeVariables: labelOptions.includeVariables,
+          avoidCollisions: labelOptions.avoidCollisions,
+          visibleAtAllZooms: labelOptions.visibleAtAllZooms,
+          minZoom: 10, // Default minimum zoom level to show labels
+          maxLabelsVisible: 50 // Default max number of labels to show at lower zoom levels
         }
       };
 
@@ -494,13 +618,23 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setSelectedAreaType(areaTypes[0]);
     setCustomData(null);
     setColumns([]);
-    setNameColumn('');
+    setLabelColumn('');
+    setVariable1Column('');
+    setVariable2Column('');
     setValueColumn('');
     setStatusColumn('');
     setLatitudeColumn('');
     setLongitudeColumn('');
     setFileError('');
-    setGeneratedClassBreaks(null); // Reset generated breaks
+    setGeneratedClassBreaks(null);
+    // Reset label options to defaults
+    setLabelOptions({
+      includeVariables: true,
+      avoidCollisions: true,
+      visibleAtAllZooms: false,
+      fontSize: 10,
+      showLabelConfig: false
+    });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -528,8 +662,8 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     }
     // Step 2 validation (only for point types)
     if (step === 2 && (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom')) {
-      if (!nameColumn) { 
-        setFileError('Please select the Name column.'); 
+      if (!labelColumn) { 
+        setFileError('Please select the Label column.'); 
         return; 
       }
       if (!latitudeColumn || !longitudeColumn) { 
@@ -593,6 +727,22 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   const prevStep = () => {
     setStep(step - 1);
     setFileError('');
+  };
+  
+  // Toggle label configuration section visibility
+  const toggleLabelConfig = () => {
+    setLabelOptions(prev => ({
+      ...prev,
+      showLabelConfig: !prev.showLabelConfig
+    }));
+  };
+  
+  // Update label options
+  const updateLabelOption = (option, value) => {
+    setLabelOptions(prev => ({
+      ...prev,
+      [option]: value
+    }));
   };
 
   if (!isOpen) return null;
@@ -660,7 +810,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                   value={mapName}
                   onChange={(e) => setMapName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="Enter map name"
+                  placeholder="Enter map name (or leave blank to use formatted title)"
                 />
               </div>
 
@@ -702,7 +852,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     onClick={() => setMapType('custom')}
                   >
                     <div className="font-medium">Custom Map</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Simple point data with name, location, and value</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Simple point data with label, location, and value</div>
                   </div>
                 </div>
 
@@ -847,11 +997,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                 <div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Select Name Column
+                      Select Label Column
                     </label>
                     <select
-                      value={nameColumn}
-                      onChange={(e) => setNameColumn(e.target.value)}
+                      value={labelColumn}
+                      onChange={(e) => setLabelColumn(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     >
                       <option value="">Select column...</option>
@@ -863,6 +1013,161 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
                       This column will be used for point labels on the map
+                    </p>
+                  </div>
+
+                  {/* Variable 1 Column Selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Select Variable 1 Column
+                    </label>
+                    <select
+                      value={variable1Column}
+                      onChange={(e) => setVariable1Column(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                      <option value="">Select column...</option>
+                      {columns.map((column) => (
+                        <option key={column} value={column}>
+                          {column}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This column will be displayed alongside the label in the title format: "Label, Variable 1 / Variable 2"
+                    </p>
+                  </div>
+
+                  {/* Variable 2 Column Selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Select Variable 2 Column (Optional)
+                    </label>
+                    <select
+                      value={variable2Column}
+                      onChange={(e) => setVariable2Column(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                      <option value="">Select column...</option>
+                      {columns.map((column) => (
+                        <option key={column} value={column}>
+                          {column}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This optional column will be displayed after Variable 1 in the title format
+                    </p>
+                  </div>
+
+                  {/* Label Configuration Options */}
+                  <div className="mb-6">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer" 
+                      onClick={toggleLabelConfig}
+                    >
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Label Display Options
+                      </h3>
+                      <svg 
+                        className={`w-5 h-5 text-gray-500 dark:text-gray-400 transform transition-transform ${labelOptions.showLabelConfig ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    
+                    {labelOptions.showLabelConfig && (
+                      <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                        {/* Include Variables Toggle */}
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm text-gray-700 dark:text-gray-300">
+                            Include Variables in Labels
+                          </label>
+                          <div className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={labelOptions.includeVariables}
+                              onChange={(e) => updateLabelOption('includeVariables', e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                          </div>
+                        </div>
+                        
+                        {/* Label Font Size */}
+                        <div className="mb-3">
+                          <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                            Label Font Size
+                          </label>
+                          <div className="flex items-center">
+                            <input 
+                              type="range" 
+                              min="8" 
+                              max="14" 
+                              step="1"
+                              value={labelOptions.fontSize}
+                              onChange={(e) => updateLabelOption('fontSize', parseInt(e.target.value))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                            />
+                            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 w-8 text-center">
+                              {labelOptions.fontSize}px
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Avoid Collisions Toggle */}
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm text-gray-700 dark:text-gray-300">
+                            Avoid Label Overlaps
+                          </label>
+                          <div className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={labelOptions.avoidCollisions}
+                              onChange={(e) => updateLabelOption('avoidCollisions', e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                          </div>
+                        </div>
+                        
+                        {/* Visible at All Zooms Toggle */}
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm text-gray-700 dark:text-gray-300">
+                            Show Labels at All Zoom Levels
+                          </label>
+                          <div className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={labelOptions.visibleAtAllZooms}
+                              onChange={(e) => updateLabelOption('visibleAtAllZooms', e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                          These settings help prevent label clutter and improve map readability. Labels are automatically 
+                          prioritized by importance when zoomed out.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preview of the generated title */}
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Formatted Title Preview
+                    </label>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">
+                      {generateFormattedTitle()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This is how point titles will be formatted in the popup. You can override this with a custom map name above.
                     </p>
                   </div>
 
@@ -885,7 +1190,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        This column will determine the data value for each point
+                        This column will determine the data value for each point and will be used to auto-generate class breaks
                       </p>
                     </div>
                   )}
@@ -957,7 +1262,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                   </div>
 
                   {/* Data Preview (simplified conditional rendering) */}
-                  {customData && customData.length > 0 && (nameColumn || valueColumn || statusColumn) && latitudeColumn && longitudeColumn && (
+                  {customData && customData.length > 0 && (labelColumn || variable1Column || variable2Column) && latitudeColumn && longitudeColumn && (
                     <div className="mb-4">
                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Data Preview (First 5 Rows)
@@ -966,7 +1271,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                            <thead className="bg-gray-50 dark:bg-gray-800">
                              <tr>
-                               {nameColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name ({nameColumn})</th>}
+                               {labelColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Label ({labelColumn})</th>}
+                               {variable1Column && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Variable 1 ({variable1Column})</th>}
+                               {variable2Column && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Variable 2 ({variable2Column})</th>}
                                {valueColumn && (mapType === 'comps' || mapType === 'custom') && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Value ({valueColumn})</th>}
                                {statusColumn && mapType === 'pipeline' && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status ({statusColumn})</th>}
                                {latitudeColumn && <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Lat ({latitudeColumn})</th>}
@@ -976,7 +1283,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                            <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-700 dark:divide-gray-600">
                              {customData.slice(0, 5).map((row, index) => (
                                <tr key={index}>
-                                 {nameColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[nameColumn]}</td>}
+                                 {labelColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[labelColumn]}</td>}
+                                 {variable1Column && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[variable1Column]}</td>}
+                                 {variable2Column && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[variable2Column]}</td>}
                                  {valueColumn && (mapType === 'comps' || mapType === 'custom') && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[valueColumn]}</td>}
                                  {statusColumn && mapType === 'pipeline' && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[statusColumn]}</td>}
                                  {latitudeColumn && <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row[latitudeColumn]}</td>}
@@ -994,7 +1303,6 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     </div>
                   )}
 
-
                   {/* Legend Preview for Comp/Custom */}
                   {(mapType === 'comps' || mapType === 'custom') && valueColumn && (
                     <div className="mt-4 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
@@ -1011,11 +1319,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       ) : (
                         <p className="text-xs text-yellow-600 dark:text-yellow-400">Could not generate legend. Ensure '{valueColumn}' contains valid numeric data. A single point style will be used.</p>
                       )}
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Legend automatically generated. You can edit this after creating the map.</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Legend automatically generated with smart rounding. Values are rounded based on their magnitude for better readability.</p>
                     </div>
                   )}
                   {(mapType === 'comps' || mapType === 'custom') && !valueColumn && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">Select a numeric 'Value Column' to automatically generate a legend based on data ranges.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">Select a numeric 'Value Column' to automatically generate a legend based on data ranges with smart rounding.</p>
                   )}
                 </div>
               )}
@@ -1054,7 +1362,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
             <div>
               <div className="mb-4 p-4 border rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
                 <h3 className="font-medium text-gray-900 dark:text-white mb-2">Map Name</h3>
-                <p className="text-gray-600 dark:text-gray-300">{mapName}</p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {mapName || generateFormattedTitle()}
+                </p>
 
                 <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                 <p className="text-gray-600 dark:text-gray-300">
@@ -1080,32 +1390,60 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                       Custom Data File ({customData?.length || 0} rows)
                     </p>
 
-                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Name Column</h3>
-                    <p className="text-gray-600 dark:text-gray-300">{nameColumn}</p>
+                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Formatted Title</h3>
+                    <p className="text-gray-600 dark:text-gray-300">{generateFormattedTitle()}</p>
 
-                    {(mapType === 'comps' || mapType === 'custom') && (
-                      <>
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Value Column</h3>
-                        <p className="text-gray-600 dark:text-gray-300">{valueColumn || <span className="italic text-gray-400">None Selected</span>}</p>
-                      </>
-                    )}
+                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Data Columns</h3>
+                    <div className="space-y-2">
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Label Column:</span> {labelColumn}
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Variable 1:</span> {variable1Column || <span className="italic text-gray-400">None Selected</span>}
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Variable 2:</span> {variable2Column || <span className="italic text-gray-400">None Selected</span>}
+                      </p>
 
-                    {mapType === 'pipeline' && (
-                      <>
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Status Column</h3>
-                        <p className="text-gray-600 dark:text-gray-300">{statusColumn}</p>
-                      </>
-                    )}
+                      {(mapType === 'comps' || mapType === 'custom') && (
+                        <p className="text-gray-600 dark:text-gray-300">
+                          <span className="font-medium">Value Column:</span> {valueColumn || <span className="italic text-gray-400">None Selected</span>}
+                        </p>
+                      )}
+
+                      {mapType === 'pipeline' && (
+                        <p className="text-gray-600 dark:text-gray-300">
+                          <span className="font-medium">Status Column:</span> {statusColumn}
+                        </p>
+                      )}
+                    </div>
 
                     <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Location Coordinates</h3>
                     <p className="text-gray-600 dark:text-gray-300">
                       Latitude: {latitudeColumn} | Longitude: {longitudeColumn}
                     </p>
 
+                    {/* Label Display Settings */}
+                    <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Label Display</h3>
+                    <div className="space-y-1">
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Include Variables:</span> {labelOptions.includeVariables ? 'Yes' : 'No'}
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Font Size:</span> {labelOptions.fontSize}px
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Avoid Overlaps:</span> {labelOptions.avoidCollisions ? 'Yes' : 'No'}
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        <span className="font-medium">Show at All Zooms:</span> {labelOptions.visibleAtAllZooms ? 'Yes' : 'No'}
+                      </p>
+                    </div>
+
                     {/* Legend Information */}
                     {(mapType === 'comps' || mapType === 'custom') && valueColumn && generatedClassBreaks && (
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
-                        Legend: <span className="text-green-600 dark:text-green-400">✅ Auto-generated (based on '{valueColumn}')</span>
+                        Legend: <span className="text-green-600 dark:text-green-400">✅ Auto-generated with smart rounding (based on '{valueColumn}')</span>
                       </h3>
                     )}
                     {(mapType === 'comps' || mapType === 'custom') && (!valueColumn || !generatedClassBreaks) && (
@@ -1173,4 +1511,4 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   );
 };
 
-export default NewMapDialog; // <--- This IS a default export
+export default NewMapDialog;
