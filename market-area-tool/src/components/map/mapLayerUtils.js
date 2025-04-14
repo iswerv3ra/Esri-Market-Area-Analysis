@@ -12,8 +12,123 @@ import Color from "@arcgis/core/Color";
 import Graphic from "@arcgis/core/Graphic";
 import PopupTemplate from "@arcgis/core/PopupTemplate";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
-import { formatPointLabel, generatePointTitle } from './labelutils';
 
+/**
+ * Formats a point label with optional variable inclusions
+ * 
+ * @param {Object} item - The data item containing label and variable values
+ * @param {Object} options - Formatting options
+ * @param {string} options.labelColumn - Column name for the main label
+ * @param {string} options.variable1Column - Column name for first variable
+ * @param {string} options.variable2Column - Column name for second variable
+ * @param {Object} options.labelOptions - Additional label formatting options
+ * @param {boolean} options.labelOptions.includeVariables - Whether to include variables in label
+ * @returns {string} Formatted label text
+ */
+export function formatPointLabel(item, options) {
+  // Extract options with defaults
+  const {
+    labelColumn,
+    variable1Column,
+    variable2Column,
+    labelOptions = {}
+  } = options || {};
+  
+  // Default to true if not explicitly set to false
+  const includeVariables = labelOptions.includeVariables !== false;
+  
+  // Format the main label
+  let labelText = '';
+  
+  // Use labelColumn if available
+  if (labelColumn && item[labelColumn] !== undefined && item[labelColumn] !== null) {
+    labelText = String(item[labelColumn]);
+  } else {
+    // Fallback to object ID or index if available
+    labelText = item.OBJECTID !== undefined ? `Point ${item.OBJECTID}` : 
+               (item.id !== undefined ? `Point ${item.id}` : 'Unnamed Point');
+  }
+  
+  // Include variables if configured and available
+  if (includeVariables) {
+    const variables = [];
+    
+    // Add variable 1 if available
+    if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+      variables.push(String(item[variable1Column]));
+    }
+    
+    // Add variable 2 if available
+    if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+      variables.push(String(item[variable2Column]));
+    }
+    
+    // Append variables in parentheses if we have any
+    if (variables.length > 0) {
+      labelText += ` (${variables.join(', ')})`;
+    }
+  }
+  
+  return labelText;
+}
+
+/**
+ * Generates a title for point popups
+ * 
+ * @param {Object} item - The data item containing label and variable values
+ * @param {Object} options - Formatting options
+ * @param {string} options.labelColumn - Column name for the main label
+ * @param {string} options.variable1Column - Column name for first variable
+ * @param {string} options.variable2Column - Column name for second variable
+ * @returns {string} Formatted popup title
+ */
+export function generatePointTitle(item, options) {
+  // Extract options with defaults
+  const {
+    labelColumn,
+    variable1Column,
+    variable2Column
+  } = options || {};
+  
+  // Format the main title
+  let title = '';
+  
+  // Use labelColumn if available
+  if (labelColumn && item[labelColumn] !== undefined && item[labelColumn] !== null) {
+    title = String(item[labelColumn]);
+  } else {
+    // Fallback to object ID or index if available
+    title = item.OBJECTID !== undefined ? `Point ${item.OBJECTID}` : 
+           (item.id !== undefined ? `Point ${item.id}` : 'Unnamed Point');
+  }
+  
+  // Always include variables in the title for better identification
+  const variables = [];
+  
+  // Add variable 1 if available
+  if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+    variables.push(String(item[variable1Column]));
+  }
+  
+  // Add variable 2 if available
+  if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+    variables.push(String(item[variable2Column]));
+  }
+  
+  // Append variables in parentheses if we have any
+  if (variables.length > 0) {
+    title += ` (${variables.join(', ')})`;
+  }
+  
+  return title;
+}
+
+/**
+ * Creates a comparison map layer with labels
+ * 
+ * @param {Object} config - Configuration for the comparison layer
+ * @returns {GraphicsLayer} The configured comparison graphics layer
+ */
 export const createCompLayer = (config) => {
   // Log the received config
   console.log("[createCompLayer] Received config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
@@ -23,6 +138,10 @@ export const createCompLayer = (config) => {
     title: config?.title || "Comparison Map Layer",
     listMode: "show"
   });
+  
+  // Flag to indicate this layer has its own label graphics
+  // This signals to the UniversalLabelManager not to create duplicate labels
+  graphicsLayer.hasLabelGraphics = true;
 
   // --- Extract data and column information ---
   const data = config?.customData?.data || [];
@@ -52,162 +171,56 @@ export const createCompLayer = (config) => {
     currentlyVisible: false
   };
 
-  // Force numeric type for size to prevent string values
-  const symbolSize = symbol.size !== undefined ? Number(symbol.size) : 12;
-  const defaultColor = symbol.color || "#800080"; // Default purple for comp
-  const outlineColor = symbol.outline?.color || "#FFFFFF";
-  const outlineWidth = symbol.outline?.width !== undefined ?
-    Number(symbol.outline.width) : 1;
-  const pointStyle = symbol.style || "circle";
+  // Check if we have the necessary data
+  if (!Array.isArray(data) || data.length === 0 || !latitudeColumn || !longitudeColumn) {
+    console.warn("[createCompLayer] Missing required data for comp layer: customData array, latitudeColumn, or longitudeColumn");
+    return graphicsLayer;
+  }
+  
+  // Create a counter for added items
+  let addedPoints = 0;
+  let addedLabels = 0;
+  
+  // Process each data point
+  for (let i = 0; i < data.length; i++) {
+    const item = data[i];
+    
+    // Skip if missing coordinates
+    if (!item[latitudeColumn] || !item[longitudeColumn]) continue;
 
-  // Helper function to determine point color based on class breaks
-  const getColorForValue = (value) => {
-    // If no value, value column missing, no breaks, or not classBreaks type - use default color
-    if (value === undefined || value === null || value === '' ||
-        !valueColumn || // Check if valueColumn NAME is missing
-        !classBreakInfos || classBreakInfos.length === 0 ||
-        rendererType !== 'classBreaks') { // CRITICAL: Check effective rendererType
-      return defaultColor;
-    }
+    const lat = parseFloat(item[latitudeColumn]);
+    const lon = parseFloat(item[longitudeColumn]);
 
-    // Convert value to number
-    const numValue = Number(value);
-    if (isNaN(numValue)) {
-      console.warn(`[getColorForValue] Value "${value}" cannot be converted to a number for column "${valueColumn}". Using default color.`);
-      return defaultColor;
-    }
+    // Skip invalid coordinates
+    if (isNaN(lat) || isNaN(lon)) continue;
 
-    // Find the appropriate break
-    for (const breakInfo of classBreakInfos) {
-       // Handle potential Infinity in maxValue for the last break
-       const maxVal = (breakInfo.maxValue === Infinity || breakInfo.maxValue === undefined || breakInfo.maxValue === null)
-                      ? Infinity
-                      : Number(breakInfo.maxValue);
-       const minVal = (breakInfo.minValue === -Infinity || breakInfo.minValue === undefined || breakInfo.minValue === null)
-                      ? -Infinity
-                      : Number(breakInfo.minValue);
-
-       // Check if numValue falls within the break range (inclusive)
-       const isMinMet = (minVal === -Infinity || numValue >= minVal);
-       const isMaxMet = (maxVal === Infinity || numValue <= maxVal);
-
-       if (isMinMet && isMaxMet) {
-        return breakInfo.symbol?.color || defaultColor; // Return break color or default if symbol/color missing
+    // Get the value for this point (if using class breaks)
+    const pointValue = valueColumn ? item[valueColumn] : null;
+    
+    // Determine the color based on class breaks if applicable
+    let pointColor = symbol.color || "#800080"; // Default purple for comp
+    
+    if (pointValue !== undefined && pointValue !== null && 
+        rendererType === 'classBreaks' && classBreakInfos && classBreakInfos.length > 0) {
+      
+      const numValue = Number(pointValue);
+      if (!isNaN(numValue)) {
+        for (const breakInfo of classBreakInfos) {
+          const maxVal = (breakInfo.maxValue === Infinity || breakInfo.maxValue === undefined) 
+                        ? Infinity : Number(breakInfo.maxValue);
+          const minVal = (breakInfo.minValue === -Infinity || breakInfo.minValue === undefined) 
+                        ? -Infinity : Number(breakInfo.minValue);
+          
+          if ((minVal === -Infinity || numValue >= minVal) && 
+              (maxVal === Infinity || numValue <= maxVal)) {
+            pointColor = breakInfo.symbol?.color || pointColor;
+            break;
+          }
+        }
       }
     }
 
-    // If no matching break found, use default
-    console.warn(`[getColorForValue] Value ${numValue} did not match any class breaks. Using default color.`);
-    return defaultColor;
-  };
-
-  // Check if we have the necessary data
-  if (Array.isArray(data) && data.length > 0 && latitudeColumn && longitudeColumn) {
-    // Create a map to store label position adjustments
-    const labelPositions = new Map();
-    
-    // Get point data ready for anti-collision calculation if needed
-    if (avoidCollisions) {
-      // First pass: gather point positions for label collision detection
-      const pointData = data.map((item, index) => {
-        // Skip if missing coordinates
-        if (!item[latitudeColumn] || !item[longitudeColumn]) return null;
-
-        const lat = parseFloat(item[latitudeColumn]);
-        const lon = parseFloat(item[longitudeColumn]);
-        
-        // Skip invalid coordinates
-        if (isNaN(lat) || isNaN(lon)) return null;
-        
-        // Generate label text
-        const labelText = formatPointLabel(item, {
-          labelColumn,
-          variable1Column,
-          variable2Column,
-          labelOptions: { includeVariables }
-        });
-        
-        return {
-          id: `label-${index}`,
-          screenX: 0, // Will be calculated later from geographic coords
-          screenY: 0, // Will be calculated later from geographic coords
-          latitude: lat,
-          longitude: lon,
-          labelText,
-          priority: index < 20 ? 2 : 1 // Prioritize first 20 points
-        };
-      }).filter(Boolean); // Remove null values
-      
-      // To be implemented: Use ArcGIS view.toScreen() to convert geographic coords to screen coords
-      // For now, we'll use a placeholder arrangement in a grid pattern
-      
-      // Arrange in a grid pattern for demonstration
-      const gridSize = Math.ceil(Math.sqrt(pointData.length));
-      pointData.forEach((point, index) => {
-        const row = Math.floor(index / gridSize);
-        const col = index % gridSize;
-        point.screenX = col * 100; // 100px spacing in grid
-        point.screenY = row * 100; // 100px spacing in grid
-      });
-      
-      // Calculate label positions to avoid collisions
-      // In a real implementation this would be calculated on each view update
-      // For now we'll generate static positions that avoid simple grid collisions
-      const positions = pointData.map((point, index) => {
-        const offset = [0, fontSize + 4]; // Default to below the point
-        
-        // Stagger label positions in a deterministic way based on index
-        // This creates a pattern where adjacent points get different offsets
-        const patternIndex = index % 4;
-        switch (patternIndex) {
-          case 0: // Below
-            offset[0] = 0;
-            offset[1] = fontSize + 4;
-            break;
-          case 1: // Right
-            offset[0] = fontSize + 4;
-            offset[1] = 0;
-            break;
-          case 2: // Above
-            offset[0] = 0;
-            offset[1] = -(fontSize + 4);
-            break;
-          case 3: // Left
-            offset[0] = -(fontSize + 4);
-            offset[1] = 0;
-            break;
-        }
-        
-        return {
-          id: point.id,
-          x: offset[0],
-          y: offset[1],
-          visible: index < 50 // Limit visible labels to 50
-        };
-      });
-      
-      // Store calculated positions
-      positions.forEach(pos => {
-        labelPositions.set(pos.id, pos);
-      });
-    }
-
-    // Create graphics for each data point
-    data.forEach((item, index) => {
-      // Skip if missing coordinates
-      if (!item[latitudeColumn] || !item[longitudeColumn]) return;
-
-      const lat = parseFloat(item[latitudeColumn]);
-      const lon = parseFloat(item[longitudeColumn]);
-
-      // Skip invalid coordinates
-      if (isNaN(lat) || isNaN(lon)) return;
-
-      // Get the value for this point (if using class breaks)
-      const pointValue = valueColumn ? item[valueColumn] : null;
-      // Determine the color based on the value and class breaks
-      const pointColor = getColorForValue(pointValue);
-
+    try {
       // Create the point geometry
       const point = new Point({
         longitude: lon,
@@ -217,21 +230,21 @@ export const createCompLayer = (config) => {
 
       // Create the symbol with the specified styling
       const pointSymbol = new SimpleMarkerSymbol({
-        style: pointStyle,
-        size: symbolSize,
-        color: new Color(pointColor), // Use determined color
+        style: symbol.style || "circle",
+        size: symbol.size !== undefined ? Number(symbol.size) : 12,
+        color: new Color(pointColor),
         outline: {
-          color: new Color(outlineColor),
-          width: outlineWidth
+          color: new Color(symbol.outline?.color || "#FFFFFF"),
+          width: symbol.outline?.width !== undefined ? Number(symbol.outline.width) : 1
         }
       });
 
       // Generate formatted title for popup
-      const pointTitle = generatePointTitle(item, {
+      const pointTitle = generatePointTitle ? generatePointTitle(item, {
         labelColumn,
         variable1Column,
         variable2Column
-      });
+      }) : (item[labelColumn] || `Point ${i}`);
 
       // Create the graphic with attributes
       const graphic = new Graphic({
@@ -239,52 +252,49 @@ export const createCompLayer = (config) => {
         symbol: pointSymbol,
         attributes: {
           ...item,
-          OBJECTID: index,
-          displayValue: pointValue, // Value used for classification
-          displayName: pointTitle // Use the formatted title
+          OBJECTID: i,  // Use index as OBJECTID
+          displayValue: pointValue,
+          displayName: pointTitle
         },
         popupTemplate: new PopupTemplate({
           title: "{displayName}",
-          content: valueColumn ? [ // Only show value field if valueColumn is defined
+          content: valueColumn ? [
             {
               type: "fields",
               fieldInfos: [
                 {
-                  fieldName: "displayValue", // Use the unified displayValue attribute
-                  label: valueColumn || "Value", // Use the actual column name as label
-                  format: valueFormat ? { // Apply formatting if available
+                  fieldName: "displayValue",
+                  label: valueColumn || "Value",
+                  format: valueFormat ? {
                     digitSeparator: true,
                     places: valueFormat.decimals ?? 0,
                     prefix: valueFormat.prefix || '',
                     suffix: valueFormat.suffix || ''
-                  } : { digitSeparator: true, places: 2 } // Default format
+                  } : { digitSeparator: true, places: 2 }
                 }
               ]
             }
-          ] : [{ type: "text", text: "No value column selected for display."}] // Fallback if no value column
+          ] : [{ type: "text", text: "No value column selected for display." }]
         })
       });
 
       // Add the point graphic to the layer
       graphicsLayer.add(graphic);
+      addedPoints++;
       
       // Create label text (includes variables if configured)
-      const labelText = formatPointLabel(item, {
+      const labelText = formatPointLabel ? formatPointLabel(item, {
         labelColumn,
         variable1Column, 
         variable2Column,
         labelOptions: { includeVariables }
-      });
+      }) : (item[labelColumn] || `Point ${i}`);
       
-      // Get label position if we're avoiding collisions
-      const labelId = `label-${index}`;
-      let labelOffset = { x: 0, y: fontSize + 4, visible: true }; // Default offset
+      // Default label position (below point)
+      let xOffset = 0;
+      let yOffset = fontSize + 4;
       
-      if (avoidCollisions && labelPositions.has(labelId)) {
-        labelOffset = labelPositions.get(labelId);
-      }
-      
-      // Create a text symbol for the label with the configured font size
+      // Create a text symbol for the label
       const textSymbol = new TextSymbol({
         text: labelText,
         font: {
@@ -295,8 +305,8 @@ export const createCompLayer = (config) => {
         color: new Color([0, 0, 0, 0.9]),
         haloColor: new Color([255, 255, 255, 0.9]),
         haloSize: 1,
-        xoffset: labelOffset.x, // Apply calculated x offset 
-        yoffset: labelOffset.y, // Apply calculated y offset
+        xoffset: xOffset,
+        yoffset: yOffset
       });
       
       // Create a label graphic
@@ -305,31 +315,26 @@ export const createCompLayer = (config) => {
         symbol: textSymbol,
         attributes: {
           ...item,
-          OBJECTID: `label-${index}`,
-          parentID: index,
+          OBJECTID: `label-${i}`,
+          parentID: i,
           isLabel: true,
-          visible: labelOffset.visible && (visibleAtAllZooms || false) // Initially invisible if configured
+          visible: true
         },
         // Labels should be invisible at low zoom levels if configured
-        visible: labelOffset.visible && visibleAtAllZooms
+        visible: visibleAtAllZooms
       });
       
       // Add the label graphic to the layer
       graphicsLayer.add(labelGraphic);
-    });
-
-    console.log(`[createCompLayer] Added ${graphicsLayer.graphics.length} points and labels to comp layer "${graphicsLayer.title}".`);
-    
-    // Add a watch handler to show/hide labels based on zoom level
-    // This would be set up in the Map.jsx or other parent component
-    // using view.watch("zoom", (newZoom) => {...})
-  } else {
-    console.warn("[createCompLayer] Missing required data for comp layer: customData array, latitudeColumn, or longitudeColumn");
+      addedLabels++;
+    } catch (err) {
+      console.error(`[createCompLayer] Error creating graphics for item ${i}:`, err);
+    }
   }
-  
+
+  console.log(`[createCompLayer] Added ${addedPoints} points and ${addedLabels} labels to comp layer "${graphicsLayer.title}".`);
   return graphicsLayer;
 };
-
 /**
  * Creates a pipeline map layer with improved label handling
  * 
@@ -355,6 +360,10 @@ export const createPipeLayer = (config) => {
     title: config?.title || "Pipeline Map Layer",
     listMode: "show"
   });
+
+  // Add this flag to indicate this layer manages its own labels
+  // This signals to UniversalLabelManager not to create duplicate labels
+  graphicsLayer.hasLabelGraphics = true;
   
   // Extract needed configuration with updated column names
   const { 
@@ -726,6 +735,10 @@ export async function createGraphicsLayerFromCustomData(config) {
   customLayer.isVisualizationLayer = true;
   customLayer.isCustomDataLayer = true;
   customLayer.visualizationType = "custom"; // Explicitly set type
+  
+  // Add this flag to indicate this layer manages its own labels
+  // This signals to UniversalLabelManager not to create duplicate labels
+  customLayer.hasLabelGraphics = true;
 
   // --- Enhanced data extraction ---
   const data = config.customData.data || [];

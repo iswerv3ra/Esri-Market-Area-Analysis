@@ -2,11 +2,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import { X, Save, Tag, Type } from 'lucide-react';
 import ColorBreakEditor from './ColorBreakEditor';
 import DotDensityEditor from './DotDensityEditor';
 import PointStyleEditor from './PointStyleEditor';
 import PipelinePointStyleEditor from './PipelinePointStyleEditor';
+import LabelEditor from './LabelEditor'; // Import the new LabelEditor component
 import { mapConfigurationsAPI } from '../../services/api';
 
 // Helper function to safely get properties, avoiding errors on null/undefined
@@ -46,7 +47,12 @@ const LayerPropertiesEditor = ({
   onPreview,
   projectId,
   activeTab,
-  tabs
+  tabs,
+  mapView, // Added for label editing
+  labelManager, // Added for label editing
+  isLabelEditMode = false, // Track if we're in label editing mode
+  onLabelEditModeChange, // Callback to toggle label edit mode
+  activeLayer // Current active layer for label editing
 }) => {
   const [currentConfig, setCurrentConfig] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -379,6 +385,24 @@ const LayerPropertiesEditor = ({
 
   // --- Editor Rendering Logic ---
   const renderEditor = () => {
+    // If in label editing mode, render the label editor instead of the regular editors
+    if (isLabelEditMode) {
+      return (
+        <LabelEditor
+          isOpen={isOpen}
+          onClose={() => {
+            if (onLabelEditModeChange) {
+              onLabelEditModeChange(false);
+            }
+          }}
+          mapView={mapView}
+          labelManager={labelManager}
+          activeLayer={activeLayer}
+        />
+      );
+    }
+    
+    // Otherwise, show regular property editor based on layer type
     if (isTransitioning || !currentConfig) { // Check currentConfig existence here
       return (
         <div className="flex items-center justify-center h-full">
@@ -527,11 +551,37 @@ const LayerPropertiesEditor = ({
       transform transition-transform duration-300 ease-in-out border-l border-gray-200 dark:border-gray-700
       ${isOpen ? 'translate-x-0' : 'translate-x-full'}
     `}>
-       {/* Header */}
+       {/* Header with mode toggle */}
       <div className="flex-none h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-          Edit Layer Properties ({effectiveType || '...'}) {/* Show effective type */}
-        </h2>
+        <div className="flex items-center">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            {isLabelEditMode ? 'Edit Labels' : `Edit Layer Properties (${effectiveType || '...'})`}
+          </h2>
+          
+          {/* Mode toggle buttons - only show if we have a valid layer type */}
+          {effectiveType && onLabelEditModeChange && (
+            <div className="ml-4 flex rounded-md overflow-hidden">
+              <button
+                onClick={() => onLabelEditModeChange(false)}
+                className={`px-3 py-1 text-sm font-medium ${!isLabelEditMode 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+              >
+                Properties
+              </button>
+              <button
+                onClick={() => onLabelEditModeChange(true)}
+                className={`px-3 py-1 text-sm font-medium flex items-center ${isLabelEditMode 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+              >
+                <Type className="h-3.5 w-3.5 mr-1" />
+                Labels
+              </button>
+            </div>
+          )}
+        </div>
+        
         <button
           onClick={onClose}
           className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors rounded-full p-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -557,18 +607,22 @@ const LayerPropertiesEditor = ({
           >
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            // Disable if no config, transitioning, saving, or type is unknown
-            disabled={!currentConfig || !effectiveType || isTransitioning || isSaving}
-            className="flex items-center justify-center space-x-2 px-4 py-2 text-sm font-medium text-white
-                       bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm
-                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                       disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Save size={16} className={isSaving ? 'animate-spin' : ''} />
-            <span>{isSaving ? 'Saving...' : 'Apply Changes'}</span>
-          </button>
+          
+          {/* Only show Apply Changes button when not in label edit mode */}
+          {!isLabelEditMode && (
+            <button
+              onClick={handleSave}
+              // Disable if no config, transitioning, saving, or type is unknown
+              disabled={!currentConfig || !effectiveType || isTransitioning || isSaving}
+              className="flex items-center justify-center space-x-2 px-4 py-2 text-sm font-medium text-white
+                         bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm
+                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Save size={16} className={isSaving ? 'animate-spin' : ''} />
+              <span>{isSaving ? 'Saving...' : 'Apply Changes'}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

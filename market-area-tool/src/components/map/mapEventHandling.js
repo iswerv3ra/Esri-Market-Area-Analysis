@@ -1,12 +1,27 @@
-// Map event handling code to implement label visibility and anti-collision
-import { setupLabelVisibilityHandling, cleanupLabelVisibilityHandling } from './labelutils';
-
 /**
- * Initializes basic label visibility management for newly added layers
- * @param {MapView} view - The ArcGIS MapView
- * @returns {Function} Cleanup function
+ * mapEventHandling.js - Map event management and label processing
+ * 
+ * This module provides specialized event handlers for map interactions,
+ * particularly focusing on label management and visibility.
  */
-export function initializeLayerLabelManagement(view) {
+
+import { 
+    setupLabelVisibilityHandling, 
+    calculateLabelPositions, 
+    optimizeLabelText, 
+    fixLabelOffsetForHighDPI 
+  } from './labelutils';
+  
+  import Graphic from "@arcgis/core/Graphic";
+  import Color from "@arcgis/core/Color";
+  
+  /**
+   * Initialize label visibility management for all map layers
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @returns {Function} Cleanup function to remove event handlers
+   */
+  export function initializeLayerLabelManagement(view) {
     if (!view || !view.map) {
       console.warn("[initializeLayerLabelManagement] Invalid view provided");
       return () => {};
@@ -52,7 +67,7 @@ export function initializeLayerLabelManagement(view) {
     
     // Return a function to clean up all event handlers
     return function cleanup() {
-      if (layerAddHandle) {
+      if (layerAddHandle && typeof layerAddHandle.remove === 'function') {
         layerAddHandle.remove();
       }
       
@@ -66,303 +81,33 @@ export function initializeLayerLabelManagement(view) {
       processedLayers.clear();
       
       console.log("[LabelManagement] All label management handlers removed");
+      return true;
     };
   }
-
-/**
- * Recalculate label positions when the view extent changes
- * This helps prevent label overlaps as users pan and zoom
- * 
- * @param {MapView} view - The ArcGIS MapView object 
- * @param {GraphicsLayer} layer - The layer containing labels
- * @param {Object} options - Additional options
- */
-export function setupDynamicLabelPositioning(view, layer, options = {}) {
-  if (!view || !layer) {
-    console.warn("[setupDynamicLabelPositioning] Invalid view or layer reference");
-    return;
-  }
   
-  // Default options
-  const config = {
-    throttleDelay: 150,      // Delay in ms to throttle updates
-    onlyWhenZooming: false,  // Whether to update only during zoom operations
-    ...options
-  };
-  
-  let timeoutId = null;
-  let lastUpdateTime = 0;
-  
-  // Function to update label positions
-  const updateLabelPositions = () => {
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateTime;
-    
-    // Skip if update was too recent
-    if (timeSinceLastUpdate < config.throttleDelay) {
-      timeoutId = setTimeout(updateLabelPositions, config.throttleDelay - timeSinceLastUpdate);
-      return;
-    }
-    
-    // Clear any existing timeout
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    
-    // Record the update time
-    lastUpdateTime = now;
-    
-    try {
-      // Exit if layer no longer exists or has no graphics
-      if (!layer || !layer.graphics || layer.graphics.length === 0) return;
-      
-      console.log(`[DynamicLabels] Updating positions for ${layer.title} (${view.zoom.toFixed(2)})`);
-      
-      // Get current view dimensions
-      const viewportWidth = view.width;
-      const viewportHeight = view.height;
-      
-      // Extract points and corresponding labels
-      const points = [];
-      const labelGraphics = [];
-      const pointById = new Map();
-      
-      // First pass - collect points
-      layer.graphics.forEach(graphic => {
-        const attrs = graphic.attributes || {};
-        
-        // Skip label graphics in this pass
-        if (attrs.isLabel) return;
-        
-        // Get screen coordinates for this point
-        const screenPoint = view.toScreen(graphic.geometry);
-        if (!screenPoint) return;
-        
-        // Store point information
-        const pointId = attrs.OBJECTID ?? `point-${Math.random().toString(36).substr(2, 9)}`;
-        points.push({
-          id: pointId,
-          screenX: screenPoint.x,
-          screenY: screenPoint.y,
-        });
-        
-        // Store reference to point by ID for quick lookup
-        pointById.set(pointId, {
-          graphic,
-          screenPoint
-        });
-      });
-      
-      // Second pass - collect labels and associate with points
-      layer.graphics.forEach(graphic => {
-        const attrs = graphic.attributes || {};
-        
-        // Only process label graphics
-        if (!attrs.isLabel) return;
-        
-        // Find associated point
-        const parentId = attrs.parentID;
-        if (parentId === undefined || !pointById.has(parentId)) return;
-        
-        // Store label graphic
-        labelGraphics.push({
-          graphic,
-          pointId: parentId,
-          visible: attrs.visible !== false, // Respect manually hidden labels
-          priority: 0, // Default priority
-        });
-      });
-      
-      // Skip if no labels found
-      if (labelGraphics.length === 0) return;
-      
-      // Get current view scale and set priorities
-      const currentScale = view.scale;
-      labelGraphics.forEach((labelData, index) => {
-        // Simple priority based on index (first graphics have higher priority)
-        labelData.priority = index < 20 ? 2 : 1;
-      });
-      
-      // Calculate the maximum number of visible labels based on zoom level
-      // More zoomed in = more labels
-      const zoomRatio = Math.min(1, Math.max(0, (view.zoom - 8) / 10)); // 0-1 value from zoom 8-18
-      const maxLabelsVisible = Math.round(20 + (zoomRatio * 100)); // 20 at zoom 8, up to 120 at zoom 18+
-      
-      // Sort labels by priority (higher first)
-      labelGraphics.sort((a, b) => b.priority - a.priority);
-      
-      // Set visibility based on zoom and priority
-      labelGraphics.forEach((labelData, index) => {
-        // Keep original visibility setting if not at base visibility
-        if (!labelData.visible) return;
-        
-        // Set visibility based on priority and max visible count
-        const shouldBeVisible = index < maxLabelsVisible;
-        labelData.graphic.visible = shouldBeVisible && view.zoom >= (layer.labelVisibilityTracking?.minimumZoom || 10);
-      });
-      
-      // Calculate offsets to reduce overlaps
-      // This is a simplified logic - in a full implementation we'd use a more 
-      // sophisticated label placement algorithm
-      
-      // Use spiral pattern starting from higher priority labels
-      const usedPositions = new Set(); // Track used positions
-      const getPositionKey = (x, y) => `${Math.round(x/10)},${Math.round(y/10)}`; // 10px grid
-      
-      // Array of potential offsets (x, y) in order of preference
-      const offsetPatterns = [
-        [0, 14],           // Below
-        [0, -14],          // Above
-        [14, 0],           // Right
-        [-14, 0],          // Left
-        [14, 14],          // Bottom-right
-        [-14, 14],         // Bottom-left 
-        [14, -14],         // Top-right
-        [-14, -14],        // Top-left
-        [0, 21],           // Further below
-        [0, -21],          // Further above
-        [21, 0],           // Further right
-        [-21, 0],          // Further left
-      ];
-      
-      // Apply offsets to each visible label
-      labelGraphics.forEach(labelData => {
-        // Skip hidden labels
-        if (!labelData.graphic.visible) return;
-        
-        // Get the associated point
-        const pointData = pointById.get(labelData.pointId);
-        if (!pointData) return;
-        
-        const screenX = pointData.screenPoint.x;
-        const screenY = pointData.screenPoint.y;
-        
-        // Try each offset pattern until we find an unused position
-        let bestOffset = offsetPatterns[0]; // Default to first pattern
-        
-        // Check existing symbol first - if it's already placed well, keep it
-        const currentSymbol = labelData.graphic.symbol;
-        if (currentSymbol) {
-          const currentX = currentSymbol.xoffset || 0;
-          const currentY = currentSymbol.yoffset || 0;
-          
-          // If position is still available, keep it
-          const currentPosKey = getPositionKey(screenX + currentX, screenY + currentY);
-          if (!usedPositions.has(currentPosKey)) {
-            bestOffset = [currentX, currentY];
-            usedPositions.add(currentPosKey);
-          }
-        }
-        
-        // If we don't have a valid position yet, try patterns
-        if (bestOffset === offsetPatterns[0]) {
-          for (const offset of offsetPatterns) {
-            const posKey = getPositionKey(screenX + offset[0], screenY + offset[1]);
-            
-            if (!usedPositions.has(posKey)) {
-              bestOffset = offset;
-              usedPositions.add(posKey);
-              break;
-            }
-          }
-        }
-        
-        // Update the label symbol with the best offset
-        if (labelData.graphic.symbol) {
-          const newSymbol = labelData.graphic.symbol.clone();
-          newSymbol.xoffset = bestOffset[0];
-          newSymbol.yoffset = bestOffset[1];
-          labelData.graphic.symbol = newSymbol;
-        }
-      });
-      
-      console.log(`[DynamicLabels] Updated ${labelGraphics.length} labels for ${layer.title}`);
-    } catch (error) {
-      console.error("[DynamicLabels] Error updating label positions:", error);
-    }
-  };
-  
-  // Set up event listeners
-  
-  // Update on extent change (handles zoom and pan)
-  const extentHandle = view.watch("extent", () => {
-    // Skip if set to update only during zoom
-    if (config.onlyWhenZooming && !view.interacting) return;
-    
-    // Clear existing timeout
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    
-    // Set new timeout for updating
-    timeoutId = setTimeout(updateLabelPositions, config.throttleDelay);
-  });
-  
-  // Update when stationary after interaction
-  const stationaryHandle = view.watch("stationary", (isStationary) => {
-    if (isStationary) {
-      // Clear existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
-      // Set new timeout for updating
-      timeoutId = setTimeout(updateLabelPositions, 50); // Shorter delay for final update
-    }
-  });
-  
-  // Store handles on the layer for cleanup
-  layer.dynamicLabelHandles = {
-    extent: extentHandle,
-    stationary: stationaryHandle
-  };
-  
-  // Do an initial update
-  updateLabelPositions();
-  
-  // Return a cleanup function
-  return function cleanup() {
-    // Clear any pending timeout
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    
-    // Remove event listeners
-    if (layer.dynamicLabelHandles) {
-      if (layer.dynamicLabelHandles.extent) {
-        layer.dynamicLabelHandles.extent.remove();
-      }
-      if (layer.dynamicLabelHandles.stationary) {
-        layer.dynamicLabelHandles.stationary.remove();
-      }
-      layer.dynamicLabelHandles = null;
-    }
-  };
-}
-
-/**
- * Initialize dynamic label positioning for all layers in a view
- * 
- * @param {MapView} view - The ArcGIS MapView
- * @param {Object} options - Configuration options
- * @returns {Function} Cleanup function
- */
-export function initializeDynamicLabelManagement(view, options = {}) {
+  /**
+   * Initialize dynamic label positioning to prevent overlaps during map navigation
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {Object} options - Configuration options
+   * @returns {Function} Cleanup function
+   */
+  export function initializeDynamicLabelManagement(view, options = {}) {
     if (!view) {
       console.warn("[initializeDynamicLabelManagement] Invalid view provided");
       return () => {};
     }
     
-    const throttleDelay = options.throttleDelay || 250; // ms
-    const onlyWhenZooming = options.onlyWhenZooming || false;
+    const throttleDelay = options.throttleDelay || 250; // ms between updates
+    const onlyWhenZooming = options.onlyWhenZooming || false; // only update during zoom
+    const maxLabelsPerLayer = options.maxLabelsPerLayer || 100; // Maximum labels to process per layer
+    const collisionBuffer = options.collisionBuffer || 3; // Buffer around labels in pixels
     
     let throttleTimeout = null;
     let isProcessing = false;
-    const processedLayers = new Set();
+    const processedLayers = new Map(); // Track processed layers and their state
     
-    // Process layers to update label positions
+    // Throttled function to update label positions
     const updateLabelPositions = () => {
       if (isProcessing) return;
       
@@ -376,59 +121,146 @@ export function initializeDynamicLabelManagement(view, options = {}) {
         try {
           if (!view || !view.map) return;
           
-          // Loop through all graphics layers
+          // Current zoom level
+          const currentZoom = view.zoom;
+          
+          // Find all graphics layers with labels
           view.map.layers.forEach(layer => {
             if (layer.type !== "graphics" || !layer.graphics) return;
             
-            // Track current zoom level
-            const currentZoom = view.zoom;
+            // Skip layer if no label tracking info
+            const trackingInfo = layer.labelVisibilityTracking;
+            if (!trackingInfo) return;
+            
+            // Check if the layer should show labels at current zoom
+            const minZoom = trackingInfo.minimumZoom || 10;
+            const shouldShowLabels = currentZoom >= minZoom;
             
             console.log(`[DynamicLabels] Updating positions for ${layer.title || 'Unknown Layer'} (${currentZoom.toFixed(2)})`);
             
-            // Look for label graphics
+            // Track label and parent point graphics
             const labelGraphics = [];
+            const parentPoints = new Map(); // OBJECTID -> point graphic
+            
+            // First pass: gather all graphics
             layer.graphics.forEach(graphic => {
-              if (graphic.attributes?.isLabel === true) {
+              if (!graphic.attributes) return;
+              
+              if (graphic.attributes.isLabel) {
                 labelGraphics.push(graphic);
+              } else if (graphic.attributes.OBJECTID !== undefined) {
+                parentPoints.set(graphic.attributes.OBJECTID, graphic);
               }
             });
             
-            if (labelGraphics.length === 0) return;
+            // Skip if no labels found
+            if (labelGraphics.length === 0) {
+              console.log(`[DynamicLabels] No labels found in layer ${layer.title || 'Unknown Layer'}`);
+              return;
+            }
             
-            // Update label positions - ensure they're visible if at proper zoom level
-            const minZoom = layer.labelVisibilityTracking?.minimumZoom || 10;
-            const shouldBeVisible = currentZoom >= minZoom;
+            // Limit the number of labels to process
+            const labelsToProcess = labelGraphics.slice(0, maxLabelsPerLayer);
             
-            // Make sure labels are visible at appropriate zoom levels
-            labelGraphics.forEach(label => {
-              // Key fix: Set visibility directly based on zoom threshold
-              // This ensures labels are shown when zoomed in enough
-              label.visible = shouldBeVisible;
+            // Second pass: prepare label points data for position calculation
+            const labelPoints = [];
+            
+            labelsToProcess.forEach(labelGraphic => {
+              if (!labelGraphic.geometry) return;
+              
+              const parentId = labelGraphic.attributes.parentID;
+              const parentGraphic = parentId !== undefined ? parentPoints.get(parentId) : null;
+              
+              // Calculate screen coordinates
+              const screenPoint = view.toScreen(labelGraphic.geometry);
+              if (!screenPoint) return;
+              
+              // Extract text from symbol
+              const labelText = labelGraphic.symbol?.text || '';
+              if (!labelText) return;
+              
+              // Calculate label width based on text length and font size
+              const fontSize = labelGraphic.symbol?.font?.size || 10;
+              
+              labelPoints.push({
+                id: `label-${labelGraphic.attributes.OBJECTID || Math.random().toString(36).substring(2, 9)}`,
+                screenX: screenPoint.x,
+                screenY: screenPoint.y,
+                labelText,
+                fontSize,
+                labelGraphic,
+                parentGraphic,
+                // Calculate priority based on label importance
+                priority: labelGraphic.attributes.priority || 
+                          labelGraphic.attributes.importance || 
+                          (parentId ? 2 : 1) // Labels with parents have higher priority
+              });
             });
             
-            console.log(`[DynamicLabels] Updated ${labelGraphics.length} labels for ${layer.title || 'Unknown Layer'}`);
+            // Skip if no valid label points
+            if (labelPoints.length === 0) return;
             
-            // Track that we've processed this layer
-            processedLayers.add(layer.id);
+            // Calculate positions with anti-collision
+            const positions = calculateLabelPositions(labelPoints, {
+              viewWidth: view.width,
+              viewHeight: view.height,
+              fontSize: 10, // Default font size, will be overridden by individual label settings
+              avoidCollisions: true,
+              maxLabelsVisible: maxLabelsPerLayer,
+              padding: collisionBuffer
+            });
+            
+            // Apply calculated positions
+            positions.forEach(position => {
+              const point = labelPoints.find(p => p.id === position.id);
+              if (!point || !point.labelGraphic) return;
+              
+              // Get current symbol
+              const labelGraphic = point.labelGraphic;
+              const currentSymbol = labelGraphic.symbol;
+              if (!currentSymbol) return;
+              
+              // Update offsets in the symbol
+              currentSymbol.xoffset = position.x;
+              currentSymbol.yoffset = position.y;
+              
+              // Set visibility
+              labelGraphic.visible = shouldShowLabels && position.visible;
+              
+              // Fix offsets for high DPI displays
+              fixLabelOffsetForHighDPI(view, labelGraphic, {
+                x: position.x,
+                y: position.y
+              });
+            });
+            
+            console.log(`[DynamicLabels] Updated ${positions.length} labels for ${layer.title || 'Unknown Layer'}`);
           });
         } catch (error) {
-          console.error("[DynamicLabels] Error updating labels:", error);
+          console.error("[DynamicLabels] Error updating label positions:", error);
         } finally {
           isProcessing = false;
         }
       }, throttleDelay);
     };
     
-    // Setup view change event handlers
+    // Event handlers for view changes
     const viewHandles = [];
     
+    // Setup zoom/pan event handling based on configuration
     if (onlyWhenZooming) {
+      // Only watch zoom changes
       viewHandles.push(
-        view.watch("zoom", () => updateLabelPositions())
+        view.watch("zoom", () => {
+          updateLabelPositions();
+        })
       );
     } else {
+      // Watch both zoom and extent changes (panning)
       viewHandles.push(
-        view.watch("extent", () => updateLabelPositions())
+        view.watch("extent", () => {
+          updateLabelPositions();
+        })
       );
     }
     
@@ -436,18 +268,456 @@ export function initializeDynamicLabelManagement(view, options = {}) {
     updateLabelPositions();
     
     // Return cleanup function
-    return function cleanup() {
+    return function cleanupDynamicLabelManagement() {
+      // Clear any pending timeout
       if (throttleTimeout) {
         clearTimeout(throttleTimeout);
+        throttleTimeout = null;
       }
       
+      // Remove all view watches
       viewHandles.forEach(handle => {
         if (handle && typeof handle.remove === 'function') {
           handle.remove();
         }
       });
       
+      // Clear tracking
       viewHandles.length = 0;
       processedLayers.clear();
+      
+      console.log("[DynamicLabelManagement] Cleanup complete");
+      return true;
+    };
+  }
+  
+  /**
+   * Monitor layer label performance for maps with many labels
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {Number} threshold - Threshold in milliseconds before performance warning
+   * @returns {Function} Cleanup function
+   */
+  export function monitorLabelPerformance(view, threshold = 100) {
+    if (!view || !view.map) return () => {};
+    
+    const monitoredLayers = new Map(); // Track monitored layers
+    
+    // Process layer for monitoring
+    const setupLayerMonitoring = (layer) => {
+      if (!layer || layer.type !== 'graphics' || !layer.graphics || 
+          monitoredLayers.has(layer.id)) {
+        return;
+      }
+      
+      // Skip layers that don't have labels
+      const hasLabels = layer.graphics.some(g => g.attributes?.isLabel);
+      if (!hasLabels) return;
+      
+      // Set up monitoring
+      monitoredLayers.set(layer.id, {
+        labelCount: 0,
+        lastUpdateTime: 0
+      });
+      
+      console.log(`[Performance] Monitoring label performance for layer: ${layer.title || layer.id}`);
+    };
+    
+    // Process existing layers
+    view.map.layers.forEach(setupLayerMonitoring);
+    
+    // Watch for layer changes
+    const layerChangeHandle = view.map.layers.on("change", (evt) => {
+      if (evt.added && evt.added.length > 0) {
+        evt.added.forEach(setupLayerMonitoring);
+      }
+      
+      if (evt.removed && evt.removed.length > 0) {
+        evt.removed.forEach(layer => {
+          if (layer && monitoredLayers.has(layer.id)) {
+            monitoredLayers.delete(layer.id);
+          }
+        });
+      }
+    });
+    
+    // Check label performance on view updates
+    const updateHandle = view.watch("updating", (isUpdating) => {
+      if (!isUpdating) {
+        const updateTimeStart = performance.now();
+        
+        // Check each monitored layer
+        monitoredLayers.forEach((info, layerId) => {
+          const layer = view.map.findLayerById(layerId);
+          if (!layer) return;
+          
+          // Count label graphics
+          let labelCount = 0;
+          let visibleLabelCount = 0;
+          
+          layer.graphics.forEach(g => {
+            if (g.attributes?.isLabel) {
+              labelCount++;
+              if (g.visible) visibleLabelCount++;
+            }
+          });
+          
+          // Update monitoring info
+          info.labelCount = labelCount;
+          
+          // Log only if significant change in count
+          if (Math.abs(info.labelCount - labelCount) > 10) {
+            console.log(`[Performance] Layer "${layer.title || layer.id}" has ${labelCount} labels (${visibleLabelCount} visible)`);
+          }
+        });
+        
+        // Check time taken
+        const updateTime = performance.now() - updateTimeStart;
+        if (updateTime > threshold) {
+          console.warn(`[Performance] Label performance check took ${updateTime.toFixed(1)}ms, which exceeds threshold of ${threshold}ms`);
+        }
+      }
+    });
+    
+    // Return cleanup function
+    return function cleanup() {
+      if (layerChangeHandle && typeof layerChangeHandle.remove === 'function') {
+        layerChangeHandle.remove();
+      }
+      
+      if (updateHandle && typeof updateHandle.remove === 'function') {
+        updateHandle.remove();
+      }
+      
+      monitoredLayers.clear();
+      
+      console.log("[Performance] Label performance monitoring stopped");
+      return true;
+    };
+  }
+  
+  /**
+   * Enhance label visibility for specific map extents (useful for reports)
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {Object} extent - The map extent to enhance
+   * @param {Object} options - Enhancement options
+   */
+  export function enhanceLabelsForExtent(view, extent, options = {}) {
+    if (!view || !view.map || !extent) return;
+    
+    const {
+      increaseVisibility = true,
+      priorityBoost = 2,
+      markLabels = false,
+      colorScale = ["#1a73e8", "#e53935", "#43a047", "#fb8c00"],
+      fadeOutsideExtent = true,
+      outsideOpacity = 0.4
+    } = options;
+    
+    // Function to check if a point is within the extent
+    const isPointInExtent = (point) => {
+      return point && 
+             point.x >= extent.xmin && 
+             point.x <= extent.xmax && 
+             point.y >= extent.ymin && 
+             point.y <= extent.ymax;
+    };
+    
+    // Process all layers with labels
+    view.map.layers.forEach(layer => {
+      if (layer.type !== 'graphics' || !layer.graphics) return;
+      
+      // Track label processing stats
+      let insideCount = 0;
+      let outsideCount = 0;
+      let enhancedCount = 0;
+      
+      layer.graphics.forEach(graphic => {
+        if (!graphic.attributes?.isLabel || !graphic.geometry) return;
+        
+        const isInside = isPointInExtent(graphic.geometry);
+        
+        if (isInside) {
+          insideCount++;
+          
+          // Always make labels within extent visible
+          if (increaseVisibility) {
+            graphic.visible = true;
+            
+            // Boost attributes affecting priority in label positioning
+            if (priorityBoost > 0) {
+              graphic.attributes.priority = (graphic.attributes.priority || 1) * priorityBoost;
+              graphic.attributes.importance = (graphic.attributes.importance || 1) * priorityBoost;
+            }
+          }
+          
+          // Mark labels with color coding if requested
+          if (markLabels && graphic.symbol) {
+            // Clone the symbol to avoid modifying the original
+            const originalSymbol = graphic.symbol.clone();
+            
+            // Apply color based on parent ID or a deterministic value
+            const parentId = graphic.attributes.parentID || 0;
+            const colorIndex = parentId % colorScale.length;
+            
+            // Set label color using the color scale
+            originalSymbol.color = new Color(colorScale[colorIndex]);
+            
+            // Apply symbol changes
+            graphic.symbol = originalSymbol;
+            enhancedCount++;
+          }
+        } else {
+          outsideCount++;
+          
+          // Fade labels outside the extent if requested
+          if (fadeOutsideExtent && graphic.symbol) {
+            // Clone the symbol to avoid modifying the original
+            const originalSymbol = graphic.symbol.clone();
+            
+            // Get original color and apply opacity
+            const originalColor = originalSymbol.color.toRgba();
+            originalColor[3] = outsideOpacity; // Set alpha channel
+            
+            // Apply faded color
+            originalSymbol.color = new Color(originalColor);
+            
+            // Apply symbol changes
+            graphic.symbol = originalSymbol;
+          }
+        }
+      });
+      
+      console.log(`[ExtentEnhancement] Layer "${layer.title || layer.id}": ${insideCount} labels inside, ${outsideCount} outside, ${enhancedCount} enhanced`);
+    });
+  }
+  
+  /**
+   * Register advanced map interaction event handlers for label management
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {Object} options - Event handling options
+   * @returns {Function} Cleanup function
+   */
+  export function registerMapEventHandlers(view, options = {}) {
+    if (!view) return () => {};
+    
+    const {
+      handleClick = true,
+      handleHover = true,
+      handleDoubleClick = false,
+      handleMouseMove = false
+    } = options;
+    
+    const handles = [];
+    
+    // Click handler
+    if (handleClick) {
+      const clickHandle = view.on("click", (event) => {
+        // Get clicked graphics
+        view.hitTest(event).then(response => {
+          // Find hit graphics
+          const graphics = response.results?.filter(result => result.graphic)
+                                         .map(result => result.graphic) || [];
+          
+          if (graphics.length === 0) return;
+          
+          // Check if we clicked on a label
+          const labelGraphic = graphics.find(g => g.attributes?.isLabel);
+          if (labelGraphic) {
+            console.log(`[MapEvent] Clicked on label: ${labelGraphic.symbol?.text || 'Unnamed'}`);
+            
+            // Find associated parent graphic
+            const parentId = labelGraphic.attributes.parentID;
+            if (parentId !== undefined) {
+              const parentGraphic = findParentGraphic(view, parentId);
+              
+              if (parentGraphic) {
+                // Highlight the parent graphic
+                highlightGraphic(view, parentGraphic);
+                
+                // Show parent popup
+                view.popup.open({
+                  features: [parentGraphic],
+                  location: event.mapPoint
+                });
+              }
+            }
+          }
+        }).catch(err => {
+          console.error("[MapEvent] Error in hit test:", err);
+        });
+      });
+      
+      handles.push(clickHandle);
+    }
+    
+    // Hover handler
+    if (handleHover) {
+      const hoverHandle = view.on("pointer-move", debounce((event) => {
+        // Skip if dragging or zooming
+        if (view.navigating) return;
+        
+        view.hitTest(event).then(response => {
+          const graphics = response.results?.filter(result => result.graphic)
+                                         .map(result => result.graphic) || [];
+          
+          if (graphics.length === 0) {
+            // Reset cursor
+            view.container.style.cursor = "default";
+            return;
+          }
+          
+          // Check if we're hovering over a label
+          const labelGraphic = graphics.find(g => g.attributes?.isLabel);
+          if (labelGraphic) {
+            // Change cursor
+            view.container.style.cursor = "pointer";
+            
+            // Optional: temporarily emphasize the label
+            const originalSymbol = labelGraphic.symbol;
+            if (originalSymbol) {
+              const enhancedSymbol = originalSymbol.clone();
+              enhancedSymbol.font.weight = "bold";
+              labelGraphic.symbol = enhancedSymbol;
+              
+              // Reset after delay
+              setTimeout(() => {
+                labelGraphic.symbol = originalSymbol;
+              }, 500);
+            }
+          } else {
+            // Reset cursor if not hovering over a label
+            view.container.style.cursor = "default";
+          }
+        }).catch(err => {
+          console.error("[MapEvent] Error in hover hit test:", err);
+        });
+      }, 50)); // Short debounce for hover
+      
+      handles.push(hoverHandle);
+    }
+    
+    // Double-click handler
+    if (handleDoubleClick) {
+      const doubleClickHandle = view.on("double-click", (event) => {
+        // Prevent default zoom behavior for label double-clicks
+        view.hitTest(event).then(response => {
+          const graphics = response.results?.filter(result => result.graphic)
+                                         .map(result => result.graphic) || [];
+          
+          // Check if we double-clicked on a label
+          const labelGraphic = graphics.find(g => g.attributes?.isLabel);
+          if (labelGraphic) {
+            // Prevent default zoom
+            event.stopPropagation();
+            
+            console.log(`[MapEvent] Double-clicked on label: ${labelGraphic.symbol?.text || 'Unnamed'}`);
+            
+            // Find the parent graphic
+            const parentId = labelGraphic.attributes.parentID;
+            if (parentId !== undefined) {
+              const parentGraphic = findParentGraphic(view, parentId);
+              
+              if (parentGraphic && parentGraphic.geometry) {
+                // Zoom to parent graphic
+                view.goTo({
+                  target: parentGraphic.geometry,
+                  zoom: view.zoom + 2
+                }, {
+                  duration: 500,
+                  easing: "ease-out"
+                });
+              }
+            }
+          }
+        }).catch(err => {
+          console.error("[MapEvent] Error in double-click hit test:", err);
+        });
+      });
+      
+      handles.push(doubleClickHandle);
+    }
+    
+    // Return cleanup function
+    return function cleanup() {
+      handles.forEach(handle => {
+        if (handle && typeof handle.remove === 'function') {
+          handle.remove();
+        }
+      });
+      
+      handles.length = 0;
+      
+      console.log("[MapEvent] All event handlers removed");
+      return true;
+    };
+  }
+  
+  // Helper functions
+  
+  /**
+   * Find a parent graphic by ID across all layers
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {number|string} parentId - ID of the parent graphic
+   * @returns {Graphic|null} Found parent graphic or null
+   */
+  function findParentGraphic(view, parentId) {
+    if (!view || !view.map || parentId === undefined) return null;
+    
+    let foundGraphic = null;
+    
+    view.map.layers.forEach(layer => {
+      if (layer.type === 'graphics' && layer.graphics && !foundGraphic) {
+        layer.graphics.some(g => {
+          if (g.attributes?.OBJECTID === parentId) {
+            foundGraphic = g;
+            return true;
+          }
+          return false;
+        });
+      }
+    });
+    
+    return foundGraphic;
+  }
+  
+  /**
+   * Highlight a graphic temporarily
+   * 
+   * @param {MapView} view - The ArcGIS MapView
+   * @param {Graphic} graphic - The graphic to highlight
+   * @param {Number} duration - Highlight duration in ms
+   */
+  function highlightGraphic(view, graphic, duration = 1500) {
+    if (!view || !view.highlightOptions) return;
+    
+    const highlight = view.highlight(graphic);
+    
+    setTimeout(() => {
+      highlight.remove();
+    }, duration);
+  }
+  
+  /**
+   * Debounce function to limit handler executions
+   * 
+   * @param {Function} func - Function to debounce
+   * @param {Number} wait - Wait time in ms
+   * @returns {Function} Debounced function
+   */
+  function debounce(func, wait) {
+    let timeout;
+    
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
     };
   }
