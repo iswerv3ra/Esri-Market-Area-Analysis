@@ -3520,218 +3520,503 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   );
 
 
-  // Modified createCompLayer function
-  const createCompLayer = (config) => {
-    console.log("Creating Comp Layer with config:", config);
-    
+  /**
+   * Enhanced createCompLayer function
+   * Creates a GraphicsLayer for comp visualization with improved label support
+   * 
+   * @param {Object} config - Configuration options
+   * @returns {GraphicsLayer} GraphicsLayer with points and labels
+   */
+  const createCompLayer = async (config) => {
+    console.log("[createCompLayer] Received config:", JSON.stringify(config, (k, v) => 
+      k === "data" ? `[${v?.length} items]` : v));
+
+    // Ensure we have the required modules
+    const [
+      { default: GraphicsLayer },
+      { default: Graphic },
+      { default: Point },
+      { default: SimpleMarkerSymbol },
+      { default: TextSymbol },
+      { default: Color },
+      { default: PopupTemplate }
+    ] = await Promise.all([
+      import("@arcgis/core/layers/GraphicsLayer"),
+      import("@arcgis/core/Graphic"),
+      import("@arcgis/core/geometry/Point"),
+      import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+      import("@arcgis/core/symbols/TextSymbol"),
+      import("@arcgis/core/Color"),
+      import("@arcgis/core/PopupTemplate")
+    ]);
+
+    // Extract data from config
+    const compData = config?.customData?.data || [];
+    if (!Array.isArray(compData) || compData.length === 0) {
+      console.warn("[createCompLayer] No comp data provided");
+      return null;
+    }
+
+    // Determine column names
+    const latColumn = config?.latitudeColumn || "Latitude";
+    const lonColumn = config?.longitudeColumn || "Longitude";
+    const labelColumn = config?.labelColumn || "name";
+    const valueColumn = config?.valueColumn || config?.field;
+    const var1Column = config?.variable1Column;
+    const var2Column = config?.variable2Column;
+    const statusColumn = config?.statusColumn;
+
     // Create the graphics layer
-    const graphicsLayer = new GraphicsLayer({
-      title: config?.title || "Comparison Map Layer",
-      listMode: "show"
+    const layer = new GraphicsLayer({
+      id: `comp-layer-${Date.now()}`,
+      title: config?.title || "Comp Points",
+      listMode: "hide", // Hide from layer list
+      // Set visualization type properties
+      visualizationType: "comp",
+      isVisualizationLayer: true,
+      // Prevent accidental removal
+      _preventRemoval: true,
+      _isCompLayer: true
     });
-    
-    // Extract needed configuration
-    const { 
-      customData, 
-      nameColumn, 
-      valueColumn, 
-      latitudeColumn, 
-      longitudeColumn,
-      symbol = {} 
-    } = config;
-    
-    // Force numeric type for size to prevent string values
-    const symbolSize = symbol.size !== undefined ? Number(symbol.size) : 12;
-    const pointColor = symbol.color || "#800080"; // Default purple for comp
-    const outlineColor = symbol.outline?.color || "#FFFFFF";
-    const outlineWidth = symbol.outline?.width !== undefined ? 
-      Number(symbol.outline.width) : 1;
-    const pointStyle = symbol.style || "circle";
-    
-    // Log comprehensive symbol properties
-    console.log("Using symbol properties:", {
-      size: symbolSize,
-      color: pointColor,
-      style: pointStyle,
-      outlineColor: outlineColor,
-      outlineWidth: outlineWidth
+
+    // Create symbol from config or use default
+    const defaultSymbol = new SimpleMarkerSymbol({
+      style: "circle",
+      color: new Color(config?.symbol?.color || "#800080"), // Default purple
+      size: config?.symbol?.size || 10,
+      outline: {
+        color: new Color(config?.symbol?.outline?.color || "#FFFFFF"),
+        width: config?.symbol?.outline?.width || 1
+      }
     });
-    
-    // Check if we have the necessary data
-    if (Array.isArray(customData) && customData.length > 0 && 
-        latitudeColumn && longitudeColumn) {
-      
-      // Create graphics for each data point
-      customData.forEach((item, index) => {
-        // Skip if missing coordinates
-        if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+
+    // Determine class breaks if provided
+    const classBreaks = config?.classBreakInfos || [];
+    const renderByClasses = classBreaks.length > 0 && valueColumn;
+
+    // Track created points and labels count
+    let pointsCount = 0;
+    let labelsCount = 0;
+    let processedCount = 0;
+    let errorCount = 0;
+
+    // Array to hold graphics before adding to layer (more efficient)
+    const pointGraphics = [];
+    const labelGraphics = [];
+
+    // Process each data point
+    for (const item of compData) {
+      try {
+        // Get coordinates - check various possible formats
+        let lat, lon;
         
-        const lat = parseFloat(item[latitudeColumn]);
-        const lon = parseFloat(item[longitudeColumn]);
+        // Try direct latitude/longitude columns
+        if (item[latColumn] !== undefined && item[lonColumn] !== undefined) {
+          lat = parseFloat(item[latColumn]);
+          lon = parseFloat(item[lonColumn]);
+        } 
+        // Try geometry object if present
+        else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
+          lat = item.geometry.y;
+          lon = item.geometry.x;
+        }
+        // Try common alternative column names
+        else if (item.lat !== undefined && item.lon !== undefined) {
+          lat = parseFloat(item.lat);
+          lon = parseFloat(item.lon);
+        }
+        else if (item.latitude !== undefined && item.longitude !== undefined) {
+          lat = parseFloat(item.latitude);
+          lon = parseFloat(item.longitude);
+        }
         
-        // Skip invalid coordinates
-        if (isNaN(lat) || isNaN(lon)) return;
-        
+        // Skip if we couldn't determine coordinates
+        if (isNaN(lat) || isNaN(lon)) {
+          console.warn(`[createCompLayer] Invalid coordinates for comp item:`, item);
+          errorCount++;
+          continue;
+        }
+
+        // Generate label text
+        let labelText = "";
+        if (item[labelColumn]) {
+          labelText = String(item[labelColumn]);
+          
+          // Add variables if requested in config
+          if (config?.labelOptions?.includeVariables !== false) {
+            if (var1Column && item[var1Column] !== undefined) {
+              labelText += `, ${item[var1Column]}`;
+            }
+            
+            if (var2Column && item[var2Column] !== undefined) {
+              labelText += ` / ${item[var2Column]}`;
+            }
+          }
+        } else {
+          // Fallback label - try common name fields
+          labelText = item.name || item.title || item.NAME || item.LABEL || 
+                    `Comp ${processedCount + 1}`;
+        }
+
         // Create the point geometry
         const point = new Point({
           longitude: lon,
           latitude: lat,
-          spatialReference: { wkid: 4326 }
+          spatialReference: { wkid: 4326 } // WGS84
         });
-        
-        // Create the symbol with the specified styling
-        const pointSymbol = new SimpleMarkerSymbol({
-          style: pointStyle,
-          size: symbolSize,
-          color: new Color(pointColor),
-          outline: {
-            color: new Color(outlineColor),
-            width: outlineWidth
+
+        // Determine symbol based on class breaks if applicable
+        let pointSymbol = defaultSymbol;
+        if (renderByClasses && valueColumn && item[valueColumn] !== undefined) {
+          const value = parseFloat(item[valueColumn]);
+          if (!isNaN(value)) {
+            // Find matching class break
+            const matchingBreak = classBreaks.find(
+              br => (br.minValue === undefined || value >= br.minValue) && 
+                  (br.maxValue === undefined || value <= br.maxValue)
+            );
+            
+            if (matchingBreak && matchingBreak.symbol) {
+              // Create symbol from class break definition
+              pointSymbol = new SimpleMarkerSymbol({
+                style: matchingBreak.symbol.style || "circle",
+                color: new Color(matchingBreak.symbol.color || defaultSymbol.color),
+                size: matchingBreak.symbol.size || defaultSymbol.size,
+                outline: {
+                  color: new Color(matchingBreak.symbol.outline?.color || "#FFFFFF"),
+                  width: matchingBreak.symbol.outline?.width || 1
+                }
+              });
+            }
           }
+        }
+
+        // Create popup content
+        const popupTemplate = new PopupTemplate({
+          title: labelText,
+          content: [{
+            type: "fields",
+            fieldInfos: [
+              // Add all fields as popup content
+              ...Object.entries(item)
+                .filter(([key]) => key !== "geometry" && !key.startsWith("_"))
+                .map(([key, value]) => ({
+                  fieldName: key,
+                  label: key,
+                  visible: true
+                }))
+            ]
+          }]
         });
-        
-        // Create the graphic with attributes
-        const graphic = new Graphic({
+
+        // Create attributes object with all data and metadata
+        const attributes = {
+          ...item,
+          _internalId: `comp-${processedCount}`,
+          labelText, // Store label text for label management
+          isComp: true,
+          // Add explicit values for commonly accessed fields
+          name: item[labelColumn] || item.name || "",
+          value: item[valueColumn] || "",
+          status: item[statusColumn] || "",
+          variable1: item[var1Column] || "",
+          variable2: item[var2Column] || ""
+        };
+
+        // Create point graphic
+        const pointGraphic = new Graphic({
           geometry: point,
           symbol: pointSymbol,
-          attributes: {
-            ...item,
-            OBJECTID: index,
-            displayValue: item[valueColumn],
-            displayName: item[nameColumn] || `Point ${index + 1}`
-          },
-          popupTemplate: new PopupTemplate({
-            title: "{displayName}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
-                  { fieldName: "displayValue", label: valueColumn || "Value" }
-                ]
-              }
-            ]
-          })
+          attributes,
+          popupTemplate
         });
+
+        // Create label graphic with direct geometry reference to ensure positioning
+        const labelSymbol = new TextSymbol({
+          text: labelText,
+          font: {
+            size: config?.labelOptions?.fontSize || 10,
+            family: "sans-serif",
+            weight: "normal"
+          },
+          color: new Color([0, 0, 0, 0.9]),
+          haloColor: new Color([255, 255, 255, 0.8]),
+          haloSize: 2,
+          yoffset: -15 // Position above the point
+        });
+
+        const labelGraphic = new Graphic({
+          geometry: point,
+          symbol: labelSymbol,
+          attributes: {
+            ...attributes,
+            isLabel: true, // Mark as label for identification
+            parentID: `comp-${processedCount}`, // Reference to parent point
+            layerId: layer.id
+          }
+        });
+
+        // Add to collection arrays
+        pointGraphics.push(pointGraphic);
+        labelGraphics.push(labelGraphic);
         
-        // Add the graphic to the layer
-        graphicsLayer.add(graphic);
-      });
-      
-      console.log(`Added ${graphicsLayer.graphics.length} points to comp layer`);
-    } else {
-      console.warn("Missing required data for comp layer: customData, latitudeColumn, or longitudeColumn");
+        pointsCount++;
+        labelsCount++;
+        processedCount++;
+      } catch (error) {
+        console.error(`[createCompLayer] Error processing comp item:`, error);
+        errorCount++;
+      }
     }
+
+    // Add all graphics to layer at once (more efficient)
+    if (pointGraphics.length > 0) {
+      try {
+        layer.addMany(pointGraphics);
+        console.log(`[createCompLayer] Added ${pointsCount} point graphics to layer`);
+      } catch (error) {
+        console.error(`[createCompLayer] Error adding point graphics:`, error);
+      }
+    }
+
+    if (labelGraphics.length > 0) {
+      try {
+        layer.addMany(labelGraphics);
+        console.log(`[createCompLayer] Added ${labelsCount} label graphics to layer`);
+      } catch (error) {
+        console.error(`[createCompLayer] Error adding label graphics:`, error);
+      }
+    }
+
+    // Final logging
+    console.log(`[createCompLayer] Added ${pointsCount} points and ${labelsCount} labels to comp layer "${layer.title}".`);
     
-    return graphicsLayer;
+    // Add metadata to the layer for future reference
+    layer.metadata = {
+      type: "comp",
+      config,
+      pointsCount,
+      labelsCount,
+      processedCount,
+      errorCount,
+      createdAt: new Date().toISOString()
+    };
+
+    return layer;
   };
-  // Similarly update your createPipeLayer function with the same pattern
-  const createPipeLayer = (config) => {
+
+  /**
+   * Enhanced createPipeLayer function with label support
+   * @param {Object} config - Layer configuration object
+   * @returns {GraphicsLayer} - The created graphics layer
+   */
+  const createPipeLayer = async (config) => {
     console.log("Creating Pipe Layer with config:", config);
     
-    // Create the graphics layer
-    const graphicsLayer = new GraphicsLayer({
-      title: config?.title || "Pipeline Map Layer",
-      listMode: "show"
-    });
-    
-    // Extract needed configuration
-    const { 
-      customData, 
-      nameColumn, 
-      statusColumn, 
-      latitudeColumn, 
-      longitudeColumn,
-      symbol = {} 
-    } = config;
-    
-    // Default symbol properties if not specified
-    const pointSize = symbol.size || 12;
-    const defaultColor = "#0078D4";
-    const outlineColor = symbol.outline?.color || "#FFFFFF";
-    const outlineWidth = symbol.outline?.width || 1;
-    
-    // Status color mapping
-    const statusColors = config.statusColors || {
-      "In Progress": "#FFB900",
-      "Approved": "#107C10",
-      "Pending": "#0078D4",
-      "Completed": "#107C10",
-      "Rejected": "#D13438",
-      "default": defaultColor
-    };
-    
-    // Check if we have the necessary data
-    if (Array.isArray(customData) && customData.length > 0 && 
-        latitudeColumn && longitudeColumn) {
+    try {
+      // Dynamically import required modules
+      const [
+        { default: GraphicsLayer },
+        { default: Graphic },
+        { default: Point },
+        { default: SimpleMarkerSymbol },
+        { default: TextSymbol },
+        { default: Color },
+        { default: PopupTemplate }
+      ] = await Promise.all([
+        import("@arcgis/core/layers/GraphicsLayer"),
+        import("@arcgis/core/Graphic"),
+        import("@arcgis/core/geometry/Point"),
+        import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+        import("@arcgis/core/symbols/TextSymbol"),
+        import("@arcgis/core/Color"),
+        import("@arcgis/core/PopupTemplate")
+      ]);
       
-      // Create graphics for each data point
-      customData.forEach((item, index) => {
-        // Skip if missing coordinates
-        if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+      // Create the graphics layer
+      const graphicsLayer = new GraphicsLayer({
+        title: config?.title || "Pipeline Map Layer",
+        listMode: "show",
+        // Add the layer type identifier for the label manager to recognize
+        visualizationType: "pipe",
+        isVisualizationLayer: true
+      });
+      
+      // Extract needed configuration
+      const { 
+        customData, 
+        nameColumn, 
+        statusColumn, 
+        latitudeColumn, 
+        longitudeColumn,
+        symbol = {},
+        labelOptions = {} // Extract label options
+      } = config;
+      
+      // Default symbol properties if not specified
+      const pointSize = symbol.size !== undefined ? Number(symbol.size) : 12;
+      const defaultColor = "#0078D4";
+      const outlineColor = symbol.outline?.color || "#FFFFFF";
+      const outlineWidth = symbol.outline?.width !== undefined ? Number(symbol.outline.width) : 1;
+      
+      // Process label options
+      const enableLabels = labelOptions?.includeVariables !== false; // Default to true
+      const labelFontSize = labelOptions?.fontSize || 10;
+      const visibleAtAllZooms = labelOptions?.visibleAtAllZooms || false;
+      const avoidCollisions = labelOptions?.avoidCollisions !== false; // Default to true
+      
+      console.log("Pipe layer label options:", {
+        enableLabels,
+        labelFontSize,
+        visibleAtAllZooms,
+        avoidCollisions
+      });
+      
+      // Status color mapping
+      const statusColors = config.statusColors || {
+        "In Progress": "#FFB900",
+        "Approved": "#107C10",
+        "Pending": "#0078D4",
+        "Completed": "#107C10",
+        "Rejected": "#D13438",
+        "default": defaultColor
+      };
+      
+      // Check if we have the necessary data
+      if (Array.isArray(customData) && customData.length > 0 && 
+          latitudeColumn && longitudeColumn) {
         
-        const lat = parseFloat(item[latitudeColumn]);
-        const lon = parseFloat(item[longitudeColumn]);
-        
-        // Skip invalid coordinates
-        if (isNaN(lat) || isNaN(lon)) return;
-        
-        // Get the status and corresponding color
-        const status = item[statusColumn] || "default";
-        const pointColor = statusColors[status] || statusColors.default || defaultColor;
-        
-        // Create the point geometry
-        const point = {
-          type: "point",
-          longitude: lon,
-          latitude: lat,
-          spatialReference: { wkid: 4326 }
-        };
-        
-        // Create the symbol with status-based color
-        const pointSymbol = {
-          type: "simple-marker",
-          style: symbol.style || "circle",
-          size: pointSize,
-          color: pointColor,
-          outline: {
-            color: outlineColor,
-            width: outlineWidth
+        // Create graphics for each data point
+        customData.forEach((item, index) => {
+          // Skip if missing coordinates
+          if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+          
+          const lat = parseFloat(item[latitudeColumn]);
+          const lon = parseFloat(item[longitudeColumn]);
+          
+          // Skip invalid coordinates
+          if (isNaN(lat) || isNaN(lon)) return;
+          
+          // Get the status and corresponding color
+          const status = item[statusColumn] || "default";
+          const pointColor = statusColors[status] || statusColors.default || defaultColor;
+          
+          // Create the point geometry
+          const point = new Point({
+            longitude: lon,
+            latitude: lat,
+            spatialReference: { wkid: 4326 }
+          });
+          
+          // Create the symbol with status-based color
+          const pointSymbol = new SimpleMarkerSymbol({
+            style: symbol.style || "circle",
+            size: pointSize,
+            color: new Color(pointColor),
+            outline: {
+              color: new Color(outlineColor),
+              width: outlineWidth
+            }
+          });
+          
+          // Determine label text based on configuration
+          let labelText = '';
+          if (nameColumn && item[nameColumn]) {
+            labelText = String(item[nameColumn]);
+            
+            // Include status if available and options allow it
+            if (enableLabels && statusColumn && item[statusColumn]) {
+              labelText += `: ${item[statusColumn]}`;
+            }
+          } else if (statusColumn && item[statusColumn]) {
+            labelText = String(item[statusColumn]);
+          } else {
+            labelText = `Point ${index + 1}`;
           }
-        };
-        
-        // Create the graphic with attributes
-        const graphic = new Graphic({
-          geometry: point,
-          symbol: pointSymbol,
-          attributes: {
-            ...item,
-            OBJECTID: index,
-            displayName: item[nameColumn] || `Point ${index + 1}`,
-            status: item[statusColumn] || "Unknown"
-          },
-          popupTemplate: {
-            title: "{displayName}",
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [
-                  { fieldName: "status", label: statusColumn || "Status" }
-                ]
+          
+          // Create the main graphic with attributes
+          const pointGraphic = new Graphic({
+            geometry: point,
+            symbol: pointSymbol,
+            attributes: {
+              ...item,
+              OBJECTID: index,
+              displayName: item[nameColumn] || `Point ${index + 1}`,
+              status: item[statusColumn] || "Unknown",
+              // Add attributes to identify this as a pipe feature
+              FEATURE_TYPE: "pipe",
+              // Add attributes needed for label integration
+              labelText: labelText,
+              parentID: `pipe-${index}` // Unique identifier for label parent
+            },
+            popupTemplate: new PopupTemplate({
+              title: "{displayName}",
+              content: [
+                {
+                  type: "fields",
+                  fieldInfos: [
+                    { fieldName: "status", label: statusColumn || "Status" }
+                  ]
+                }
+              ]
+            })
+          });
+          
+          // Add the graphic to the layer
+          graphicsLayer.add(pointGraphic);
+          
+          // Create label graphic if labels are enabled
+          if (enableLabels && labelText) {
+            // Create the label symbol
+            const textSymbol = new TextSymbol({
+              text: labelText,
+              font: {
+                size: labelFontSize,
+                family: "Arial",
+                weight: "normal"
+              },
+              haloColor: new Color([255, 255, 255, 0.9]),
+              haloSize: 1.5,
+              color: new Color([0, 0, 0, 1]),
+              verticalAlignment: "middle",
+              horizontalAlignment: "center",
+              // Add offset so label doesn't overlap with point
+              yoffset: -pointSize - 5
+            });
+            
+            // Create the label graphic
+            const labelGraphic = new Graphic({
+              geometry: point,
+              symbol: textSymbol,
+              attributes: {
+                OBJECTID: `label-${index}`,
+                isLabel: true, // Flag for label manager to identify
+                parentID: `pipe-${index}`, // Match with main feature for relationship
+                labelText: labelText,
+                FEATURE_TYPE: "label"
               }
-            ]
+            });
+            
+            // Add the label graphic to the layer
+            graphicsLayer.add(labelGraphic);
           }
         });
         
-        // Add the graphic to the layer
-        graphicsLayer.add(graphic);
-      });
+        console.log(`Added ${graphicsLayer.graphics.length} points to pipeline layer`);
+      } else {
+        console.warn("Missing required data for pipeline layer: customData, latitudeColumn, or longitudeColumn");
+      }
       
-      console.log(`Added ${graphicsLayer.graphics.length} points to pipeline layer`);
-    } else {
-      console.warn("Missing required data for pipeline layer: customData, latitudeColumn, or longitudeColumn");
+      return graphicsLayer;
+    } catch (error) {
+      console.error("Error creating pipe layer:", error);
+      // Create a minimal graphics layer so the application doesn't break
+      const GraphicsLayer = (await import("@arcgis/core/layers/GraphicsLayer")).default;
+      return new GraphicsLayer({
+        title: "Error: Pipeline Map Layer",
+        listMode: "show"
+      });
     }
-    
-    return graphicsLayer;
   };
 
 
