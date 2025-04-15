@@ -105,89 +105,265 @@ export class UniversalLabelManager {
     
     // Initialize the system
     this._initialize();
-    
-    console.log("[UniversalLabelManager] Initialized with options:", this.options);
-}
+        
+        console.log("[UniversalLabelManager] Initialized with options:", this.options);
+    }
 
-  /**
-   * Initialize the label management system
-   * @private
-   */
-  _initialize() {
-    // Watch for view extent changes
-    this.eventHandles.push(
-      this.view.watch("extent", () => this._throttledUpdateLabelPositions())
-    );
-    
-    // Watch for zoom changes
-    this.eventHandles.push(
-      this.view.watch("zoom", (newZoom) => {
-        // Store the current zoom level
-        this.currentZoom = newZoom;
+    /**
+     * Initialize the label management system
+     * @private
+     */
+    _initialize() {
+        // Watch for view extent changes
+        this.eventHandles.push(
+        this.view.watch("extent", () => this._throttledUpdateLabelPositions())
+        );
         
-        // Reset spatial grid on significant zoom change
-        if (Math.abs(newZoom - this.lastZoomLevel) > 0.75) {
-          this.viewportGrid = {};
-          this.clusterCache.clear();
-          this.lastZoomLevel = newZoom;
-          this.pointRegistry.clear();
+        // Watch for zoom changes
+        this.eventHandles.push(
+        this.view.watch("zoom", (newZoom) => {
+            // Store the current zoom level
+            this.currentZoom = newZoom;
+            
+            // Reset spatial grid on significant zoom change
+            if (Math.abs(newZoom - this.lastZoomLevel) > 0.75) {
+            this.viewportGrid = {};
+            this.clusterCache.clear();
+            this.lastZoomLevel = newZoom;
+            this.pointRegistry.clear();
+            }
+            
+            // If we're below minimum zoom, hide all labels
+            if (newZoom < this.options.labelMinZoom) {
+            this._hideAllLabels();
+            return;
+            }
+            
+            // Otherwise, update positions
+            this._throttledUpdateLabelPositions();
+        })
+        );
+        
+        // Watch for layer changes
+        this.eventHandles.push(
+        this.view.map.layers.on("change", (event) => {
+            // Handle added layers
+            if (event.added?.length) {
+            event.added.forEach(layer => this._addLayerIfNeeded(layer));
+            }
+            
+            // Handle removed layers
+            if (event.removed?.length) {
+            event.removed.forEach(layer => this._removeLayer(layer));
+            }
+            
+            // Update positions if layers changed
+            if ((event.added?.length || event.removed?.length) && 
+                this.currentZoom >= this.options.labelMinZoom) {
+            this._throttledUpdateLabelPositions();
+            }
+        })
+        );
+        
+        // Setup throttling for position updates
+        this.throttleTimeout = null;
+        this.throttleDelay = 250; // ms
+        
+        // Check all existing layers
+        this.view.map.layers.forEach(layer => this._addLayerIfNeeded(layer));
+        
+        // Store initial zoom
+        this.currentZoom = this.view.zoom;
+        
+        // Auto-load saved label positions from localStorage with a delay
+        setTimeout(() => {
+        try {
+            console.log('[UniversalLabelManager] Auto-loading saved label positions...');
+            const result = this.loadPositions(true, false); // Use localStorage, don't force refresh yet
+            
+            if (result.success && result.count > 0) {
+            console.log(`[UniversalLabelManager] Auto-loaded ${result.count} saved label positions`);
+            
+            // Now trigger position update with slight delay to ensure all is processed
+            setTimeout(() => {
+                if (this.currentZoom >= this.options.labelMinZoom) {
+                // Run duplicate detection first
+                this.fixDuplicateLabels();
+                // Then update all positions
+                this._throttledUpdateLabelPositions();
+                }
+            }, 100);
+            } else {
+            console.log('[UniversalLabelManager] No saved label positions found during auto-load');
+            }
+        } catch (err) {
+            console.error('[UniversalLabelManager] Error auto-loading saved positions:', err);
         }
+        }, 500); // Delay to allow layers to initialize first
         
-        // If we're below minimum zoom, hide all labels
-        if (newZoom < this.options.labelMinZoom) {
-          this._hideAllLabels();
-          return;
-        }
-        
-        // Otherwise, update positions
+        // Perform initial update
+        if (this.currentZoom >= this.options.labelMinZoom) {
         this._throttledUpdateLabelPositions();
-      })
-    );
-    
-    // Watch for layer changes
-    this.eventHandles.push(
-      this.view.map.layers.on("change", (event) => {
-        // Handle added layers
-        if (event.added?.length) {
-          event.added.forEach(layer => this._addLayerIfNeeded(layer));
         }
         
-        // Handle removed layers
-        if (event.removed?.length) {
-          event.removed.forEach(layer => this._removeLayer(layer));
+        // Initialize duplicate label detection and prevention if enabled
+        if (this.options.deduplicateLabels) {
+        // Set a short delay to allow initial layers to load
+        setTimeout(() => {
+            this.labelMonitorCleanup = this.fixDuplicateLabels();
+        }, 500);
         }
         
-        // Update positions if layers changed
-        if ((event.added?.length || event.removed?.length) && 
-            this.currentZoom >= this.options.labelMinZoom) {
-          this._throttledUpdateLabelPositions();
+        // Set up automatic periodic saving
+        this._setupAutoSave();
+    }
+
+    
+    /**
+     * Add this method to UniversalLabelManager.js
+     * This function marks saved positions as edited to ensure persistence
+     * @returns {Object} Result object with success flag and message
+     */
+    markSavedPositionsAsEdited() {
+        try {
+        // Get saved positions from localStorage
+        const storage = localStorage;
+        const savedData = storage.getItem('customLabelPositions');
+        
+        if (!savedData) {
+            console.log('[UniversalLabelManager] No saved label positions found to mark as edited');
+            return { success: false, message: 'No saved positions to mark', count: 0 };
         }
-      })
-    );
-    
-    // Setup throttling for position updates
-    this.throttleTimeout = null;
-    this.throttleDelay = 250; // ms
-    
-    // Check all existing layers
-    this.view.map.layers.forEach(layer => this._addLayerIfNeeded(layer));
-    
-    // Store initial zoom
-    this.currentZoom = this.view.zoom;
-    
-    // Perform initial update
-    if (this.currentZoom >= this.options.labelMinZoom) {
-      this._throttledUpdateLabelPositions();
+        
+        // Parse the saved positions
+        const positions = JSON.parse(savedData);
+        let modifiedCount = 0;
+        
+        // For each position, add an edited flag if not already present
+        Object.keys(positions).forEach(labelId => {
+            if (!positions[labelId].edited) {
+            positions[labelId].edited = true;
+            modifiedCount++;
+            }
+            
+            if (!positions[labelId].permanent) {
+            positions[labelId].permanent = true;
+            modifiedCount++;
+            }
+            
+            // Add a strong reference flag to ensure stable IDs
+            if (!positions[labelId].userEdited) {
+            positions[labelId].userEdited = true;
+            modifiedCount++;
+            }
+            
+            // Add parent ID if available for easier matching
+            if (!positions[labelId].parentId && positions[labelId].parentID) {
+            positions[labelId].parentId = positions[labelId].parentID;
+            modifiedCount++;
+            }
+        });
+        
+        // Only save back if modifications were made
+        if (modifiedCount > 0) {
+            storage.setItem('customLabelPositions', JSON.stringify(positions));
+            console.log(`[UniversalLabelManager] Marked ${Object.keys(positions).length} saved positions as edited`);
+        }
+        
+        return { 
+            success: true, 
+            message: `Marked ${Object.keys(positions).length} saved positions as edited`,
+            count: Object.keys(positions).length
+        };
+        } catch (error) {
+        console.error('[UniversalLabelManager] Error marking saved positions as edited:', error);
+        return { success: false, message: `Error: ${error.message}`, count: 0 };
+        }
+    }
+  
+
+    /**
+     * Set up automatic periodic saving of label positions
+     * @private
+     */
+    _setupAutoSave() {
+        // Clear any existing auto-save interval
+        if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        this.autoSaveInterval = null;
+        }
+        
+        // Set up a new interval for periodic saving
+        this.autoSaveInterval = setInterval(() => {
+        // Only auto-save if we have active edits
+        if (this.hasActiveEdits()) {
+            try {
+            console.log('[UniversalLabelManager] Auto-saving label positions...');
+            const result = this.savePositions(true); // Force localStorage usage
+            
+            if (result.success) {
+                console.log(`[UniversalLabelManager] Auto-saved ${result.count} label positions (${result.totalStored} total stored)`);
+            } else {
+                console.warn('[UniversalLabelManager] Auto-save failed:', result.message);
+            }
+            } catch (err) {
+            console.error('[UniversalLabelManager] Error during auto-save:', err);
+            }
+        }
+        }, 30000); // Auto-save every 30 seconds
+        
+        // Add the interval to the list for cleanup
+        if (!this.monitorIntervals) {
+        this.monitorIntervals = [];
+        }
+        this.monitorIntervals.push(this.autoSaveInterval);
+        
+        console.log('[UniversalLabelManager] Automatic label position saving enabled');
     }
     
-    // Initialize duplicate label detection and prevention if enabled
-    if (this.options.deduplicateLabels) {
-      // Set a short delay to allow initial layers to load
-      setTimeout(() => {
-        this.labelMonitorCleanup = this.fixDuplicateLabels();
-      }, 500);
+    /**
+     * Check if there are any active edits that need saving
+     * @returns {boolean} True if there are active edits
+     * @private
+     */
+    hasActiveEdits() {
+        // Check for labels with edits
+        for (const labelInfo of this.labelCache.values()) {
+        if (!labelInfo.labelGraphic) continue;
+        
+        // Look for editing flags
+        if (labelInfo.labelGraphic.attributes?._isEdited || 
+            labelInfo.labelGraphic.attributes?._permanentEdit) {
+            return true;
+        }
+        
+        // Look for offset changes (manual positioning)
+        if (labelInfo.labelGraphic.symbol && 
+            (labelInfo.labelGraphic.symbol.xoffset !== 0 || 
+            labelInfo.labelGraphic.symbol.yoffset !== 0)) {
+            return true;
+        }
+        
+        // Look for font size changes
+        if (labelInfo.originalSymbol && 
+            labelInfo.labelGraphic.symbol && 
+            labelInfo.labelGraphic.symbol.font && 
+            labelInfo.originalSymbol.font && 
+            labelInfo.labelGraphic.symbol.font.size !== labelInfo.originalSymbol.font.size) {
+            return true;
+        }
+        
+        // Look for text changes
+        if (labelInfo.originalSymbol && 
+            labelInfo.labelGraphic.symbol && 
+            labelInfo.labelGraphic.symbol.text !== labelInfo.originalSymbol.text) {
+            return true;
+        }
+        }
+        
+        return false;
     }
-  }
+
 
     /**
      * Add a layer to be managed
@@ -230,254 +406,322 @@ export class UniversalLabelManager {
     }
   
 
-  /**
-   * Remove a layer from management
-   * @param {GraphicsLayer} layer - The layer to remove
-   * @private
-   */
-  _removeLayer(layer) {
-    if (!this.layers.has(layer.id)) return;
-    
-    // Remove from tracking
-    this.layers.delete(layer.id);
-    
-    // Remove any cached labels for this layer
-    for (const [labelId, labelInfo] of this.labelCache.entries()) {
-      if (labelInfo.layerId === layer.id) {
-        this.labelCache.delete(labelId);
-        this.visibleLabels.delete(labelId);
-      }
+    /**
+     * Remove a layer from management
+     * @param {GraphicsLayer} layer - The layer to remove
+     * @private
+     */
+    _removeLayer(layer) {
+        if (!this.layers.has(layer.id)) return;
+        
+        // Remove from tracking
+        this.layers.delete(layer.id);
+        
+        // Remove any cached labels for this layer
+        for (const [labelId, labelInfo] of this.labelCache.entries()) {
+        if (labelInfo.layerId === layer.id) {
+            this.labelCache.delete(labelId);
+            this.visibleLabels.delete(labelId);
+        }
+        }
+        
+        console.log(`[UniversalLabelManager] Stopped managing labels for layer: ${layer.title || layer.id}`);
+        
+        // Update positions to handle removed labels
+        this._throttledUpdateLabelPositions();
     }
-    
-    console.log(`[UniversalLabelManager] Stopped managing labels for layer: ${layer.title || layer.id}`);
-    
-    // Update positions to handle removed labels
-    this._throttledUpdateLabelPositions();
-  }
 
-/**
- * Analyze a layer to find label graphics and their associated points
- * @param {GraphicsLayer} layer - The layer to analyze
- * @private
- */
-_analyzeLayer(layer) {
-    if (!this.layers.has(layer.id)) return;
-    
-    const layerInfo = this.layers.get(layer.id);
-    const labelGraphics = [];
-    const pointGraphics = [];
-    const parentMap = new Map(); // Map of OBJECTID -> graphic
-    const processedLabelIds = new Set(); // Track processed labels to prevent duplicates
-    
-    // First pass: gather all points and existing labels
-    layer.graphics.forEach(graphic => {
-      if (!graphic.attributes) return;
-      
-      if (graphic.attributes.isLabel) {
-        // This is a label graphic
-        // Only add if not already processed (prevents duplicates)
-        const labelId = `${layer.id}-${graphic.attributes.OBJECTID || graphic.uid}`;
-        if (!processedLabelIds.has(labelId)) {
-          labelGraphics.push(graphic);
-          processedLabelIds.add(labelId);
+
+    /**
+     * Generate a consistent ID for a label graphic
+     * This method is critical for ensuring that label IDs match between components
+     * @param {Graphic} labelGraphic - The label graphic
+     * @param {string} layerId - The layer ID
+     * @returns {string} A consistent ID for the label
+     * @private
+     */
+    _generateConsistentLabelId(labelGraphic, layerId) {
+        if (!labelGraphic || !labelGraphic.attributes) {
+        // Fallback for labels without attributes
+        return `${layerId}-label-${Math.random().toString(36).substring(2, 9)}`;
         }
-      } else {
-        pointGraphics.push(graphic);
-        if (graphic.attributes.OBJECTID !== undefined) {
-          parentMap.set(graphic.attributes.OBJECTID, graphic);
+        
+        // Use explicit labelId if available (highest priority)
+        if (labelGraphic.attributes.labelId) {
+        return `${layerId}-explicit-${labelGraphic.attributes.labelId}`;
         }
-      }
-    });
-    
-    // Update layer info with graphics collections
-    layerInfo.labelGraphics = labelGraphics;
-    layerInfo.pointGraphics = pointGraphics;
-    
-    // If this layer has self-managed labels, we should process the existing 
-    // label graphics, but not create new ones
-    if (layerInfo.hasSelfManagedLabels) {
-      console.log(`[UniversalLabelManager] Layer ${layer.title || layer.id} has ${labelGraphics.length} self-managed labels.`);
-      
-      // For self-managed layers, we still need to process existing label graphics
-      // so that they can be positioned correctly and managed for zoom levels
-      labelGraphics.forEach(labelGraphic => {
+        
+        // Use OBJECTID if available (commonly used for identification)
+        if (labelGraphic.attributes.OBJECTID !== undefined) {
+        return `${layerId}-oid-${labelGraphic.attributes.OBJECTID}`;
+        }
+        
+        // Check for oid-label-X format
+        if (labelGraphic.attributes.parentID !== undefined) {
+        return `${layerId}-oid-label-${labelGraphic.attributes.parentID}`;
+        }
+        
+        // Check for uid
+        if (labelGraphic.attributes.uid) {
+        return `${layerId}-uid-${labelGraphic.attributes.uid}`;
+        }
+        
+        // Use the ArcGIS-provided uid if available
+        if (labelGraphic.uid) {
+        return `${layerId}-graphic-uid-${labelGraphic.uid}`;
+        }
+        
+        // Fallback to geometry-based ID if available
+        if (labelGraphic.geometry) {
+        const textPart = (labelGraphic.symbol && labelGraphic.symbol.text) 
+            ? labelGraphic.symbol.text.substring(0, 10).replace(/\s+/g, '_') 
+            : 'no_text';
+        
+        return `${layerId}-geom-${labelGraphic.geometry.x?.toFixed(2)}-${labelGraphic.geometry.y?.toFixed(2)}-${textPart}`;
+        }
+        
+        // Final fallback
+        return `${layerId}-unknown-${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+
+    /**
+     * Analyze a layer to find label graphics and their associated points
+     * @param {GraphicsLayer} layer - The layer to analyze
+     * @private
+     */
+    _analyzeLayer(layer) {
+        if (!this.layers.has(layer.id)) return;
+        
+        const layerInfo = this.layers.get(layer.id);
+        const labelGraphics = [];
+        const pointGraphics = [];
+        const parentMap = new Map(); // Map of OBJECTID -> graphic
+        const processedLabelIds = new Set(); // Track processed labels to prevent duplicates
+        
+        // First pass: gather all points and existing labels
+        layer.graphics.forEach(graphic => {
+        if (!graphic.attributes) return;
+        
+        // Check if this is a label graphic using multiple criteria
+        const isLabel = graphic.attributes.isLabel === true || 
+                        (graphic.symbol && graphic.symbol.type === "text") ||
+                        graphic.attributes.isLabelGraphic === true;
+                        
+        if (isLabel) {
+            // This is a label graphic
+            // Generate a consistent ID for this label
+            const labelId = this._generateConsistentLabelId(graphic, layer.id);
+            
+            // Only add if not already processed (prevents duplicates)
+            if (!processedLabelIds.has(labelId)) {
+            labelGraphics.push(graphic);
+            processedLabelIds.add(labelId);
+            }
+        } else {
+            pointGraphics.push(graphic);
+            if (graphic.attributes.OBJECTID !== undefined) {
+            parentMap.set(graphic.attributes.OBJECTID, graphic);
+            }
+        }
+        });
+        
+        // Update layer info with graphics collections
+        layerInfo.labelGraphics = labelGraphics;
+        layerInfo.pointGraphics = pointGraphics;
+        
+        // If this layer has self-managed labels, we should process the existing 
+        // label graphics, but not create new ones
+        if (layerInfo.hasSelfManagedLabels) {
+        console.log(`[UniversalLabelManager] Layer ${layer.title || layer.id} has ${labelGraphics.length} self-managed labels.`);
+        
+        // For self-managed layers, we still need to process existing label graphics
+        // so that they can be positioned correctly and managed for zoom levels
+        labelGraphics.forEach(labelGraphic => {
+            const parentId = labelGraphic.attributes.parentID;
+            const parentGraphic = parentId !== undefined ? parentMap.get(parentId) : null;
+            
+            // Store in cache for positioning (but don't create new graphics)
+            const labelId = this._generateConsistentLabelId(labelGraphic, layer.id);
+            
+            // Ensure we store the complete parent reference
+            if (!parentGraphic && parentId && parentMap.has(parentId)) {
+            const resolvedParent = parentMap.get(parentId);
+            console.log(`[UniversalLabelManager] Resolved parent for label ${labelId}`);
+            }
+            
+            // Check if already in cache to prevent duplicates
+            if (!this.labelCache.has(labelId)) {
+            this.labelCache.set(labelId, {
+                layerId: layer.id,
+                labelGraphic,
+                parentGraphic: parentGraphic || null,
+                parentId,
+                priority: this._calculatePriority(labelGraphic, parentGraphic),
+                visible: labelGraphic.visible,
+                originalSymbol: labelGraphic.symbol ? { ...labelGraphic.symbol.toJSON() } : null,
+                processed: false,
+                isSelfManaged: true
+            });
+            
+            console.log(`[UniversalLabelManager] Cached self-managed label: ${labelId}`);
+            }
+        });
+        
+        return; // Skip creating new label graphics
+        }
+        
+        // For standard layers (not self-managed), create new label graphics as needed
+        // Second pass: link labels to points
+        labelGraphics.forEach(labelGraphic => {
         const parentId = labelGraphic.attributes.parentID;
         const parentGraphic = parentId !== undefined ? parentMap.get(parentId) : null;
         
-        // Store in cache for positioning (but don't create new graphics)
-        const labelId = `${layer.id}-${labelGraphic.attributes.OBJECTID || labelGraphic.uid}`;
+        // Skip orphaned labels (no parent)
+        if (parentId !== undefined && !parentGraphic) {
+            return;
+        }
+        
+        // Store in cache
+        const labelId = this._generateConsistentLabelId(labelGraphic, layer.id);
         
         // Check if already in cache to prevent duplicates
         if (!this.labelCache.has(labelId)) {
-          this.labelCache.set(labelId, {
+            this.labelCache.set(labelId, {
             layerId: layer.id,
             labelGraphic,
             parentGraphic,
             parentId,
             priority: this._calculatePriority(labelGraphic, parentGraphic),
-            visible: labelGraphic.visible,
+            visible: false,
             originalSymbol: labelGraphic.symbol ? { ...labelGraphic.symbol.toJSON() } : null,
-            processed: false,
-            isSelfManaged: true
-          });
+            processed: false
+            });
         }
-      });
-      
-      return; // Skip creating new label graphics
-    }
-    
-    // For standard layers (not self-managed), create new label graphics as needed
-    // Second pass: link labels to points
-    labelGraphics.forEach(labelGraphic => {
-      const parentId = labelGraphic.attributes.parentID;
-      const parentGraphic = parentId !== undefined ? parentMap.get(parentId) : null;
-      
-      // Skip orphaned labels (no parent)
-      if (parentId !== undefined && !parentGraphic) {
-        return;
-      }
-      
-      // Store in cache
-      const labelId = `${layer.id}-${labelGraphic.attributes.OBJECTID || labelGraphic.uid}`;
-      
-      // Check if already in cache to prevent duplicates
-      if (!this.labelCache.has(labelId)) {
-        this.labelCache.set(labelId, {
-          layerId: layer.id,
-          labelGraphic,
-          parentGraphic,
-          parentId,
-          priority: this._calculatePriority(labelGraphic, parentGraphic),
-          visible: false,
-          originalSymbol: labelGraphic.symbol ? { ...labelGraphic.symbol.toJSON() } : null,
-          processed: false
         });
-      }
-    });
-    
-    console.log(`[UniversalLabelManager] Layer ${layer.title || layer.id} has ${labelGraphics.length} labels and ${pointGraphics.length} points`);
-  }
-  /**
-   * Calculate priority score for a label
-   * @param {Graphic} labelGraphic - The label graphic
-   * @param {Graphic} parentGraphic - The parent point graphic
-   * @returns {number} Priority score (higher is more important)
-   * @private
-   */
-  _calculatePriority(labelGraphic, parentGraphic) {
-    if (!labelGraphic || !labelGraphic.attributes) return 0;
-    
-    let priority = 1;
-    
-    // Boost priority for attributes matching priorityAttributes
-    if (this.options.priorityAttributes.length > 0) {
-      for (const attr of this.options.priorityAttributes) {
-        // Check label attributes first
-        if (labelGraphic.attributes[attr] !== undefined) {
-          // If it's a number, use it directly
-          if (typeof labelGraphic.attributes[attr] === 'number') {
-            priority += labelGraphic.attributes[attr];
-          } else {
-            priority += 2; // Default boost for non-numeric attributes
-          }
-        }
-        // Then check parent attributes
-        else if (parentGraphic && parentGraphic.attributes && parentGraphic.attributes[attr] !== undefined) {
-          // If it's a number, use it directly
-          if (typeof parentGraphic.attributes[attr] === 'number') {
-            priority += parentGraphic.attributes[attr];
-          } else {
-            priority += 2; // Default boost for non-numeric attributes
-          }
-        }
-      }
-    }
-    
-    // Boost priority for points near current center of view
-    if (parentGraphic && parentGraphic.geometry && this.view) {
-      const viewCenter = this.view.center;
-      const pointLocation = parentGraphic.geometry;
-      
-      try {
-        // Calculate distance in meters
-        const distance = Math.sqrt(
-          Math.pow(viewCenter.longitude - pointLocation.longitude, 2) + 
-          Math.pow(viewCenter.latitude - pointLocation.latitude, 2)
-        ) * 111319.9; // Rough conversion to meters
         
-        // Boost priority for points close to center
-        if (distance < this.options.priorityDistance) {
-          priority += 2 * (1 - distance / this.options.priorityDistance);
-        }
-      } catch (e) {
-        // Skip distance calculation if error
-      }
+        console.log(`[UniversalLabelManager] Layer ${layer.title || layer.id} has ${labelGraphics.length} labels and ${pointGraphics.length} points`);
     }
-    
-    // Add a small random factor to break ties consistently
-    priority += Math.random() * 0.1;
-    
-    return priority;
-  }
-
-  /**
-   * Hide all labels
-   * @private
-   */
-  _hideAllLabels() {
-    for (const [labelId, labelInfo] of this.labelCache.entries()) {
-      if (labelInfo.labelGraphic) {
-        labelInfo.labelGraphic.visible = false;
-        labelInfo.visible = false;
-      }
-    }
-    
-    this.visibleLabels.clear();
-    this.labelBoxes = [];
-    
-    // Clear debug graphics
-    if (this.options.debugMode && this.debugLayer) {
-      this.debugLayer.removeAll();
-    }
-    
-    console.log("[UniversalLabelManager] All labels hidden");
-  }
-
-  /**
-   * Gets the text content from a label graphic
-   * @param {Graphic} labelGraphic - The label graphic
-   * @returns {string} The text content of the label
-   * @private
-   */
-  _getTextFromLabel(labelGraphic) {
-    if (!labelGraphic) return "";
-    
-    // Try to get from symbol first
-    if (labelGraphic.symbol && labelGraphic.symbol.text) {
-      return labelGraphic.symbol.text;
-    }
-    
-    // Try to get from attributes
-    if (labelGraphic.attributes) {
-      if (labelGraphic.attributes.labelText) {
-        return labelGraphic.attributes.labelText;
-      }
-      if (labelGraphic.attributes.LABEL) {
-        return labelGraphic.attributes.LABEL;
-      }
-      if (labelGraphic.attributes.NAME) {
-        return labelGraphic.attributes.NAME;
-      }
-    }
-    
-    return "";
-  }
 
     /**
-     * Modify the fixDuplicateLabels method in UniversalLabelManager class to ensure
+     * Calculate priority score for a label
+     * @param {Graphic} labelGraphic - The label graphic
+     * @param {Graphic} parentGraphic - The parent point graphic
+     * @returns {number} Priority score (higher is more important)
+     * @private
+     */
+    _calculatePriority(labelGraphic, parentGraphic) {
+        if (!labelGraphic || !labelGraphic.attributes) return 0;
+        
+        let priority = 1;
+        
+        // Boost priority for attributes matching priorityAttributes
+        if (this.options.priorityAttributes.length > 0) {
+        for (const attr of this.options.priorityAttributes) {
+            // Check label attributes first
+            if (labelGraphic.attributes[attr] !== undefined) {
+            // If it's a number, use it directly
+            if (typeof labelGraphic.attributes[attr] === 'number') {
+                priority += labelGraphic.attributes[attr];
+            } else {
+                priority += 2; // Default boost for non-numeric attributes
+            }
+            }
+            // Then check parent attributes
+            else if (parentGraphic && parentGraphic.attributes && parentGraphic.attributes[attr] !== undefined) {
+            // If it's a number, use it directly
+            if (typeof parentGraphic.attributes[attr] === 'number') {
+                priority += parentGraphic.attributes[attr];
+            } else {
+                priority += 2; // Default boost for non-numeric attributes
+            }
+            }
+        }
+        }
+        
+        // Boost priority for points near current center of view
+        if (parentGraphic && parentGraphic.geometry && this.view) {
+        const viewCenter = this.view.center;
+        const pointLocation = parentGraphic.geometry;
+        
+        try {
+            // Calculate distance in meters
+            const distance = Math.sqrt(
+            Math.pow(viewCenter.longitude - pointLocation.longitude, 2) + 
+            Math.pow(viewCenter.latitude - pointLocation.latitude, 2)
+            ) * 111319.9; // Rough conversion to meters
+            
+            // Boost priority for points close to center
+            if (distance < this.options.priorityDistance) {
+            priority += 2 * (1 - distance / this.options.priorityDistance);
+            }
+        } catch (e) {
+            // Skip distance calculation if error
+        }
+        }
+        
+        // Add a small random factor to break ties consistently
+        priority += Math.random() * 0.1;
+        
+        return priority;
+    }
+
+    /**
+     * Hide all labels
+     * @private
+     */
+    _hideAllLabels() {
+        for (const [labelId, labelInfo] of this.labelCache.entries()) {
+        if (labelInfo.labelGraphic) {
+            labelInfo.labelGraphic.visible = false;
+            labelInfo.visible = false;
+        }
+        }
+        
+        this.visibleLabels.clear();
+        this.labelBoxes = [];
+        
+        // Clear debug graphics
+        if (this.options.debugMode && this.debugLayer) {
+        this.debugLayer.removeAll();
+        }
+        
+        console.log("[UniversalLabelManager] All labels hidden");
+    }
+
+    /**
+     * Gets the text content from a label graphic
+     * @param {Graphic} labelGraphic - The label graphic
+     * @returns {string} The text content of the label
+     * @private
+     */
+    _getTextFromLabel(labelGraphic) {
+        if (!labelGraphic) return "";
+        
+        // Try to get from symbol first
+        if (labelGraphic.symbol && labelGraphic.symbol.text) {
+        return labelGraphic.symbol.text;
+        }
+        
+        // Try to get from attributes
+        if (labelGraphic.attributes) {
+        if (labelGraphic.attributes.labelText) {
+            return labelGraphic.attributes.labelText;
+        }
+        if (labelGraphic.attributes.LABEL) {
+            return labelGraphic.attributes.LABEL;
+        }
+        if (labelGraphic.attributes.NAME) {
+            return labelGraphic.attributes.NAME;
+        }
+        }
+        
+        return "";
+    }
+
+    /**
+     * Find this method in UniversalLabelManager.js and update it to ensure
      * only one label is created per point
-     * 
-     * Find this method in UniversalLabelManager.js and update it
      */
     fixDuplicateLabels() {
         if (!this.view || !this.view.map) {
@@ -500,6 +744,7 @@ _analyzeLayer(layer) {
         const pointRegistry = new Map();
         const pointLocations = new Map();
         const duplicateLabels = [];
+        const editedLabels = new Map(); // Track manually edited labels
         
         // First pass: identify points and their labels
         layer.graphics.forEach(graphic => {
@@ -511,6 +756,15 @@ _analyzeLayer(layer) {
             // This is a label graphic
             const parentId = graphic.attributes.parentID;
             if (!parentId) return;
+            
+            // Check if this is a manually edited label
+            if (graphic.attributes._isEdited === true) {
+                // If it's been edited, we want to prioritize this one
+                if (!editedLabels.has(parentId)) {
+                    editedLabels.set(parentId, []);
+                }
+                editedLabels.get(parentId).push(graphic);
+            }
             
             // Track this label with its parent point
             if (!pointRegistry.has(parentId)) {
@@ -535,60 +789,69 @@ _analyzeLayer(layer) {
             
             console.log(`[UniversalLabelManager] Point ${pointId} has ${labels.length} labels - marking duplicates for removal`);
             
-            // Find the best label based on priority criteria
-            let bestLabel = labels[0];
-            let bestScore = -Infinity;
+            // First check if there are any edited labels for this point
+            const editedPointLabels = editedLabels.get(pointId) || [];
+            let bestLabel = null;
             
-            // Score each label
-            labels.forEach(label => {
-            // Calculate score based on:
-            // 1. Priority attribute if present
-            // 2. Distance to parent point if available
-            // 3. Text quality/length
-            let score = 0;
-            
-            // Priority attribute boost
-            if (label.attributes.priority) {
-                score += Number(label.attributes.priority) || 0;
-            }
-            
-            // Text quality - prefer non-empty text that isn't excessively long
-            const labelText = this._getTextFromLabel(label);
-            if (labelText && labelText.length > 0) {
-                score += 5; // Base score for having text
-                if (labelText.length < 30) {
-                score += 3; // Bonus for reasonable length
-                }
-            }
-            
-            // Distance to parent point (if we have locations)
-            const pointLocation = pointLocations.get(pointId);
-            if (pointLocation && label.geometry) {
-                try {
-                // Calculate rough distance
-                const dx = pointLocation.x - label.geometry.x;
-                const dy = pointLocation.y - label.geometry.y;
-                const distance = Math.sqrt(dx*dx + dy*dy);
+            if (editedPointLabels.length > 0) {
+                // Prioritize the most recently edited label (assume it's the last one)
+                bestLabel = editedPointLabels[editedPointLabels.length - 1];
+                console.log(`[UniversalLabelManager] Using edited label as primary for point ${pointId}`);
+            } else {
+                // No edited labels, find the best label based on scoring
+                let bestScore = -Infinity;
                 
-                // Closer labels get higher scores (inverse relationship)
-                score += 10 / (distance + 1);
-                } catch (e) {
-                // Skip distance calculation on error
-                }
+                // Score each label
+                labels.forEach(label => {
+                    // Calculate score based on:
+                    // 1. Priority attribute if present
+                    // 2. Distance to parent point if available
+                    // 3. Text quality/length
+                    let score = 0;
+                    
+                    // Priority attribute boost
+                    if (label.attributes.priority) {
+                        score += Number(label.attributes.priority) || 0;
+                    }
+                    
+                    // Text quality - prefer non-empty text that isn't excessively long
+                    const labelText = this._getTextFromLabel(label);
+                    if (labelText && labelText.length > 0) {
+                        score += 5; // Base score for having text
+                        if (labelText.length < 30) {
+                        score += 3; // Bonus for reasonable length
+                        }
+                    }
+                    
+                    // Distance to parent point (if we have locations)
+                    const pointLocation = pointLocations.get(pointId);
+                    if (pointLocation && label.geometry) {
+                        try {
+                        // Calculate rough distance
+                        const dx = pointLocation.x - label.geometry.x;
+                        const dy = pointLocation.y - label.geometry.y;
+                        const distance = Math.sqrt(dx*dx + dy*dy);
+                        
+                        // Closer labels get higher scores (inverse relationship)
+                        score += 10 / (distance + 1);
+                        } catch (e) {
+                        // Skip distance calculation on error
+                        }
+                    }
+                    
+                    // Update best label if this one has a higher score
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestLabel = label;
+                    }
+                });
             }
-            
-            // Update best label if this one has a higher score
-            if (score > bestScore) {
-                bestScore = score;
-                bestLabel = label;
-            }
-            });
             
             // Mark all non-best labels as duplicates to hide
             labels.forEach(label => {
-            if (label !== bestLabel) {
-                duplicateLabels.push(label);
-            }
+                if (label !== bestLabel) {
+                    duplicateLabels.push(label);
+                }
             });
         });
         
@@ -597,11 +860,11 @@ _analyzeLayer(layer) {
             console.log(`[UniversalLabelManager] Hiding ${duplicateLabels.length} duplicate labels in layer "${layer.title || layer.id}"`);
             
             duplicateLabels.forEach(label => {
-            // Hide the duplicate label
-            label.visible = false;
-            
-            // Mark it so it doesn't get reshown by other systems
-            label.attributes._isDuplicate = true;
+                // Hide the duplicate label
+                label.visible = false;
+                
+                // Mark it so it doesn't get reshown by other systems
+                label.attributes._isDuplicate = true;
             });
         }
         });
@@ -612,44 +875,98 @@ _analyzeLayer(layer) {
         return this._monitorLabelUpdates();
     }
 
-  /**
-   * Monitors label updates to ensure duplicates stay hidden
-   * @returns {Function} A cleanup function to stop monitoring
-   * @private
-   */
-  _monitorLabelUpdates() {
-    // Watch for label manager updates and re-hide duplicates
-    const intervalId = setInterval(() => {
-      if (!this.view || !this.view.map) return;
-      
-      this.view.map.layers.forEach(layer => {
-        if (layer && layer.graphics) {
-          layer.graphics.forEach(graphic => {
-            if (graphic.attributes && graphic.attributes._isDuplicate) {
-              if (graphic.visible) {
-                graphic.visible = false; // Re-hide if it became visible
-              }
+    /**
+     * Monitors label updates to ensure duplicates stay hidden
+     * @returns {Function} A cleanup function to stop monitoring
+     * @private
+     */
+    _monitorLabelUpdates() {
+        // Watch for label manager updates and re-hide duplicates
+        const intervalId = setInterval(() => {
+        if (!this.view || !this.view.map) return;
+        
+        // Track stats for logging
+        let hiddenCount = 0;
+        const processedLayers = new Set();
+        
+        this.view.map.layers.forEach(layer => {
+            if (layer && layer.graphics) {
+            // Track this layer for logging
+            processedLayers.add(layer.id || layer.title);
+            
+            // Create a map of edited labels by parent ID for faster lookup
+            const editedLabelsByParent = new Map();
+            
+            // First pass: Find all edited labels
+            layer.graphics.forEach(graphic => {
+                if (graphic.attributes && 
+                    graphic.attributes.isLabel && 
+                    graphic.attributes._isEdited === true && 
+                    graphic.attributes.parentID) {
+                
+                const parentId = graphic.attributes.parentID;
+                if (!editedLabelsByParent.has(parentId)) {
+                    editedLabelsByParent.set(parentId, []);
+                }
+                editedLabelsByParent.get(parentId).push(graphic);
+                }
+            });
+            
+            // Second pass: Process all labels
+            layer.graphics.forEach(graphic => {
+                // Check for duplicates to hide
+                if (graphic.attributes && graphic.attributes.isLabel) {
+                // Duplicate detection and handling
+                if (graphic.attributes._isDuplicate) {
+                    // This is a known duplicate - keep it hidden
+                    if (graphic.visible) {
+                    graphic.visible = false;
+                    hiddenCount++;
+                    }
+                } 
+                // Check for parent ID conflicts with edited labels
+                else if (graphic.attributes.parentID) {
+                    const parentId = graphic.attributes.parentID;
+                    const editedLabelsForParent = editedLabelsByParent.get(parentId) || [];
+                    
+                    // If there are edited labels for this parent
+                    if (editedLabelsForParent.length > 0) {
+                    // If this is not one of the edited labels, hide it
+                    const isEdited = editedLabelsForParent.includes(graphic);
+                    
+                    if (!isEdited && graphic.visible) {
+                        graphic.visible = false;
+                        graphic.attributes._isDuplicate = true;
+                        hiddenCount++;
+                    }
+                    }
+                }
+                }
+            });
             }
-          });
+        });
+        
+        // Log stats if we actually hid any duplicates
+        if (hiddenCount > 0) {
+            console.log(`[UniversalLabelManager] Monitor: Re-hid ${hiddenCount} duplicated labels across ${processedLayers.size} layers`);
         }
-      });
-    }, 1000); // Check every second
-    
-    // Store interval ID for cleanup
-    if (!this.monitorIntervals) {
-      this.monitorIntervals = [];
+        }, 1000); // Check every second
+        
+        // Store interval ID for cleanup
+        if (!this.monitorIntervals) {
+        this.monitorIntervals = [];
+        }
+        this.monitorIntervals.push(intervalId);
+        
+        // Return cleanup function
+        return () => {
+        clearInterval(intervalId);
+        const index = this.monitorIntervals.indexOf(intervalId);
+        if (index !== -1) {
+            this.monitorIntervals.splice(index, 1);
+        }
+        };
     }
-    this.monitorIntervals.push(intervalId);
-    
-    // Return cleanup function
-    return () => {
-      clearInterval(intervalId);
-      const index = this.monitorIntervals.indexOf(intervalId);
-      if (index !== -1) {
-        this.monitorIntervals.splice(index, 1);
-      }
-    };
-  }
 
 /**
  * Update label positions with collision avoidance
@@ -1824,6 +2141,358 @@ _updateLabelPositions() {
   
 
     /**
+     * Helper method to find a label by ID using multiple strategies
+     * This is a new method to add to UniversalLabelManager.js
+     * 
+     * @param {string} labelId - The ID to search for
+     * @returns {Object|null} The label info or null if not found
+     * @private
+     */
+    _findLabelById(labelId) {
+        // Parse the ID - could be layerId-oid-label-29 or oid-label-29 or other formats
+        let parsedLayerId = null;
+        let parsedObjId = null;
+        
+        // Try to extract layer ID and object ID from label ID
+        const idParts = labelId.split('-');
+        
+        // Handle format: layerId-oid-label-number
+        if (idParts.length >= 4 && idParts[1] === 'oid' && idParts[2] === 'label') {
+        parsedLayerId = idParts[0];
+        parsedObjId = parseInt(idParts[3], 10);
+        }
+        // Handle format: oid-label-number (no layer ID)
+        else if (idParts.length >= 3 && idParts[0] === 'oid' && idParts[1] === 'label') {
+        parsedObjId = parseInt(idParts[2], 10);
+        }
+        
+        // If we couldn't parse an object ID, look for any numeric parts
+        if (parsedObjId === null) {
+        for (const part of idParts) {
+            const num = parseInt(part, 10);
+            if (!isNaN(num)) {
+            parsedObjId = num;
+            break;
+            }
+        }
+        }
+        
+        // If we have a parsed object ID, look for matches
+        if (parsedObjId !== null) {
+        // Check the label cache for any matches
+        for (const [cachedId, labelInfo] of this.labelCache.entries()) {
+            // Check if this label matches the object ID
+            const parentId = labelInfo.parentId || labelInfo.labelGraphic?.attributes?.parentID;
+            if (parentId === parsedObjId) {
+            return labelInfo;
+            }
+            
+            // Check if the ID itself contains the object ID
+            if (cachedId.includes(`-${parsedObjId}`)) {
+            return labelInfo;
+            }
+        }
+        
+        // If not found in cache, try to find in layers
+        const layersToSearch = [];
+        
+        if (parsedLayerId && this.layers.has(parsedLayerId)) {
+            // If we parsed a layer ID and it exists, just search that layer
+            layersToSearch.push(this.layers.get(parsedLayerId).layer);
+        } else {
+            // Otherwise search all layers
+            for (const layerInfo of this.layers.values()) {
+            layersToSearch.push(layerInfo.layer);
+            }
+        }
+        
+        // Look for the label in each layer
+        for (const layer of layersToSearch) {
+            if (!layer.graphics) continue;
+            
+            // Search for graphic where attributes.parentID matches
+            for (const graphic of layer.graphics.items) {
+            if (!graphic.attributes) continue;
+            
+            // Check if this is a label and its parentID matches
+            const isLabel = graphic.attributes.isLabel === true || 
+                            (graphic.symbol && graphic.symbol.type === "text");
+                            
+            if (isLabel && graphic.attributes.parentID === parsedObjId) {
+                // Build a label info object
+                const labelInfo = {
+                layerId: layer.id,
+                labelGraphic: graphic,
+                parentId: parsedObjId,
+                priority: 1,
+                visible: true,
+                originalSymbol: graphic.symbol ? { ...graphic.symbol.toJSON() } : null,
+                processed: false,
+                isSelfManaged: true
+                };
+                
+                // Add to cache for future lookups
+                const newLabelId = this._generateConsistentLabelId(graphic, layer.id);
+                if (!this.labelCache.has(newLabelId)) {
+                this.labelCache.set(newLabelId, labelInfo);
+                console.log(`[UniversalLabelManager] Added previously missing label to cache: ${newLabelId}`);
+                }
+                
+                return labelInfo;
+            }
+            }
+        }
+        }
+        
+        // No match found
+        return null;
+    }
+
+    /**
+     * Enhanced refreshLabels method that respects edited labels
+     * Replace or update the existing refreshLabels method in UniversalLabelManager.js
+     * 
+     * @param {Array<string>} labelIds - Array of label IDs to refresh
+     * @param {boolean} respectEdits - Whether to respect edited labels
+     * @returns {Object} Status of the refresh operation
+     */
+    refreshLabels(labelIds = [], respectEdits = false) {
+        console.log(`[UniversalLabelManager] Refreshing labels:`, labelIds, respectEdits ? '(preserving edits)' : '');
+        
+        // Track processed labels and results
+        const processed = new Set();
+        const notFound = [];
+        const refreshed = [];
+        
+        try {
+        // If no specific IDs provided, refresh all visible labels
+        if (!Array.isArray(labelIds) || labelIds.length === 0) {
+            console.log('[UniversalLabelManager] No specific labels to refresh, updating all positions');
+            
+            // Before updating all positions, ensure edited labels are marked properly
+            if (respectEdits) {
+            try {
+                // Mark saved positions as edited for maximum persistence
+                if (typeof this.markSavedPositionsAsEdited === 'function') {
+                this.markSavedPositionsAsEdited();
+                }
+                
+                // Apply a special flag to all edited labels in the cache
+                for (const [labelId, labelInfo] of this.labelCache.entries()) {
+                if (labelInfo.labelGraphic?.attributes?._isEdited || 
+                    labelInfo.labelGraphic?.attributes?._permanentEdit || 
+                    labelInfo.labelGraphic?.attributes?._userEdited) {
+                    
+                    // Apply comprehensive protection
+                    if (labelInfo.labelGraphic.attributes) {
+                    labelInfo.labelGraphic.attributes._preserveOnRefresh = true;
+                    labelInfo.labelGraphic.attributes._preventAutoHide = true;
+                    }
+                }
+                }
+            } catch (err) {
+                console.warn('[UniversalLabelManager] Error marking edited labels:', err);
+            }
+            }
+            
+            this._throttledUpdateLabelPositions();
+            return { success: true, message: 'Refreshed all labels' };
+        }
+        
+        // Step 1: Find the labels in the cache, but also handle layer lookups for IDs not found
+        for (const labelId of labelIds) {
+            // Skip if already processed
+            if (processed.has(labelId)) continue;
+            processed.add(labelId);
+            
+            // First try direct cache lookup
+            let labelInfo = this.labelCache.get(labelId);
+            
+            // If not found in cache, attempt to look it up in the layers
+            if (!labelInfo) {
+            // See if we can find a matching label through parent ID or other means
+            labelInfo = this._findLabelById(labelId);
+            }
+            
+            if (labelInfo) {
+            const { labelGraphic } = labelInfo;
+            
+            // Make sure it's visible
+            if (labelGraphic) {
+                // Force label visibility
+                labelInfo.visible = true;
+                labelGraphic.visible = true;
+                
+                // Mark it as primary/edited with comprehensive flagging
+                if (labelGraphic.attributes) {
+                labelGraphic.attributes._isEdited = true;
+                labelGraphic.attributes._permanentEdit = true;
+                labelGraphic.attributes._userEdited = true;
+                labelGraphic.attributes._preserveOnRefresh = true;
+                labelGraphic.attributes._preventAutoHide = true;
+                
+                // Remove any "duplicate" flag
+                delete labelGraphic.attributes._isDuplicate;
+                delete labelGraphic.attributes._duplicateOf;
+                }
+                
+                // Find and hide duplicates for this label
+                this._hideAllDuplicatesFor(labelId, labelInfo);
+                
+                refreshed.push(labelId);
+            }
+            } else {
+            notFound.push(labelId);
+            }
+        }
+        
+        // Force an update to reposition labels
+        this._throttledUpdateLabelPositions();
+        
+        // Log the results
+        if (notFound.length > 0) {
+            console.warn(`[UniversalLabelManager] Unable to find ${notFound.length} labels: ${notFound.join(', ')}`);
+        }
+        
+        if (refreshed.length > 0 || notFound.length === 0) {
+            console.log(`[UniversalLabelManager] Successfully refreshed ${refreshed.length} labels`);
+            return { success: true, message: `Refreshed ${refreshed.length} labels` };
+        } else {
+            return { success: false, message: `Failed to find any specified labels` };
+        }
+        
+        } catch (error) {
+        console.error('[UniversalLabelManager] Error refreshing labels:', error);
+        return { success: false, message: `Error refreshing labels: ${error.message}` };
+        }
+    }
+
+    /**
+     * Hide all duplicate labels for a specific label
+     * @param {string} labelId - ID of the primary label to keep
+     * @param {Object} labelInfo - Label information object
+     * @private
+     */
+    _hideAllDuplicatesFor(labelId, labelInfo) {
+        if (!labelInfo) {
+        // Try to get label info from cache if not provided
+        labelInfo = this.labelCache.get(labelId);
+        }
+        
+        if (!labelInfo || !labelInfo.labelGraphic) {
+        console.warn(`[UniversalLabelManager] Cannot hide duplicates - invalid label info for: ${labelId}`);
+        return;
+        }
+        
+        // Make sure the primary label is visible
+        labelInfo.visible = true;
+        labelInfo.labelGraphic.visible = true;
+        
+        // Mark this label as the primary/edited one
+        if (labelInfo.labelGraphic.attributes) {
+        labelInfo.labelGraphic.attributes._isEdited = true;
+        // Remove any "duplicate" flag if it was previously marked as a duplicate
+        delete labelInfo.labelGraphic.attributes._isDuplicate;
+        delete labelInfo.labelGraphic.attributes._duplicateOf;
+        }
+        
+        // Get parent ID for finding duplicates
+        const parentId = labelInfo.parentId || labelInfo.labelGraphic.attributes?.parentID;
+        if (!parentId) {
+        console.warn(`[UniversalLabelManager] Cannot hide duplicates - no parent ID for label: ${labelId}`);
+        return;
+        }
+        
+        let duplicatesFound = 0;
+        
+        // Method 1: Check in the cache
+        this.labelCache.forEach((info, id) => {
+        // Skip the primary label
+        if (id === labelId) return;
+        
+        // Check if this is a duplicate (same parent)
+        const infoParentId = info.parentId || info.labelGraphic?.attributes?.parentID;
+        if (infoParentId === parentId) {
+            // Hide this duplicate
+            if (info.labelGraphic) {
+            info.labelGraphic.visible = false;
+            info.visible = false;
+            
+            // Mark it as a duplicate
+            if (info.labelGraphic.attributes) {
+                info.labelGraphic.attributes._isDuplicate = true;
+                info.labelGraphic.attributes._duplicateOf = labelId;
+            }
+            
+            duplicatesFound++;
+            }
+        }
+        });
+        
+        // Method 2: Search in all layers for additional duplicates
+        this.layers.forEach(layerInfo => {
+        if (!layerInfo.layer || !layerInfo.layer.graphics) return;
+        
+        layerInfo.layer.graphics.forEach(graphic => {
+            // Skip non-label graphics
+            if (!graphic.attributes?.isLabel && 
+                !(graphic.symbol && graphic.symbol.type === "text")) {
+            return;
+            }
+            
+            // Skip the primary label
+            if (graphic === labelInfo.labelGraphic) return;
+            
+            // Check if this is a duplicate (same parent ID)
+            if (graphic.attributes?.parentID === parentId) {
+            // Hide this duplicate
+            graphic.visible = false;
+            
+            // Mark it as a duplicate
+            if (graphic.attributes) {
+                graphic.attributes._isDuplicate = true;
+                graphic.attributes._duplicateOf = labelId;
+            }
+            
+            duplicatesFound++;
+            }
+        });
+        });
+        
+        // Method 3: Check the mapView's graphics layer as a last resort
+        if (this.view && this.view.graphics) {
+        this.view.graphics.forEach(graphic => {
+            // Skip non-label graphics
+            if (!graphic.attributes?.isLabel && 
+                !(graphic.symbol && graphic.symbol.type === "text")) {
+            return;
+            }
+            
+            // Skip the primary label
+            if (graphic === labelInfo.labelGraphic) return;
+            
+            // Check if this is a duplicate (same parent ID)
+            if (graphic.attributes?.parentID === parentId) {
+            // Hide this duplicate
+            graphic.visible = false;
+            
+            // Mark it as a duplicate
+            if (graphic.attributes) {
+                graphic.attributes._isDuplicate = true;
+                graphic.attributes._duplicateOf = labelId;
+            }
+            
+            duplicatesFound++;
+            }
+        });
+        }
+        
+        if (duplicatesFound > 0) {
+        console.log(`[UniversalLabelManager] Hid ${duplicatesFound} duplicate labels for ${labelId} (parentID: ${parentId})`);
+        }
+    }
+
+    /**
      * Apply permanent label changes to make edits persistent
      * @param {Object} editedLabels - Map of edited labels with their new properties
      * @returns {boolean} Success indicator
@@ -2020,30 +2689,101 @@ _updateLabelPositions() {
 
     /**
      * Save current label positions to storage
+     * @param {Object|boolean} editedLabelsOrUseLocalStorage - Either edited labels object or boolean flag to force localStorage 
      * @param {boolean} useLocalStorage - Whether to use localStorage (vs sessionStorage)
      * @returns {Object} Result object with success flag and message
      */
-    savePositions(useLocalStorage = false) {
+    savePositions(editedLabelsOrUseLocalStorage = {}, useLocalStorage = false) {
         try {
+        // Handle overloaded parameter - if first param is boolean, it's the useLocalStorage flag
+        if (typeof editedLabelsOrUseLocalStorage === 'boolean') {
+            useLocalStorage = editedLabelsOrUseLocalStorage;
+            editedLabelsOrUseLocalStorage = {};
+        }
+        
+        // Always use localStorage for maximum persistence
+        useLocalStorage = true;
+        
         const positions = {};
         
-        this.labelCache.forEach((labelInfo, labelId) => {
-            if (labelInfo.labelGraphic && labelInfo.labelGraphic.symbol) {
-            const symbol = labelInfo.labelGraphic.symbol;
-            positions[labelId] = {
-                xoffset: symbol.xoffset,
-                yoffset: symbol.yoffset,
-                visible: labelInfo.visible
-            };
+        // First, process explicit edits if provided
+        if (typeof editedLabelsOrUseLocalStorage === 'object' && Object.keys(editedLabelsOrUseLocalStorage).length > 0) {
+            console.log(`[UniversalLabelManager] Processing ${Object.keys(editedLabelsOrUseLocalStorage).length} explicit label edits`);
+            
+            Object.entries(editedLabelsOrUseLocalStorage).forEach(([labelId, data]) => {
+            // Only process if we have a valid graphic
+            if (data.graphic && data.graphic.symbol) {
+                positions[labelId] = {
+                xoffset: data.position?.x !== undefined ? data.position.x : data.graphic.symbol.xoffset,
+                yoffset: data.position?.y !== undefined ? data.position.y : data.graphic.symbol.yoffset,
+                fontSize: data.fontSize || data.graphic.symbol.font?.size,
+                text: data.text || data.graphic.symbol.text,
+                visible: data.graphic.visible !== undefined ? data.graphic.visible : true,
+                parentId: data.graphic.attributes?.parentID
+                };
+                
+                // Mark with permanent edit flag
+                if (data.graphic.attributes) {
+                data.graphic.attributes._permanentEdit = true;
+                data.graphic.attributes._isEdited = true;
+                }
             }
-        });
+            });
+        }
         
-        const storage = useLocalStorage ? localStorage : sessionStorage;
-        storage.setItem('labelPositions', JSON.stringify(positions));
+        // If no explicit edits or not enough, add all visible/edited labels from cache
+        if (Object.keys(positions).length === 0) {
+            this.labelCache.forEach((labelInfo, labelId) => {
+            if (labelInfo.labelGraphic && labelInfo.labelGraphic.symbol) {
+                const symbol = labelInfo.labelGraphic.symbol;
+                
+                // Only store if it's marked as edited or has visible=true
+                if (labelInfo.labelGraphic.attributes?._isEdited || 
+                    labelInfo.labelGraphic.attributes?._permanentEdit || 
+                    (symbol.xoffset !== 0 || symbol.yoffset !== 0) || 
+                    labelInfo.visible) {
+                
+                positions[labelId] = {
+                    xoffset: symbol.xoffset,
+                    yoffset: symbol.yoffset,
+                    fontSize: symbol.font?.size,
+                    text: symbol.text,
+                    visible: labelInfo.visible,
+                    parentId: labelInfo.parentId || labelInfo.labelGraphic.attributes?.parentID
+                };
+                }
+            }
+            });
+        }
         
-        console.log(`[UniversalLabelManager] Saved ${Object.keys(positions).length} label positions to ${useLocalStorage ? 'localStorage' : 'sessionStorage'}`);
+        // Always use localStorage for maximum persistence
+        const storage = localStorage;
         
-        return { success: true, message: `Saved ${Object.keys(positions).length} label positions` };
+        // Load existing positions to merge with
+        const existingPositionsStr = storage.getItem('customLabelPositions') || '{}';
+        let existingPositions = {};
+        
+        try {
+            existingPositions = JSON.parse(existingPositionsStr);
+        } catch (err) {
+            console.warn('[UniversalLabelManager] Error parsing existing label positions, starting fresh');
+            existingPositions = {};
+        }
+        
+        // Merge with existing positions, giving priority to new ones
+        const mergedPositions = { ...existingPositions, ...positions };
+        
+        // Save to storage
+        storage.setItem('customLabelPositions', JSON.stringify(mergedPositions));
+        
+        console.log(`[UniversalLabelManager] Saved ${Object.keys(positions).length} label positions to localStorage (${Object.keys(mergedPositions).length} total stored)`);
+        
+        return { 
+            success: true, 
+            message: `Saved ${Object.keys(positions).length} label positions`,
+            count: Object.keys(positions).length,
+            totalStored: Object.keys(mergedPositions).length
+        };
         } catch (error) {
         console.error('[UniversalLabelManager] Error saving positions:', error);
         return { success: false, message: `Error saving positions: ${error.message}` };
@@ -2051,14 +2791,19 @@ _updateLabelPositions() {
     }
 
     /**
-     * Load saved label positions from storage
-     * @param {boolean} useLocalStorage - Whether to use localStorage (vs sessionStorage)
+     * Enhanced loadPositions method with improved edit preservation
+     * Replace or update the existing loadPositions method in UniversalLabelManager.js
+     * 
+     * @param {boolean} useLocalStorage - Whether to use localStorage
+     * @param {boolean} forceRefresh - Force a refresh after loading positions
+     * @param {boolean} preserveEdits - Preserve manually edited labels
      * @returns {Object} Result object with success flag, message, and count
      */
-    loadPositions(useLocalStorage = false) {
+    loadPositions(useLocalStorage = true, forceRefresh = true, preserveEdits = false) {
         try {
-        const storage = useLocalStorage ? localStorage : sessionStorage;
-        const savedData = storage.getItem('labelPositions');
+        // Always use localStorage for maximum persistence
+        const storage = localStorage;
+        const savedData = storage.getItem('customLabelPositions');
         
         if (!savedData) {
             console.log('[UniversalLabelManager] No saved label positions found');
@@ -2067,33 +2812,391 @@ _updateLabelPositions() {
         
         const positions = JSON.parse(savedData);
         let count = 0;
+        let appliedToLayerIds = new Set();
+        let editedLabels = new Set(); // Track edited labels for special handling
         
+        console.log(`[UniversalLabelManager] Found ${Object.keys(positions).length} saved label positions`);
+        
+        // First pass: Identify all edited labels
+        if (preserveEdits) {
+            for (const [labelId, position] of Object.entries(positions)) {
+            if (position.edited === true || position.permanent === true || position.userEdited === true) {
+                editedLabels.add(labelId);
+            }
+            }
+            console.log(`[UniversalLabelManager] Found ${editedLabels.size} edited labels to preserve`);
+        }
+        
+        // Create map of parent IDs and other identifiers for matching
+        const parentIdMap = new Map();
+        const idPrefixMap = new Map(); // For partial ID matching
+        
+        // Populate maps with existing labels in the cache
         this.labelCache.forEach((labelInfo, labelId) => {
-            const savedPosition = positions[labelId];
-            if (savedPosition && labelInfo.labelGraphic && labelInfo.labelGraphic.symbol) {
-            const symbol = labelInfo.labelGraphic.symbol.clone();
-            symbol.xoffset = savedPosition.xoffset;
-            symbol.yoffset = savedPosition.yoffset;
-            labelInfo.labelGraphic.symbol = symbol;
-            labelInfo.labelGraphic.visible = savedPosition.visible;
-            labelInfo.visible = savedPosition.visible;
-            count++;
+            // Add to parent ID map
+            const parentId = labelInfo.parentId || labelInfo.labelGraphic?.attributes?.parentID;
+            if (parentId !== undefined) {
+            if (!parentIdMap.has(parentId)) {
+                parentIdMap.set(parentId, []);
+            }
+            parentIdMap.get(parentId).push({ id: labelId, info: labelInfo });
+            }
+            
+            // Add to ID prefix map for partial matching
+            // Extract the numeric part of the ID for fuzzy matching
+            const idParts = labelId.split('-');
+            const numericParts = [];
+            
+            // Extract all numeric parts for matching
+            for (const part of idParts) {
+            const num = parseInt(part, 10);
+            if (!isNaN(num)) {
+                numericParts.push(num);
+            }
+            }
+            
+            if (numericParts.length > 0) {
+            const numericKey = numericParts.join('-');
+            if (!idPrefixMap.has(numericKey)) {
+                idPrefixMap.set(numericKey, []);
+            }
+            idPrefixMap.get(numericKey).push({ id: labelId, info: labelInfo });
             }
         });
         
-        console.log(`[UniversalLabelManager] Loaded ${count} label positions from ${useLocalStorage ? 'localStorage' : 'sessionStorage'}`);
+        /**
+         * Find the best matching label using multiple strategies
+         * @param {string} savedLabelId - Saved label ID
+         * @param {Object} savedPosition - Saved position data
+         * @returns {Object|null} Matching label info or null
+         */
+        const findBestMatchingLabel = (savedLabelId, savedPosition) => {
+            // Strategy 1: Direct ID match (best case)
+            if (this.labelCache.has(savedLabelId)) {
+            return { id: savedLabelId, info: this.labelCache.get(savedLabelId) };
+            }
+            
+            // Strategy 2: Parent ID match (reliable)
+            const parentId = savedPosition.parentId || savedPosition.parentID;
+            if (parentId !== undefined && parentIdMap.has(parentId)) {
+            const matches = parentIdMap.get(parentId);
+            if (matches && matches.length > 0) {
+                // Use the first match by default
+                return matches[0];
+            }
+            }
+            
+            // Strategy 3: Extract numeric parts from ID for fuzzy matching
+            const idParts = savedLabelId.split('-');
+            const numericParts = [];
+            
+            // Extract all numeric parts for matching
+            for (const part of idParts) {
+            const num = parseInt(part, 10);
+            if (!isNaN(num)) {
+                numericParts.push(num);
+            }
+            }
+            
+            if (numericParts.length > 0) {
+            const numericKey = numericParts.join('-');
+            if (idPrefixMap.has(numericKey)) {
+                const matches = idPrefixMap.get(numericKey);
+                if (matches && matches.length > 0) {
+                return matches[0];
+                }
+            }
+            }
+            
+            // Strategy 4: Try to match by object index/ID in the format "oid-label-X"
+            if (savedLabelId.includes('oid-label-')) {
+            const match = savedLabelId.match(/oid-label-(\d+)/);
+            if (match && match[1]) {
+                const objId = parseInt(match[1], 10);
+                
+                // Check if we have labels with this object ID as parent
+                if (parentIdMap.has(objId)) {
+                return parentIdMap.get(objId)[0];
+                }
+            }
+            }
+            
+            // No match found
+            return null;
+        };
         
-        // Force update if any positions were loaded
-        if (count > 0) {
-            this._throttledUpdateLabelPositions();
+        // Process saved positions with enhanced matching
+        for (const [savedLabelId, savedPosition] of Object.entries(positions)) {
+            const isEdited = editedLabels.has(savedLabelId);
+            
+            // Find matching label using our enhanced matching function
+            const matchingLabel = findBestMatchingLabel(savedLabelId, savedPosition);
+            
+            if (matchingLabel) {
+            const { id: matchedId, info: labelInfo } = matchingLabel;
+            
+            // Apply the saved position to the matched label
+            if (labelInfo.labelGraphic && labelInfo.labelGraphic.symbol) {
+                try {
+                const symbol = labelInfo.labelGraphic.symbol.clone();
+                
+                // Apply saved properties
+                if (savedPosition.xoffset !== undefined) symbol.xoffset = savedPosition.xoffset;
+                if (savedPosition.yoffset !== undefined) symbol.yoffset = savedPosition.yoffset;
+                if (savedPosition.fontSize !== undefined && symbol.font) {
+                    symbol.font = { ...symbol.font, size: savedPosition.fontSize };
+                }
+                if (savedPosition.text !== undefined) symbol.text = savedPosition.text;
+                
+                // Apply updated symbol
+                labelInfo.labelGraphic.symbol = symbol;
+                
+                // Apply visibility state
+                if (savedPosition.visible !== undefined) {
+                    labelInfo.labelGraphic.visible = savedPosition.visible;
+                    labelInfo.visible = savedPosition.visible;
+                }
+                
+                // Mark as a permanent edit with comprehensive flagging
+                if (labelInfo.labelGraphic.attributes) {
+                    // Enhanced flagging system
+                    labelInfo.labelGraphic.attributes._permanentEdit = true;
+                    labelInfo.labelGraphic.attributes._isEdited = true;
+                    
+                    // Store the reference to the original saved ID for future matching
+                    labelInfo.labelGraphic.attributes._savedLabelId = savedLabelId;
+                    
+                    // Enhanced protection for edited labels
+                    if (isEdited) {
+                    labelInfo.labelGraphic.attributes._userEdited = true;
+                    labelInfo.labelGraphic.attributes._preventAutoHide = true;
+                    labelInfo.labelGraphic.attributes._preserveOnRefresh = true;
+                    labelInfo.labelGraphic.attributes._positionLocked = true;
+                    }
+                    
+                    // Remove any duplicate flags
+                    delete labelInfo.labelGraphic.attributes._isDuplicate;
+                    delete labelInfo.labelGraphic.attributes._duplicateOf;
+                }
+                
+                // Track which layers were affected for targeted refresh
+                if (labelInfo.layerId) {
+                    appliedToLayerIds.add(labelInfo.layerId);
+                }
+                
+                count++;
+                } catch (err) {
+                console.warn(`[UniversalLabelManager] Error applying saved position for label ${matchedId}:`, err);
+                }
+            }
+            } 
+            else if (isEdited) {
+            // If this was an edited label but we couldn't find a match, log a warning
+            console.warn(`[UniversalLabelManager] Could not find match for edited label: ${savedLabelId}`);
+            }
         }
         
-        return { success: true, message: `Loaded ${count} label positions`, count };
+        console.log(`[UniversalLabelManager] Applied ${count} saved label positions across ${appliedToLayerIds.size} layers`);
+        
+        // Hide duplicates after applying saved positions but with enhanced respect for edited labels
+        if (count > 0) {
+            setTimeout(() => {
+            try {
+                this._hideDuplicatesAfterLoad(editedLabels);
+            } catch (err) {
+                console.warn('[UniversalLabelManager] Error hiding duplicates after load:', err);
+            }
+            }, 0);
+        }
+        
+        // Force update if any positions were loaded and refresh is requested
+        if (count > 0 && forceRefresh) {
+            // Use a short delay to allow all changes to process
+            setTimeout(() => {
+            this._throttledUpdateLabelPositions();
+            console.log('[UniversalLabelManager] Triggered refresh after loading saved positions');
+            }, 50);
+        }
+        
+        return { 
+            success: true, 
+            message: `Loaded ${count} label positions`, 
+            count,
+            appliedLayers: Array.from(appliedToLayerIds)
+        };
         } catch (error) {
         console.error('[UniversalLabelManager] Error loading positions:', error);
         return { success: false, message: `Error loading positions: ${error.message}`, count: 0 };
         }
     }
+    
+    /**
+     * Enhanced _hideDuplicatesAfterLoad method with improved edit preservation
+     * Replace or update the existing method in UniversalLabelManager.js
+     * 
+     * @param {Set|null} editedLabels - Set of edited label IDs to preserve
+     * @private
+     */
+    _hideDuplicatesAfterLoad(editedLabels = null) {
+        try {
+        // Group labels by parent ID
+        const parentMap = new Map();
+        
+        // First pass: collect all labels by parent ID
+        this.labelCache.forEach((labelInfo, labelId) => {
+            const parentId = labelInfo.parentId || 
+                            labelInfo.labelGraphic?.attributes?.parentID ||
+                            labelInfo.labelGraphic?.attributes?._originalParentID;
+            
+            if (parentId !== undefined) {
+            if (!parentMap.has(parentId)) {
+                parentMap.set(parentId, []);
+            }
+            parentMap.get(parentId).push({ id: labelId, info: labelInfo });
+            }
+        });
+        
+        // Second pass: for each parent, keep only one visible label UNLESS it's edited
+        let hiddenCount = 0;
+        let preservedCount = 0;
+        
+        parentMap.forEach((labels, parentId) => {
+            if (labels.length <= 1) return; // No duplicates
+            
+            // First, check if any labels are explicitly marked as edited
+            const editedLabelIndices = [];
+            
+            // Find all edited labels for this parent
+            labels.forEach((label, index) => {
+            const { id, info } = label;
+            
+            // Check multiple edit flags
+            const isExplicitlyEdited = 
+                (editedLabels && editedLabels.has(id)) ||
+                info.labelGraphic?.attributes?._userEdited ||
+                info.labelGraphic?.attributes?._preventAutoHide ||
+                info.labelGraphic?.attributes?._preserveOnRefresh ||
+                info.labelGraphic?.attributes?._positionLocked;
+            
+            if (isExplicitlyEdited) {
+                editedLabelIndices.push(index);
+            }
+            });
+            
+            // If we found any edited labels, preserve ALL of them
+            if (editedLabelIndices.length > 0) {
+            // Mark all edited labels as visible and primary
+            editedLabelIndices.forEach(index => {
+                const { id, info } = labels[index];
+                
+                if (info.labelGraphic) {
+                info.labelGraphic.visible = true;
+                info.visible = true;
+                
+                if (info.labelGraphic.attributes) {
+                    info.labelGraphic.attributes._isPrimary = true;
+                    info.labelGraphic.attributes._permanentEdit = true;
+                    delete info.labelGraphic.attributes._isDuplicate;
+                    delete info.labelGraphic.attributes._duplicateOf;
+                }
+                }
+                
+                preservedCount++;
+            });
+            
+            // Hide all non-edited labels for this parent
+            for (let i = 0; i < labels.length; i++) {
+                if (!editedLabelIndices.includes(i)) {
+                const { info } = labels[i];
+                
+                if (info.labelGraphic) {
+                    info.labelGraphic.visible = false;
+                    info.visible = false;
+                    
+                    if (info.labelGraphic.attributes) {
+                    info.labelGraphic.attributes._isDuplicate = true;
+                    info.labelGraphic.attributes._duplicateOf = labels[editedLabelIndices[0]].id;
+                    }
+                    
+                    hiddenCount++;
+                }
+                }
+            }
+            } 
+            else {
+            // No edited labels, use standard priority heuristic
+            let primaryLabel = null;
+            let highestPriority = -1;
+            
+            for (const label of labels) {
+                const { id, info } = label;
+                let priority = 0;
+                
+                // Prioritize labels that have been explicitly edited
+                if (info.labelGraphic?.attributes?._permanentEdit) priority += 10;
+                if (info.labelGraphic?.attributes?._isEdited) priority += 5;
+                
+                // Prioritize visible labels
+                if (info.labelGraphic?.visible) priority += 2;
+                if (info.visible) priority += 2;
+                
+                // Prioritize labels with offset (suggests they were manually positioned)
+                if (info.labelGraphic?.symbol) {
+                const xOffset = info.labelGraphic.symbol.xoffset || 0;
+                const yOffset = info.labelGraphic.symbol.yoffset || 0;
+                
+                if (xOffset !== 0 || yOffset !== 0) priority += 3;
+                }
+                
+                if (priority > highestPriority) {
+                primaryLabel = label;
+                highestPriority = priority;
+                }
+            }
+            
+            // If we found a primary label, hide all others
+            if (primaryLabel) {
+                // Ensure primary is visible
+                if (primaryLabel.info.labelGraphic) {
+                primaryLabel.info.labelGraphic.visible = true;
+                primaryLabel.info.visible = true;
+                
+                if (primaryLabel.info.labelGraphic.attributes) {
+                    primaryLabel.info.labelGraphic.attributes._isPrimary = true;
+                    delete primaryLabel.info.labelGraphic.attributes._isDuplicate;
+                    delete primaryLabel.info.labelGraphic.attributes._duplicateOf;
+                }
+                }
+                
+                // Hide all other labels for this parent
+                for (const label of labels) {
+                if (label.id !== primaryLabel.id) {
+                    if (label.info.labelGraphic) {
+                    label.info.labelGraphic.visible = false;
+                    label.info.visible = false;
+                    
+                    if (label.info.labelGraphic.attributes) {
+                        label.info.labelGraphic.attributes._isDuplicate = true;
+                        label.info.labelGraphic.attributes._duplicateOf = primaryLabel.id;
+                    }
+                    
+                    hiddenCount++;
+                    }
+                }
+                }
+            }
+            }
+        });
+        
+        console.log(`[UniversalLabelManager] Hid ${hiddenCount} duplicate labels after loading saved positions`);
+        if (preservedCount > 0) {
+            console.log(`[UniversalLabelManager] Preserved ${preservedCount} edited labels from auto-hiding`);
+        }
+        } catch (err) {
+        console.error('[UniversalLabelManager] Error hiding duplicates after load:', err);
+        }
+    }
+  
 
     /**
      * Configure label settings based on layer type
