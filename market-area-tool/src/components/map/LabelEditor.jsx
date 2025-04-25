@@ -1,1188 +1,610 @@
 // src/components/map/LabelEditor.jsx
+
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Sliders,
-  Move,
-  Type,
-  Lock,
-  Save,
-  Edit,
-  Check,
-  X as XIcon,
+  Sliders, Move, Type, Lock, Save, Edit, Check, X as XIcon,
+  RefreshCw, AlertTriangle,
 } from "lucide-react";
 
 const LabelEditor = ({
   isOpen,
   onClose,
   mapView,
-  labelManager,
-  activeLayer, // Assuming labels might be on the activeLayer or managed globally
+  labelManager, // Expecting an instance of SimplifiedLabelManager
+  activeLayer, // Optional: Layer context
 }) => {
   const [selectedLabel, setSelectedLabel] = useState(null);
   const [fontSize, setFontSize] = useState(10);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [labelText, setLabelText] = useState("");
   const [isMoving, setIsMoving] = useState(false);
-  const [editedLabels, setEditedLabels] = useState({});
-  const [allLabels, setAllLabels] = useState([]);
   const [selectAllMode, setSelectAllMode] = useState(false);
   const [isTextEditing, setIsTextEditing] = useState(false);
-  const [preventAlerts, setPreventAlerts] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const [apiAvailable, setApiAvailable] = useState(true); // Always true for localStorage
 
-  const clickHandlerRef = useRef(null);
-  const moveDownHandlerRef = useRef(null);
-  const moveMoveHandlerRef = useRef(null);
-  const moveUpHandlerRef = useRef(null);
-
-  const dragStartRef = useRef(null);
-  const labelStartOffsetRef = useRef(null);
   const textInputRef = useRef(null);
 
-  // --- Initialize label selection mode and gather all labels ---
   useEffect(() => {
-    if (!isOpen || !mapView || !mapView.ready) return;
+    // Exit early if not open or prerequisites missing
+    if (!isOpen || !mapView || !labelManager) {
+       if (!isOpen && labelManager && typeof labelManager.toggleEditingMode === 'function') {
+           try { labelManager.toggleEditingMode(false); } catch(e){/* ignore */}
+       }
+       return;
+    }
 
-    const collectAllLabels = () => {
-      const labels = [];
-      const processedIds = new Set(); // Prevent duplicates if labels are in multiple layers/collections
+    setApiAvailable(true); // localStorage is always available
 
-      const collectFromLayer = (layer) => {
-        if (!layer?.graphics?.items) return; // Check graphics collection exists and has items
-        layer.graphics.items.forEach((graphic) => {
-          const labelId = getLabelId(graphic); // Get a unique ID
-          if (
-            !processedIds.has(labelId) &&
-            (graphic.attributes?.isLabel === true ||
-              (graphic.symbol && graphic.symbol.type === "text"))
-          ) {
-            labels.push(graphic);
-            processedIds.add(labelId);
-          }
-        });
-      };
-
-      // Collect from activeLayer if provided
-      if (activeLayer) {
-        collectFromLayer(activeLayer);
-      }
-      // Collect from general mapView graphics (sometimes labels are added here)
-      if (mapView.graphics?.items) {
-        mapView.graphics.items.forEach((graphic) => {
-          const labelId = getLabelId(graphic);
-          if (
-            !processedIds.has(labelId) &&
-            (graphic.attributes?.isLabel === true ||
-              (graphic.symbol && graphic.symbol.type === "text"))
-          ) {
-            labels.push(graphic);
-            processedIds.add(labelId);
-          }
-        });
-      }
-      // Collect from other layers as a fallback (less common for editable labels)
-      else {
-        mapView.map.layers.forEach((layer) => {
-          // Only check GraphicsLayers for labels usually
-          if (layer.type === "graphics") {
-            collectFromLayer(layer);
-          }
-        });
-      }
-
-      console.log(
-        `[LabelEditor] Collected ${labels.length} unique labels for editing`
-      );
-      setAllLabels(labels);
-      return labels;
-    };
-
-    const enableLabelSelection = () => {
-      console.log("[LabelEditor] Enabling label selection mode");
-      if (mapView.container) mapView.container.style.cursor = "pointer";
-
-      clickHandlerRef.current = mapView.on("click", (event) => {
-        if (isTextEditing || isMoving) {
-          event.stopPropagation();
-          return;
+    // Enable editing mode in the manager, check for method existence
+    if (typeof labelManager.toggleEditingMode === 'function') {
+        try {
+            labelManager.toggleEditingMode(true);
+            console.log("[LabelEditor] Enabled editing mode in manager.");
+        } catch (error) {
+            console.error("[LabelEditor] Error enabling edit mode:", error);
         }
+    } else {
+        console.warn("[LabelEditor] LabelManager missing toggleEditingMode method");
+    }
 
-        const screenPoint = { x: event.x, y: event.y };
-        mapView
-          .hitTest(screenPoint)
-          .then((response) => {
-            const labelHits = response.results?.filter(
-              (result) =>
-                result.graphic?.attributes?.isLabel === true ||
-                (result.graphic?.symbol &&
-                  result.graphic?.symbol.type === "text")
-            );
+    // Watch for changes in the manager's selectedLabel property
+    const watchSelection = () => {
+      // Ensure labelManager exists and has the getLabelId method
+      if (!labelManager || typeof labelManager.getLabelId !== 'function') return;
 
-            if (labelHits && labelHits.length > 0) {
-              event.stopPropagation();
-              const hitLabel = labelHits[0].graphic;
-              // Set the selected label
-              setSelectedLabel(hitLabel);
-              setFontSize(hitLabel.symbol?.font?.size || 10);
-              setLabelText(hitLabel.symbol?.text || "");
-              setPosition({
-                x: hitLabel.symbol?.xoffset || 0,
-                y: hitLabel.symbol?.yoffset || 0,
+      const managerSelection = labelManager.selectedLabel;
+      // Get the ID from the manager's current selection (if any)
+      const managerId = managerSelection ? labelManager.getLabelId(managerSelection) : null;
+      // Get the ID from the component's current state selection (if any)
+      const componentId = selectedLabel ? labelManager.getLabelId(selectedLabel) : null;
+
+      // --- COMPARE IDs FIRST ---
+      // Only proceed if the *conceptual* label (identified by ID) has changed.
+      if (managerId !== componentId) {
+          // Log only when the actual ID changes
+          console.log(`[LabelEditor Watch] Detected ID change. New ID: ${managerId}, Old ID: ${componentId}. Updating state.`);
+
+          // Update the component's state with the new selection object from the manager
+          setSelectedLabel(managerSelection); // Still store the object
+
+          // --- Update UI based on the new selection ---
+          if (managerSelection && managerSelection.symbol && managerSelection.attributes) {
+              const symbol = managerSelection.symbol;
+              const attributes = managerSelection.attributes;
+              const font = symbol.font;
+
+              console.log("[LabelEditor Watch] Valid label structure found. Updating UI with:", {
+                  fontSize: font?.size,
+                  text: symbol.text,
+                  xoffset: symbol.xoffset,
+                  yoffset: symbol.yoffset,
+                  attributes: attributes
               });
-              setSelectAllMode(false);
+
+              setFontSize(font?.size || 10);
+              setLabelText(symbol.text || "");
+              setPosition({ x: symbol.xoffset || 0, y: symbol.yoffset || 0 });
               setIsTextEditing(false);
-            } else {
-              if (selectedLabel) {
-                console.log(
-                  "[LabelEditor] Clicked outside, deselecting label."
-                );
-                setSelectedLabel(null);
-                setLabelText("");
-              }
-            }
-          })
-          .catch((err) => {
-            console.error("[LabelEditor] Error during hit test:", err);
-          });
-      });
-    };
 
-    collectAllLabels();
-    enableLabelSelection();
+              console.log(`[LabelEditor Watch] Successfully updated UI for selected label (ID: ${managerId})`);
 
-    // Cleanup
+          } else {
+               // Reset UI state if the new selection is null or invalid
+              setFontSize(10);
+              setLabelText("");
+              setPosition({ x: 0, y: 0 });
+              setIsTextEditing(false);
+
+              console.log("[LabelEditor Watch] Resetting UI state because selected label is null or invalid.");
+          }
+          // --- End UI Update ---
+      }
+      // If IDs are the same, do nothing - prevents the loop!
+  };
+
+  // Keep the interval logic the same
+  const intervalId = setInterval(watchSelection, 200); // Or maybe increase interval slightly? 200ms?
+
+    // --- Cleanup function ---
     return () => {
-      if (clickHandlerRef.current) clickHandlerRef.current.remove();
-      if (moveDownHandlerRef.current) moveDownHandlerRef.current.remove();
-      if (moveMoveHandlerRef.current) moveMoveHandlerRef.current.remove();
-      if (moveUpHandlerRef.current) moveUpHandlerRef.current.remove();
-      if (mapView?.container) mapView.container.style.cursor = "default";
-      setSelectedLabel(null);
-      setLabelText("");
-      setSelectAllMode(false);
-      setIsMoving(false);
-      setIsTextEditing(false);
+        clearInterval(intervalId); // Stop watching
+        if (labelManager && typeof labelManager.toggleEditingMode === 'function') {
+            try {
+                 labelManager.toggleEditingMode(false); // <--- THIS IS CALLED
+                 console.log("[LabelEditor Cleanup] Disabled editing mode in manager.");
+            } catch (error) {
+                 console.error("[LabelEditor Cleanup] Error disabling edit mode:", error);
+            }
+        } // ...
     };
-  }, [isOpen, mapView, activeLayer]);
+    // --- End Cleanup function ---
 
-  // --- Auto-focus text input ---
+  }, [isOpen, mapView, labelManager]); // Remove selectedLabel
+
+  // --- Auto-focus text input when editing ---
   useEffect(() => {
     if (isTextEditing && textInputRef.current) {
       textInputRef.current.focus();
-      textInputRef.current.select();
+      textInputRef.current.select(); // Select text for easy replacement
     }
-  }, [isTextEditing]);
+  }, [isTextEditing]); // Dependency: isTextEditing
 
-  // --- Get unique label ID ---
-  const getLabelId = (label) => {
-    if (!label) return null;
-
-    // First check for layer information
-    const layerPrefix = label.layer?.id ? `${label.layer.id}-` : "";
-
-    // Prioritize explicit IDs
-    if (label.attributes?.labelId)
-      return `${layerPrefix}explicit-${label.attributes.labelId}`;
-
-    // Check for OBJECTID (most common scenario)
-    if (label.attributes?.OBJECTID) {
-      if (label.attributes?.isLabel) {
-        // If it's a label with an OBJECTID, it could be its own ID or a parent reference
-        // Check if it has a parentID attribute, which means this OBJECTID is for the label itself
-        if (label.attributes.parentID !== undefined) {
-          return `${layerPrefix}oid-label-${label.attributes.parentID}`;
-        } else {
-          // If no parentID, then this OBJECTID belongs to the label itself
-          return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
-        }
-      } else {
-        // Regular feature with OBJECTID
-        return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
-      }
+  // --- Handle status message timeouts ---
+  useEffect(() => {
+    let timer; // Declare timer variable
+    if (statusMessage && statusMessage.timeout) {
+      // Set timeout to clear the message
+      timer = setTimeout(() => {
+        setStatusMessage(null); // Clear message after timeout
+      }, statusMessage.timeout);
     }
+    // Cleanup: Clear the timeout if the component unmounts or statusMessage changes
+    return () => clearTimeout(timer);
+  }, [statusMessage]); // Dependency: statusMessage
 
-    // Check for parentID which is commonly used for labels
-    if (label.attributes?.parentID) {
-      return `${layerPrefix}oid-label-${label.attributes.parentID}`;
+  // --- Update Font Size ---
+  const updateFontSize = (newSize) => {
+    setFontSize(newSize); // Update local state immediately for responsiveness
+
+    // Check if labelManager and the method exist
+    if (!labelManager || typeof labelManager.updateLabelFontSize !== 'function') {
+        console.warn("Cannot update font size: Manager or method missing.");
+        return;
     }
-
-    // Check for uid which is sometimes used
-    if (label.attributes?.uid)
-      return `${layerPrefix}uid-${label.attributes.uid}`;
-
-    // ArcGIS internal uid (available on all graphics)
-    if (label.uid) return `${layerPrefix}graphic-uid-${label.uid}`;
-
-    // Fallback using geometry and text content
-    if (label.geometry) {
-      const textPart =
-        label.symbol?.text?.substring(0, 10).replace(/\s+/g, "_") || "no_text";
-      return `${layerPrefix}geom-${label.geometry.x?.toFixed(
-        2
-      )}-${label.geometry.y?.toFixed(2)}-${textPart}`;
-    }
-
-    // Last resort
-    return `${layerPrefix}unknown-${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
-  };
-
-  // --- Trigger Refresh ---
-  const triggerLabelRefresh = (labelIds = []) => {
-    // First ensure that the edited label is marked as the primary one
-    if (labelIds.length === 1 && selectedLabel) {
-      const labelId = labelIds[0];
-
-      // Mark this label as the primary one to keep during de-duplication
-      if (selectedLabel.attributes) {
-        selectedLabel.attributes._isEdited = true;
-        // Ensure it's visible
-        selectedLabel.visible = true;
-      }
-    }
-
-    // Use the labelManager if available
-    if (labelManager && typeof labelManager.refreshLabels === "function") {
-      console.log(
-        "[LabelEditor] Triggering refresh via labelManager for IDs:",
-        labelIds
-      );
-
-      // Use a small delay to ensure all DOM updates have completed
-      setTimeout(() => {
-        try {
-          const result = labelManager.refreshLabels(labelIds);
-
-          // If the refresh failed (label not found), try a fallback mechanism
-          if (!result.success) {
-            console.warn(
-              "[LabelEditor] Label manager refresh failed:",
-              result.message
-            );
-
-            // Try direct refresh as fallback
-            if (
-              selectedLabel &&
-              selectedLabel.layer &&
-              typeof selectedLabel.layer.refresh === "function"
-            ) {
-              console.log(
-                "[LabelEditor] Falling back to direct layer refresh for selected label"
-              );
-              selectedLabel.layer.refresh();
-            } else if (
-              activeLayer &&
-              typeof activeLayer.refresh === "function"
-            ) {
-              console.log("[LabelEditor] Falling back to active layer refresh");
-              activeLayer.refresh();
-            }
-          }
-        } catch (error) {
-          console.error("[LabelEditor] Error during label refresh:", error);
-
-          // Fallback to regular layer refresh
-          if (activeLayer && typeof activeLayer.refresh === "function") {
-            console.log(
-              "[LabelEditor] Using layer refresh fallback after error"
-            );
-            activeLayer.refresh();
-          }
-        }
-      }, 0);
-
-      return;
-    }
-
-    // Fallback: Attempt to refresh layers or the view
-    console.warn(
-      "[LabelEditor] labelManager.refreshLabels not available. Using layer/view refresh fallback."
-    );
-
-    // Before refreshing, hide any potential duplicates
-    if (labelIds.length === 1 && selectedLabel) {
-      hideAllDuplicatesFor(selectedLabel);
-    }
-
-    const layersToRefresh = new Set();
-
-    // First, handle layers with specific labels
-    if (labelIds.length > 0 && allLabels.length > 0) {
-      const labelsToProcess = allLabels.filter((lbl) =>
-        labelIds.includes(getLabelId(lbl))
-      );
-
-      // Add related layers
-      labelsToProcess.forEach((label) => {
-        if (label.layer) {
-          layersToRefresh.add(label.layer);
-        }
-      });
-    }
-
-    // If no specific layers were found, refresh activeLayer or all graphics
-    if (layersToRefresh.size === 0) {
-      if (activeLayer) {
-        layersToRefresh.add(activeLayer);
-      } else if (mapView?.map?.layers) {
-        // Add all graphics layers
-        mapView.map.layers.forEach((layer) => {
-          if (layer.type === "graphics") {
-            layersToRefresh.add(layer);
-          }
-        });
-      }
-    }
-
-    // Refresh all relevant layers
-    if (layersToRefresh.size > 0) {
-      layersToRefresh.forEach((layer) => {
-        if (layer && typeof layer.refresh === "function") {
-          console.log(
-            `[LabelEditor] Refreshing layer: ${layer.id || layer.title}`
-          );
-          layer.refresh();
-        }
-      });
-    } else if (
-      mapView?.graphics &&
-      typeof mapView.graphics.refresh === "function"
-    ) {
-      // If no specific layer found, refresh the main view graphics
-      console.log("[LabelEditor] Refreshing mapView.graphics");
-      mapView.graphics.refresh();
-    } else {
-      console.error("[LabelEditor] Cannot find appropriate refresh mechanism.");
-    }
-  };
-
-  /**
-   * Enhanced hideAllDuplicatesFor function for LabelEditor.jsx
-   * Replace the existing function with this improved version
-   */
-  const hideAllDuplicatesFor = (label) => {
-    if (!label || !label.attributes) return;
-
-    // Get the label ID
-    const labelId = getLabelId(label);
-    if (!labelId) {
-      console.warn(
-        `[LabelEditor] Cannot hide duplicates - unable to generate ID for label`
-      );
-      return;
-    }
-
-    // Mark this label as the primary one with comprehensive flagging
-    label.visible = true;
-    if (label.attributes) {
-      // Apply all protection flags to ensure persistence
-      label.attributes._isEdited = true;
-      label.attributes._permanentEdit = true;
-      label.attributes._userEdited = true;
-      label.attributes._preserveOnRefresh = true;
-      label.attributes._preventAutoHide = true;
-      label.attributes._positionLocked = true;
-
-      // Store original parent ID if not already present
-      if (label.attributes.parentID && !label.attributes._originalParentID) {
-        label.attributes._originalParentID = label.attributes.parentID;
-      }
-
-      // Remove any duplicate flags
-      delete label.attributes._isDuplicate;
-      delete label.attributes._duplicateOf;
-    }
-
-    // Get parent ID to identify potential duplicates
-    const parentId = label.attributes.parentID;
-    if (!parentId) {
-      console.warn(
-        `[LabelEditor] Cannot hide duplicates - no parent ID for label ${labelId}`
-      );
-      return;
-    }
-
-    // First approach: Use labelManager if available
-    if (
-      labelManager &&
-      typeof labelManager._hideAllDuplicatesFor === "function"
-    ) {
-      console.log(
-        `[LabelEditor] Using labelManager to hide duplicates for label ${labelId}`
-      );
-
-      // Call the manager's method with enhanced label info
-      const labelInfo = {
-        labelGraphic: label,
-        parentId: parentId,
-        isEdited: true,
-        isPermanent: true,
-        isUserEdited: true,
-      };
-
-      labelManager._hideAllDuplicatesFor(labelId, labelInfo);
-      return; // Use manager exclusively if available
-    }
-
-    // If manager not available, do it manually as fallback
-    let duplicatesFound = 0;
-
-    // Check in allLabels array first
-    allLabels.forEach((otherLabel) => {
-      // Skip the label we're updating
-      if (otherLabel === label) return;
-
-      // Check if this label has the same parent ID
-      if (otherLabel.attributes?.parentID === parentId) {
-        // Hide this duplicate
-        otherLabel.visible = false;
-
-        // Mark it as a duplicate with comprehensive reference
-        if (otherLabel.attributes) {
-          otherLabel.attributes._isDuplicate = true;
-          otherLabel.attributes._duplicateOf = labelId;
-          otherLabel.attributes._duplicateOfParentId = parentId;
-        }
-
-        duplicatesFound++;
-      }
-    });
-
-    // Check in active layer if available (as secondary search)
-    if (activeLayer && activeLayer.graphics?.items) {
-      activeLayer.graphics.items.forEach((graphic) => {
-        // Skip non-label graphics and the label we're updating
-        if (
-          graphic === label ||
-          !(
-            graphic.attributes?.isLabel === true ||
-            (graphic.symbol && graphic.symbol.type === "text")
-          )
-        ) {
-          return;
-        }
-
-        // Check if this label has the same parent ID
-        if (graphic.attributes?.parentID === parentId) {
-          // Hide this duplicate
-          graphic.visible = false;
-
-          // Mark it as a duplicate
-          if (graphic.attributes) {
-            graphic.attributes._isDuplicate = true;
-            graphic.attributes._duplicateOf = labelId;
-            graphic.attributes._duplicateOfParentId = parentId;
-          }
-
-          duplicatesFound++;
-        }
-      });
-    }
-
-    // Check in mapView graphics as last resort
-    if (mapView?.graphics?.items) {
-      mapView.graphics.items.forEach((graphic) => {
-        // Skip non-label graphics and the label we're updating
-        if (
-          graphic === label ||
-          !(
-            graphic.attributes?.isLabel === true ||
-            (graphic.symbol && graphic.symbol.type === "text")
-          )
-        ) {
-          return;
-        }
-
-        // Check if this label has the same parent ID
-        if (graphic.attributes?.parentID === parentId) {
-          // Hide this duplicate
-          graphic.visible = false;
-
-          // Mark it as a duplicate
-          if (graphic.attributes) {
-            graphic.attributes._isDuplicate = true;
-            graphic.attributes._duplicateOf = labelId;
-            graphic.attributes._duplicateOfParentId = parentId;
-          }
-
-          duplicatesFound++;
-        }
-      });
-    }
-
-    if (duplicatesFound > 0) {
-      console.log(
-        `[LabelEditor] Hid ${duplicatesFound} duplicate labels for parent ID ${parentId}`
-      );
-    }
-  };
-
-  /**
-   * Enhanced updateLabelProperties function for LabelEditor.jsx
-   * Replace the existing function with this improved version
-   */
-  const updateLabelProperties = (label, properties) => {
-    if (!label || !label.symbol) return;
-    const labelId = getLabelId(label);
-    if (!labelId) return;
 
     try {
-      // Clone the symbol to avoid reference issues
-      const newSymbol = label.symbol.clone();
-      let changed = false;
-
-      // Track what properties changed for logging
-      const changes = [];
-
-      // Update font size if needed
-      if (
-        properties.fontSize !== undefined &&
-        newSymbol.font?.size !== properties.fontSize
-      ) {
-        newSymbol.font = { ...newSymbol.font, size: properties.fontSize };
-        changed = true;
-        changes.push(`fontSize: ${newSymbol.font?.size}`);
-      }
-
-      // Update position if needed
-      if (
-        properties.position !== undefined &&
-        (newSymbol.xoffset !== properties.position.x ||
-          newSymbol.yoffset !== properties.position.y)
-      ) {
-        newSymbol.xoffset = properties.position.x;
-        newSymbol.yoffset = properties.position.y;
-        changed = true;
-        changes.push(
-          `position: (${properties.position.x}, ${properties.position.y})`
-        );
-      }
-
-      // Update text if needed
-      if (properties.text !== undefined && newSymbol.text !== properties.text) {
-        newSymbol.text = properties.text;
-        changed = true;
-        changes.push(`text: "${properties.text}"`);
-      }
-
-      if (changed) {
-        // Before applying changes, ensure this label is marked as primary and hide any duplicates
-        hideAllDuplicatesFor(label);
-
-        // Mark this label with comprehensive editing flags
-        if (label.attributes) {
-          // Apply all protection flags to ensure persistence
-          label.attributes._isEdited = true;
-          label.attributes._permanentEdit = true;
-          label.attributes._userEdited = true;
-          label.attributes._preserveOnRefresh = true;
-          label.attributes._preventAutoHide = true;
-          label.attributes._positionLocked = true;
-
-          // Store original parent ID if not already present
-          if (
-            label.attributes.parentID &&
-            !label.attributes._originalParentID
-          ) {
-            label.attributes._originalParentID = label.attributes.parentID;
-          }
+        // Apply to the currently selected label
+        if (selectedLabel) {
+            labelManager.updateLabelFontSize(selectedLabel, newSize);
+            console.log(`[LabelEditor] Updated font size to ${newSize} for selected label`);
         }
-
-        // Apply the cloned, modified symbol
-        label.symbol = newSymbol;
-
-        // Ensure the label is visible
-        label.visible = true;
-
-        // Update tracking state for persistence
-        setEditedLabels((prev) => ({
-          ...prev,
-          [labelId]: {
-            ...(prev[labelId] || { graphic: label }),
-            fontSize:
-              newSymbol.font?.size ?? prev[labelId]?.fontSize ?? fontSize,
-            position: {
-              x: newSymbol.xoffset ?? prev[labelId]?.position?.x ?? position.x,
-              y: newSymbol.yoffset ?? prev[labelId]?.position?.y ?? position.y,
-            },
-            text: newSymbol.text ?? prev[labelId]?.text ?? labelText,
-            edited: true,
-            permanent: true,
-            userEdited: true,
-          },
-        }));
-
-        // Trigger a refresh for this specific label
-        triggerLabelRefresh([labelId]);
-
-        console.log(
-          `[LabelEditor] Updated properties for label ${labelId}`,
-          changes.length > 0 ? `(${changes.join(", ")})` : ""
-        );
-      } else {
-        console.log(
-          `[LabelEditor] No effective change detected for label ${labelId}`
-        );
-      }
+        // Note: 'Select All' font update needs explicit implementation if required,
+        // as SimplifiedLabelManager doesn't have a built-in 'update all' method.
+        // You would need to get all labels and loop through them.
+        else if (selectAllMode) {
+             console.warn("Select All mode font size update requires iterating all labels.");
+             // Example (if needed):
+             // const allLabels = labelManager.getAllLabelGraphics ? labelManager.getAllLabelGraphics() : [];
+             // allLabels.forEach(label => labelManager.updateLabelFontSize(label, newSize));
+        }
     } catch (error) {
-      console.error(
-        `[LabelEditor] Error updating properties for label ${labelId}:`,
-        error
-      );
+        console.error('[LabelEditor] Error updating font size:', error);
+        setStatusMessage({ type: 'error', text: `Font size update error: ${error.message}`, timeout: 5000 });
     }
-  };
+};
 
-  // Update updateFontSize function
-  const updateFontSize = (newSize, targetLabel = null) => {
-    setFontSize(newSize); // Update UI state immediately
 
-    if (selectAllMode && labelManager) {
-      const allLabels = labelManager.getAllLabelGraphics();
-      allLabels.forEach((label) => {
-        labelManager.updateLabelFontSize(label, newSize);
-      });
-      console.log(
-        `[LabelEditor] Updated font size to ${newSize} for all labels`
-      );
-    } else {
-      const labelToUpdate = targetLabel || selectedLabel;
-      if (labelToUpdate && labelManager) {
-        labelManager.updateLabelFontSize(labelToUpdate, newSize);
-        console.log(
-          `[LabelEditor] Updated font size to ${newSize} for selected label`
-        );
-      }
-    }
-  };
+  // --- Update Label Text ---
+  const updateLabelText = (newText) => {
+    setLabelText(newText); // Update local state
 
-  // Updated updateLabelText function for LabelEditor.jsx
-  const updateLabelText = (newText, targetLabel = null) => {
-    const labelToUpdate = targetLabel || selectedLabel;
-    if (labelToUpdate && labelManager) {
-      setLabelText(newText); // Update UI state
-
-      // Use the label manager's updateLabelText function
-      labelManager.updateLabelText(labelToUpdate, newText);
-
-      // Apply change immediately to ensure the label updates
-      if (
-        labelToUpdate.symbol &&
-        typeof labelToUpdate.symbol.clone === "function"
-      ) {
-        const symbol = labelToUpdate.symbol.clone();
-        symbol.text = newText;
-        labelToUpdate.symbol = symbol;
-      }
-
-      console.log(`[LabelEditor] Updated text for label to: ${newText}`);
-    }
-  };
-
-  // Update enableMovingMode function
-  const enableMovingMode = () => {
-    if (!selectedLabel || !mapView || isMoving) return;
-
-    console.log("[LabelEditor] Enabling label moving mode.");
-    setIsMoving(true);
-    if (mapView.container) mapView.container.style.cursor = "move";
-
-    if (moveDownHandlerRef.current) moveDownHandlerRef.current.remove();
-    if (moveMoveHandlerRef.current) moveMoveHandlerRef.current.remove();
-    if (moveUpHandlerRef.current) moveUpHandlerRef.current.remove();
-
-    // Pointer Down
-    moveDownHandlerRef.current = mapView.on("pointer-down", (event) => {
-      if (!selectedLabel) {
-        setIsMoving(false);
-        if (mapView.container) mapView.container.style.cursor = "pointer";
+    // Check prerequisites
+    if (!labelManager || typeof labelManager.updateLabelText !== 'function' || !selectedLabel) {
+        console.warn("Cannot update label text: Manager, method, or selected label missing.");
         return;
-      }
-      event.stopPropagation();
-      dragStartRef.current = { x: event.x, y: event.y };
-      labelStartOffsetRef.current = {
-        x: selectedLabel.symbol?.xoffset || 0,
-        y: selectedLabel.symbol?.yoffset || 0,
-      };
-    });
-
-    // Pointer Move
-    moveMoveHandlerRef.current = mapView.on("pointer-move", (event) => {
-      if (
-        !dragStartRef.current ||
-        !labelStartOffsetRef.current ||
-        !selectedLabel
-      )
-        return;
-
-      event.stopPropagation();
-
-      const dx = event.x - dragStartRef.current.x;
-      const dy = event.y - dragStartRef.current.y;
-
-      // Invert dy for correct vertical movement
-      const newOffset = {
-        x: labelStartOffsetRef.current.x + dx,
-        y: labelStartOffsetRef.current.y - dy,
-      };
-
-      // Update UI state
-      setPosition(newOffset);
-
-      // Update label through manager
-      if (labelManager) {
-        labelManager.updateLabelPosition(selectedLabel, newOffset);
-      }
-    });
-
-    // Pointer Up
-    moveUpHandlerRef.current = mapView.on("pointer-up", (event) => {
-      console.log("[LabelEditor] Pointer Up (Moving Mode)");
-      event.stopPropagation();
-
-      // Reset state & handlers
-      dragStartRef.current = null;
-      labelStartOffsetRef.current = null;
-      setIsMoving(false);
-      if (mapView.container) mapView.container.style.cursor = "pointer";
-
-      if (moveDownHandlerRef.current) moveDownHandlerRef.current.remove();
-      if (moveMoveHandlerRef.current) moveMoveHandlerRef.current.remove();
-      if (moveUpHandlerRef.current) moveUpHandlerRef.current.remove();
-      moveDownHandlerRef.current = null;
-      moveMoveHandlerRef.current = null;
-      moveUpHandlerRef.current = null;
-
-      console.log(
-        "[LabelEditor] Finished moving label. Final Offset:",
-        position
-      );
-
-      // Save changes
-      if (labelManager) {
-        labelManager.saveLabels();
-      }
-    });
-  };
-
-  // --- Toggle "Select All" mode ---
-  const toggleSelectAllMode = () => {
-    if (!selectAllMode) {
-      setSelectedLabel(null);
-      setLabelText("");
-      setIsTextEditing(false);
-      setIsMoving(false);
-    }
-    setSelectAllMode(!selectAllMode);
-    console.log(
-      `[LabelEditor] ${!selectAllMode ? "Enabled" : "Disabled"} select all mode`
-    );
-  };
-
-  // Update finalizeLabels function
-  const finalizeLabels = (silent = false) => {
-    if (!labelManager) {
-      console.log("[LabelEditor] No label manager available.");
-      return false;
     }
 
     try {
-      // Complete any active text editing
-      if (isTextEditing && selectedLabel) {
-        labelManager.updateLabelText(selectedLabel, labelText);
+        // Call the manager method
+        labelManager.updateLabelText(selectedLabel, newText);
+        console.log(`[LabelEditor] Updated text for selected label to: "${newText}"`);
+    } catch (error) {
+        console.error('[LabelEditor] Error updating label text:', error);
+        setStatusMessage({ type: 'error', text: `Text update error: ${error.message}`, timeout: 5000 });
+    }
+};
+
+ // --- Enable Label Moving Mode ---
+ const enableMovingMode = () => {
+    // Check prerequisites and current state
+    if (!selectedLabel || !labelManager || typeof labelManager.startMovingLabel !== 'function' || isMoving) {
+        console.warn("Cannot start moving: Prerequisites missing or already moving.");
+        return;
+    }
+
+    setIsMoving(true); // Set UI state
+
+    try {
+        // Call the manager method (should automatically use its internal selectedLabel)
+        const success = labelManager.startMovingLabel();
+        if (!success) {
+            // Handle failure from the manager
+            setIsMoving(false);
+            setStatusMessage({ type: 'error', text: 'Could not start moving label. Select a label.', timeout: 5000 });
+        } else {
+            console.log("[LabelEditor] Label moving mode enabled.");
+        }
+    } catch (error) {
+        // Handle errors during the call
+        console.error('[LabelEditor] Error starting label move:', error);
+        setIsMoving(false);
+        setStatusMessage({ type: 'error', text: `Move start error: ${error.message}`, timeout: 5000 });
+    }
+};
+
+
+  // --- Stop Label Moving Mode ---
+  const stopMovingMode = () => {
+    // Check if actually moving and if manager/method exist
+    if (!isMoving || !labelManager || typeof labelManager.stopMovingLabel !== 'function') {
+        return; // Exit if not moving or prerequisites missing
+    }
+
+    try {
+        // Call the manager method to stop the move operation
+        labelManager.stopMovingLabel();
+        console.log("[LabelEditor] Label moving mode stopped.");
+    } catch (error) {
+        // Log any errors during stopping
+        console.error('[LabelEditor] Error stopping label move:', error);
+        // Still set isMoving to false in finally block
+    } finally {
+        // Always update the UI state, regardless of success/error
+        setIsMoving(false);
+    }
+};
+
+
+  // --- Toggle Select All Mode (UI Only for Simplified Manager) ---
+  const toggleSelectAllMode = () => {
+    const nextMode = !selectAllMode;
+    setSelectAllMode(nextMode);
+    // Deselect any single label when toggling this mode
+    if (nextMode && selectedLabel) {
+        // --- CORRECTED LOGIC ---
+        // Manager doesn't have explicit deselect. Clear local state.
+        // Manager's internal selectedLabel will likely be nulled on next click outside.
+        setSelectedLabel(null);
+        if (labelManager && typeof labelManager.stopMovingLabel === 'function' && isMoving){
+            // Ensure moving is stopped if active
+            labelManager.stopMovingLabel();
+        }
+        setIsMoving(false);
         setIsTextEditing(false);
-      }
+        setLabelText("");
+        setFontSize(10);
+        setPosition({ x: 0, y: 0 });
+        console.log("[LabelEditor] Cleared local selection for 'Select All' mode.");
+        // --- END CORRECTION ---
+    }
+    console.log(`[LabelEditor] Toggled 'Select All' UI mode to: ${nextMode}`);
+  };
 
-      // Save all labels
-      const result = labelManager.saveLabels();
 
-      if (result.success) {
-        console.log(`[LabelEditor] Saved ${result.count} labels`);
+ // --- Save All Label Positions ---
+ const finalizeLabels = async (silent = false) => {
+    // Prevent concurrent saves and check prerequisites
+    if (isSaving || !labelManager || typeof labelManager.savePositions !== 'function') {
+        console.log(`[LabelEditor] Save skipped: ${isSaving ? 'Already saving' : 'Manager/method missing'}`);
+        return false; // Indicate save did not happen
+    }
 
-        // Clear edit tracking state
+    setIsSaving(true); // Set saving state
+
+    try {
+        // Commit any pending UI changes before saving
+        if (isTextEditing && selectedLabel) {
+            updateLabelText(labelText); // Save text input value
+            setIsTextEditing(false);    // Exit text edit UI
+        }
+        if (isMoving) {
+            stopMovingMode(); // Finalize any active move operation
+        }
+
+        // Call the manager's save method (use await if it's async)
+        const result = await labelManager.savePositions(true); // Force save all edits
+        console.log('[LabelEditor] Save result:', result);
+
+        // Provide user feedback unless silent
+        if (!silent) {
+            setStatusMessage({
+                type: 'success',
+                text: `Saved ${result?.count || 0} label positions`,
+                timeout: 3000
+            });
+        }
+        return true; // Indicate success
+    } catch (error) {
+        // Handle errors during saving
+        console.error('[LabelEditor] Error saving labels:', error);
+        if (!silent) {
+            setStatusMessage({ type: 'error', text: `Save error: ${error.message}`, timeout: 5000 });
+        }
+        return false; // Indicate failure
+    } finally {
+        setIsSaving(false); // Always reset saving state
+    }
+};
+
+
+  // --- Refresh Labels ---
+  const refreshLabels = () => {
+    // Check prerequisites
+    if (!labelManager || typeof labelManager.refreshLabels !== 'function') {
+        console.warn("Cannot refresh labels: Manager or method missing.");
+        return;
+    }
+
+    try {
+        // Call the manager method
+        const result = labelManager.refreshLabels();
+        console.log('[LabelEditor] Refresh result:', result);
+        // Provide feedback
+        setStatusMessage({ type: 'success', text: `Refreshed ${result?.count || 0} labels`, timeout: 3000 });
+    } catch (error) {
+        // Handle errors
+        console.error('[LabelEditor] Error refreshing labels:', error);
+        setStatusMessage({ type: 'error', text: `Refresh error: ${error.message}`, timeout: 5000 });
+    }
+};
+
+
+  // --- Reset All Label Changes ---
+  const resetChanges = () => {
+    // Check prerequisites
+    if (!labelManager || typeof labelManager.resetAllLabels !== 'function') {
+        console.warn("Cannot reset labels: Manager or method missing.");
+        return;
+    }
+
+    try {
+        // Call the manager method
+        const result = labelManager.resetAllLabels();
+        console.log('[LabelEditor] Reset result:', result);
+
+        // Reset local UI state completely
         setSelectedLabel(null);
         setLabelText("");
-        setSelectAllMode(false);
+        setFontSize(10);
+        setPosition({ x: 0, y: 0 });
+        setIsTextEditing(false);
+        setSelectAllMode(false); // Turn off select all mode if active
+        setIsMoving(false);     // Ensure moving mode is off
 
-        // Show success message if not silent
-        if (!silent) {
-          alert("Label changes saved successfully.");
-        }
-
-        return true;
-      } else {
-        console.error("[LabelEditor] Error saving labels:", result.message);
-
-        if (!silent) {
-          alert("Failed to save label positions.");
-        }
-
-        return false;
-      }
+        // Provide feedback
+        setStatusMessage({ type: 'success', text: `Reset ${result?.count || 0} labels to default`, timeout: 3000 });
     } catch (error) {
-      console.error("[LabelEditor] Error finalizing labels:", error);
-
-      if (!silent) {
-        alert("Failed to save label positions.");
-      }
-
-      return false;
+        // Handle errors
+        console.error('[LabelEditor] Error resetting labels:', error);
+        setStatusMessage({ type: 'error', text: `Reset error: ${error.message}`, timeout: 5000 });
     }
-  };
+};
 
-  /**
-   * Handles editor closing with automatic save
-   */
-  const handleClose = () => {
-    // If there are unsaved edits, automatically save them
-    if (Object.keys(editedLabels).length > 0) {
-      console.log("[LabelEditor] Auto-saving label edits before closing...");
 
-      try {
-        // Call finalizeLabels but in silent mode (no alerts)
-        finalizeLabels(true);
-        console.log("[LabelEditor] Successfully auto-saved label edits.");
-      } catch (err) {
-        console.error("[LabelEditor] Error during auto-save:", err);
-      }
+  // --- Reset Single Label Position ---
+  const resetSingleLabel = () => {
+    // Check prerequisites
+    if (!selectedLabel || !labelManager || typeof labelManager.resetLabelPosition !== 'function') {
+        console.warn("Cannot reset single label: No label selected or manager/method missing.");
+        return;
     }
 
-    // Call the provided onClose callback
+    try {
+        // Call the manager method with the currently selected label graphic
+        const result = labelManager.resetLabelPosition(selectedLabel);
+        console.log('[LabelEditor] Reset single label result:', result);
+
+        if (result.success) {
+            // Successfully reset in the manager. Now update the UI to reflect the reset state.
+            // Re-fetch the potentially updated label data from the manager IF it's still selected.
+            const currentSelected = labelManager.selectedLabel; // Check if it's still the same selected label
+
+            if (currentSelected && currentSelected === selectedLabel && currentSelected.symbol) {
+                 // If the same label is still selected, update UI from its current state
+                setPosition({ x: currentSelected.symbol.xoffset || 0, y: currentSelected.symbol.yoffset || 0 });
+                setFontSize(currentSelected.symbol.font?.size || 10);
+                 // Text shouldn't change on position reset, but sync just in case
+                 setLabelText(currentSelected.symbol.text || "");
+            } else {
+                // If the label was deselected or became invalid after reset, reset UI fully
+                setSelectedLabel(null); // Deselect in UI
+                setPosition({ x: 0, y: 0 });
+                setFontSize(10);
+                setLabelText("");
+                setIsTextEditing(false);
+            }
+            // Provide success feedback
+            setStatusMessage({ type: 'success', text: 'Label position reset', timeout: 3000 });
+        } else {
+            // Handle failure from the manager
+            setStatusMessage({ type: 'error', text: result.message || 'Could not reset label position', timeout: 5000 });
+        }
+    } catch (error) {
+        // Handle unexpected errors
+        console.error('[LabelEditor] Error resetting single label:', error);
+        setStatusMessage({ type: 'error', text: `Reset error: ${error.message}`, timeout: 5000 });
+    }
+};
+
+
+  // --- Handle Editor Close ---
+  const handleClose = async () => {
+    // Ensure changes are saved silently before closing
+    await finalizeLabels(true);
+    // Call the provided onClose callback (passed from parent)
     if (onClose) {
       onClose();
     }
   };
 
-  // Update resetChanges function
-  const resetChanges = () => {
-    if (!labelManager) {
-      console.log("[LabelEditor] No label manager available for reset.");
-      return;
-    }
+  // --- Render Status Message ---
+  const renderStatusMessage = () => {
+    if (!statusMessage) return null;
 
-    console.log("[LabelEditor] Resetting all label changes.");
+    // Determine styles based on message type
+    const bgColor =
+      statusMessage.type === 'error' ? 'bg-red-100 dark:bg-red-900/40' :
+      statusMessage.type === 'warning' ? 'bg-yellow-100 dark:bg-yellow-900/40' :
+      'bg-green-100 dark:bg-green-900/40';
 
-    try {
-      // Reset via manager
-      const result = labelManager.resetAllLabelPositions();
-      console.log(`[LabelEditor] Reset ${result.count} labels.`);
+    const textColor =
+      statusMessage.type === 'error' ? 'text-red-700 dark:text-red-300' :
+      statusMessage.type === 'warning' ? 'text-yellow-700 dark:text-yellow-300' :
+      'text-green-700 dark:text-green-300';
 
-      // Reset UI state
-      setSelectedLabel(null);
-      setLabelText("");
-      setIsTextEditing(false);
-      setSelectAllMode(false);
-      setIsMoving(false);
+    // Choose icon based on type
+    const iconComponent =
+      statusMessage.type === 'error' ? <AlertTriangle className="h-4 w-4 flex-shrink-0" /> :
+      statusMessage.type === 'warning' ? <AlertTriangle className="h-4 w-4 flex-shrink-0" /> :
+      <Check className="h-4 w-4 flex-shrink-0" />;
 
-      console.log("[LabelEditor] Reset complete.");
-    } catch (error) {
-      console.error("[LabelEditor] Error resetting labels:", error);
-    }
+    // Return the styled message component
+    return (
+      <div className={`mb-4 p-3 rounded-md ${bgColor} ${textColor} flex items-center space-x-2 text-sm`}>
+        {iconComponent}
+        <span>{statusMessage.text}</span>
+      </div>
+    );
   };
 
-  // --- Reset single label ---
-  const resetSingleLabel = () => {
-    if (!selectedLabel) return;
-    const labelId = getLabelId(selectedLabel);
-    if (!labelId) return;
-    console.log(`[LabelEditor] Resetting changes for label: ${labelId}`);
-
-    let resetSuccessful = false;
-    // Try manager reset
-    if (labelManager && typeof labelManager.resetLabelPosition === "function") {
-      try {
-        labelManager.resetLabelPosition(labelId); // Use the ID
-        resetSuccessful = true;
-        console.log(`[LabelEditor] Reset label ${labelId} via manager.`);
-      } catch (err) {
-        console.error(
-          `[LabelEditor] Error resetting label ${labelId} via manager:`,
-          err
-        );
-      }
-    }
-
-    // Fallback: Remove from local storage
-    if (!resetSuccessful) {
-      const existingPositions = JSON.parse(
-        localStorage.getItem("customLabelPositions") || "{}"
-      );
-      if (existingPositions[labelId]) {
-        delete existingPositions[labelId];
-        localStorage.setItem(
-          "customLabelPositions",
-          JSON.stringify(existingPositions)
-        );
-        console.log(
-          `[LabelEditor] Reset label ${labelId} via localStorage removal.`
-        );
-        resetSuccessful = true; // Handled locally
-      }
-    }
-
-    // Remove from component's tracked edits
-    if (editedLabels[labelId]) {
-      setEditedLabels((prev) => {
-        const newEditedLabels = { ...prev };
-        delete newEditedLabels[labelId];
-        return newEditedLabels;
-      });
-    }
-
-    // Deselect and reset UI state
-    setSelectedLabel(null);
-    setLabelText("");
-    setIsTextEditing(false);
-    setIsMoving(false);
-
-    // Trigger visual refresh for the specific label after state updates
-    if (resetSuccessful) {
-      // Use a short delay to ensure state updates might have propagated if needed
-      setTimeout(() => triggerLabelRefresh([labelId]), 0);
-    } else {
-      console.warn(
-        `[LabelEditor] Could not confirm reset method for ${labelId}, visual update might be needed manually.`
-      );
-    }
-  };
-
-  // --- JSX Rendering ---
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       {/* Header */}
       <div className="flex-none p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold">Label Editor</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Click label to edit, or use "Select All". Dragging map is disabled
-          while moving labels.
-        </p>
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-6">
-        {/* Select All Toggle */}
-        <div>
-          <button
-            onClick={toggleSelectAllMode}
-            className={`w-full py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors duration-150 ${
-              selectAllMode
-                ? "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 ring-2 ring-blue-300 dark:ring-blue-500"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
-            }`}
-          >
-            <Sliders className="mr-2 h-4 w-4" />
-            {selectAllMode ? "Editing All Labels" : "Select All Labels"}
-            <span className="ml-1.5 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded px-1.5 py-0.5">
-              {allLabels.length}
-            </span>
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-semibold">Label Editor</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Click label to edit. Dragging map disabled while moving labels.
+            </p>
+          </div>
+          <button onClick={refreshLabels} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Refresh labels">
+            <RefreshCw size={18} />
           </button>
         </div>
+      </div>
 
-        {/* Editing Controls */}
-        {selectAllMode ? (
-          // --- Controls for ALL labels ---
-          <div className="space-y-4 p-4 border rounded-lg border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
-            <h4 className="font-medium text-blue-700 dark:text-blue-300 flex items-center">
-              <Type className="mr-2 h-4 w-4" />
-              Editing All ({allLabels.length}) Labels
-            </h4>
-            {/* Font Size (All) */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium flex items-center">
-                  <Sliders className="mr-2 h-4 w-4" /> Font Size
-                </label>
-                <span className="text-sm font-mono bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                  {fontSize}px
-                </span>
-              </div>
-              <input
-                type="range"
-                min="8"
-                max="24"
-                step="1"
-                value={fontSize}
-                onChange={(e) => updateFontSize(parseInt(e.target.value, 10))}
-                className="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-              />
-            </div>
-          </div>
-        ) : selectedLabel ? (
-          // --- Controls for SELECTED label ---
+      {/* Status Message Area */}
+      {statusMessage && (
+        <div className="px-4 pt-4">{renderStatusMessage()}</div>
+      )}
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Editing Controls: Show only if a label is selected AND has needed properties */}
+        {selectedLabel && selectedLabel.symbol && selectedLabel.attributes ? ( // <-- Added checks
           <div className="space-y-4 p-4 border rounded-lg border-gray-200 dark:border-gray-700">
-            {/* Label Text */}
+            {/* Label Text Edit Section */}
             <div>
               <label className="text-sm font-medium mb-1 block flex items-center">
                 <Edit className="mr-2 h-4 w-4 text-gray-500" /> Label Text
               </label>
               {isTextEditing ? (
+                // Input field shown when editing text
                 <div className="flex items-center space-x-2">
                   <input
                     ref={textInputRef}
                     type="text"
-                    value={labelText}
+                    value={labelText} // Uses state variable
                     onChange={(e) => setLabelText(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        updateLabelText(e.target.value);
-                        setIsTextEditing(false);
-                      } else if (e.key === "Escape") {
-                        setLabelText(selectedLabel.symbol?.text || "");
-                        setIsTextEditing(false);
-                      }
+                      if (e.key === "Enter") { updateLabelText(labelText); setIsTextEditing(false); } // Use state value on Enter
+                      else if (e.key === "Escape") { setLabelText(selectedLabel.symbol?.text || ""); setIsTextEditing(false); }
                     }}
-                    onBlur={() => {
-                      updateLabelText(labelText);
-                      setIsTextEditing(false);
-                    }}
+                    onBlur={() => { updateLabelText(labelText); setIsTextEditing(false); }} // Save state value on blur
                     className="flex-grow px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
                     placeholder="Enter label text"
                   />
-                  <button
-                    onClick={() => {
-                      updateLabelText(labelText);
-                      setIsTextEditing(false);
-                    }}
-                    className="p-1.5 rounded-md bg-green-500 text-white hover:bg-green-600"
-                    title="Save"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setLabelText(selectedLabel.symbol?.text || "");
-                      setIsTextEditing(false);
-                    }}
-                    className="p-1.5 rounded-md bg-gray-500 text-white hover:bg-gray-600"
-                    title="Cancel"
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </button>
+                  {/* Save/Cancel buttons for text edit */}
+                  <button onClick={() => { updateLabelText(labelText); setIsTextEditing(false); }} className="p-1.5 rounded-md bg-green-500 text-white hover:bg-green-600" title="Save"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { setLabelText(selectedLabel.symbol?.text || ""); setIsTextEditing(false); }} className="p-1.5 rounded-md bg-gray-500 text-white hover:bg-gray-600" title="Cancel"><XIcon className="h-4 w-4" /></button>
                 </div>
               ) : (
+                // Display text and edit button when not editing text
                 <div className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 min-h-[38px]">
-                  <p
-                    className="text-sm truncate flex-1 mr-2"
-                    title={labelText || selectedLabel.symbol?.text || ""}
-                  >
-                    {labelText || selectedLabel.symbol?.text || "(No text)"}
+                  <p className="text-sm truncate flex-1 mr-2" title={labelText || ""}> {/* Use state variable */}
+                    {labelText || "(No text)"} {/* Use state variable */}
                   </p>
-                  <button
-                    onClick={() => setIsTextEditing(true)}
-                    className="p-1 rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                    title="Edit Text"
-                  >
+                  <button onClick={() => setIsTextEditing(true)} className="p-1 rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/50" title="Edit Text">
                     <Edit className="h-4 w-4" />
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Font Size */}
+            {/* Font Size Slider */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium flex items-center">
-                  <Sliders className="mr-2 h-4 w-4" /> Font Size
-                </label>
-                <span className="text-sm font-mono bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                  {fontSize}px
-                </span>
+                <label className="text-sm font-medium flex items-center"><Sliders className="mr-2 h-4 w-4" /> Font Size</label>
+                <span className="text-sm font-mono bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{fontSize}px</span> {/* Use state variable */}
               </div>
               <input
-                type="range"
-                min="8"
-                max="24"
-                step="1"
-                value={fontSize}
+                type="range" min="8" max="24" step="1" value={fontSize} // Use state variable
                 onChange={(e) => updateFontSize(parseInt(e.target.value, 10))}
                 className="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
 
-            {/* Position Control */}
+            {/* Position Control Button */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium flex items-center">
-                  <Move className="mr-2 h-4 w-4" /> Position (Offset)
-                </label>
-                <span className="text-xs font-mono bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                  X: {Math.round(position.x)}, Y: {Math.round(position.y)}
-                </span>
+                <label className="text-sm font-medium flex items-center"><Move className="mr-2 h-4 w-4" /> Position (Offset)</label>
+                <span className="text-xs font-mono bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">X: {Math.round(position.x)}, Y: {Math.round(position.y)}</span> {/* Use state variable */}
               </div>
               <button
-                onClick={enableMovingMode}
-                disabled={isMoving}
-                className={`w-full py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors duration-150 ${
-                  isMoving
-                    ? "bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-300 cursor-wait animate-pulse"
-                    : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900"
-                }`}
+                onClick={enableMovingMode} disabled={isMoving}
+                className={`w-full py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors ${isMoving ? 'bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-300 cursor-wait animate-pulse' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900'}`}
               >
-                <Move className="mr-2 h-4 w-4" />
-                {isMoving ? "Moving... (Drag on map)" : "Adjust Position"}
+                <Move className="mr-2 h-4 w-4" /> {isMoving ? "Moving... (Drag on map)" : "Adjust Position"}
               </button>
             </div>
 
-            {/* Reset Single Label */}
-            <button
-              onClick={resetSingleLabel}
-              className="w-full py-1.5 px-4 mt-4 rounded-md text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
-            >
-              Reset This Label's Changes
+            {/* Reset Single Label Button */}
+            <button onClick={resetSingleLabel} className="w-full py-1.5 px-4 mt-4 rounded-md text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600">
+              Reset This Label
             </button>
           </div>
         ) : (
-          // --- Placeholder when no label selected ---
+          // Placeholder shown when no label is selected or selected label is invalid
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 dark:text-gray-400">
             <div className="p-4 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
               <Type className="h-10 w-10 text-gray-400 dark:text-gray-500" />
             </div>
-            <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300">
-              No Label Selected
-            </h4>
-            <p className="mt-2 text-sm">
-              Click a label on the map or use "Select All".
-            </p>
+            <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300">No Label Selected</h4>
+            <p className="mt-2 text-sm">Click a label on the map to edit its properties.</p>
+            {selectedLabel && (!selectedLabel.symbol || !selectedLabel.attributes) && ( // Show reason if invalid
+              <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">(Selected graphic missing symbol/attributes)</p>
+            )}
           </div>
         )}
       </div>
 
       {/* Footer Actions */}
       <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        {/* Edited Label Count - Check manager and property existence */}
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm text-gray-600 dark:text-gray-400">
-            {Object.keys(editedLabels).length} label(s) modified
+            {(labelManager && labelManager.editedLabels?.size !== undefined) ? `${labelManager.editedLabels.size} label(s) modified` : '0 labels modified'}
           </span>
         </div>
+        {/* Action Buttons */}
         <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+          {/* Reset All Changes Button */}
           <button
             onClick={resetChanges}
-            disabled={Object.keys(editedLabels).length === 0 && !selectAllMode}
-            className="flex-1 py-2 px-4 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-500"
+            disabled={!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0}
+            className="flex-1 py-2 px-4 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 dark:disabled:bg-gray-700/50"
           >
             Reset All Changes
           </button>
+          {/* Apply Changes Button */}
           <button
-            onClick={finalizeLabels}
-            disabled={Object.keys(editedLabels).length === 0 && !selectAllMode}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors duration-150 ${
-              Object.keys(editedLabels).length === 0 && !selectAllMode
-                ? "bg-blue-300 text-white cursor-not-allowed dark:bg-blue-800 dark:text-blue-400"
-                : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-            }`}
+            onClick={() => finalizeLabels()}
+            disabled={!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 || isSaving}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors ${!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 ? 'bg-blue-300 text-white cursor-not-allowed' : isSaving ? 'bg-blue-500 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
-            <Save className="mr-2 h-4 w-4" />
-            Save Changes
+            <Save className={`mr-2 h-4 w-4 ${isSaving ? 'animate-spin' : ''}`} /> {isSaving ? 'Saving...' : 'Apply Changes'}
           </button>
         </div>
-        <button
-          onClick={onClose}
-          className="w-full mt-2 py-2 px-4 rounded-md text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-        >
+        {/* Close Editor Button */}
+        <button onClick={handleClose} className="w-full mt-2 py-2 px-4 rounded-md text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
           Close Editor
         </button>
       </div>
     </div>
-  );
+ );
 };
 
 export default LabelEditor;

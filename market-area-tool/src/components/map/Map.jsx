@@ -12,6 +12,8 @@ import Extent from "@arcgis/core/geometry/Extent"; // Keep for drawing zoom
 // Import ArcGIS types needed for handlers/state if not solely used in utils
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
+// *** Corrected Import Path for SimplifiedLabelManager ***
+import LabelManager from "../../services/SimplifiedLabelManager"; // Assuming this is the correct path
 
 // Import contexts and services
 import { useMap } from "../../contexts/MapContext"; // Adjust path
@@ -19,6 +21,7 @@ import { mapConfigurationsAPI } from "../../services/api"; // Adjust path
 
 // Import other UI components
 import LayerPropertiesEditor from "./LayerPropertiesEditor";
+import LabelEditor from "./LabelEditor"; // *** Import LabelEditor ***
 import PropTypes from "prop-types";
 import axios from "axios"; // Keep if used for non-ArcGIS calls
 import SearchableDropdown from "./SearchableDropdown";
@@ -43,8 +46,6 @@ import {
   createGraphicsLayerFromCustomData, // Explicitly import the custom data creator
 } from "./mapLayerUtils";
 
-import { initializeLabelLayerManager } from "./LabelLayerManager"; // Replace UniversalLabelManager import
-
 // Replace the hardcoded API_KEY with the environment variable
 const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
 
@@ -56,7 +57,7 @@ export default function MapComponent({ onToggleLis }) {
   const initCompleteRef = useRef(false);
   const layersRef = useRef({});
   const [legend, setLegend] = useState(null);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false); // General editor panel state
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams();
@@ -73,9 +74,12 @@ export default function MapComponent({ onToggleLis }) {
   const drawStartPointRef = useRef(null);
   const drawEndPointRef = useRef(null);
   const activeLayersRef = useRef({});
-  const labelManagerRef = useRef(null);
-  // Add this near your other state declarations
-  const [isLabelEditMode, setIsLabelEditMode] = useState(false);
+  const labelManagerRef = useRef(null); // Ref for the SimplifiedLabelManager instance
+  const [isLabelManagerReady, setIsLabelManagerReady] = useState(false); // State to track manager readiness
+  const [isLabelEditorOpen, setIsLabelEditorOpen] = useState(false); // State specifically for the label editor panel
+  // Removed redundant isLayerPropsEditorOpen and isLabelEditMode, consolidating into isEditorOpen and isLabelEditorOpen
+
+
   // Use the first available project ID
   const projectId =
     routeProjectId || localStorageProjectId || sessionStorageProjectId;
@@ -607,184 +611,241 @@ export default function MapComponent({ onToggleLis }) {
       `[handlePipeVisualization] Using final target Pipe layer: "${targetLayer.title}" (ID: ${targetLayer.id})`
     );
 
-    // Apply specialized label settings for pipe visualization
-    if (labelManagerRef.current) {
-      // Configure label settings using the unified API
-      labelManagerRef.current.configureLayerSettings("pipe");
-      console.log(
-        "[handlePipeVisualization] Applied pipe-specific label settings"
-      );
-    }
-
-    // Additional pipe visualization logic can be added here
-  };
-/**
- * Handles composite visualization with advanced label management
- * @param {Object} tabData - The tab data containing the tab ID and other properties
- * @param {Object} layer - Optional direct layer reference for visualization
- * @returns {Promise<void>}
- */
-const handleCompVisualization = async (tabData, layer = null) => {
-  const tabId = tabData?.id;
-  console.log(
-    `[handleCompVisualization] Finding and zooming to Comp Map layer for tab: ${tabId}`
-  );
-
-  if (!mapView?.map) {
-    console.warn("[handleCompVisualization] Map view not available.");
-    return;
-  }
-
-  if (!tabData) {
-    console.warn("[handleCompVisualization] Missing tabData.");
-    return;
-  }
-
-  try {
-    // Find the layer using different methods in priority order
-    let compLayer = null;
-    
-    // Priority 1: Use directly passed layer parameter (most reliable)
-    if (layer) {
-      compLayer = layer;
-      console.log(`[handleCompVisualization] Using directly passed layer for tab ${tabId}:`, compLayer.id);
-    }
-    // Priority 2: Check stored reference in activeLayersRef
-    else if (activeLayersRef.current[tabId]) {
-      compLayer = activeLayersRef.current[tabId];
-      console.log(`[handleCompVisualization] Found layer in ref for tab ${tabId}:`, compLayer.id);
-    }
-    // Priority 3: Find by visualization type attribute (least reliable)
-    else {
-      compLayer = mapView.map.layers.find(
-        (l) =>
-          l &&
-          l.isVisualizationLayer === true &&
-          l.visualizationType === "comp" &&
-          (l instanceof GraphicsLayer || l.type === "graphics")
-      );
-
-      if (compLayer) {
-        console.log(`[handleCompVisualization] Found target Comp layer: "${compLayer.title}"`);
-        // Store in ref for future use
-        activeLayersRef.current[tabId] = compLayer;
-      } else {
-        console.error(`[handleCompVisualization] No comp layer found for tab ${tabId}`);
-        return; // Prevent further errors
-      }
-    }
-
-    // Get the layer configuration for labels
-    const layerConfig = tabData.layerConfiguration || {};
-    const labelOptions = layerConfig.labelOptions || {};
-
-    // Apply specialized settings for comp map visualization
-    if (labelManagerRef.current) {
-      try {
-        // Configure label settings using the unified API
-        labelManagerRef.current.configureLayerSettings("comp");
-        console.log(`[handleCompVisualization] Applied comp-specific label settings`);
-
-        // Force a scan of this specific layer for labels
-        if (typeof labelManagerRef.current._findAndIntegrateExistingLabels === "function") {
-          setTimeout(() => {
-            // Mark the layer to prevent removal during state updates
-            if (compLayer) {
-              compLayer._preventRemoval = true;
-              compLayer._isProcessed = true;
-            }
-            
-            console.log(`[handleCompVisualization] Scanning comp layer for labels`);
-            labelManagerRef.current._findAndIntegrateExistingLabels(compLayer);
-
-            // Force a refresh after a short delay
-            setTimeout(() => {
-              if (labelManagerRef.current && typeof labelManagerRef.current.refreshLabels === "function") {
-                labelManagerRef.current.refreshLabels();
-                console.log(`[handleCompVisualization] Refreshed labels for comp layer`);
-              }
-            }, 200);
-          }, 100);
-        }
-
-        // Apply any custom label settings from the configuration
-        if (labelOptions && typeof labelManagerRef.current.updateOptions === "function") {
-          const labelSettings = {
-            fontSize: labelOptions.fontSize || 10,
-            includeVariables: labelOptions.includeVariables !== false,
-            avoidCollisions: labelOptions.avoidCollisions !== false,
-            visibleAtAllZooms: !!labelOptions.visibleAtAllZooms,
-            minZoom: labelOptions.minZoom || 8,
-            maxLabelsVisible: labelOptions.maxLabelsVisible || 60,
-          };
-          
-          labelManagerRef.current.updateOptions(labelSettings);
-          console.log(`[handleCompVisualization] Applied custom label settings:`, labelSettings);
-        }
-      } catch (labelError) {
-        console.error(`[handleCompVisualization] Error configuring labels:`, labelError);
+    // --- Added Defensive Check ---
+    if (labelManagerRef.current && typeof labelManagerRef.current.setContext === 'function') {
+      // Set context with project ID and get the correct configId from the provided tabData
+      const projectId =
+        localStorage.getItem("currentProjectId") ||
+        sessionStorage.getItem("currentProjectId");
+      if (projectId) {
+        // Use tabData instead of undefined activeTabData
+        labelManagerRef.current.setContext(projectId, tabData?.configId);
       }
     } else {
-      console.warn(`[handleCompVisualization] Label manager not available for comp layer`);
+        console.warn("[handlePipeVisualization] Label manager ref or setContext method not available.");
     }
-
-    // Ensure the layer is visible and protected from automatic removal
-    if (compLayer) {
-      compLayer.visible = true;
-      compLayer._preventRemoval = true; // Add protection flag
-      
-      // Set a flag on the layer to prevent duplicate processing
-      if (!compLayer._processedByCompVisualization) {
-        compLayer._processedByCompVisualization = true;
-        console.log(`[handleCompVisualization] Marked comp layer as processed to prevent duplicate handling`);
-      }
-    }
-
-    // ENHANCEMENT: Set a flag to skip the next layer removal attempt
-    // This will be checked in updateVisualizationLayer before removing layers
-    window._skipNextLayerRemoval = true;
-    console.log(`[handleCompVisualization] Set flag to skip next automatic layer removal`);
-    
-    setTimeout(() => {
-      window._skipNextLayerRemoval = false; // Reset after a delay
-    }, 1000);
-
-  } catch (error) {
-    console.error("[handleCompVisualization] Error during comp visualization handling:", error);
-  }
-};
+  };
 
   /**
-   * Toggles label editing mode and handles related state updates
+   * Handles composite visualization with advanced label management
+   * @param {Object} tabData - The tab data containing the tab ID and other properties
+   * @param {Object} layer - Optional direct layer reference for visualization
+   * @returns {Promise<void>}
    */
-  const toggleLabelEditMode = () => {
-    // If we're already in the editor, just switch modes
-    if (isEditorOpen) {
-      setIsLabelEditMode(!isLabelEditMode);
+  const handleCompVisualization = async (tabData, layer = null) => {
+    const tabId = tabData?.id;
+    console.log(
+      `[handleCompVisualization] Finding and zooming to Comp Map layer for tab: ${tabId}`
+    );
+
+    if (!mapView?.map) {
+      console.warn("[handleCompVisualization] Map view not available.");
       return;
     }
 
-    // Otherwise, open the editor and set label edit mode
-    setIsEditorOpen(true);
-    setIsLabelEditMode(true);
+    if (!tabData) {
+      console.warn("[handleCompVisualization] Missing tabData.");
+      return;
+    }
 
-    // Configure label manager for editing if available
-    if (
-      labelManagerRef.current &&
-      typeof labelManagerRef.current.toggleEditingMode === "function"
-    ) {
-      const isEditingEnabled = labelManagerRef.current.toggleEditingMode();
-      console.log(
-        `[MapComponent] Label editing mode ${
-          isEditingEnabled ? "enabled" : "disabled"
-        }`
-      );
+    try {
+      // Find the layer using different methods in priority order
+      let compLayer = null;
+
+      // Priority 1: Use directly passed layer parameter (most reliable)
+      if (layer) {
+        compLayer = layer;
+        console.log(
+          `[handleCompVisualization] Using directly passed layer for tab ${tabId}:`,
+          compLayer.id
+        );
+      }
+      // Priority 2: Check stored reference in activeLayersRef
+      else if (activeLayersRef.current[tabId]) {
+        compLayer = activeLayersRef.current[tabId];
+        console.log(
+          `[handleCompVisualization] Found layer in ref for tab ${tabId}:`,
+          compLayer.id
+        );
+      }
+      // Priority 3: Find by visualization type attribute (least reliable)
+      else {
+        compLayer = mapView.map.layers.find(
+          (l) =>
+            l &&
+            l.isVisualizationLayer === true &&
+            l.visualizationType === "comp" &&
+            (l instanceof GraphicsLayer || l.type === "graphics")
+        );
+
+        if (compLayer) {
+          console.log(
+            `[handleCompVisualization] Found target Comp layer: "${compLayer.title}"`
+          );
+          // Store in ref for future use
+          activeLayersRef.current[tabId] = compLayer;
+        } else {
+          console.error(
+            `[handleCompVisualization] No comp layer found for tab ${tabId}`
+          );
+          return; // Prevent further errors
+        }
+      }
+
+      // Get the layer configuration for labels
+      const layerConfig = tabData.layerConfiguration || {};
+      const labelOptions = layerConfig.labelOptions || {};
+
+      // --- Added Defensive Checks ---
+      // Apply specialized settings for comp map visualization
+      if (labelManagerRef.current) {
+        try {
+          // Configure label settings using the unified API
+          if (typeof labelManagerRef.current.configureLayerSettings === 'function') {
+            labelManagerRef.current.configureLayerSettings("comp");
+            console.log(`[handleCompVisualization] Applied comp-specific label settings`);
+          } else {
+            console.warn("[handleCompVisualization] configureLayerSettings method not found on label manager.");
+          }
+
+          // Force a processing of this specific layer for labels
+          // --- CORRECTED CALL ---
+          if (typeof labelManagerRef.current.processLayer === "function") {
+            setTimeout(() => {
+              // Mark the layer to prevent removal during state updates
+              if (compLayer) {
+                compLayer._preventRemoval = true;
+                compLayer._isProcessed = true; // Use consistent flag name if possible
+              }
+
+              console.log(`[handleCompVisualization] Processing comp layer with Label Manager`);
+              // Add defensive check inside timeout
+              if (labelManagerRef.current && typeof labelManagerRef.current.processLayer === 'function') {
+                  labelManagerRef.current.processLayer(compLayer); // Use public method
+              } else {
+                  console.warn("[handleCompVisualization] processLayer method unavailable inside timeout.");
+              }
+
+              // Force a refresh after a short delay
+              setTimeout(() => {
+                // Add defensive check inside timeout
+                if (labelManagerRef.current && typeof labelManagerRef.current.refreshLabels === "function") {
+                  labelManagerRef.current.refreshLabels();
+                  console.log(`[handleCompVisualization] Refreshed labels for comp layer`);
+                } else {
+                   console.warn("[handleCompVisualization] refreshLabels method unavailable inside timeout.");
+                }
+              }, 200);
+            }, 100);
+          } else {
+            console.warn("[handleCompVisualization] processLayer method not found on label manager.");
+          }
+          // --- END CORRECTION ---
+
+          // Apply any custom label settings from the configuration
+          // (Removed call to non-existent updateOptions)
+          // You might apply specific overrides here using updateLabelFontSize/Text if needed,
+          // but generally configureLayerSettings should handle the basics.
+          if (labelOptions) {
+             console.log("[handleCompVisualization] Custom label options found:", labelOptions);
+             // If you need to apply these *after* initial processing:
+             // setTimeout(() => { /* apply fontSize etc. using updateLabel... methods */ }, 300);
+          }
+
+
+        } catch (labelError) {
+          console.error(`[handleCompVisualization] Error configuring labels:`, labelError);
+        }
+      } else {
+        console.warn(`[handleCompVisualization] Label manager not available for comp layer`);
+      }
+      // --- End Defensive Checks ---
+
+      // Ensure the layer is visible and protected from automatic removal
+      if (compLayer) {
+        compLayer.visible = true;
+        compLayer._preventRemoval = true; // Add protection flag
+
+        // Set a flag on the layer to prevent duplicate processing
+        if (!compLayer._processedByCompVisualization) {
+          compLayer._processedByCompVisualization = true;
+          console.log(`[handleCompVisualization] Marked comp layer as processed to prevent duplicate handling`);
+        }
+      }
+
+      // ENHANCEMENT: Set a flag to skip the next layer removal attempt
+      // This will be checked in updateVisualizationLayer before removing layers
+      window._skipNextLayerRemoval = true;
+      console.log(`[handleCompVisualization] Set flag to skip next automatic layer removal`);
+
+      setTimeout(() => {
+        window._skipNextLayerRemoval = false; // Reset after a delay
+      }, 1000);
+    } catch (error) {
+      console.error("[handleCompVisualization] Error during comp visualization handling:", error);
     }
   };
 
+  // --- Consolidated Open/Close Handlers ---
+  const openLayerPropertiesEditor = () => {
+    setIsLabelEditorOpen(false); // Close label editor if open
+    setIsEditorOpen(true); // Open the main properties editor
+  };
+
+  const openLabelEditor = () => {
+     setIsEditorOpen(false); // Close properties editor if open
+     setIsLabelEditorOpen(true); // Open the label editor
+
+     // Enable editing mode in the manager instance
+     if (labelManagerRef.current && typeof labelManagerRef.current.toggleEditingMode === 'function') {
+         try {
+             labelManagerRef.current.toggleEditingMode(true);
+             console.log(`[MapComponent] Label editing mode explicitly enabled for LabelEditor.`);
+         } catch (error) {
+             console.error("Error enabling label manager edit mode:", error);
+         }
+     } else {
+         console.warn("Cannot enable label manager mode: Ref invalid or toggleEditingMode method missing.");
+     }
+  };
+
+  const closeSidePanel = () => {
+     // Save label positions if the label editor was open
+     if (isLabelEditorOpen) {
+         if (labelManagerRef.current && typeof labelManagerRef.current.savePositions === 'function') {
+             try {
+                 labelManagerRef.current.savePositions(true); // Force save
+                 console.log("[closeSidePanel] Saved label positions before closing label editor.");
+             } catch (error) {
+                 console.error("Error saving label positions:", error);
+             }
+         } else {
+            console.warn("[closeSidePanel] Cannot save positions: Ref invalid or savePositions method missing.");
+         }
+
+         // Ensure editing mode is off in the manager
+         if (labelManagerRef.current && typeof labelManagerRef.current.toggleEditingMode === 'function') {
+             try {
+                 labelManagerRef.current.toggleEditingMode(false);
+             } catch (toggleError) {
+                 console.error("Error toggling label manager mode off:", toggleError);
+             }
+         } else {
+            console.warn("[closeSidePanel] Cannot toggle label manager mode off: Ref invalid or method missing.");
+         }
+     }
+
+     // Close both panels
+     setIsEditorOpen(false);
+     setIsLabelEditorOpen(false);
+     console.log("[closeSidePanel] Closed side panel(s).");
+  };
+  // --- End Consolidated Handlers ---
+
+
   const handleCustomDataVisualization = async (tabData) => {
     console.log("Attempting to visualize Custom Data Map with data:", tabData);
-  
+
     if (!mapView?.map) {
       console.warn("Map view not available for custom data visualization.");
       return;
@@ -795,13 +856,13 @@ const handleCompVisualization = async (tabData, layer = null) => {
       );
       return;
     }
-  
+
     // Find the GraphicsLayer for 'custom' visualization
     const customLayer = mapView.map.layers.find(
       (l) =>
         l && l.isVisualizationLayer === true && l.visualizationType === "custom"
     );
-  
+
     if (!customLayer) {
       console.error(
         "Custom Data GraphicsLayer not found on the map. Cannot update graphics."
@@ -809,20 +870,20 @@ const handleCompVisualization = async (tabData, layer = null) => {
       return;
     }
     console.log(`Found target Custom Data layer: "${customLayer.title}"`);
-  
+
     // Always clear existing graphics to ensure a fresh start
     customLayer.removeAll();
     console.log(`Cleared existing graphics from layer "${customLayer.title}".`);
-  
+
     // Extract configuration data
     const config = tabData.layerConfiguration;
     const customData = config?.customData?.data || []; // Get data array
-    const nameColumn = config?.customData?.nameColumn; // Column for popup title
-    const valueColumn = config?.field || config?.customData?.valueColumn; // Use field or valueColumn
-    const latitudeColumn = config?.customData?.latitudeColumn || "latitude";
-    const longitudeColumn = config?.customData?.longitudeColumn || "longitude";
+    const nameColumn = config?.customData?.nameColumn || config?.labelColumn; // Use labelColumn as fallback
+    const valueColumn = config?.field || config?.customData?.valueColumn || config?.valueColumn; // Use field or valueColumn
+    const latitudeColumn = config?.customData?.latitudeColumn || config?.latitudeColumn || "latitude";
+    const longitudeColumn = config?.customData?.longitudeColumn || config?.longitudeColumn || "longitude";
     const symbolConfig = config?.symbol;
-  
+
     console.log(
       `Processing ${
         customData.length
@@ -830,12 +891,12 @@ const handleCompVisualization = async (tabData, layer = null) => {
         valueColumn || "N/A"
       }', lat='${latitudeColumn}', lon='${longitudeColumn}'`
     );
-  
+
     if (!Array.isArray(customData) || customData.length === 0) {
       console.log("No custom data points found for visualization.");
       return;
     }
-  
+
     try {
       // Ensure required modules are imported
       const [
@@ -851,7 +912,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
         import("@arcgis/core/PopupTemplate"),
         import("@arcgis/core/Color"),
       ]);
-  
+
       // Create popup template
       const popupTemplate = nameColumn
         ? new PopupTemplate({
@@ -867,7 +928,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
             ],
           })
         : null;
-  
+
       // Create symbol from config
       let pointSymbol = null;
       if (symbolConfig) {
@@ -907,12 +968,12 @@ const handleCompVisualization = async (tabData, layer = null) => {
           size: "10px",
         });
       }
-  
+
       // Create and add graphics
       const graphicsToAdd = [];
       let addedCount = 0;
       let errorCount = 0;
-  
+
       customData.forEach((item, index) => {
         // Get coordinates
         let latitude, longitude;
@@ -942,37 +1003,38 @@ const handleCompVisualization = async (tabData, layer = null) => {
           errorCount++;
           return;
         }
-  
+
         if (isNaN(latitude) || isNaN(longitude)) {
           console.warn(`Skipping custom item ${index} - invalid coordinates`);
           errorCount++;
           return;
         }
-  
+
         try {
           const point = new Point({
             longitude: longitude,
             latitude: latitude,
             spatialReference: { wkid: 4326 },
           });
-  
+
           const attributes = {
             ...item,
             _internalId: `custom-${index}`,
             // Add these attributes to help with label creation
             isCustomPoint: true,
-            labelText: item[nameColumn] || item.name || item.title || String(index + 1),
+            labelText:
+              item[nameColumn] || item.name || item.title || String(index + 1),
           };
           if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
           if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null;
-  
+
           const graphic = new Graphic({
             geometry: point,
             symbol: pointSymbol,
             attributes: attributes,
             popupTemplate: popupTemplate,
           });
-  
+
           graphicsToAdd.push(graphic);
           addedCount++;
         } catch (graphicError) {
@@ -983,36 +1045,54 @@ const handleCompVisualization = async (tabData, layer = null) => {
           errorCount++;
         }
       });
-  
+
       // *** CRITICAL FIX: Actually add the graphics to the layer! ***
       if (graphicsToAdd.length > 0) {
         customLayer.addMany(graphicsToAdd);
         console.log(`Added ${graphicsToAdd.length} graphics to custom layer`);
-        
+
+        // --- Added Defensive Checks ---
         // Force label creation after adding points
         if (labelManagerRef.current) {
           setTimeout(() => {
             try {
-              console.log("Triggering label creation for new graphics...");
-              labelManagerRef.current._findAndIntegrateExistingLabels(customLayer);
-              
+              console.log("Triggering label processing for new graphics...");
+              // --- CORRECTED CALL ---
+              if (typeof labelManagerRef.current.processLayer === 'function') {
+                  labelManagerRef.current.processLayer(customLayer); // Use public method
+              } else {
+                 console.warn("[handleCustomDataVisualization] processLayer method unavailable.");
+              }
+              // --- END CORRECTION ---
+
               // Force refresh all labels after a delay to ensure they appear
               setTimeout(() => {
-                if (labelManagerRef.current.refreshLabels) {
+                // Re-check ref
+                if (labelManagerRef.current && typeof labelManagerRef.current.refreshLabels === 'function') { // Check correct method name
                   labelManagerRef.current.refreshLabels();
                   console.log(`Refreshed labels for custom layer`);
+                } else {
+                   console.warn("[handleCustomDataVisualization] refreshLabels method unavailable inside timeout.");
                 }
               }, 500);
             } catch (err) {
-              console.error("Error creating labels for custom layer:", err);
+              console.error("Error processing labels for custom layer:", err);
             }
           }, 100);
+        } else {
+           console.warn("[handleCustomDataVisualization] Label manager ref unavailable for label creation.");
         }
+        // --- End Defensive Checks ---
+
       } else {
-        console.warn("No valid graphics were created to add to the custom layer");
+        console.warn(
+          "No valid graphics were created to add to the custom layer"
+        );
       }
-      
-      console.log(`Custom visualization complete: Added ${addedCount} points, ${errorCount} errors`);
+
+      console.log(
+        `Custom visualization complete: Added ${addedCount} points, ${errorCount} errors`
+      );
     } catch (error) {
       console.error("Error during custom data visualization:", error);
     }
@@ -1034,19 +1114,28 @@ const handleCompVisualization = async (tabData, layer = null) => {
     try {
       // --- Layer Removal ---
       const layersToRemove = [];
-      if (!window._skipNextLayerRemoval) { // Check for the protection flag
+      if (!window._skipNextLayerRemoval) {
+        // Check for the protection flag
         mapView.map.layers.forEach((layer) => {
-          if (layer && layer.isVisualizationLayer === true && !layer._preventRemoval) {
+          if (
+            layer &&
+            layer.isVisualizationLayer === true &&
+            !layer._preventRemoval
+          ) {
             layersToRemove.push(layer);
           }
         });
-      
+
         if (layersToRemove.length > 0) {
-          console.log(`Removing ${layersToRemove.length} existing visualization layers.`);
+          console.log(
+            `Removing ${layersToRemove.length} existing visualization layers.`
+          );
           mapView.map.removeMany(layersToRemove);
         }
       } else {
-        console.log(`Skipping visualization layer removal due to protection flag`);
+        console.log(
+          `Skipping visualization layer removal due to protection flag`
+        );
         window._skipNextLayerRemoval = false; // Reset the flag
       }
 
@@ -1106,55 +1195,50 @@ const handleCompVisualization = async (tabData, layer = null) => {
             activeLayersRef.current[activeTab] = newLayer;
 
             // --- Enhanced Label Management Integration ---
+            // --- Added Defensive Checks ---
             if (labelManagerRef.current) {
               try {
                 // Configure label manager for this specific layer type with the provided options
-                if (
-                  typeof labelManagerRef.current.configureLayerSettings ===
-                  "function"
-                ) {
+                if (typeof labelManagerRef.current.configureLayerSettings === "function") {
                   labelManagerRef.current.configureLayerSettings(vizType);
+                } else {
+                   console.warn("[updateVisualizationLayer] configureLayerSettings method unavailable.");
                 }
 
                 // Scan this layer specifically for labels
-                if (
-                  typeof labelManagerRef.current
-                    ._findAndIntegrateExistingLabels === "function"
-                ) {
+                if (typeof labelManagerRef.current._findAndIntegrateExistingLabels === "function") {
                   setTimeout(() => {
-                    labelManagerRef.current._findAndIntegrateExistingLabels(
-                      newLayer
-                    );
+                    // Re-check ref
+                    if (labelManagerRef.current && typeof labelManagerRef.current._findAndIntegrateExistingLabels === 'function') {
+                        labelManagerRef.current._findAndIntegrateExistingLabels(newLayer);
+                    } else {
+                       console.warn("[updateVisualizationLayer] _findAndIntegrateExistingLabels method unavailable inside timeout.");
+                    }
+
 
                     // Force a refresh of all labels after label integration
                     setTimeout(() => {
-                      if (
-                        typeof labelManagerRef.current.refreshLabels ===
-                        "function"
-                      ) {
+                      // Re-check ref
+                      if (labelManagerRef.current && typeof labelManagerRef.current.refreshLabels === "function") {
                         labelManagerRef.current.refreshLabels();
-                        console.log(
-                          `[updateVisualizationLayer] Refreshed labels for ${vizType} layer`
-                        );
+                        console.log(`[updateVisualizationLayer] Refreshed labels for ${vizType} layer`);
+                      } else {
+                         console.warn("[updateVisualizationLayer] refreshLabels method unavailable inside timeout.");
                       }
                     }, 500);
                   }, 200);
+                } else {
+                   console.warn("[updateVisualizationLayer] _findAndIntegrateExistingLabels method unavailable.");
                 }
 
-                console.log(
-                  `[updateVisualizationLayer] Configured label manager for ${vizType}`
-                );
+                console.log(`[updateVisualizationLayer] Configured label manager for ${vizType}`);
               } catch (labelError) {
-                console.error(
-                  `[updateVisualizationLayer] Error setting up labels for ${vizType}:`,
-                  labelError
-                );
+                console.error(`[updateVisualizationLayer] Error setting up labels for ${vizType}:`, labelError);
               }
             } else {
-              console.warn(
-                `[updateVisualizationLayer] Label manager not available for ${vizType}`
-              );
+              console.warn(`[updateVisualizationLayer] Label manager not available for ${vizType}`);
             }
+            // --- End Defensive Checks ---
             // --- End Enhanced Label Management ---
 
             // Call specific handlers
@@ -1208,7 +1292,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
                 hideLayersNotInCurrentView: false,
               },
             ];
-            legend.visible = !isEditorOpen;
+            legend.visible = !isEditorOpen && !isLabelEditorOpen; // Hide if EITHER editor is open
           } catch (layerError) {
             console.error(
               "Error waiting for new layer or updating legend:",
@@ -1240,209 +1324,190 @@ const handleCompVisualization = async (tabData, layer = null) => {
   };
 
   /**
-   * Handle switching between tabs, including proper layer management and label persistence
-   *
-   * @param {number|string} tabId - The ID of the tab to switch to
-   * @returns {Promise<void>}
+   * Apply saved label positions to a newly created layer
+   * @param {Object} layer - The newly created layer
    */
-  const handleTabClick = async (tabId) => {
-    console.log(`Switching to tab: ${tabId}`);
+  const applyLabelsToLayer = (layer) => {
+    if (!layer) return;
 
-    // Update active tab state first to ensure UI responsiveness
-    setActiveTab(tabId);
-
-    // Update the tabs array state, ensuring only one tab is active and closing any editors
-    const newTabs = tabs.map((tab) => ({
-      ...tab,
-      active: tab.id === tabId,
-      isEditing: false, // Close any open editing when switching tabs
-    }));
-    setTabs(newTabs);
-
-    // Get the selected tab data from our newly updated tabs array
-    const selectedTab = newTabs.find((tab) => tab.id === tabId);
-    if (!selectedTab) {
-      console.error(`Could not find tab data for ID: ${tabId}`);
-      return;
-    }
-
-    // Verify the map is ready
-    if (!mapView?.map) {
-      console.warn("Map view not ready during tab click.");
-      return;
-    }
-
-    // --- Important: Save any pending label edits before switching tabs ---
-    if (labelManagerRef.current) {
-      console.log("[TabClick] Saving label positions before switching tabs");
-      try {
-        // Force save to ensure nothing is lost
-        const savedResult = labelManagerRef.current.savePositions(true);
-        console.log("[TabClick] Label position save result:", savedResult);
-      } catch (err) {
-        console.error("[TabClick] Error saving label positions:", err);
-      }
-    }
-
-    // --- Remove Existing Visualization Layers ---
-    const layersToRemove = [];
-    mapView.map.layers.forEach((layer) => {
-      if (layer && layer.isVisualizationLayer === true) {
-        layersToRemove.push(layer);
-      }
-    });
-
-    if (layersToRemove.length > 0) {
-      console.log(
-        `[TabClick] Removing ${layersToRemove.length} existing visualization layers.`
+    try {
+      // Get any saved positions from localStorage
+      const storageKey = "customLabelPositions";
+      const storedPositions = JSON.parse(
+        localStorage.getItem(storageKey) || "{}"
       );
-      mapView.map.removeMany(layersToRemove);
-    }
+      const positionCount = Object.keys(storedPositions).length;
 
-    // --- Reset Legend ---
-    if (legend) {
-      legend.layerInfos = []; // Clear legend infos
-      legend.visible = false; // Hide legend initially
-      console.log("[TabClick] Cleared and hid legend.");
-    }
+      if (positionCount === 0) {
+        console.log("[Map] No saved label positions found in localStorage");
+        return;
+      }
 
-    // --- Add New Layer if Applicable ---
-    if (tabId !== 1 && selectedTab.visualizationType) {
       console.log(
-        `[TabClick] Tab ${tabId} has visualization: ${selectedTab.visualizationType}. Creating layer.`
+        `[Map] Found ${positionCount} saved label positions in localStorage`
       );
 
-      // Normalize visualization type
-      let vizType = selectedTab.visualizationType;
-      if (vizType === "pipeline") vizType = "pipe";
-      if (vizType === "comps") vizType = "comp";
-
-      try {
-        // Create and add new layer for visualization tabs
-        const newLayer = await createLayers(
-          vizType,
-          selectedTab.layerConfiguration,
-          initialLayerConfigurations,
-          selectedTab.areaType
-        );
-
-        if (
-          !newLayer ||
-          !(
-            newLayer instanceof FeatureLayer ||
-            newLayer instanceof GraphicsLayer
-          )
-        ) {
-          throw new Error(
-            `Failed to create layer for visualization type: ${vizType}`
-          );
+      // Wait for layer items to be accessible
+      setTimeout(() => {
+        if (!layer.graphics?.items) {
+          console.warn("[Map] Layer graphics not accessible");
+          return;
         }
+
+        // Find all labels in this layer
+        const labelGraphics = layer.graphics.items.filter(
+          (graphic) =>
+            graphic.symbol?.type === "text" ||
+            graphic.attributes?.isLabel === true
+        );
 
         console.log(
-          `[TabClick] Created new layer: "${newLayer.title}". Adding to map.`
+          `[Map] Found ${labelGraphics.length} label graphics in layer ${layer.id}`
         );
 
-        // Ensure visualization properties are set
-        newLayer.isVisualizationLayer = true;
-        newLayer.visualizationType = vizType;
+        let appliedCount = 0;
 
-        // Add layer to map
-        mapView.map.add(newLayer, 0);
+        // Apply positions to each label graphic
+        labelGraphics.forEach((label) => {
+          if (!label?.symbol) return;
 
-        // Store reference to active layer if needed
-        if (activeLayersRef?.current) {
-          activeLayersRef.current[tabId] = newLayer;
-          console.log(`[TabClick] Stored layer reference for tab ${tabId}`);
-        }
+          // Generate the label ID the same way LabelEditor does
+          const labelId = (() => {
+            if (!label || !label.attributes) return null;
 
-        // --- Handle Special Layer Types ---
-        const specialTypes = ["pipe", "comp", "custom"];
-        const isSpecialType = specialTypes.includes(vizType);
+            // First check for layer information
+            const layerPrefix = label.layer?.id ? `${label.layer.id}-` : "";
 
-        if (isSpecialType) {
-          // Type-specific handling
-          if (vizType === "pipe") {
-            await handlePipeVisualization(selectedTab, newLayer);
-          } else if (vizType === "comp") {
-            await handleCompVisualization(selectedTab);
-          } else if (vizType === "custom") {
-            await handleCustomDataVisualization(selectedTab);
-          }
+            // Prioritize explicit IDs
+            if (label.attributes?.labelId)
+              return `${layerPrefix}explicit-${label.attributes.labelId}`;
+            if (label.attributes?.id)
+              return `${layerPrefix}${label.attributes.id}`;
 
-          // Handle custom legend for special types if needed
-          setCustomLegendContent({
-            type: vizType,
-            config: selectedTab.layerConfiguration,
-          });
-        }
+            // Check for OBJECTID (most common scenario)
+            if (label.attributes?.OBJECTID) {
+              if (label.attributes?.isLabel) {
+                // Label with parent ID reference
+                if (label.attributes.parentID !== undefined) {
+                  return `${layerPrefix}oid-label-${label.attributes.parentID}`;
+                } else {
+                  return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
+                }
+              } else {
+                return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
+              }
+            }
 
-        // --- Update Legend ---
-        if (legend && !isSpecialType) {
-          try {
-            await newLayer.when();
-            console.log(
-              "[TabClick] Updating Esri legend for layer:",
-              newLayer.title
-            );
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || vizType,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = !isEditorOpen;
-          } catch (layerError) {
-            console.error("[TabClick] Error setting up legend:", layerError);
-            legend.visible = false;
-          }
-        }
+            // Check for parentID which is commonly used for labels
+            if (label.attributes?.parentID) {
+              return `${layerPrefix}oid-label-${label.attributes.parentID}`;
+            }
 
-        // --- Critical: Load saved label positions after layer creation ---
-        if (labelManagerRef.current) {
-          // Give the layer a moment to fully initialize
-          setTimeout(() => {
+            // Last resort - this is used when nothing else is available
+            return `${layerPrefix}graphic-uid-${label.uid}`;
+          })();
+
+          // Check if we have a saved position for this label
+          if (labelId && storedPositions[labelId]) {
+            const savedPos = storedPositions[labelId];
+
+            // Create a new symbol with the saved position
             try {
-              console.log(
-                `[TabClick] Loading saved label positions for ${vizType} layer`
-              );
-              const loadResult = labelManagerRef.current.loadPositions(
-                true,
-                true
-              );
-              console.log(
-                `[TabClick] Loaded ${
-                  loadResult.count || 0
-                } saved label positions`
-              );
+              const newSymbol = label.symbol.clone();
 
-              // Configure label manager for specific visualization type
-              labelManagerRef.current.configureLayerSettings(vizType);
+              // Apply position
+              if (savedPos.position) {
+                newSymbol.xoffset = savedPos.position.x;
+                newSymbol.yoffset = savedPos.position.y;
+              }
+
+              // Apply font size if available
+              if (savedPos.fontSize && newSymbol.font) {
+                newSymbol.font = {
+                  ...newSymbol.font,
+                  size: savedPos.fontSize,
+                };
+              }
+
+              // Apply text if available
+              if (savedPos.text) {
+                newSymbol.text = savedPos.text;
+              }
+
+              // Mark as edited with flags
+              if (label.attributes) {
+                label.attributes._isEdited = true;
+                label.attributes._permanentEdit = true;
+                label.attributes._userEdited = true;
+                label.attributes._preserveOnRefresh = true;
+                label.attributes._preventAutoHide = true;
+              }
+
+              // Apply the updated symbol
+              label.symbol = newSymbol;
+              label.visible = savedPos.visible !== false;
+
+              appliedCount++;
             } catch (err) {
               console.error(
-                "[TabClick] Error loading saved label positions:",
+                `[Map] Error applying saved position to label ${labelId}:`,
                 err
               );
             }
-          }, 500);
-        }
-      } catch (error) {
-        console.error(`[TabClick] Error creating or configuring layer:`, error);
-        if (legend) legend.visible = false;
-        setCustomLegendContent(null);
-      }
-    } else {
-      // Core Map or no visualization case
-      console.log(
-        `[TabClick] Tab ${tabId} is Core Map or has no visualization. No layer added.`
-      );
-      if (legend) legend.visible = false;
-      setCustomLegendContent(null);
-    }
+          }
+        });
 
-    console.log(
-      `[TabClick] Finished handling click for tab ${tabId}. Active tab is now ${tabId}.`
-    );
+        console.log(
+          `[Map] Applied ${appliedCount} saved positions to labels in layer ${layer.id}`
+        );
+
+        // Refresh the layer to show the changes
+        if (appliedCount > 0 && typeof layer.refresh === "function") {
+          layer.refresh();
+          console.log(
+            `[Map] Refreshed layer ${layer.id} after applying saved positions`
+          );
+        }
+      }, 500); // Delay to ensure graphics are loaded
+    } catch (error) {
+      console.error("[Map] Error applying saved label positions:", error);
+    }
+  };
+
+  const handleTabClick = async (tabId) => {
+    console.log(`[TabClick] Clicked tab: ${tabId}. Current label editor open: ${isLabelEditorOpen}`);
+  
+    // Save pending edits if exiting label edit mode
+    if (isLabelEditorOpen) {
+      console.log("[TabClick] Was in label edit mode. Saving positions...");
+      // Use the memoized save function (which has internal checks)
+      saveLabelPositions(true); // Force save immediately
+  
+      // Exit label edit mode (state and manager)
+      setIsLabelEditorOpen(false); // Close the editor panel
+      // Turn off editing mode in the manager
+      if (labelManagerRef.current && typeof labelManagerRef.current.toggleEditingMode === 'function') {
+        try {
+          labelManagerRef.current.toggleEditingMode(false);
+        } catch (toggleError) {
+          console.error("[TabClick] Error toggling label manager mode off:", toggleError);
+        }
+      } else {
+         console.warn("[TabClick] Cannot toggle label manager mode off: Ref invalid or method missing.");
+      }
+    }
+  
+    // Update the active tab state
+    console.log(`[TabClick] Setting active tab to: ${tabId}`);
+    setActiveTab(tabId);
+    
+    // Update tabs array to mark the clicked tab as active and others as inactive
+    setTabs(prevTabs => prevTabs.map(tab => ({
+      ...tab,
+      active: tab.id === tabId
+    })));
+  
+    console.log(`[TabClick] Tab switch process complete for tab: ${tabId}`);
   };
 
   const handleAreaTypeChange = async (tabId, newAreaType) => {
@@ -1485,6 +1550,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
       // --- Layer Removal ---
       const layersToRemove = [];
       mapView.map.layers.forEach((layer) => {
+        // FIX: Use optional chaining
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
@@ -1537,7 +1603,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
                 hideLayersNotInCurrentView: false,
               },
             ];
-            legend.visible = !isEditorOpen; // Show if editor isn't open
+            legend.visible = !isEditorOpen && !isLabelEditorOpen; // Show if NO editor is open
           } catch (layerError) {
             console.error(
               "[AreaChange] Error waiting for FeatureLayer or updating legend:",
@@ -1629,21 +1695,22 @@ const handleCompVisualization = async (tabData, layer = null) => {
             // Remove existing visualization layers
             const layersToRemove = [];
             mapView.map.layers.forEach((layer) => {
-              if (layer.get("isVisualizationLayer")) {
+              // FIX: Use optional chaining
+              if (layer?.isVisualizationLayer) {
                 layersToRemove.push(layer);
               }
             });
             layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
             // Add new layer
-            newLayer.set("isVisualizationLayer", true);
+            newLayer.isVisualizationLayer = true; // Set directly
             mapView.map.add(newLayer, 0);
           }
         }
       }}
-      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-        bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-        text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
+        bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+        text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
         focus:ring-blue-500 focus:border-blue-500"
     >
       {areaTypes.map((type) => (
@@ -1698,138 +1765,57 @@ const handleCompVisualization = async (tabData, layer = null) => {
     // Open the dialog instead of immediately creating a tab
     setIsNewMapDialogOpen(true);
   };
-  /**
-   * Enhanced handleCreateMap function with improved label handling
-   * This will properly integrate label options from the dialog into the layer configuration
-   */
+
   const handleCreateMap = (mapData) => {
-    // Log the data received from the dialog
-    console.log(
-      "[MapComponent handleCreateMap] Received map data:",
-      JSON.stringify(
-        mapData,
-        (k, v) => (k === "data" ? `[${v?.length} items]` : v),
-        2
-      )
-    );
+    // *** SIMPLIFIED LOGGING ***
+    console.log("[MapComponent handleCreateMap] Received map data:", mapData);
 
-    // --- Calculate the next default map number (e.g., "Map 2", "Map 3") ---
+    // Ensure mapData is valid before proceeding
+    if (!mapData || typeof mapData !== 'object') {
+        console.error("[MapComponent handleCreateMap] Invalid mapData received:", mapData);
+        setIsNewMapDialogOpen(false); // Close dialog even on error
+        return;
+    }
+
+    // --- (Keep logic for calculating next tab number, generating ID, determining name) ---
     const existingTabNumbers = tabs
-      .filter((tab) => tab.id !== 1 && tab.name && tab.name.startsWith("Map ")) // Filter non-core tabs named like "Map X"
-      .map((tab) => parseInt(tab.name.replace("Map ", ""), 10)) // Extract the number
-      .filter((num) => !isNaN(num)); // Keep only valid numbers
-
-    let nextTabNumber = 2; // Start default numbering at 2 (since "Core Map" is 1)
-    if (existingTabNumbers.length > 0) {
-      // Find the maximum existing number and add 1
-      nextTabNumber = Math.max(...existingTabNumbers) + 1;
+      .map(tab => tab.name.match(/Map (\d+)/)?.[1])
+      .filter(Boolean)
+      .map(Number);
+    let nextTabNumber = 2;
+    while (existingTabNumbers.includes(nextTabNumber)) {
+      nextTabNumber++;
     }
-    // Find the lowest available number starting from 2 if there are gaps
-    let currentNum = 2;
-    const sortedNumbers = existingTabNumbers.sort((a, b) => a - b);
-    for (const num of sortedNumbers) {
-      if (num === currentNum) {
-        currentNum++;
-      } else {
-        // Found a gap
-        nextTabNumber = currentNum;
-        break;
-      }
-    }
-    if (currentNum > Math.max(...sortedNumbers, 0)) {
-      nextTabNumber = currentNum; // Use the next number if no gaps found
-    }
-    // --- End calculating next tab number ---
+    const newTabId = Date.now(); // Simple unique ID for frontend
+    const newTabName = mapData.name?.trim() ? mapData.name.trim() : `Map ${nextTabNumber}`;
 
-    // Generate a unique ID for the new tab
-    const newTabId = Date.now();
-
-    // --- Determine the Tab Name ---
-    // Use the name from the dialog if provided and not empty, otherwise use the calculated default name.
-    const newTabName = mapData.name?.trim()
-      ? mapData.name.trim()
-      : `Map ${nextTabNumber}`;
-    // --- End Determine Tab Name ---
-
-    // --- Process map type and configuration ---
-    let vizType = mapData.visualizationType || mapData.type; // Get type from mapData
-    // Normalize type names if needed (e.g., pipeline -> pipe)
+    // --- (Keep logic for processing map type and configuration, including labelOptions) ---
+    let vizType = mapData.visualizationType || mapData.type;
     if (vizType === "pipeline") vizType = "pipe";
     if (vizType === "comps") vizType = "comp";
-    console.log(
-      `[MapComponent handleCreateMap] Normalized visualization type: ${vizType}`
-    );
-
-    let layerConfiguration = mapData.layerConfiguration; // Start with config from dialog
-    const areaType = mapData.areaType || areaTypes[0]; // Use areaType from dialog or default
-
-    // If it's a standard heatmap/dot density, Map.jsx might need to look up the initial config
-    // The dialog *should* pass null for layerConfiguration in this case.
-    if (
-      (mapData.type === "heatmap" || mapData.type === "dotdensity") &&
-      vizType &&
-      !layerConfiguration
-    ) {
-      console.log(
-        `[MapComponent handleCreateMap] Looking up initial config for standard type: ${vizType}`
-      );
-      layerConfiguration = initialLayerConfigurations[vizType];
-      // Ensure the 'type' property is set within the looked-up config if it wasn't already
-      if (layerConfiguration && !layerConfiguration.type) {
-        layerConfiguration.type = vizType;
-      }
-    } else if (layerConfiguration) {
-      // Ensure the 'type' property is consistent in the passed config
-      if (!layerConfiguration.type) {
-        layerConfiguration.type = vizType;
-      }
-      // Log the configuration being used for pipe/comp/custom
-      console.log(
-        `[MapComponent handleCreateMap] Using layerConfiguration passed from dialog for type ${vizType}:`,
-        layerConfiguration
-      );
-    } else {
-      console.warn(
-        `[MapComponent handleCreateMap] No layerConfiguration found or determined for type: ${vizType}`
-      );
-      // Assign null explicitly if configuration couldn't be determined
-      layerConfiguration = null;
-    }
-
-    // --- Enhanced: Ensure labelOptions are properly handled ---
+    console.log(`[MapComponent handleCreateMap] Normalized visualization type: ${vizType}`);
+    let layerConfiguration = mapData.layerConfiguration;
+    const areaType = mapData.areaType || areaTypes[0];
+    // ... (logic to look up initial config if needed) ...
+    // ... (logic to ensure labelOptions are included) ...
     if (layerConfiguration && mapData.labelOptions) {
-      // Make sure labelOptions from the dialog are included in the layer configuration
-      layerConfiguration.labelOptions = {
-        ...mapData.labelOptions,
-        // Include defaults for any missing values
-        fontSize: mapData.labelOptions.fontSize || 10,
-        includeVariables: mapData.labelOptions.includeVariables !== false,
-        avoidCollisions: mapData.labelOptions.avoidCollisions !== false,
-        visibleAtAllZooms: !!mapData.labelOptions.visibleAtAllZooms,
-      };
-      console.log(
-        `[MapComponent handleCreateMap] Applied label options to configuration:`,
-        layerConfiguration.labelOptions
-      );
+        layerConfiguration.labelOptions = { ...mapData.labelOptions }; // Ensure labelOptions are properly nested
+        console.log(`[MapComponent handleCreateMap] Applied label options to configuration:`, layerConfiguration.labelOptions);
     }
-    // --- End Process map type and configuration ---
 
-    // Create the new tab object to add to the state
+    // Create the new tab object
     const newTab = {
       id: newTabId,
-      configId: null, // Database ID will be assigned after saving
+      configId: null, // Will be set after saving to backend
       name: newTabName,
-      originalName: newTabName, // Store original name for editing
+      originalName: newTabName,
       active: true, // Set the new tab as active
       visualizationType: vizType,
-      areaType: areaType, // Use the determined areaType object
-      layerConfiguration: layerConfiguration, // Use the determined configuration
+      areaType: areaType,
+      layerConfiguration: layerConfiguration,
       isEditing: false,
     };
-    console.log(
-      "[MapComponent handleCreateMap] Creating new tab object:",
-      newTab
-    );
+    console.log("[MapComponent handleCreateMap] Creating new tab object:", newTab);
 
     // Update the tabs state: deactivate old tabs, add the new active tab
     const newTabs = [...tabs.map((tab) => ({ ...tab, active: false })), newTab];
@@ -1841,22 +1827,12 @@ const handleCompVisualization = async (tabData, layer = null) => {
     // Close the dialog
     setIsNewMapDialogOpen(false);
 
-    // --- Enhanced: Ensure immediate layer creation with labels ---
-    setTimeout(() => {
-      // Force immediate update to ensure the layer is created with labels
-      updateVisualizationLayer();
-
-      // Schedule a second update to guarantee labels are applied
-      setTimeout(() => {
-        if (labelManagerRef.current && labelManagerRef.current.refreshLabels) {
-          console.log(
-            "[MapComponent handleCreateMap] Refreshing labels after layer creation"
-          );
-          labelManagerRef.current.refreshLabels();
-        }
-      }, 1000);
-    }, 100);
+    // --- REMOVED setTimeout calls for updateVisualizationLayer and refreshLabels ---
+    // Let the main VizUpdate Effect handle this when state changes propagate
+    // and the Label Manager is ready.
+    console.log("[MapComponent handleCreateMap] State updated. Effects will handle layer creation/label refresh.");
   };
+
 
   const handleNameKeyDown = (tabId, e) => {
     if (e.key === "Enter") {
@@ -1889,10 +1865,17 @@ const handleCompVisualization = async (tabData, layer = null) => {
 
       // Update local state
       const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
+
+      // Ensure remainingTabs is not empty before accessing last element
+      if (remainingTabs.length === 0) {
+           console.error("Cannot delete the last tab."); // Or handle appropriately
+           return;
+      }
+
       const newActiveTab =
         activeTab === tabId
-          ? remainingTabs[remainingTabs.length - 1].id
-          : activeTab;
+          ? remainingTabs[remainingTabs.length - 1].id // Activate last remaining
+          : activeTab; // Keep current active if it wasn't the deleted one
 
       const newTabs = remainingTabs.map((tab) => ({
         ...tab,
@@ -1901,28 +1884,36 @@ const handleCompVisualization = async (tabData, layer = null) => {
 
       // Update UI state
       setTabs(newTabs);
-      setActiveTab(newActiveTab);
+      setActiveTab(newActiveTab); // Set the new active tab state
 
-      // Clear visualization if deleted tab was active
+      // Clear visualization if deleted tab was active and the new active tab is different
+      // Or if the deleted tab was the only one left besides Core Map
       if (activeTab === tabId && mapView?.map) {
+        console.log("Removing visualization layers after deleting active tab.");
         const layersToRemove = [];
         mapView.map.layers.forEach((layer) => {
-          if (layer.get("isVisualizationLayer")) {
+          // FIX: Use optional chaining
+          if (layer?.isVisualizationLayer) {
             layersToRemove.push(layer);
           }
         });
-        layersToRemove.forEach((layer) => mapView.map.remove(layer));
+        if (layersToRemove.length > 0) {
+            mapView.map.removeMany(layersToRemove);
+        }
 
         // Hide legend
         if (legend) {
           legend.visible = false;
         }
+        // Clear custom legend content
+        setCustomLegendContent(null);
       }
     } catch (error) {
       console.error("Error deleting tab configuration:", error);
       alert("Failed to delete map configuration");
     }
   };
+
 
   const convertAreaTypeToString = (value) => {
     if (typeof value === "string") return value;
@@ -1983,20 +1974,13 @@ const handleCompVisualization = async (tabData, layer = null) => {
         );
       });
 
-      // --- REMOVED onPreview CALL ---
-      // The main useEffect watching `tabs` will now handle re-rendering
-      // the layer based on this state update when the user implicitly
-      // confirms the change (e.g., by closing editor or saving).
-      // If live preview *on the main map* is essential during editing,
-      // the `onPreview` prop and `handleConfigPreview` function need
-      // careful implementation to manage temporary layers without
-      // conflicting with the main state/useEffect loop.
       console.log(
         "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
       );
     },
-    [activeTab, setTabs, tabs]
+    [activeTab] // Removed tabs from dependencies as setTabs handles closure correctly
   ); // Include dependencies for useCallback
+
 
   // Add this function to extract style properties consistently:
   const extractSymbolProperties = (config) => {
@@ -2037,6 +2021,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
       // --- Layer Removal ---
       const layersToRemove = [];
       mapView.map.layers.forEach((layer) => {
+        // FIX: Use optional chaining
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
@@ -2099,9 +2084,9 @@ const handleCompVisualization = async (tabData, layer = null) => {
         );
 
         if (effectiveType === "pipe") {
-          newLayer = createPipeLayer(configForCreator);
+          newLayer = await createPipeLayer(configForCreator); // Make await
         } else if (effectiveType === "comp") {
-          newLayer = createCompLayer(configForCreator);
+          newLayer = await createCompLayer(configForCreator); // Make await
         } else {
           // Assume custom if not pipe or comp
           newLayer = await createGraphicsLayerFromCustomData(configForCreator);
@@ -2169,6 +2154,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
       console.log("[Preview] Preview update finished.");
     }
   };
+
 
   /**
    * Creates properly formatted graphics for a market area with valid geometries
@@ -2509,6 +2495,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
     }
   };
 
+
   /**
    * Helper function to get map configurations - used with the API
    *
@@ -2535,1031 +2522,420 @@ const handleCompVisualization = async (tabData, layer = null) => {
    * @param {Object} labelOptions - Label configuration options
    * @returns {Promise<void>}
    */
-  const notifyLabelManagerAboutLayer = async (
-    layer,
-    layerType,
-    labelOptions = {}
-  ) => {
-    if (!layer || !labelManagerRef.current) {
-      console.log(
-        `[MapComponent] Cannot notify label manager: ${
-          !layer ? "layer is missing" : "label manager not initialized"
-        }`
-      );
-      return;
-    }
-
-    console.log(
-      `[MapComponent] Notifying label manager about new ${layerType} layer:`,
-      {
-        layerId: layer.id,
-        title: layer.title,
-        graphicsCount: layer.graphics?.length || 0,
-        labelOptions,
-      }
-    );
-
-    try {
-      // First, ensure the label manager has the appropriate settings for this layer type
-      labelManagerRef.current.configureLayerSettings(layerType);
-
-      // Special handling for different layer types
-      if (
-        layerType === "pipe" ||
-        layerType === "comp" ||
-        layerType === "custom"
-      ) {
-        // Enhanced label options for these point-based layers
-        const enhancedOptions = {
-          fontSize: labelOptions?.fontSize || 10,
-          includeVariables: labelOptions?.includeVariables !== false,
-          avoidCollisions: labelOptions?.avoidCollisions !== false,
-          visibleAtAllZooms: !!labelOptions?.visibleAtAllZooms,
-          // Add specific settings for each layer type
-          ...(layerType === "pipe"
-            ? {
-                padding: 8,
-                minDistanceBetweenLabels: 18,
-                maxLabelsVisible: 80,
-              }
-            : layerType === "comp"
-            ? {
-                padding: 12,
-                minDistanceBetweenLabels: 24,
-                maxLabelsVisible: 60,
-              }
-            : {
-                padding: 10,
-                minDistanceBetweenLabels: 20,
-                maxLabelsVisible: 75,
-              }),
-        };
-
+  const notifyLabelManagerAboutLayer = useCallback(
+    async (layer, layerType, labelOptions = {}) => {
+      // --- Added Defensive Checks ---
+      if (!layer || !labelManagerRef.current) {
         console.log(
-          `[MapComponent] Applying enhanced label options for ${layerType}:`,
-          enhancedOptions
+          `[MapComponent] Cannot notify label manager: ${
+            !layer ? "layer is missing" : "label manager not initialized"
+          }`
         );
+        return;
+      }
 
-        // Set the min/max zoom for label visibility based on configuration
-        if (enhancedOptions.visibleAtAllZooms) {
-          // Make labels visible at all zoom levels
-          if (labelManagerRef.current.updateOptions) {
-            labelManagerRef.current.updateOptions({
-              labelMinZoom: 0, // Visible at all zoom levels
-            });
-          }
+      console.log(
+        `[MapComponent] Notifying label manager about new ${layerType} layer:`,
+        {
+          layerId: layer.id,
+          title: layer.title,
+          graphicsCount: layer.graphics?.length || 0,
+          labelOptions,
+        }
+      );
+
+      try {
+        // First, ensure the label manager has the appropriate settings for this layer type
+        if (typeof labelManagerRef.current.configureLayerSettings === "function") {
+          labelManagerRef.current.configureLayerSettings(layerType);
+        } else {
+          console.warn("[MapComponent] configureLayerSettings method not found on label manager.");
         }
 
-        // Force a scan of this layer for labels
-        setTimeout(() => {
-          if (
-            labelManagerRef.current &&
-            labelManagerRef.current._findAndIntegrateExistingLabels
-          ) {
-            labelManagerRef.current._findAndIntegrateExistingLabels(layer);
-            console.log(
-              `[MapComponent] Integrated existing labels from ${layerType} layer`
-            );
+        // Special handling for different layer types
+        if (
+          layerType === "pipe" ||
+          layerType === "comp" ||
+          layerType === "custom"
+        ) {
+          // (Removed call to non-existent updateOptions)
+          // Enhanced options logic removed as updateOptions doesn't exist.
+          // Settings are applied via configureLayerSettings.
 
-            // Refresh all labels after a short delay to ensure proper display
+          // Force a processing of this layer for labels after a short delay
+          // --- CORRECTED CALL ---
+          if (typeof labelManagerRef.current.processLayer === "function") {
             setTimeout(() => {
+              // Re-check ref inside timeout
               if (
                 labelManagerRef.current &&
-                labelManagerRef.current.refreshLabels
+                typeof labelManagerRef.current.processLayer === "function"
               ) {
-                labelManagerRef.current.refreshLabels();
+                labelManagerRef.current.processLayer(layer); // Use public method
                 console.log(
-                  `[MapComponent] Refreshed labels for ${layerType} layer`
+                  `[MapComponent] Processed labels from ${layerType} layer`
                 );
-              }
-            }, 500);
-          }
-        }, 200);
-      }
 
-      // Mark this layer as managed by the label manager
-      layer._labelManagerIntegrated = true;
-    } catch (error) {
-      console.error(
-        `[MapComponent] Error notifying label manager about ${layerType} layer:`,
-        error
-      );
-    }
-  };
-
-  /**
-   * Updated version of setupLabelManagement to ensure it's properly handling all layer types
-   */
-  const setupLabelManagement = useCallback(() => {
-    if (!mapView || !mapView.ready || labelManagerRef.current) {
-      // Skip if mapView not ready OR label manager already exists
-      return;
-    }
-
-    console.log("[MapComponent] Setting up label layer management for map");
-
-    // Initialize the label layer manager with settings that work well with existing labels
-    labelManagerRef.current = initializeLabelLayerManager(mapView, {
-      labelMinZoom: 8, // Lower zoom level to make labels visible earlier
-      fontSizeRange: [9, 14], // Size range
-      haloSize: 2.5, // Halo for better visibility
-      haloColor: [255, 255, 255, 0.95],
-      padding: 10,
-      minDistanceBetweenLabels: 20,
-      maxLabelsVisible: 100, // Higher limit for dense maps
-      // Enhanced scanning capabilities
-      autoScanLayers: true, // Automatically scan all layers
-      scanInterval: 2000, // Scan for new labels every 2 seconds
-      scanCustomTypes: ["comp", "pipe", "custom"], // Look for these custom layer types
-    });
-
-    // Process the map to ensure all existing labels are integrated
-    setTimeout(() => {
-      // Force the manager to scan all layers for existing labels
-      if (labelManagerRef.current) {
-        // Look for visualization layers first
-        mapView.map.layers.forEach((layer) => {
-          if (layer.isVisualizationLayer && layer.visualizationType) {
-            console.log(
-              `[MapComponent] Found visualization layer to integrate: ${layer.title} (${layer.visualizationType})`
-            );
-            if (labelManagerRef.current._findAndIntegrateExistingLabels) {
-              labelManagerRef.current._findAndIntegrateExistingLabels(layer);
-            }
-          }
-        });
-
-        // Then refresh all labels
-        labelManagerRef.current.refreshLabels();
-        console.log("[MapComponent] Forced initial label refresh");
-      }
-    }, 1500); // Increased delay to ensure all layer processing completes
-
-    console.log("[MapComponent] Label layer management initialized");
-  }, [mapView]);
-
-  // With this:
-  if (labelManagerRef.current) {
-    try {
-      // Save any pending changes
-      labelManagerRef.current.saveLabels();
-      // Clean up
-      labelManagerRef.current.destroy();
-      labelManagerRef.current = null;
-    } catch (err) {
-      console.error("[Map] Error during label manager cleanup:", err);
-    }
-  }
-
-  // Add this cleanup in your main component unmount useEffect
-  useEffect(() => {
-    // Existing initialization code
-
-    return () => {
-      // Clean up event listeners for drawing tools
-      if (mapView?.drawingHandlers) {
-        const { mousedown, contextmenu, mousemove, mouseup, mouseleave } =
-          mapView.drawingHandlers;
-        if (mapView.container) {
-          mapView.container.removeEventListener("mousedown", mousedown);
-          mapView.container.removeEventListener("contextmenu", contextmenu);
-          mapView.container.removeEventListener("mousemove", mousemove);
-          mapView.container.removeEventListener("mouseup", mouseup);
-          mapView.container.removeEventListener("mouseleave", mouseleave);
-        }
-      }
-
-      // Enhanced label manager cleanup
-      if (labelManagerRef.current) {
-        try {
-          // First ensure edits are properly marked for persistence
-          if (
-            typeof labelManagerRef.current.markSavedPositionsAsEdited ===
-            "function"
-          ) {
-            labelManagerRef.current.markSavedPositionsAsEdited();
-          }
-
-          // Force save with maximum persistence
-          if (typeof labelManagerRef.current.savePositions === "function") {
-            const result = labelManagerRef.current.savePositions(true);
-            console.log(
-              `[Map] Final save of ${
-                result?.count || 0
-              } label positions before component unmount`
-            );
-          }
-
-          // Then destroy
-          labelManagerRef.current.destroy();
-          labelManagerRef.current = null;
-        } catch (err) {
-          console.error(
-            "[Map] Error during enhanced label manager cleanup:",
-            err
-          );
-        }
-      }
-
-      // Clean up rectangle element
-      if (rectangleRef.current && mapRef.current) {
-        if (mapRef.current.contains(rectangleRef.current)) {
-          mapRef.current.removeChild(rectangleRef.current);
-        }
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initializeMap = async () => {
-      try {
-        console.log("Starting map initialization...");
-
-        // Validate API Key
-        const apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
-        if (!apiKey) {
-          console.error("ArcGIS API Key is missing");
-          return;
-        }
-
-        // Configure ArcGIS
-        esriConfig.apiKey = apiKey;
-        esriConfig.assetsPath =
-          "https://js.arcgis.com/4.31/@arcgis/core/assets/";
-
-        // Create map with standard basemap
-        const map = new Map({
-          basemap: "streets-navigation-vector",
-        });
-
-        // Create view with comprehensive error handling
-        const view = new MapView({
-          container: mapRef.current,
-          map: map,
-          center: [-98, 39],
-          zoom: 4,
-          constraints: {
-            rotationEnabled: false,
-            minZoom: 2,
-            maxZoom: 20,
-          },
-          navigation: {
-            actionMap: {
-              mouseWheel: {
-                enabled: false,
-              },
-            },
-            browserTouchPanEnabled: true,
-            momentumEnabled: true,
-            keyboardNavigation: true,
-          },
-        });
-
-        console.log("Waiting for view to be ready...");
-        // Wait for the view to be ready before proceeding
-        await view.when();
-        console.log("View is now ready!");
-
-        // Custom mouse wheel zoom handler
-        view.constraints.snapToZoom = false; // Allow fractional zoom levels
-
-        // Enhanced mouse wheel zoom handler with DEBUG LOGGING
-        view.on("mouse-wheel", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-
-          const state = scrollStateRef.current;
-          const now = Date.now();
-          const timeDiff = now - (state.lastScrollTime || now); // Handle initial scroll
-
-          const scrollDeltaY = event.native.deltaY;
-          const currentDirection = scrollDeltaY < 0 ? 1 : -1; // 1 = zoom in, -1 = zoom out
-
-          console.log(`\n--- Wheel Event ---`); // Separator for clarity
-          console.log(
-            `Time: ${now}, LastTime: ${state.lastScrollTime}, Diff: ${timeDiff}ms`
-          );
-          console.log(
-            `Direction: ${currentDirection}, LastDirection: ${state.lastScrollDirection}, Current Streak: ${state.scrollStreak}`
-          );
-
-          // --- Streak Logic ---
-          const resetThreshold = 250; // ms - Pause threshold
-          const accelerateThreshold = 120; // ms - Continuous scroll threshold
-
-          // Clear previous reset timer
-          if (state.timeoutId) {
-            clearTimeout(state.timeoutId);
-            state.timeoutId = null; // Clear the ID
-          }
-
-          let streakIncremented = false;
-          if (
-            timeDiff < resetThreshold &&
-            currentDirection === state.lastScrollDirection &&
-            state.lastScrollDirection !== 0
-          ) {
-            // Scrolling continued in the same direction without too long a pause
-            if (timeDiff < accelerateThreshold) {
-              // Fast enough to increase streak
-              state.scrollStreak++;
-              streakIncremented = true;
-              console.log(
-                `   Streak INCREMENTED to: ${state.scrollStreak} (timeDiff < accelerateThreshold)`
-              );
-            } else {
-              // Scrolled again in same direction, but paused slightly - MAINTAIN streak (removed reset to 1)
-              console.log(
-                `   Streak MAINTAINED at: ${state.scrollStreak} (accelerateThreshold <= timeDiff < resetThreshold)`
-              );
-              // Keep state.scrollStreak as is, don't reset to 1
-            }
-          } else {
-            // Direction changed or paused too long - reset streak
-            console.log(
-              `   Streak RESET to 1 (timeDiff >= resetThreshold or direction changed)`
-            );
-            state.scrollStreak = 1;
-          }
-          // --- End Streak Logic ---
-
-          // --- Calculate Zoom Delta ---
-          const baseZoomDelta = 0.08;
-          const streakBonus = 0.2; // Slightly increased bonus for testing
-          const maxAccelerationFactor = 5.0;
-
-          // Acceleration factor increases only AFTER the first scroll in a streak
-          const accelerationFactor = Math.min(
-            1 + streakBonus * Math.max(0, state.scrollStreak - 1),
-            maxAccelerationFactor
-          );
-
-          const finalZoomDelta =
-            baseZoomDelta * accelerationFactor * currentDirection;
-          console.log(
-            `   BaseDelta: ${baseZoomDelta}, AccelFactor: ${accelerationFactor.toFixed(
-              2
-            )}, FinalDelta: ${finalZoomDelta.toFixed(4)}`
-          );
-          // --- End Calculate Zoom Delta ---
-
-          // --- Apply Zoom ---
-          const currentZoom = view.zoom;
-          let newZoom = currentZoom + finalZoomDelta;
-          newZoom = Math.min(
-            Math.max(newZoom, view.constraints.minZoom),
-            view.constraints.maxZoom
-          );
-          console.log(
-            `   CurrentZoom: ${currentZoom.toFixed(
-              4
-            )}, NewZoom Clamped: ${newZoom.toFixed(4)}`
-          );
-
-          if (Math.abs(newZoom - currentZoom) > 0.001) {
-            console.log(`   Applying goTo with zoom: ${newZoom.toFixed(4)}`);
-            view
-              .goTo(
-                { zoom: newZoom, center: view.center },
-                { duration: 60, easing: "linear", animate: true }
-              )
-              .catch((error) => {
-                if (error.name !== "AbortError")
-                  console.error("goTo Error:", error);
-              });
-          } else {
-            console.log(`   Skipping goTo (zoom change too small)`);
-          }
-          // --- End Apply Zoom ---
-
-          // --- Update State for Next Event ---
-          state.lastScrollTime = now;
-          state.lastScrollDirection = currentDirection;
-
-          // Set a timer to reset the streak if the user stops scrolling
-          state.timeoutId = setTimeout(() => {
-            console.log(
-              `--- Wheel Timeout (${resetThreshold}ms): Resetting streak ---`
-            );
-            state.scrollStreak = 0;
-            state.lastScrollDirection = 0;
-            state.timeoutId = null;
-          }, resetThreshold);
-          // --- End Update State ---
-        });
-
-        // Initialize the rectangle drawing functionality
-        initializeDrawingTools(view);
-
-        console.log("Adding UI widgets...");
-        // Add non-legend widgets first
-        const widgets = [
-          {
-            widget: new Home({ view }),
-            position: "top-left",
-          },
-          {
-            widget: new ScaleBar({
-              view,
-              unit: "imperial",
-            }),
-            position: "top-left",
-          },
-        ];
-
-        widgets.forEach(({ widget, position }) => {
-          view.ui.add(widget, position);
-        });
-
-        if (isMounted) {
-          console.log("Finalizing map setup...");
-          // Set map readiness flag and view in context
-          view.ready = true;
-          setMapView(view);
-          console.log("[MapContext] Map view initialized and ready");
-
-          // Initialize legend after map is ready
-          const legendWidget = new Legend({
-            view,
-            container: document.createElement("div"),
-            layerInfos: [],
-            visible: false,
-          });
-
-          // Add legend to the view but keep it hidden initially
-          view.ui.add(legendWidget, "bottom-left");
-          setLegend(legendWidget);
-
-          // Initialize the universal label manager with enhanced options
-          if (!labelManagerRef.current) {
-            console.log("[Map] Initializing universal label manager");
-            labelManagerRef.current = initializeUniversalLabelManager(view, {
-              // Universal settings that work well in all scenarios
-              labelMinZoom: 8, // Lower value to show labels earlier when zooming
-              layoutStrategy: "advanced",
-              maxLabelsVisible: 80, // Increased to show more labels
-              fontSizeRange: [9, 14], // Allow slightly larger fonts
-              haloSize: 2,
-              haloColor: [255, 255, 255, 0.95], // Increased opacity for better visibility
-              padding: 10,
-              minDistanceBetweenLabels: 18, // Reduced to allow more labels in dense areas
-              priorityAttributes: ["TotalUnits", "value", "priority"],
-              densityAware: true,
-              useSpatialClustering: true,
-              textTransform: "none",
-              deduplicateLabels: true,
-              maxLabelDistance: 70,
-              preventLabelOverlap: true,
-              labelPlacementPreference: [
-                "top",
-                "right",
-                "bottom",
-                "left",
-                "top-right",
-                "bottom-right",
-                "bottom-left",
-                "top-left",
-              ],
-              // CRITICAL: Add auto-loading of saved positions
-              autoLoadPositions: true,
-              autoSaveInterval: 15000, // Auto-save every 15 seconds
-            });
-
-            console.log(
-              "[Map] Universal label manager initialized with auto-loading"
-            );
-
-            // Explicitly trigger the first load with a slight delay
-            setTimeout(() => {
-              try {
-                if (
-                  labelManagerRef.current &&
-                  labelManagerRef.current.loadPositions
-                ) {
-                  console.log("[Map] Initial loading of saved label positions");
-                  const loadResult = labelManagerRef.current.loadPositions(
-                    true,
-                    true
-                  );
-                  console.log(
-                    `[Map] Loaded ${
-                      loadResult.count || 0
-                    } saved label positions`
-                  );
-                }
-              } catch (err) {
-                console.error(
-                  "[Map] Error loading initial label positions:",
-                  err
-                );
-              }
-            }, 1000);
-          }
-        }
-      } catch (error) {
-        console.error("[Map] Error initializing map:", error, error.stack);
-      }
-    };
-
-    // Trigger map initialization
-    initializeMap();
-
-    // Enhanced cleanup function
-    return () => {
-      isMounted = false;
-      if (labelManagerRef.current) {
-        try {
-          // First mark all positions as edited to ensure persistence
-          if (
-            typeof labelManagerRef.current.markSavedPositionsAsEdited ===
-            "function"
-          ) {
-            labelManagerRef.current.markSavedPositionsAsEdited();
-            console.log(
-              "[Map] Marked saved label positions as edited before unmounting"
-            );
-          }
-
-          // Then save all positions with forced persistence
-          labelManagerRef.current.savePositions(true);
-          console.log("[Map] Saved label positions before unmounting");
-
-          // Destroy the label manager
-          labelManagerRef.current.destroy();
-          labelManagerRef.current = null;
-        } catch (err) {
-          console.error("[Map] Error cleaning up label manager:", err);
-        }
-      }
-    };
-  }, []);
-
-  // Style legend whenever it changes
-  useEffect(() => {
-    if (!legend) return;
-
-    const styleLegend = () => {
-      const legendContainer = document.querySelector(".esri-legend");
-      if (legendContainer) {
-        legendContainer.style.backgroundColor = "white";
-        legendContainer.style.padding = "1rem";
-        legendContainer.style.margin = "0.5rem";
-        legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
-        legendContainer.style.borderRadius = "0.375rem";
-        legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-
-        // Style the legend title
-        const legendTitle = legendContainer.querySelector(
-          ".esri-legend__service-label"
-        );
-        if (legendTitle) {
-          legendTitle.style.fontWeight = "600";
-          legendTitle.style.fontSize = "0.875rem";
-          legendTitle.style.marginBottom = "0.75rem";
-          legendTitle.style.color = "#111827";
-        }
-
-        // Style individual legend items
-        const legendItems = legendContainer.querySelectorAll(
-          ".esri-legend__layer-row"
-        );
-        legendItems.forEach((item) => {
-          item.style.display = "flex";
-          item.style.alignItems = "center";
-          item.style.marginBottom = "0.5rem";
-        });
-
-        // Style the color swatches
-        const swatches = legendContainer.querySelectorAll(
-          ".esri-legend__symbol"
-        );
-        swatches.forEach((swatch) => {
-          swatch.style.width = "1rem";
-          swatch.style.height = "1rem";
-          swatch.style.marginRight = "0.5rem";
-        });
-
-        // Style the labels
-        const labels = legendContainer.querySelectorAll(
-          ".esri-legend__layer-cell--info"
-        );
-        labels.forEach((label) => {
-          label.style.fontSize = "0.875rem";
-          label.style.color = "#4B5563";
-        });
-      }
-    };
-
-    styleLegend();
-  }, [legend]);
-
-  // Updated initialization effect
-  useEffect(() => {
-    // Load auto-saved configurations on mount
-    const initConfigs = async () => {
-      await loadMapConfigurations(AUTO_SAVE_KEY, false);
-
-      // Force update visualization layers and legend for all loaded tabs
-      const loadedTabs = tabs.filter(
-        (tab) => tab.id !== 1 && tab.visualizationType
-      );
-      for (const tab of loadedTabs) {
-        const newLayer = createLayers(
-          tab.visualizationType,
-          tab.layerConfiguration,
-          initialLayerConfigurations,
-          tab.areaType
-        );
-
-        if (newLayer && mapView?.map) {
-          newLayer.set("isVisualizationLayer", true);
-          mapView.map.add(newLayer, 0);
-
-          if (legend && tab.active) {
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || tab.visualizationType,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = true;
-          }
-        }
-      }
-    };
-
-    initConfigs();
-  }, [mapView, legend]);
-
-  useEffect(() => {
-    return () => {
-      // Remove the rectangle element when component unmounts
-      if (rectangleRef.current && mapRef.current) {
-        if (mapRef.current.contains(rectangleRef.current)) {
-          mapRef.current.removeChild(rectangleRef.current);
-        }
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!legend || !mapView?.ready) return;
-
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    const hasVisualization = activeTabData?.visualizationType;
-    const shouldShowLegend =
-      activeTab !== 1 && hasVisualization && !isEditorOpen;
-
-    // Update legend visibility
-    legend.visible = shouldShowLegend;
-
-    if (shouldShowLegend) {
-      requestAnimationFrame(() => {
-        const styleLegend = () => {
-          const legendContainer = legend.container;
-          if (legendContainer) {
-            // Apply styles
-            legendContainer.style.backgroundColor = "white";
-            legendContainer.style.padding = "1rem";
-            legendContainer.style.margin = "0.5rem";
-            legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
-            legendContainer.style.borderRadius = "0.375rem";
-            legendContainer.style.boxShadow =
-              "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-
-            // Style legend title
-            const legendTitle = legendContainer.querySelector(
-              ".esri-legend__service-label"
-            );
-            if (legendTitle) {
-              legendTitle.style.fontWeight = "600";
-              legendTitle.style.fontSize = "0.875rem";
-              legendTitle.style.marginBottom = "0.75rem";
-              legendTitle.style.color = "#111827";
-            }
-
-            // Style legend items
-            const legendItems = legendContainer.querySelectorAll(
-              ".esri-legend__layer-row"
-            );
-            legendItems.forEach((item) => {
-              item.style.display = "flex";
-              item.style.alignItems = "center";
-              item.style.marginBottom = "0.5rem";
-            });
-
-            // Style color swatches
-            const swatches = legendContainer.querySelectorAll(
-              ".esri-legend__symbol"
-            );
-            swatches.forEach((swatch) => {
-              swatch.style.width = "1rem";
-              swatch.style.height = "1rem";
-              swatch.style.marginRight = "0.5rem";
-            });
-
-            // Style labels
-            const labels = legendContainer.querySelectorAll(
-              ".esri-legend__layer-cell--info"
-            );
-            labels.forEach((label) => {
-              label.style.fontSize = "0.875rem";
-              label.style.color = "#4B5563";
-            });
-          }
-        };
-
-        styleLegend();
-      });
-    }
-  }, [activeTab, legend, tabs, isEditorOpen, mapView?.ready]);
-
-  /**
-   * Enhanced visualization layer effect for handling map layer updates with proper label persistence
-   * This effect runs when active tab, tabs array, or map state changes to update visualization layers
-   * and ensures label edits are preserved across updates
-   */
-  useEffect(() => {
-    console.log(
-      "[VizUpdate Effect] TRIGGERED. Active Tab:",
-      activeTab,
-      "Tabs Count:",
-      tabs.length
-    );
-
-    // Skip update if prerequisites not met
-    if (!mapView?.map || isConfigLoading || !legend) {
-      console.log(
-        "[VizUpdate Effect] Map/Legend not ready or configs loading, skipping update."
-      );
-      return;
-    }
-
-    // Track component mounted state for async operations
-    let isMounted = true;
-    const abortController = new AbortController();
-
-    const updateVisualizationAndLegend = async () => {
-      console.log("[VizUpdate Effect] Starting update...");
-
-      try {
-        // --- Save current label positions before layer changes with enhanced persistence ---
-        if (labelManagerRef.current) {
-          try {
-            console.log("[VizUpdate Effect] Saving current label positions");
-            const saveResult = labelManagerRef.current.savePositions(true);
-            console.log(
-              `[VizUpdate Effect] Saved ${
-                saveResult.count || 0
-              } label positions`
-            );
-
-            // Mark saved positions as edited to ensure they persist through layer changes
-            if (
-              typeof labelManagerRef.current.markSavedPositionsAsEdited ===
-              "function"
-            ) {
-              labelManagerRef.current.markSavedPositionsAsEdited();
-              console.log(
-                "[VizUpdate Effect] Marked saved positions as edited for persistence"
-              );
-            }
-          } catch (err) {
-            console.error(
-              "[VizUpdate Effect] Error saving label positions:",
-              err
-            );
-          }
-        }
-
-        // --- Remove existing visualization layers ---
-        const layersToRemove = [];
-        const remainingLayerIds = new Set();
-
-        mapView.map.layers.forEach((layer) => {
-          if (layer && layer.isVisualizationLayer === true) {
-            layersToRemove.push(layer);
-          } else if (layer) {
-            remainingLayerIds.add(layer.id);
-          }
-        });
-
-        if (layersToRemove.length > 0) {
-          console.log(
-            `[VizUpdate Effect] Removing ${layersToRemove.length} existing visualization layers.`
-          );
-          mapView.map.removeMany(layersToRemove);
-
-          // Clean up refs for removed layers
-          if (activeLayersRef?.current) {
-            Object.keys(activeLayersRef.current).forEach((tabIdKey) => {
-              const layerInstance = activeLayersRef.current[tabIdKey];
-              if (layerInstance && !remainingLayerIds.has(layerInstance.id)) {
-                console.log(
-                  `[VizUpdate Effect] Clearing ref for removed layer (Tab ID: ${tabIdKey})`
-                );
-                delete activeLayersRef.current[tabIdKey];
-              }
-            });
-          }
-        }
-
-        // Get active tab data
-        const activeTabData = tabs.find((tab) => tab.id === activeTab);
-
-        if (!activeTabData) {
-          console.warn("[VizUpdate Effect] Could not find active tab data.");
-          return;
-        }
-
-        console.log("[VizUpdate Effect] Active Tab Data:", {
-          id: activeTabData.id,
-          name: activeTabData.name,
-          type: activeTabData.visualizationType,
-        });
-
-        // Only create new layer if needed
-        if (activeTab !== 1 && activeTabData.visualizationType && isMounted) {
-          // Normalize visualization type
-          let vizType = activeTabData.visualizationType;
-          if (vizType === "pipeline") vizType = "pipe";
-          if (vizType === "comps") vizType = "comp";
-
-          const config = activeTabData.layerConfiguration;
-          const areaType = activeTabData.areaType;
-
-          try {
-            console.log(`[VizUpdate Effect] Creating layer for: ${vizType}`);
-
-            // Create layer with timeout to prevent infinite loading
-            const layerPromise = createLayers(
-              vizType,
-              config,
-              initialLayerConfigurations,
-              areaType
-            );
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error("Layer creation timeout")),
-                10000
-              )
-            );
-
-            const newLayer = await Promise.race([layerPromise, timeoutPromise]);
-
-            if (!isMounted) return;
-
-            if (newLayer) {
-              console.log(
-                `[VizUpdate Effect] Adding layer "${newLayer.title}" to map.`
-              );
-
-              // Ensure visualization flags are set
-              newLayer.isVisualizationLayer = true;
-              newLayer.visualizationType = vizType;
-
-              // Add to map
-              mapView.map.add(newLayer, 0);
-
-              // Store in ref
-              if (activeLayersRef?.current) {
-                activeLayersRef.current[activeTab] = newLayer;
-                console.log(
-                  `[VizUpdate Effect] Stored layer in ref for tab ${activeTab}:`,
-                  newLayer.id
-                );
-              }
-
-              // Wait for layer to be ready
-              await newLayer.when();
-
-              if (!isMounted) return;
-
-              // Handle special layer types
-              const specialTypes = ["pipe", "comp", "custom"];
-              const isSpecialType = specialTypes.includes(vizType);
-
-              if (isSpecialType && config) {
-                setCustomLegendContent({
-                  type: vizType,
-                  config: config,
-                });
-                if (legend) legend.visible = false;
-              } else if (legend && !isEditorOpen) {
-                // Standard Esri legend for non-special types
-                legend.layerInfos = [
-                  {
-                    layer: newLayer,
-                    title: newLayer.title || vizType,
-                    hideLayersNotInCurrentView: false,
-                  },
-                ];
-                legend.visible = true;
-                setCustomLegendContent(null);
-              }
-
-              // --- Critical: Load saved label positions after layer creation with enhanced edit preservation ---
-              if (labelManagerRef.current) {
-                // Give the layer a moment to fully initialize
+                // Refresh all labels after integration if method exists
                 setTimeout(() => {
-                  try {
+                  // Re-check ref inside timeout
+                  if (
+                    labelManagerRef.current &&
+                    typeof labelManagerRef.current.refreshLabels === "function"
+                  ) {
+                    labelManagerRef.current.refreshLabels();
                     console.log(
-                      `[VizUpdate Effect] Loading saved label positions for ${vizType} layer`
+                      `[MapComponent] Refreshed labels for ${layerType} layer after notification`
                     );
-
-                    // Pass true as third parameter to preserve edits when loading positions
-                    const loadResult = labelManagerRef.current.loadPositions(
-                      true,
-                      true,
-                      true
-                    );
-                    console.log(
-                      `[VizUpdate Effect] Loaded ${
-                        loadResult.count || 0
-                      } saved label positions with edit preservation`
-                    );
-
-                    // Configure label manager for specific visualization type
-                    labelManagerRef.current.configureLayerSettings(vizType);
-                  } catch (err) {
-                    console.error(
-                      "[VizUpdate Effect] Error loading saved label positions:",
-                      err
+                  } else if (labelManagerRef.current) {
+                    console.warn(
+                      "[MapComponent] refreshLabels method not found on label manager (inner timeout - notify)."
                     );
                   }
-                }, 500);
+                }, 500); // Delay for refresh
+              } else if (labelManagerRef.current) {
+                console.warn(
+                  "[MapComponent] processLayer method not found on label manager (outer timeout - notify)."
+                );
               }
-            } else {
-              console.error(
-                `[VizUpdate Effect] Failed to create layer for type: ${vizType}`
-              );
+            }, 200); // Delay for processing
+          } else {
+            console.warn(
+              "[MapComponent] processLayer method not found on label manager."
+            );
+          }
+          // --- END CORRECTION ---
+        }
+
+        // Mark this layer as managed by the label manager (optional flag)
+        layer._labelManagerIntegrated = true;
+      } catch (error) {
+        console.error(
+          `[MapComponent] Error notifying label manager about ${layerType} layer:`,
+          error
+        );
+      }
+    },
+    []
+  ); // Empty dependency array is likely sufficient as it primarily uses the ref
+
+
+  // Extract legend styling into a reusable function
+  const styleLegend = (legendContainer) => {
+    if (!legendContainer) return;
+
+    // Container styles
+    legendContainer.style.backgroundColor = "white";
+    legendContainer.style.padding = "1rem";
+    legendContainer.style.margin = "0.5rem";
+    legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
+    legendContainer.style.borderRadius = "0.375rem";
+    legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+
+    // Title styles
+    const legendTitle = legendContainer.querySelector(
+      ".esri-legend__service-label"
+    );
+    if (legendTitle) {
+      legendTitle.style.fontWeight = "600";
+      legendTitle.style.fontSize = "0.875rem";
+      legendTitle.style.marginBottom = "0.75rem";
+      legendTitle.style.color = "#111827";
+    }
+
+    // Item styles
+    const legendItems = legendContainer.querySelectorAll(
+      ".esri-legend__layer-row"
+    );
+    legendItems.forEach((item) => {
+      item.style.display = "flex";
+      item.style.alignItems = "center";
+      item.style.marginBottom = "0.5rem";
+    });
+
+    // Swatch styles
+    const swatches = legendContainer.querySelectorAll(".esri-legend__symbol");
+    swatches.forEach((swatch) => {
+      swatch.style.width = "1rem";
+      swatch.style.height = "1rem";
+      swatch.style.marginRight = "0.5rem";
+    });
+
+    // Label styles
+    const labels = legendContainer.querySelectorAll(
+      ".esri-legend__layer-cell--info"
+    );
+    labels.forEach((label) => {
+      label.style.fontSize = "0.875rem";
+      label.style.color = "#4B5563";
+    });
+  };
+
+  const saveLabelPositions = useCallback((force = true) => {
+    // --- Added Defensive Checks ---
+    if (!labelManagerRef.current) {
+      console.warn("[Labels] Cannot save: Label manager ref is not set.", new Error().stack); // Log stack trace
+      return { count: 0 }; // Return a default object indicating no save occurred
+    }
+    try {
+      if (typeof labelManagerRef.current.savePositions === "function") {
+        const result = labelManagerRef.current.savePositions(force);
+        // console.log(`[Labels] Saved ${result?.count || 0} label positions`); // Reduced logging noise
+        return result;
+      }
+      console.warn("[Labels] savePositions function not available on label manager instance.");
+      return { count: 0 };
+    } catch (err) {
+      console.error("[Labels] Error saving label positions:", err);
+      return { count: 0, error: err };
+    }
+  }, []); // Empty dependency array - only uses the ref
+
+  // Around line 3019
+  const loadLabelPositions = useCallback(
+    (force = true, preserveEdits = true) => {
+      // --- Added Defensive Checks ---
+      if (!labelManagerRef.current) {
+        console.warn("[Labels] Cannot load: Label manager ref is not set.");
+        return { count: 0 }; // Return default object
+      }
+      try {
+        if (typeof labelManagerRef.current.loadPositions === "function") {
+          const result = labelManagerRef.current.loadPositions(
+            force,
+            preserveEdits
+          );
+          // console.log(`[Labels] Loaded ${result?.count || 0} saved label positions`); // Reduced logging noise
+          return result;
+        }
+        console.warn("[Labels] loadPositions function not available on label manager instance.");
+        return { count: 0 };
+      } catch (err) {
+        console.error("[Labels] Error loading label positions:", err);
+        return { count: 0, error: err };
+      }
+    },
+    []
+  ); // Empty dependency array
+
+  // Around line 3037
+  const destroyLabelManager = useCallback(() => {
+    // --- Added Defensive Checks ---
+    if (!labelManagerRef.current) {
+      // console.log("[Labels] No label manager instance to destroy."); // Can be noisy
+      return; // Exit if no manager to destroy
+    }
+    try {
+      // Attempt to save positions before destroying
+      if (typeof labelManagerRef.current.savePositions === "function") {
+        // console.log("[Labels] Saving positions before destroying label manager"); // Can be noisy
+        labelManagerRef.current.savePositions(true); // Force final save
+      } else {
+        console.warn("[Labels] savePositions not available, skipping final save during destroy.");
+      }
+
+      // Attempt to destroy the manager instance
+      if (typeof labelManagerRef.current.destroy === "function") {
+        // console.log("[Labels] Destroying label manager instance"); // Can be noisy
+        labelManagerRef.current.destroy();
+      } else {
+        console.warn("[Labels] Label manager instance missing destroy method.");
+      }
+    } catch (err) {
+      console.error("[Labels] Error during label manager cleanup:", err);
+    } finally {
+      // CRUCIAL: Always nullify the reference after attempting cleanup
+      labelManagerRef.current = null;
+      // console.log("[Labels] Label manager reference cleared."); // Can be noisy
+    }
+  }, []); // Empty dependency array
+
+
+  const updateVisualizationAndLegend = useCallback(async () => {
+    // Prerequisites check
+    if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
+      console.log("[updateVisualizationAndLegend] Skipping: Prerequisites not met.", { isConfigLoading, mapReady: !!mapView?.map, legendReady: !!legend, labelManagerReady: isLabelManagerReady });
+      return null;
+    }
+    // ... (rest of the initial checks, saveLabels, layer removal) ...
+     console.log("[updateVisualizationAndLegend] Starting update (Label Manager Ready) for Active Tab:", activeTab);
+     let labelLoadTimeoutId = null;
+     try {
+         saveLabelPositions(true); // Save before changing layers
+         const layersToRemove = [];
+         mapView.map.layers.forEach((layer) => {
+            // FIX: Use optional chaining
+             if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
+                 layersToRemove.push(layer);
+             }
+         });
+         if (layersToRemove.length > 0) {
+             console.log(`[updateVisualizationAndLegend] Removing ${layersToRemove.length} layers`);
+             mapView.map.removeMany(layersToRemove);
+         }
+         const activeTabData = tabs.find((tab) => tab.id === activeTab);
+         if (!activeTabData) {
+            console.log("[updateVisualizationAndLegend] No active tab data found.");
+             return null;
+         }
+
+         if (activeTab !== 1 && activeTabData.visualizationType) {
+             let vizType = activeTabData.visualizationType;
+             if (vizType === "pipeline") vizType = "pipe";
+             if (vizType === "comps") vizType = "comp";
+
+             const config = activeTabData.layerConfiguration;
+             const areaType = activeTabData.areaType;
+             console.log(`[updateVisualizationAndLegend] Preparing layer creation for type: ${vizType}`);
+
+             // Ensure type is present either in vizType or config
+             const effectiveType = vizType || config?.type;
+             if (!effectiveType) {
+                 console.error("[updateVisualizationAndLegend] Cannot create layer: Missing visualization type.");
+                 if (legend) legend.visible = false;
+                 setCustomLegendContent(null);
+                 return null;
+             }
+
+             let newLayer = null;
+             try {
+                 const specialTypes = ["pipe", "comp", "custom"];
+                 const isSpecialType = specialTypes.includes(effectiveType) || (config?.customData && !["class-breaks", "dot-density"].includes(effectiveType));
+
+                 if (isSpecialType) {
+                   const configForCreator = { ...(config || {}), type: effectiveType };
+                   if (effectiveType === "pipe") newLayer = await createPipeLayer(configForCreator);
+                   else if (effectiveType === "comp") newLayer = await createCompLayer(configForCreator);
+                   else newLayer = await createGraphicsLayerFromCustomData(configForCreator);
+                 } else {
+                   newLayer = await createLayers(effectiveType, config, initialLayerConfigurations, areaType);
+                 }
+
+                 if (newLayer && (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)) {
+                    newLayer.isVisualizationLayer = true;
+                    newLayer.visualizationType = effectiveType; // Use the determined type
+                    mapView.map.add(newLayer, 0);
+                    console.log(`[updateVisualizationAndLegend] Added layer "${newLayer.title || newLayer.id}" to map.`);
+                    if (activeLayersRef.current) activeLayersRef.current[activeTab] = newLayer;
+                    await newLayer.when();
+                    console.log(`[updateVisualizationAndLegend] Layer "${newLayer.title || newLayer.id}" is ready.`);
+
+                     // --- Legend and Label Handling ---
+                     const showStandardLegend = !isSpecialType && !isEditorOpen && !isLabelEditorOpen; // Hide if EITHER editor is open
+
+                     if (isSpecialType && activeTabData.layerConfiguration) {
+                         console.log(`[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`);
+                         setCustomLegendContent({ type: effectiveType, config: activeTabData.layerConfiguration });
+                         if (legend) legend.visible = false;
+
+                         // Notify manager (should succeed now)
+                         await notifyLabelManagerAboutLayer(newLayer, effectiveType, activeTabData.layerConfiguration?.labelOptions);
+
+                         // Explicitly process the new layer and refresh
+                         if (labelManagerRef.current) {
+                             console.log(`[updateVisualizationAndLegend] Explicitly processing layer ${newLayer.id} with Label Manager.`);
+                             // --- CORRECTED CALL ---
+                             if(typeof labelManagerRef.current.processLayer === 'function') {
+                                  labelManagerRef.current.processLayer(newLayer); // Use public method
+                             } else {
+                                  console.warn("[updateVisualizationAndLegend] processLayer method not found on label manager.");
+                             }
+                             // --- END CORRECTION ---
+
+                             if(typeof labelManagerRef.current.refreshLabels === 'function') {
+                                 // Use setTimeout to allow graphics rendering/processing to settle
+                                 labelLoadTimeoutId = setTimeout(() => {
+                                     if (labelManagerRef.current && typeof labelManagerRef.current.refreshLabels === 'function') {
+                                         labelManagerRef.current.refreshLabels();
+                                         console.log(`[updateVisualizationAndLegend] Explicitly refreshed labels after processing ${effectiveType} layer.`);
+                                     } else {
+                                         console.warn("[updateVisualizationAndLegend] refreshLabels method not found on label manager (timeout).");
+                                     }
+                                     labelLoadTimeoutId = null; // Clear timeout ID after execution
+                                 }, 500); // 500ms delay
+                             } else {
+                                  console.warn("[updateVisualizationAndLegend] refreshLabels method not found on label manager.");
+                             }
+                         } else {
+                             console.warn("[updateVisualizationAndLegend] Label Manager not available for explicit layer processing.");
+                         }
+
+                     } else if (legend && showStandardLegend) {
+                         console.log(`[updateVisualizationAndLegend] Updating standard Esri legend for layer: ${newLayer.title || effectiveType}`);
+                         legend.layerInfos = [{ layer: newLayer, title: newLayer.title || effectiveType, hideLayersNotInCurrentView: false }];
+                         legend.visible = true;
+                         styleLegend(legend.container); // Apply style
+                         setCustomLegendContent(null);
+                         if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId); // Clear timeout if standard legend shown
+                     } else if (legend) {
+                         console.log(`[updateVisualizationAndLegend] Hiding standard Esri legend. SpecialType: ${isSpecialType}, EditorOpen: ${isEditorOpen}, LabelEditorOpen: ${isLabelEditorOpen}`);
+                         legend.visible = false;
+                         setCustomLegendContent(null);
+                         if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId); // Clear timeout if legend hidden
+                     }
+
+                     // Removed the separate labelLoadTimeoutId for loadPositions - rely on refreshLabels after processing
+
+                 } else {
+                     console.error(`[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`);
+                      if (legend) legend.visible = false;
+                      setCustomLegendContent(null);
+                 }
+             } catch (error) {
+                  console.error(`[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`, error);
+                  if (legend) legend.visible = false;
+                  setCustomLegendContent(null);
+             }
+         } else {
+              // Handle Core Map or no visualization selected
+              console.log(`[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`);
               if (legend) legend.visible = false;
               setCustomLegendContent(null);
-            }
-          } catch (error) {
-            console.error(`[VizUpdate Effect] Error creating layer:`, error);
-            if (legend) legend.visible = false;
-            setCustomLegendContent(null);
-          }
-        } else {
-          console.log(
-            "[VizUpdate Effect] Core Map active or no visualization selected. No layer added."
-          );
-          if (legend) legend.visible = false;
-          setCustomLegendContent(null);
-        }
-      } catch (error) {
-        console.error("[VizUpdate Effect] Unhandled error:", error);
-        if (legend) legend.visible = false;
-        setCustomLegendContent(null);
-      }
+              if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId);
+         }
+     } catch (error) {
+          console.error("[updateVisualizationAndLegend] Outer error:", error);
+           if (legend) legend.visible = false;
+           setCustomLegendContent(null);
+           if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId);
+     }
 
-      console.log("[VizUpdate Effect] Update finished.");
-    };
-
-    // Execute update immediately
-    updateVisualizationAndLegend();
-
-    // Clean up on unmount or dependencies change
-    return () => {
-      isMounted = false;
-      abortController.abort();
-
-      // Save any pending edits before cleanup
-      if (
-        labelManagerRef.current &&
-        typeof labelManagerRef.current.savePositions === "function"
-      ) {
-        try {
-          console.log(
-            "[VizUpdate Effect] Saving label positions during cleanup"
-          );
-          labelManagerRef.current.savePositions(true);
-        } catch (err) {
-          console.error(
-            "[VizUpdate Effect] Error saving positions during cleanup:",
-            err
-          );
-        }
-      }
-
-      console.log(
-        "[VizUpdate Effect] Cleanup: Component unmounted or dependencies changed."
-      );
-    };
+     return labelLoadTimeoutId; // Return timeout ID or null
   }, [
-    activeTab,
-    tabs,
-    mapView,
-    legend,
-    isEditorOpen,
-    isConfigLoading,
-    initialLayerConfigurations,
-  ]);
+      activeTab, tabs, mapView, legend, isEditorOpen, isLabelEditorOpen, isConfigLoading,
+      isLabelManagerReady, initialLayerConfigurations, saveLabelPositions,
+      loadLabelPositions, notifyLabelManagerAboutLayer, setCustomLegendContent,
+      createLayers, createPipeLayer, createCompLayer, createGraphicsLayerFromCustomData
+  ]); // End of useCallback
+  // --- CONSOLIDATED EFFECT HOOKS ---
 
+  // 1. Project change event handler
+  useEffect(() => {
+    const handleProjectChange = () => {
+      const projectId =
+        localStorage.getItem("currentProjectId") ||
+        sessionStorage.getItem("currentProjectId");
+
+      // Find the active tab data
+      const activeTabData = tabs.find((tab) => tab.active);
+
+      // --- Added Defensive Check ---
+      if (projectId && labelManagerRef.current && typeof labelManagerRef.current.setContext === 'function') {
+        labelManagerRef.current.setContext(projectId, activeTabData?.configId);
+        loadLabelPositions(true); // Reload positions for the new context
+      } else {
+         console.warn("[ProjectChange Effect] Cannot set context: Label manager ref or method missing.");
+      }
+    };
+
+    window.addEventListener("projectChanged", handleProjectChange);
+
+    return () => {
+      window.removeEventListener("projectChanged", handleProjectChange);
+    };
+  }, [tabs, loadLabelPositions]); // Added loadLabelPositions dependency
+
+  // 2. ArcGIS Configuration
   useEffect(() => {
     try {
       console.log(
@@ -3571,7 +2947,6 @@ const handleCompVisualization = async (tabData, layer = null) => {
 
       if (!esriConfig.apiKey) {
         console.error("ArcGIS API Key is missing or undefined");
-        // Optionally show a user-friendly error message
         return;
       }
 
@@ -3599,18 +2974,18 @@ const handleCompVisualization = async (tabData, layer = null) => {
       });
 
       // Add request interceptor for debugging
-      esriConfig.request.interceptors.push({
-        before: (params) => {
-          console.log("ArcGIS Request Interceptor:", {
-            url: params.url,
-            method: params.method,
-            headers: params.headers,
-          });
-        },
-        error: (error) => {
-          console.error("ArcGIS Request Error:", error);
-        },
-      });
+      // esriConfig.request.interceptors.push({
+      //   before: (params) => {
+      //     console.log("ArcGIS Request Interceptor:", {
+      //       url: params.url,
+      //       method: params.method,
+      //       headers: params.headers,
+      //     });
+      //   },
+      //   error: (error) => {
+      //     console.error("ArcGIS Request Error:", error);
+      //   },
+      // });
     } catch (error) {
       console.error("ArcGIS Configuration Error:", {
         message: error.message,
@@ -3618,335 +2993,371 @@ const handleCompVisualization = async (tabData, layer = null) => {
         stack: error.stack,
       });
     }
-  }, []);
+  }, []); // Empty deps - runs once on mount
 
-  // Use the tab-specific configuration when switching tabs or rendering
+  // --- Map Initialization useEffect ---
   useEffect(() => {
-    if (!mapView?.map || !legend) return;
-    updateVisualizationLayer();
-  }, [
-    activeTab,
-    tabs, // Added tabs to the dependency array
-    mapView,
-    legend,
-    isEditorOpen,
-    selectedAreaType,
-  ]);
+    let isMounted = true;
+    console.log("Starting map initialization...");
 
-  useEffect(() => {
-    // Define the async function inside the effect
-    const initializeConfigurations = async () => {
-      // Guard clauses: Ensure necessary dependencies are ready
-      if (!projectId) {
-        console.log(
-          "[Effect] No project ID available, skipping configuration initialization."
-        );
-        // Set default tabs if no project ID is found, ensure UI is consistent
-        setTabs([
-          {
-            id: 1,
-            name: "Core Map",
-            active: true,
-            visualizationType: null,
-            areaType: areaTypes[0],
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ]);
-        setActiveTab(1);
-        setIsConfigLoading(false); // Mark loading as complete
-        return; // Exit early
-      }
-
-      if (!mapView?.map || !legend) {
-        // Wait for map and legend to be ready
-        console.log(
-          "[Effect] Waiting for map view and legend to initialize..."
-        );
-        // Optional: Set loading state here if not already set
-        // setIsConfigLoading(true);
-        return; // Exit and wait for dependencies to update
-      }
-
-      // Proceed with loading configurations
-      console.log(
-        `[Effect] Initializing configurations for project: ${projectId}`
-      );
-      setIsConfigLoading(true); // Set loading state
-
+    const initializeMap = async () => {
       try {
-        // Fetch configurations using the API helper
-        const response = await mapConfigurationsAPI.getAll(projectId); // Already includes logging
-        const configs = response?.data; // Safely access data
+        // ArcGIS configuration (API Key, assetsPath) - Already done in previous effect
 
-        console.log("[Effect] Received configurations from API:", configs);
-
-        // Check if the fetched data is valid
-        if (!Array.isArray(configs) || configs.length === 0) {
-          console.log(
-            "[Effect] No configurations found in API response, using default tabs."
-          );
-          setTabs([
-            {
-              id: 1,
-              name: "Core Map",
-              active: true, // Core Map starts active if no others exist
-              visualizationType: null,
-              areaType: areaTypes[0],
-              layerConfiguration: null,
-              isEditing: false,
-            },
-          ]);
-          setActiveTab(1); // Ensure Core Map is the active tab
-          // Clean up any stray visualization layers from previous state
-          const layersToRemove = mapView.map.layers
-            .filter((layer) => layer?.isVisualizationLayer)
-            .toArray();
-          if (layersToRemove.length > 0) mapView.map.removeMany(layersToRemove);
-          legend.visible = false; // Hide legend
-          setIsConfigLoading(false); // Mark loading as complete
-          return; // Exit after setting defaults
-        }
-
-        // Create the base tabs array starting with Core Map (inactive initially)
-        const newTabs = [
-          {
-            id: 1, // Keep consistent ID for Core Map
-            name: "Core Map",
-            active: false, // Will be activated later if it's the only tab or first tab
-            visualizationType: null,
-            areaType: areaTypes[0], // Default area type for Core Map
-            layerConfiguration: null,
-            isEditing: false,
+        // Create Map and MapView
+        const map = new Map({ basemap: "streets-navigation-vector" });
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          center: [-98, 39], // Default center
+          zoom: 4, // Default zoom
+          constraints: { rotationEnabled: false, minZoom: 2, maxZoom: 20 },
+          navigation: {
+            actionMap: { mouseWheel: { enabled: false } }, // Disable default wheel
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
           },
-        ];
-
-        // Process each configuration from the API response
-        configs.forEach((config) => {
-          if (!config || !config.id) {
-            // Check if config and its ID exist
-            console.warn(
-              "[Effect] Skipping invalid config object received from API:",
-              config
-            );
-            return; // Skip this config
-          }
-
-          console.log("[Effect] Processing config:", config);
-
-          // Determine the next available ID (simple increment, ensure no conflicts with Core Map ID 1)
-          // Using API config.id is generally better if available and unique
-          const newTabId = config.id; // Use the ID from the database
-
-          // --- Robust Area Type Handling ---
-          const configAreaType = config.area_type; // e.g., 'tract', 'county', 11, 12
-          let areaType = areaTypes[0]; // Default to the first area type
-
-          if (configAreaType !== null && configAreaType !== undefined) {
-            const areaTypeStr = String(configAreaType).toLowerCase();
-            const foundType = areaTypes.find(
-              (type) =>
-                String(type.value) === areaTypeStr || // Match numeric value as string
-                type.label.toLowerCase() === areaTypeStr // Match label (tract, county)
-            );
-            if (foundType) {
-              areaType = foundType;
-            } else {
-              console.warn(
-                `[Effect] Could not resolve area type "${configAreaType}", using default "${areaType.label}".`
-              );
-            }
-          } else {
-            console.warn(
-              `[Effect] Config ${config.tab_name} missing area_type, using default "${areaType.label}".`
-            );
-          }
-          // --- End Area Type Handling ---
-
-          console.log(
-            `[Effect] Config: ${config.tab_name}, Backend AreaType: ${configAreaType}, Resolved AreaType:`,
-            areaType
-          );
-
-          // Create the new tab object
-          const newTab = {
-            id: newTabId, // Use the actual ID from the database
-            configId: config.id, // Explicitly store the database config ID
-            name: config.tab_name,
-            active: false, // Set active status later
-            visualizationType: config.visualization_type,
-            areaType: areaType, // Use the resolved areaType object
-            layerConfiguration: config.layer_configuration, // Use the config from DB
-            isEditing: false,
-          };
-
-          console.log("[Effect] Created new tab:", newTab);
-          newTabs.push(newTab);
         });
 
-        // Activate the first tab (which will be Core Map if no others, or the first loaded config if Core Map isn't first)
-        // Let's always activate Core Map initially if configs were loaded.
-        if (newTabs.length > 0) {
-          newTabs[0].active = true; // Activate Core Map
-          setActiveTab(1); // Set active tab ID to Core Map's ID
+        console.log("Waiting for view to be ready...");
+        await view.when();
+        console.log("View is now ready!");
+
+        // Custom mouse wheel zoom handler
+        view.constraints.snapToZoom = false;
+        view.on("mouse-wheel", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const state = scrollStateRef.current;
+          const now = Date.now();
+          const timeDiff = now - (state.lastScrollTime || now);
+          const scrollDeltaY = event.native.deltaY;
+          const currentDirection = scrollDeltaY < 0 ? 1 : -1;
+          const resetThreshold = 250,
+            accelerateThreshold = 120;
+
+          if (state.timeoutId) clearTimeout(state.timeoutId);
+
+          if (
+            timeDiff < resetThreshold &&
+            currentDirection === state.lastScrollDirection &&
+            state.lastScrollDirection !== 0
+          ) {
+            if (timeDiff < accelerateThreshold) state.scrollStreak++;
+            else {
+              /* Maintain streak */
+            }
+          } else {
+            state.scrollStreak = 1; // Reset streak
+          }
+
+          const baseZoomDelta = 0.08,
+            streakBonus = 0.2,
+            maxAccelerationFactor = 5.0;
+          const accelerationFactor = Math.min(
+            1 + streakBonus * Math.max(0, state.scrollStreak - 1),
+            maxAccelerationFactor
+          );
+          const finalZoomDelta =
+            baseZoomDelta * accelerationFactor * currentDirection;
+          const currentZoom = view.zoom;
+          let newZoom = Math.min(
+            Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
+
+          if (Math.abs(newZoom - currentZoom) > 0.001) {
+            view
+              .goTo(
+                { zoom: newZoom, center: view.center },
+                { duration: 60, easing: "linear", animate: true }
+              )
+              .catch((error) => {
+                if (error.name !== "AbortError")
+                  console.error("goTo Error:", error);
+              });
+          }
+
+          state.lastScrollTime = now;
+          state.lastScrollDirection = currentDirection;
+          state.timeoutId = setTimeout(() => {
+            state.scrollStreak = 0;
+            state.lastScrollDirection = 0;
+            state.timeoutId = null;
+          }, resetThreshold);
+        });
+
+        // Initialize drawing tools
+        initializeDrawingTools(view);
+
+        // Add UI widgets (Home, ScaleBar)
+        const homeWidget = new Home({ view });
+        view.ui.add(homeWidget, "top-left");
+        const scaleBar = new ScaleBar({ view, unit: "imperial" });
+        view.ui.add(scaleBar, "bottom-left"); // Changed position for clarity
+
+        if (isMounted) {
+          view.ready = true; // Mark view as ready
+          setMapView(view); // Set view in context
+
+          // Initialize Legend widget
+          const legendWidget = new Legend({
+            view,
+            container: document.createElement("div"), // Create container dynamically
+            layerInfos: [], // Start empty
+            visible: false, // Start hidden
+          });
+          view.ui.add(legendWidget, "bottom-right"); // Position legend
+          setLegend(legendWidget); // Save legend instance to state
+
+          // *** Initialize SimplifiedLabelManager ***
+          // Moved to a separate useEffect dependent on mapView.ready
         }
-
-        console.log(
-          "[Effect] Setting tabs state after initialization:",
-          newTabs
-        );
-        setTabs(newTabs); // Update the state with all tabs
-
-        // No need to explicitly call updateVisualizationLayer here,
-        // as changing `tabs` and `activeTab` state will trigger the other useEffect
-        // that depends on them, ensuring the correct layer is displayed for the active tab (which is Core Map initially).
       } catch (error) {
-        console.error("[Effect] Error initializing configurations:", error);
-        // Set default tabs state on error to prevent broken UI
-        setTabs([
-          {
-            id: 1,
-            name: "Core Map",
-            active: true,
-            visualizationType: null,
-            areaType: areaTypes[0],
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ]);
-        setActiveTab(1);
-      } finally {
-        setIsConfigLoading(false); // Ensure loading state is always turned off
-        console.log("[Effect] Configuration initialization complete.");
+        console.error("[Map] Error during map initialization:", error);
       }
     };
 
-    // Call the initialization function
-    initializeConfigurations();
+    initializeMap(); // Run the initialization
 
-    // No cleanup needed in this effect unless subscribing to something
-    // return () => { /* cleanup logic */ };
+    // --- Cleanup Function ---
+    return () => {
+      console.log("[Map] Component unmounting, performing cleanup");
+      isMounted = false; // Prevent state updates after unmount
 
-    // Dependencies: Re-run when projectId, mapView, or legend changes/becomes available
-  }, [projectId, mapView, legend]); // Make sure all external dependencies used are listed
+      // Use the consolidated cleanup function for the label manager
+      destroyLabelManager(); // This handles saving and setting ref to null
 
-  useEffect(() => {
-    if (mapView?.ready) {
-      setupLabelManagement();
-
-      // Enhanced cleanup with improved edit persistence
-      return () => {
-        if (labelManagerRef.current) {
-          try {
-            // Save any pending changes
-            console.log("[MapComponent] Saving labels before cleanup");
-            labelManagerRef.current.saveLabels();
-            // Clean up
-            labelManagerRef.current.destroy();
-            labelManagerRef.current = null;
-          } catch (err) {
-            console.error(
-              "[MapComponent] Error during label manager cleanup:",
-              err
-            );
-          }
-        }
-      };
-    }
-  }, [mapView?.ready, setupLabelManagement]);
-
-  // Update the useEffect that calls loadMapConfigurations
-  useEffect(() => {
-    if (mapView?.map) {
-      loadMapConfigurations();
-    }
-  }, [mapView]);
-
-  // Add these useEffects after your existing ones
-  useEffect(() => {
-    // Load auto-saved configurations on mount
-    loadMapConfigurations(AUTO_SAVE_KEY, false);
-  }, []);
-
-  // In MapComponent.jsx - Add this useEffect to listen for refresh events
-  useEffect(() => {
-    // Event listener for forced visualization refreshes
-    const handleRefreshVisualization = (event) => {
-      const { tabId, config } = event.detail;
-      console.log(
-        "[RefreshEvent] Received refresh event for tab",
-        tabId,
-        "with config:",
-        config
-      );
-
-      if (!tabId || !mapView?.map) return;
-
-      // Get the tab data
-      const tabData = tabs.find((tab) => tab.id === tabId);
-      if (!tabData) {
-        console.error("[RefreshEvent] Could not find tab data for ID:", tabId);
-        return;
+      // Clean up drawing rectangle if it exists
+      if (
+        rectangleRef.current &&
+        mapRef.current?.contains(rectangleRef.current)
+      ) {
+        mapRef.current.removeChild(rectangleRef.current);
+        rectangleRef.current = null; // Clear ref
       }
 
-      // Get the visualization type
-      let vizType = tabData.visualizationType;
-      if (!vizType) return;
+      // Clean up drawing event handlers attached to the view
+      if (mapView?.drawingHandlers && mapView.container) { // Check container exists
+        const viewContainer = mapView.container;
+        viewContainer.removeEventListener("mousedown", mapView.drawingHandlers.mousedown);
+        viewContainer.removeEventListener("contextmenu", mapView.drawingHandlers.contextmenu);
+        viewContainer.removeEventListener("mousemove", mapView.drawingHandlers.mousemove);
+        viewContainer.removeEventListener("mouseup", mapView.drawingHandlers.mouseup);
+        viewContainer.removeEventListener("mouseleave", mapView.drawingHandlers.mouseleave);
+        delete mapView.drawingHandlers; // Remove handlers from view object
+      }
 
-      // Normalize visualization type
-      if (vizType === "pipeline") vizType = "pipe";
-      if (vizType === "comps") vizType = "comp";
+      // Destroy the map view if it exists to release resources
+      if (mapView && typeof mapView.destroy === 'function') {
+         try {
+           // mapView.destroy(); // Potential issues if called too early. Let context handle it.
+            console.log("[Map] MapView instance cleanup (manual or implicit via context)");
+         } catch (destroyError) {
+             console.error("[Map] Error destroying MapView:", destroyError);
+         }
+      }
+      // Consider resetting map view in context if needed
+      // setMapView(null); // Might cause issues if other components rely on it briefly
+    };
+    // --- End Cleanup Function ---
+  }, []); // Empty dependency array ensures this runs only once on mount
 
-      console.log(
-        `[RefreshEvent] Refreshing visualization for tab ${tabId}, type: ${vizType}`
-      );
 
-      // Force layer removal first
-      const layersToRemove = [];
-      mapView.map.layers.forEach((layer) => {
-        if (layer && layer.isVisualizationLayer === true) {
-          layersToRemove.push(layer);
+  // --- Effect for Label Manager Initialization and Readiness ---
+  useEffect(() => {
+    // Check if map view is ready and manager isn't already initialized
+    if (mapView?.ready && !labelManagerRef.current && !isLabelManagerReady) {
+      console.log("[MapComponent] Initializing LabelManager...");
+      try {
+        // Create instance, passing the view
+        labelManagerRef.current = new LabelManager(mapView, { /* Add any initial options */ });
+        console.log("[MapComponent] LabelManager instance CREATED:", labelManagerRef.current);
+
+        // Set readiness state to true AFTER successful initialization
+        setIsLabelManagerReady(true);
+        console.log("[MapComponent] Label Manager IS READY.");
+
+        // Load initial positions after manager is ready
+        const loadTimeout = setTimeout(() => {
+           // Re-check ref and readiness inside timeout
+           if (labelManagerRef.current && isLabelManagerReady && typeof labelManagerRef.current.loadPositions === 'function') {
+             try {
+               labelManagerRef.current.loadPositions(true, true); // Force load, preserve edits
+               console.log("[MapComponent] Initial label positions loaded after manager creation.");
+             } catch (loadErr) {
+               console.error("[MapComponent] Error loading initial label positions:", loadErr);
+             }
+           } else {
+                console.warn("[MapComponent] Cannot load initial positions: Ref invalid, not ready, or method missing after timeout.");
+           }
+        }, 1000); // Delay might still be useful for complex scenarios
+
+        // Return cleanup for the timeout
+        return () => clearTimeout(loadTimeout);
+
+      } catch (err) {
+        console.error("[MapComponent] Error initializing LabelManager:", err);
+        labelManagerRef.current = null; // Nullify ref on error
+        setIsLabelManagerReady(false); // Ensure readiness is false on error
+      }
+    }
+    // Note: No cleanup needed here specifically for the manager instance,
+    // as the main unmount cleanup effect handles calling destroyLabelManager.
+  }, [mapView?.ready, isLabelManagerReady]); // Dependencies: map readiness and the readiness state itself
+
+  // --- Cleanup effect specifically for the Label Manager ---
+  useEffect(() => {
+      // This effect's *sole* purpose is to run the cleanup when the component unmounts
+      return () => {
+          console.log("[MapComponent] Label Manager Cleanup Effect running.");
+          // Use the memoized destroy function which handles saving and nullifying the ref
+          destroyLabelManager();
+          // Reset the readiness state as part of cleanup
+          setIsLabelManagerReady(false);
+          console.log("[MapComponent] Label Manager Cleanup Effect finished.");
+      };
+  }, [destroyLabelManager]); // Dependency: the memoized destroy function
+
+
+  // --- Legend Visibility Effect ---
+  useEffect(() => {
+    if (!legend || !mapView?.ready) return;
+
+    // Determine if legend should be visible
+    const activeTabData = tabs.find((tab) => tab.id === activeTab);
+    const hasVisualization = activeTabData?.visualizationType;
+    const hasCustomLegend = !!customLegendContent;
+    // Legend should hide if EITHER editor panel is open OR if there's a custom legend
+    const shouldShowStandardLegend =
+      activeTab !== 1 &&
+      hasVisualization &&
+      !hasCustomLegend && // Hide if custom legend is showing
+      !isEditorOpen &&
+      !isLabelEditorOpen;
+
+    // Update legend visibility
+    legend.visible = shouldShowStandardLegend;
+
+    // Apply styling if visible
+    if (shouldShowStandardLegend && legend.container) {
+      requestAnimationFrame(() => {
+        // Ensure container exists before styling
+        if (legend.container) {
+          styleLegend(legend.container);
         }
       });
+    }
+  }, [activeTab, legend, tabs, mapView?.ready, isEditorOpen, isLabelEditorOpen, customLegendContent]); // Added dependencies
 
-      if (layersToRemove.length > 0) {
-        console.log(
-          `[RefreshEvent] Removing ${layersToRemove.length} existing visualization layers`
-        );
-        mapView.map.removeMany(layersToRemove);
+
+  // --- Visualization Update Effect ---
+  useEffect(() => {
+    // Simplified log for clarity
+    console.log("[VizUpdate Effect] TRIGGERED by dependency change.");
+
+    let currentLabelLoadTimeoutId = null;
+    let isEffectMounted = true;
+
+    const runUpdate = async () => {
+      // *** CHECK FOR LABEL MANAGER READY STATE ***
+      if (!isLabelManagerReady) {
+          console.log("[VizUpdate Effect] Skipping update: Label Manager not ready yet.");
+          return; // Exit early if manager isn't ready
       }
 
-      // Create a new layer with the updated configuration
+      console.log("[VizUpdate Effect] Calling updateVisualizationAndLegend (Label Manager Ready)...");
+      // Call the extracted and memoized logic function
+      const timeoutId = await updateVisualizationAndLegend();
+
+      // Only store the timeout ID if the effect is still considered "mounted"
+      if (isEffectMounted && timeoutId) {
+        currentLabelLoadTimeoutId = timeoutId;
+        console.log(`[VizUpdate Effect] Stored label refresh timeout ID: ${currentLabelLoadTimeoutId}`);
+      } else if (!isEffectMounted && timeoutId) {
+         console.log(`[VizUpdate Effect] Clearing timeout ${timeoutId} immediately as effect unmounted during update.`);
+         clearTimeout(timeoutId);
+      } else {
+         console.log("[VizUpdate Effect] Update finished (no timeout needed or effect unmounted).");
+      }
+    };
+
+    runUpdate();
+
+    // --- Cleanup function for this useEffect ---
+    return () => {
+      console.log("[VizUpdate Effect] CLEANUP running.");
+      isEffectMounted = false;
+
+      if (currentLabelLoadTimeoutId) {
+        console.log("[VizUpdate Effect] Clearing label refresh timeout in cleanup:", currentLabelLoadTimeoutId);
+        clearTimeout(currentLabelLoadTimeoutId);
+        currentLabelLoadTimeoutId = null;
+      }
+
+      // Save positions on cleanup - crucial for catching changes before unmount/re-render
+      console.log("[VizUpdate Effect] Attempting to save positions during cleanup.");
+      saveLabelPositions(true); // Force save using memoized function
+
+      console.log("[VizUpdate Effect] Cleanup finished.");
+    };
+    // --- End Cleanup function ---
+  }, [updateVisualizationAndLegend, isLabelManagerReady]); // <<< ADD isLabelManagerReady
+
+
+  // --- Initial Config Loading Effect ---
+  useEffect(() => {
+    // Skip if map isn't ready
+    if (!mapView?.map || !projectId) { // Added projectId check
+         console.log("[Config Load Effect] Skipping: MapView not ready or no Project ID.");
+         return;
+    }
+
+    // Load configurations from API
+    console.log("[Config Load Effect] Loading map configurations...");
+    loadMapConfigurations(); // This function now handles projectId internally
+
+  }, [mapView?.map, projectId]); // Depend on map and projectId
+
+
+  // 11. Visualization refresh event handler (Ensure label manager checks)
+  useEffect(() => {
+    const handleRefreshVisualization = (event) => {
+      const { tabId, config } = event.detail;
+      if (!tabId || !mapView?.map) return;
+      const tabData = tabs.find((tab) => tab.id === tabId);
+      if (!tabData || !tabData.visualizationType) return;
+      let vizType = tabData.visualizationType; // ... normalize ...
+
+      // --- Added Defensive Check ---
+      saveLabelPositions(true); // Save before refresh
+
+      // Remove layers
+      const layersToRemove = mapView.map.layers
+        .filter((l) => l?.isVisualizationLayer)
+        .toArray();
+      if (layersToRemove.length > 0) mapView.map.removeMany(layersToRemove);
+
       createLayers(
         vizType,
         config || tabData.layerConfiguration,
         initialLayerConfigurations,
         tabData.areaType
       )
-        .then((newLayer) => {
-          if (!newLayer) {
-            console.error("[RefreshEvent] Failed to create new layer");
-            return;
-          }
-
-          // Add the new layer to the map
-          console.log(`[RefreshEvent] Adding new ${vizType} layer to map`);
+        .then(async (newLayer) => {
+          // Make async
+          if (!newLayer) return;
           mapView.map.add(newLayer, 0);
-
-          // Special handling for specific layer types
-          if (vizType === "pipe") {
-            console.log("[RefreshEvent] Refreshing pipe visualization");
-            handlePipeVisualization(tabData);
-          } else if (vizType === "comp") {
-            console.log("[RefreshEvent] Refreshing comp visualization");
-            handleCompVisualization(tabData);
-          } else if (vizType === "custom") {
-            console.log("[RefreshEvent] Refreshing custom visualization");
-            handleCustomDataVisualization(tabData);
-          }
-
-          // Update legend if necessary
-          if (legend) {
+          // Specific handlers
+          if (vizType === "pipe")
+            await handlePipeVisualization(tabData, newLayer);
+          else if (vizType === "comp")
+            await handleCompVisualization(tabData, newLayer);
+          else if (vizType === "custom")
+            await handleCustomDataVisualization(tabData, newLayer);
+          // Update legend
+          if (legend && !isEditorOpen && !isLabelEditorOpen) { // Check BOTH editors
             legend.layerInfos = [
               {
                 layer: newLayer,
@@ -3954,82 +3365,33 @@ const handleCompVisualization = async (tabData, layer = null) => {
                 hideLayersNotInCurrentView: false,
               },
             ];
-            legend.visible = !isEditorOpen;
+            legend.visible = true;
+            styleLegend(legend.container); // Apply style
+          } else if (legend) {
+            legend.visible = false;
           }
+          // Load positions after refresh (use the function)
+          setTimeout(() => loadLabelPositions(true, true), 500);
         })
-        .catch((error) => {
-          console.error(
-            "[RefreshEvent] Error creating or updating layer:",
-            error
-          );
-        });
+        .catch((err) => console.error("Error refreshing visualization:", err));
     };
-
-    // Add event listener for refresh events
     window.addEventListener("refreshVisualization", handleRefreshVisualization);
-
-    // Clean up event listener when component unmounts
-    return () => {
-      window.removeEventListener(
-        "refreshVisualization",
-        handleRefreshVisualization
-      );
-    };
+    return () =>
+      window.removeEventListener("refreshVisualization", handleRefreshVisualization);
   }, [
     mapView,
     tabs,
     legend,
-    isEditorOpen,
-    handlePipeVisualization,
-    handleCompVisualization,
-    handleCustomDataVisualization,
+    isEditorOpen, // Added dependency
+    isLabelEditorOpen, // Added dependency
+    // Assuming these handlers are stable (defined outside or memoized)
+    // handlePipeVisualization, handleCompVisualization, handleCustomDataVisualization,
+    saveLabelPositions, // Added dependency
+    loadLabelPositions, // Added dependency
+    initialLayerConfigurations, // Added dependency
+    createLayers // Added dependency
   ]);
 
-  useEffect(() => {
-    if (!mapView || !mapView.ready) return;
-
-    // Load saved label positions once the map is ready with enhanced edit preservation
-    const loadSavedLabelPositions = () => {
-      if (labelManagerRef.current && labelManagerRef.current.loadPositions) {
-        try {
-          console.log("[Map] Loading saved label positions after map ready");
-          // Pass true as third parameter to preserve edited labels
-          const loadResult = labelManagerRef.current.loadPositions(
-            true,
-            true,
-            true
-          );
-          console.log(
-            `[Map] Loaded ${
-              loadResult.count || 0
-            } label positions after map ready with edit preservation`
-          );
-
-          // Ensure edits are properly marked for future session persistence
-          if (
-            typeof labelManagerRef.current.markSavedPositionsAsEdited ===
-            "function"
-          ) {
-            labelManagerRef.current.markSavedPositionsAsEdited();
-            console.log(
-              "[Map] Marked loaded positions as edited for persistence"
-            );
-          }
-        } catch (err) {
-          console.error(
-            "[Map] Error loading label positions after map ready:",
-            err
-          );
-        }
-      }
-    };
-
-    // Add a short delay to ensure everything is initialized
-    const timeoutId = setTimeout(loadSavedLabelPositions, 1000);
-
-    // Clean up the timeout on unmount
-    return () => clearTimeout(timeoutId);
-  }, [mapView?.ready]);
 
   return (
     <div className="flex flex-col h-full">
@@ -4054,20 +3416,21 @@ const handleCompVisualization = async (tabData, layer = null) => {
                       // Input field for renaming tab
                       <input
                         type="text"
-                        value={tab.name}
+                        defaultValue={tab.name} // Use defaultValue for uncontrolled or manage state fully
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
                         }}
-                        onChange={(e) =>
-                          setTabs(
-                            tabs.map((t) =>
-                              t.id === tab.id
-                                ? { ...t, name: e.target.value }
-                                : t
-                            )
-                          )
-                        }
+                        // onChange is needed if controlling state
+                        // onChange={(e) =>
+                        //   setTabs(
+                        //     tabs.map((t) =>
+                        //       t.id === tab.id
+                        //         ? { ...t, name: e.target.value }
+                        //         : t
+                        //     )
+                        //   )
+                        // }
                         onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
                         onBlur={(e) => handleNameChange(tab.id, e.target.value)}
                         className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
@@ -4201,10 +3564,7 @@ const handleCompVisualization = async (tabData, layer = null) => {
                     {showEditButton && ( // Now shows for ANY non-core tab
                       <div className="flex">
                         <button
-                          onClick={() => {
-                            setIsLabelEditMode(false); // Ensure we're not in label edit mode
-                            setIsEditorOpen(true);
-                          }}
+                          onClick={openLayerPropertiesEditor} // Use consolidated handler
                           className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-l hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
                           title="Edit layer properties"
                         >
@@ -4213,9 +3573,11 @@ const handleCompVisualization = async (tabData, layer = null) => {
 
                         {/* Add the Edit Labels button */}
                         <button
-                          onClick={toggleLabelEditMode}
+                          onClick={openLabelEditor} // Use consolidated handler
                           className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-r border-l border-gray-300 dark:border-gray-700 hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
                           title="Edit map labels"
+                          // Disable if label manager isn't ready yet
+                          disabled={!isLabelManagerReady}
                         >
                           <Tag className="h-3.5 w-3.5 mr-1" />
                           Edit Labels
@@ -4229,96 +3591,106 @@ const handleCompVisualization = async (tabData, layer = null) => {
             {/* Save Button (Always visible) */}
             <button
               onClick={async () => {
-                // --- Existing Save Logic ---
-                try {
-                  setIsSaving(true);
-                  const configurations = tabs
-                    .filter((tab) => tab.id !== 1)
-                    .map((tab, index) => ({
-                      project_id: projectId,
-                      project: projectId,
-                      tab_name: tab.name,
-                      visualization_type: tab.visualizationType || "",
-                      area_type: convertAreaTypeToString(
-                        tab.id === activeTab
-                          ? selectedAreaType.value
-                          : tab.areaType?.value
-                      ),
-                      layer_configuration: tab.layerConfiguration,
-                      order: index,
-                    }));
+                 // --- ADDED: Force save label positions FIRST ---
+                 if (labelManagerRef.current && typeof labelManagerRef.current.savePositions === 'function') {
+                     try {
+                         await labelManagerRef.current.savePositions(true); // Ensure save completes if async
+                         console.log("[Save Button] Label positions saved before saving map configs.");
+                     } catch (labelSaveError) {
+                         console.error("Error saving label positions before map config save:", labelSaveError);
+                         alert("Warning: Could not save label positions. Proceeding with map config save.");
+                     }
+                 } else {
+                     console.warn("[Save Button] Label manager not available to save positions.");
+                 }
 
-                  const existingConfigsResponse =
-                    await mapConfigurationsAPI.getAll(projectId);
-                  const existingConfigs = existingConfigsResponse?.data;
+                 // --- Existing Save Logic ---
+                 try {
+                   setIsSaving(true);
+                   const configurations = tabs
+                     .filter((tab) => tab.id !== 1)
+                     .map((tab, index) => ({
+                       project_id: projectId,
+                       project: projectId,
+                       tab_name: tab.name,
+                       visualization_type: tab.visualizationType || "",
+                       area_type: convertAreaTypeToString(
+                         tab.id === activeTab
+                           ? selectedAreaType.value
+                           : tab.areaType?.value
+                       ),
+                       layer_configuration: tab.layerConfiguration,
+                       order: index,
+                     }));
 
-                  if (
-                    Array.isArray(existingConfigs) &&
-                    existingConfigs.length > 0
-                  ) {
-                    await Promise.all(
-                      existingConfigs.map((config) =>
-                        mapConfigurationsAPI
-                          .delete(config.id)
-                          .catch((err) =>
-                            console.error(
-                              `Failed to delete config ${config.id}:`,
-                              err
-                            )
-                          )
-                      )
-                    );
-                    console.log(
-                      `Deleted ${existingConfigs.length} existing configurations.`
-                    );
-                  }
+                   const existingConfigsResponse =
+                     await mapConfigurationsAPI.getAll(projectId);
+                   const existingConfigs = existingConfigsResponse?.data;
 
-                  const createdConfigs = []; // Store created config IDs
-                  for (const config of configurations) {
-                    // Ensure project field is sent if API requires it
-                    const response = await mapConfigurationsAPI.create(
-                      projectId,
-                      { ...config, project: projectId }
-                    );
-                    if (response.data && response.data.id) {
-                      createdConfigs.push({
-                        tabName: config.tab_name,
-                        configId: response.data.id,
-                      });
-                    }
-                  }
+                   if (
+                     Array.isArray(existingConfigs) &&
+                     existingConfigs.length > 0
+                   ) {
+                     await Promise.all(
+                       existingConfigs.map((config) =>
+                         mapConfigurationsAPI
+                           .delete(config.id)
+                           .catch((err) =>
+                             console.error(
+                               `Failed to delete config ${config.id}:`,
+                               err
+                             )
+                           )
+                       )
+                     );
+                     console.log(
+                       `Deleted ${existingConfigs.length} existing configurations.`
+                     );
+                   }
 
-                  // Update tab state with new config IDs
-                  setTabs((prevTabs) =>
-                    prevTabs.map((t) => {
-                      const created = createdConfigs.find(
-                        (c) => c.tabName === t.name
-                      );
-                      // Make sure configId is updated or kept if it already existed
-                      const existingConfigId = t.configId;
-                      const newConfigId = created
-                        ? created.configId
-                        : existingConfigId;
-                      return { ...t, configId: newConfigId };
-                    })
-                  );
+                   const createdConfigs = []; // Store created config IDs
+                   for (const config of configurations) {
+                     // Ensure project field is sent if API requires it
+                     const response = await mapConfigurationsAPI.create(
+                       projectId,
+                       { ...config, project: projectId }
+                     );
+                     if (response.data && response.data.id) {
+                       createdConfigs.push({
+                         tabName: config.tab_name,
+                         configId: response.data.id,
+                         originalTabId: tabs.find(t => t.name === config.tab_name)?.id // Get original temp ID
+                       });
+                     }
+                   }
 
-                  console.log(
-                    `Saved ${configurations.length} map configurations.`
-                  );
-                  alert("Map configurations saved successfully");
-                } catch (error) {
-                  console.error(
-                    "[Save] Error saving map configurations:",
-                    error.response?.data || error.message || error
-                  );
-                  alert(
-                    "Failed to save map configurations. Check console for details."
-                  );
-                } finally {
-                  setIsSaving(false);
-                }
-                // --- End Existing Save Logic ---
+                   // Update tab state with new config IDs
+                   setTabs((prevTabs) =>
+                     prevTabs.map((t) => {
+                       const created = createdConfigs.find(
+                         (c) => c.originalTabId === t.id // Match by original temp ID
+                       );
+                       // Keep original frontend ID, but add/update configId
+                       return { ...t, configId: created ? created.configId : t.configId };
+                     })
+                   );
+
+                   console.log(
+                     `Saved ${configurations.length} map configurations.`
+                   );
+                   alert("Map configurations saved successfully");
+                 } catch (error) {
+                   console.error(
+                     "[Save] Error saving map configurations:",
+                     error.response?.data || error.message || error
+                   );
+                   alert(
+                     "Failed to save map configurations. Check console for details."
+                   );
+                 } finally {
+                   setIsSaving(false);
+                 }
+                 // --- End Existing Save Logic ---
               }}
               className={`p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400
                           dark:hover:text-gray-300 focus:outline-none ${
@@ -4349,9 +3721,10 @@ const handleCompVisualization = async (tabData, layer = null) => {
       </div>
 
       {/* Main Map Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative"> {/* <-- ADDED relative */}
+
         {/* Map container */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative"> {/* Keep relative if needed for map overlays */}
           <div ref={mapRef} className="w-full h-full">
             {/* Zoom Alert Overlay */}
             <ZoomAlert />
@@ -4359,111 +3732,66 @@ const handleCompVisualization = async (tabData, layer = null) => {
           </div>
         </div>
 
-        {/* Layer Properties Editor Panel */}
-        <div className="relative">
-          {" "}
-          {/* Keep this relative for absolute positioning of the child */}
-          {/* Conditionally render editor panel container - check activeTab !== 1 */}
-          {activeTab !== 1 && (
-            <div
-              className={`
-                w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200
-                dark:border-gray-700 transform transition-transform duration-300 ease-in-out
-                absolute h-full z-20 /* Ensure editor is above map */
-                ${isEditorOpen ? "translate-x-0" : "translate-x-full"}
-              `}
-              // --- Restore specific positioning ---
-              style={{
-                right: "440px", // Position 440px from the right edge of the parent
-                top: "0",
-              }}
-              // --- End Restore specific positioning ---
-            >
-              <LayerPropertiesEditor
-                isOpen={isEditorOpen}
-                onClose={() => {
-                  // Save any pending label edits before closing
-                  if (labelManagerRef.current) {
-                    try {
-                      console.log(
-                        "Saving label positions before closing editor"
-                      );
-                      const saveResult =
-                        labelManagerRef.current.savePositions(true);
-                      console.log(
-                        `Saved ${saveResult.count || 0} label positions`
-                      );
-
-                      // Force reload saved positions to ensure they're applied
-                      setTimeout(() => {
-                        try {
-                          const loadResult =
-                            labelManagerRef.current.loadPositions(true, true);
-                          console.log(
-                            `Loaded ${
-                              loadResult.count || 0
-                            } saved label positions after editor close`
-                          );
-
-                          // Force refresh for proper visualization
-                          labelManagerRef.current._throttledUpdateLabelPositions();
-                        } catch (err) {
-                          console.error(
-                            "Error reloading label positions after editor close:",
-                            err
-                          );
-                        }
-                      }, 300);
-                    } catch (err) {
-                      console.error(
-                        "Error saving label positions before closing editor:",
-                        err
-                      );
-                    }
+        {/* --- Consolidated Side Panel (Positioned LEFT) --- */}
+        <div
+          className={`
+            absolute top-0 left-0 h-full /* <-- CHANGED: Position top-left */
+            w-[500px] /* Fixed width */
+            bg-white dark:bg-gray-800 /* Background */
+            border-r border-gray-200 dark:border-gray-700 /* <-- CHANGED: Right border */
+            transform transition-transform duration-300 ease-in-out /* Slide animation */
+            z-20 /* Ensure it's above the map */
+            ${(isEditorOpen || isLabelEditorOpen) ? "translate-x-0" : "-translate-x-full"} /* <-- CHANGED: Sliding logic (slide left) */
+          `}
+          // Removed inline style for right: 0
+        >
+            {/* Conditionally render LayerPropertiesEditor */}
+            {isEditorOpen && (
+                <LayerPropertiesEditor
+                  isOpen={isEditorOpen}
+                  onClose={closeSidePanel} // Use consolidated close handler
+                  // Pass other necessary props
+                  visualizationType={tabs.find((tab) => tab.id === activeTab)?.visualizationType}
+                  layerConfig={
+                      tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
+                      (tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                          ? initialLayerConfigurations[tabs.find((tab) => tab.id === activeTab).visualizationType]
+                          : null)
                   }
+                  selectedAreaType={tabs.find((tab) => tab.id === activeTab)?.areaType || areaTypes[0]}
+                  onConfigChange={handleLayerConfigChange}
+                  onPreview={handleConfigPreview}
+                  projectId={projectId}
+                  activeTab={activeTab}
+                  tabs={tabs}
+                  mapView={mapView}
+                  activeLayer={activeLayersRef.current[activeTab]}
+                  labelManager={labelManagerRef.current}
+                  isLabelEditMode={isLabelEditorOpen} // Reflect label editor state
+                  onLabelEditModeChange={setIsLabelEditorOpen} // Allow toggling label editor
+                />
+            )}
 
-                  // Close the editor
-                  setIsEditorOpen(false);
-                  setIsLabelEditMode(false); // Reset label edit mode when closing editor
-
-                  // Apply any pending label changes and update the map
-                  if (labelManagerRef.current) {
-                    labelManagerRef.current._throttledUpdateLabelPositions();
-                  }
-                }}
-                visualizationType={
-                  tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                }
-                layerConfig={
-                  tabs.find((tab) => tab.id === activeTab)
-                    ?.layerConfiguration ||
-                  (tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                    ? initialLayerConfigurations[
-                        tabs.find((tab) => tab.id === activeTab)
-                          .visualizationType
-                      ]
-                    : null)
-                }
-                selectedAreaType={
-                  tabs.find((tab) => tab.id === activeTab)?.areaType ||
-                  areaTypes[0]
-                }
-                onConfigChange={handleLayerConfigChange}
-                onPreview={handleConfigPreview}
-                projectId={projectId}
-                activeTab={activeTab}
-                tabs={tabs}
-                // Add these new props
-                mapView={mapView}
-                labelManager={labelManagerRef.current}
-                isLabelEditMode={isLabelEditMode}
-                onLabelEditModeChange={setIsLabelEditMode}
-                activeLayer={activeLayersRef.current[activeTab]}
-              />
-            </div>
-          )}
+            {/* Conditionally render LabelEditor */}
+            {isLabelEditorOpen && isLabelManagerReady && ( // Only render if manager is ready
+                <LabelEditor
+                    isOpen={isLabelEditorOpen}
+                    onClose={closeSidePanel} // Use consolidated close handler
+                    mapView={mapView}
+                    labelManager={labelManagerRef.current} // Pass the manager instance
+                    activeLayer={activeLayersRef.current[activeTab]} // Optional layer context
+                />
+            )}
+            {/* Optional: Message if trying to open label editor but manager isn't ready */}
+            {isLabelEditorOpen && !isLabelManagerReady && (
+                 <div className="p-4 text-center text-yellow-700 bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-300">
+                    Label Manager is initializing... Please wait.
+                 </div>
+            )}
         </div>
-      </div>
+         {/* --- End Consolidated Side Panel --- */}
+
+      </div> {/* End Main Map Area Flex Container */}
 
       {/* New Map Dialog */}
       <NewMapDialog
@@ -4476,3 +3804,8 @@ const handleCompVisualization = async (tabData, layer = null) => {
     </div>
   );
 }
+
+// --- Add PropTypes ---
+MapComponent.propTypes = {
+    onToggleLis: PropTypes.func, // Keep if needed
+};

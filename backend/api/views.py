@@ -16,26 +16,164 @@ from .models import (
     ColorKey, 
     TcgTheme, 
     EnrichmentUsage,
-    MapConfiguration
+    MapConfiguration,
+    LabelPosition
 )
 from .serializers import (
-    UserSerializer, 
-    ProjectListSerializer, 
-    ProjectDetailSerializer, 
-    MarketAreaSerializer, 
-    StylePresetSerializer, 
-    VariablePresetSerializer, 
-    ColorKeySerializer, 
-    TcgThemeSerializer, 
-    AdminUserSerializer,
-    AdminUserUpdateSerializer, 
-    PasswordResetSerializer, 
-    EnrichmentUsageSerializer,
-    MapConfigurationSerializer
+    UserSerializer, ProjectListSerializer, ProjectDetailSerializer,
+    MarketAreaSerializer, StylePresetSerializer, VariablePresetSerializer,
+    ColorKeySerializer, TcgThemeSerializer, AdminUserSerializer,
+    AdminUserUpdateSerializer, PasswordResetSerializer, EnrichmentUsageSerializer,
+    MapConfigurationSerializer, LabelPositionSerializer  # Add this import
 )
 from decimal import Decimal, ROUND_HALF_UP
 import csv
 import json
+
+
+class LabelPositionViewSet(viewsets.ModelViewSet):
+    serializer_class = LabelPositionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        project_id = self.request.query_params.get('project')
+        map_config_id = self.request.query_params.get('map_configuration')
+        
+        queryset = LabelPosition.objects.all()
+        
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+            
+        if map_config_id:
+            queryset = queryset.filter(map_configuration_id=map_config_id)
+            
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+        
+        
+    @action(detail=False, methods=['post'])
+    def reset_all(self, request):
+        """
+        Reset all label positions for a project
+        """
+        try:
+            project_id = request.query_params.get('project')
+            if not project_id:
+                return Response({
+                    'error': 'Project ID is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            map_config_id = request.query_params.get('map_configuration')
+                
+            # Delete all label positions for this project
+            queryset = LabelPosition.objects.filter(project_id=project_id)
+            if map_config_id:
+                queryset = queryset.filter(map_configuration_id=map_config_id)
+                
+            count = queryset.count()
+            queryset.delete()
+                
+            return Response({
+                'success': True,
+                'message': f'Successfully reset {count} label positions'
+            }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': 'Failed to reset label positions',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)     
+        
+        
+    @action(detail=False, methods=['post'])
+    def batch_save(self, request):
+        """
+        Batch save multiple label positions
+        """
+        try:
+            project_id = request.data.get('project_id')
+            map_config_id = request.data.get('map_configuration_id')
+            labels = request.data.get('labels', [])
+            
+            if not project_id or not labels:
+                return Response({
+                    'error': 'Missing required fields',
+                    'required': ['project_id', 'labels']
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            try:
+                project = Project.objects.get(id=project_id)
+            except Project.DoesNotExist:
+                return Response({
+                    'error': f'Project with ID {project_id} does not exist'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+            map_config = None
+            if map_config_id:
+                try:
+                    map_config = MapConfiguration.objects.get(id=map_config_id)
+                except MapConfiguration.DoesNotExist:
+                    return Response({
+                        'error': f'MapConfiguration with ID {map_config_id} does not exist'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Process each label
+            results = []
+            for label_data in labels:
+                label_id = label_data.get('label_id')
+                if not label_id:
+                    continue
+                    
+                # Try to find existing label position
+                try:
+                    label_position = LabelPosition.objects.get(
+                        project=project,
+                        label_id=label_id
+                    )
+                    # Update existing
+                    label_position.x_offset = label_data.get('x_offset', label_position.x_offset)
+                    label_position.y_offset = label_data.get('y_offset', label_position.y_offset)
+                    label_position.font_size = label_data.get('font_size', label_position.font_size)
+                    label_position.text = label_data.get('text', label_position.text)
+                    label_position.visibility = label_data.get('visibility', label_position.visibility)
+                    if map_config:
+                        label_position.map_configuration = map_config
+                    label_position.save()
+                except LabelPosition.DoesNotExist:
+                    # Create new
+                    label_position = LabelPosition.objects.create(
+                        project=project,
+                        map_configuration=map_config,
+                        label_id=label_id,
+                        x_offset=label_data.get('x_offset', 0),
+                        y_offset=label_data.get('y_offset', 0),
+                        font_size=label_data.get('font_size', 10),
+                        text=label_data.get('text', ''),
+                        visibility=label_data.get('visibility', True),
+                        created_by=request.user
+                    )
+                
+                results.append({
+                    'id': str(label_position.id),
+                    'label_id': label_position.label_id,
+                    'updated': True
+                })
+            
+            return Response({
+                'success': True,
+                'message': f'Successfully processed {len(results)} label positions',
+                'results': results
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Failed to process label positions',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 class ColorKeyViewSet(viewsets.ModelViewSet):

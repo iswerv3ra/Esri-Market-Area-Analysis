@@ -157,3 +157,25 @@ class MapConfiguration(models.Model):
 
     def __str__(self):
         return f"{self.tab_name} - {self.project.project_number}"
+    
+    
+class LabelPosition(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="label_positions")
+    map_configuration = models.ForeignKey(MapConfiguration, on_delete=models.CASCADE, related_name="labels", null=True, blank=True)
+    label_id = models.CharField(max_length=255)  # Identifier for the label
+    x_offset = models.FloatField()
+    y_offset = models.FloatField()
+    font_size = models.IntegerField(default=10)
+    text = models.TextField(null=True, blank=True)
+    visibility = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="created_labels")
+
+    class Meta:
+        ordering = ['-last_modified']
+        unique_together = ['project', 'label_id']
+
+    def __str__(self):
+        return f"Label {self.label_id} for {self.project.project_number}"

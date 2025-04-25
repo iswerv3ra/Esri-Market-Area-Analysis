@@ -2,13 +2,20 @@ import json
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.db.models import Count
-from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage, MapConfiguration
+from .models import Project, MarketArea, StylePreset, VariablePreset, ColorKey, TcgTheme, EnrichmentUsage, MapConfiguration, LabelPosition  
 
 class ColorKeySerializer(serializers.ModelSerializer):
     class Meta:
         model = ColorKey
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'last_modified']
+
+class LabelPositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LabelPosition
+        fields = ['id', 'project', 'map_configuration', 'label_id', 'x_offset',
+                 'y_offset', 'font_size', 'text', 'visibility', 'last_modified']
+        read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
 
 class TcgThemeSerializer(serializers.ModelSerializer):
     color_key = ColorKeySerializer(read_only=True)
