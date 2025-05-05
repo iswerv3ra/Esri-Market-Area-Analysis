@@ -124,13 +124,13 @@ export function generatePointTitle(item, options) {
 }
 
 /**
- * Creates a comparison map layer with labels
+ * Creates a comparison map layer with labels that properly includes variable text fields
  * 
  * @param {Object} config - Configuration for the comparison layer
  * @returns {GraphicsLayer} The configured comparison graphics layer
  */
 export const createCompLayer = (config) => {
-  // Log the received config
+  // Log the received config (without data for brevity)
   console.log("[createCompLayer] Received config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
   
   // Create the graphics layer
@@ -148,6 +148,9 @@ export const createCompLayer = (config) => {
   const labelColumn = config?.labelColumn;
   const variable1Column = config?.variable1Column;
   const variable2Column = config?.variable2Column;
+  // Extract variable text fields from config
+  const variable1Text = config?.variable1Text || '';
+  const variable2Text = config?.variable2Text || '';
   const valueColumn = config?.valueColumn || config?.field;
   const latitudeColumn = config?.latitudeColumn;
   const longitudeColumn = config?.longitudeColumn;
@@ -239,12 +242,25 @@ export const createCompLayer = (config) => {
         }
       });
 
-      // Generate formatted title for popup
-      const pointTitle = generatePointTitle ? generatePointTitle(item, {
-        labelColumn,
-        variable1Column,
-        variable2Column
-      }) : (item[labelColumn] || `Point ${i}`);
+      // --- Custom title generation with variable text fields ---
+      let pointTitle = item[labelColumn] || `Point ${i}`;
+      
+      // Build variable part of the title with text
+      const variableParts = [];
+      if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+        const var1Display = item[variable1Column] + (variable1Text ? ' ' + variable1Text : '');
+        variableParts.push(var1Display);
+      }
+      
+      if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+        const var2Display = item[variable2Column] + (variable2Text ? ' ' + variable2Text : '');
+        variableParts.push(var2Display);
+      }
+      
+      // Add variables in parentheses if any exist
+      if (variableParts.length > 0 && includeVariables) {
+        pointTitle += ' (' + variableParts.join(', ') + ')';
+      }
 
       // Create the graphic with attributes
       const graphic = new Graphic({
@@ -254,7 +270,11 @@ export const createCompLayer = (config) => {
           ...item,
           OBJECTID: i,  // Use index as OBJECTID
           displayValue: pointValue,
-          displayName: pointTitle
+          displayName: pointTitle,
+          // Store variable text for label manager reference
+          variable1Text: variable1Text,
+          variable2Text: variable2Text,
+          hasCustomFormat: true
         },
         popupTemplate: new PopupTemplate({
           title: "{displayName}",
@@ -282,22 +302,39 @@ export const createCompLayer = (config) => {
       graphicsLayer.add(graphic);
       addedPoints++;
       
+      // --- Create label text with variable text fields ---
       // Create label text (includes variables if configured)
-      const labelText = formatPointLabel ? formatPointLabel(item, {
-        labelColumn,
-        variable1Column, 
-        variable2Column,
-        labelOptions: { includeVariables }
-      }) : (item[labelColumn] || `Point ${i}`);
+      let labelText = item[labelColumn] || `Point ${i}`;
+      
+      // We'll add variables only if configured
+      if (includeVariables) {
+        const labelVariableParts = [];
+        
+        if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+          const var1Display = item[variable1Column] + (variable1Text ? ' ' + variable1Text : '');
+          labelVariableParts.push(var1Display);
+        }
+        
+        if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+          const var2Display = item[variable2Column] + (variable2Text ? ' ' + variable2Text : '');
+          labelVariableParts.push(var2Display);
+        }
+        
+        // Add variables in parentheses if any exist
+        if (labelVariableParts.length > 0) {
+          labelText += ' (' + labelVariableParts.join(', ') + ')';
+        }
+      }
       
       // Default label position (below point)
       let xOffset = 0;
       let yOffset = fontSize + 4;
       
-      // Create a text symbol for the label
       const textSymbol = new TextSymbol({
         text: labelText,
         font: {
+          // IMPORTANT: Default to config fontSize but don't override in the symbol directly
+          // Let the LabelManager apply saved fontSize based on the label's ID
           size: fontSize,
           family: "sans-serif",
           weight: "normal"
@@ -308,7 +345,6 @@ export const createCompLayer = (config) => {
         xoffset: xOffset,
         yoffset: yOffset
       });
-      
       // Create a label graphic
       const labelGraphic = new Graphic({
         geometry: point,
@@ -318,7 +354,15 @@ export const createCompLayer = (config) => {
           OBJECTID: `label-${i}`,
           parentID: i,
           isLabel: true,
-          visible: true
+          visible: true,
+          // Store variables and text for label manager to preserve when editing
+          variable1Column: variable1Column,
+          variable2Column: variable2Column,
+          variable1Text: variable1Text,
+          variable2Text: variable2Text,
+          hasCustomFormat: true,
+          labelText: labelText,
+          baseText: item[labelColumn] || `Point ${i}` // Store the base text without variables
         },
         // Labels should be invisible at low zoom levels if configured
         visible: visibleAtAllZooms
@@ -333,10 +377,23 @@ export const createCompLayer = (config) => {
   }
 
   console.log(`[createCompLayer] Added ${addedPoints} points and ${addedLabels} labels to comp layer "${graphicsLayer.title}".`);
+  
+  // Store variable text fields on the layer for reference
+  graphicsLayer.variable1Text = variable1Text;
+  graphicsLayer.variable2Text = variable2Text;
+  graphicsLayer.labelFormatInfo = {
+    labelColumn,
+    variable1Column,
+    variable2Column,
+    variable1Text,
+    variable2Text,
+    includeVariables
+  };
+  
   return graphicsLayer;
 };
 /**
- * Creates a pipeline map layer with improved label handling
+ * Creates a pipeline map layer with improved label handling that includes variable text fields
  * 
  * @param {Object} config - Configuration for the pipeline layer
  * @returns {GraphicsLayer} The configured pipeline graphics layer
@@ -380,6 +437,10 @@ export const createPipeLayer = (config) => {
     classBreakInfos = [],
     rendererType = classBreakInfos.length > 0 ? 'classBreaks' : (statusColumn ? 'uniqueValue' : 'simple')
   } = config;
+  
+  // Extract variable text fields from config
+  const variable1Text = config.variable1Text || '';
+  const variable2Text = config.variable2Text || '';
   
   // --- Extract label configuration ---
   const labelOptions = config?.labelOptions || {};
@@ -465,13 +526,28 @@ export const createPipeLayer = (config) => {
           // Skip invalid coordinates
           if (isNaN(lat) || isNaN(lon)) return null;
           
-          // Generate label text
-          const labelText = formatPointLabel(item, {
-            labelColumn,
-            variable1Column,
-            variable2Column,
-            labelOptions: { includeVariables }
-          });
+          // --- Generate label text with variable text fields ---
+          let labelText = item[labelColumn] || `Point ${index}`;
+          
+          // We'll add variables only if configured
+          if (includeVariables) {
+            const labelVariableParts = [];
+            
+            if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+              const var1Display = item[variable1Column] + (variable1Text ? ' ' + variable1Text : '');
+              labelVariableParts.push(var1Display);
+            }
+            
+            if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+              const var2Display = item[variable2Column] + (variable2Text ? ' ' + variable2Text : '');
+              labelVariableParts.push(var2Display);
+            }
+            
+            // Add variables in parentheses if any exist
+            if (labelVariableParts.length > 0) {
+              labelText += ' (' + labelVariableParts.join(', ') + ')';
+            }
+          }
           
           return {
             id: `label-${index}`,
@@ -595,12 +671,25 @@ export const createPipeLayer = (config) => {
           }
         });
         
-        // Generate formatted title including variables for popup
-        const pointTitle = generatePointTitle(item, {
-          labelColumn,
-          variable1Column,
-          variable2Column
-        });
+        // --- Generate formatted title with variable text fields ---
+        let pointTitle = item[labelColumn] || `Point ${index}`;
+        
+        // Build variable part of the title with text
+        const variableParts = [];
+        if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+          const var1Display = item[variable1Column] + (variable1Text ? ' ' + variable1Text : '');
+          variableParts.push(var1Display);
+        }
+        
+        if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+          const var2Display = item[variable2Column] + (variable2Text ? ' ' + variable2Text : '');
+          variableParts.push(var2Display);
+        }
+        
+        // Add variables in parentheses if any exist
+        if (variableParts.length > 0 && includeVariables) {
+          pointTitle += ' (' + variableParts.join(', ') + ')';
+        }
         
         // Create content for popup based on available columns
         const fieldInfos = [];
@@ -631,7 +720,11 @@ export const createPipeLayer = (config) => {
             OBJECTID: index,
             displayName: pointTitle,
             status: item[statusColumn] || "Unknown",
-            value: valueColumn ? item[valueColumn] : null
+            value: valueColumn ? item[valueColumn] : null,
+            // Store variable text for label manager reference
+            variable1Text: variable1Text,
+            variable2Text: variable2Text,
+            hasCustomFormat: true
           },
           popupTemplate: new PopupTemplate({
             title: "{displayName}",
@@ -647,13 +740,28 @@ export const createPipeLayer = (config) => {
         // Add the point graphic to the layer
         graphicsLayer.add(graphic);
         
-        // Create label text that includes variables if configured
-        const labelText = formatPointLabel(item, {
-          labelColumn,
-          variable1Column, 
-          variable2Column,
-          labelOptions: { includeVariables }
-        });
+        // --- Create label text with variable text fields ---
+        let labelText = item[labelColumn] || `Point ${index}`;
+        
+        // We'll add variables only if configured
+        if (includeVariables) {
+          const labelVariableParts = [];
+          
+          if (variable1Column && item[variable1Column] !== undefined && item[variable1Column] !== null) {
+            const var1Display = item[variable1Column] + (variable1Text ? ' ' + variable1Text : '');
+            labelVariableParts.push(var1Display);
+          }
+          
+          if (variable2Column && item[variable2Column] !== undefined && item[variable2Column] !== null) {
+            const var2Display = item[variable2Column] + (variable2Text ? ' ' + variable2Text : '');
+            labelVariableParts.push(var2Display);
+          }
+          
+          // Add variables in parentheses if any exist
+          if (labelVariableParts.length > 0) {
+            labelText += ' (' + labelVariableParts.join(', ') + ')';
+          }
+        }
         
         // Get label position if we're avoiding collisions
         const labelId = `label-${index}`;
@@ -687,7 +795,15 @@ export const createPipeLayer = (config) => {
             OBJECTID: `label-${index}`,
             parentID: index,
             isLabel: true,
-            visible: labelOffset.visible
+            visible: labelOffset.visible,
+            // Store variables and text for label manager to preserve when editing
+            variable1Column: variable1Column,
+            variable2Column: variable2Column,
+            variable1Text: variable1Text,
+            variable2Text: variable2Text,
+            hasCustomFormat: true,
+            labelText: labelText,
+            baseText: item[labelColumn] || `Point ${index}` // Store the base text without variables
           },
           // Labels should be invisible at low zoom levels if configured
           visible: labelOffset.visible && visibleAtAllZooms
@@ -704,6 +820,19 @@ export const createPipeLayer = (config) => {
     });
     
     console.log(`Pipeline layer creation complete: Added ${addedCount} points with labels, skipped ${skippedCount} invalid points`);
+    
+    // Store variable text fields on the layer for reference
+    graphicsLayer.variable1Text = variable1Text;
+    graphicsLayer.variable2Text = variable2Text;
+    graphicsLayer.labelFormatInfo = {
+      labelColumn,
+      variable1Column,
+      variable2Column,
+      variable1Text,
+      variable2Text,
+      includeVariables
+    };
+    
   } catch (error) {
     console.error("Error during pipeline layer creation:", error);
   }

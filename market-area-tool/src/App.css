@@ -17,6 +17,18 @@
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
+.label-edit-mode {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
+/* Apply higher z-index to prevent event interference */
+.label-edit-mode .esri-view-surface {
+  z-index: 1 !important;
+}
 
 @keyframes logo-spin {
   from {

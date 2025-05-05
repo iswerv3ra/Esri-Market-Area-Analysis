@@ -185,13 +185,16 @@
     const [longitudeColumn, setLongitudeColumn] = useState('');
     const [fileError, setFileError] = useState('');
     const [generatedClassBreaks, setGeneratedClassBreaks] = useState(null);
-    
+    const [variable1Text, setVariable1Text] = useState('');
+    const [variable2Text, setVariable2Text] = useState('');
     // New state for label configuration
     const [labelOptions, setLabelOptions] = useState({
       includeVariables: true,      // Whether to include variables in labels
       avoidCollisions: true,       // Whether to avoid label collisions
       visibleAtAllZooms: false,    // Whether labels are visible at all zoom levels
       fontSize: 10,                // Default label font size
+      bold: false,                 // Whether to use bold text for labels
+      whiteBackground: false,      // Whether to use a solid white background
       showLabelConfig: false       // UI toggle for label settings
     });
     
@@ -365,10 +368,10 @@
       setColumns(validFields);
       setGeneratedClassBreaks(null); // Reset breaks
       
-      // Reset selections
+      // Reset all selections
       setLabelColumn('');
-      setVariable1Column('');
-      setVariable2Column('');
+      setVariable1Column(''); // Reset to empty by default
+      setVariable2Column(''); // Reset to empty by default
       setValueColumn('');
       setStatusColumn('');
       setLatitudeColumn('');
@@ -380,13 +383,11 @@
         const labelCol = validFields.find(f => potentialLabelCols.some(p => f.toLowerCase().includes(p))) || validFields[0];
         setLabelColumn(labelCol);
         
-        // Auto-select variable columns if possible
-        // Use heuristics to find potential variable columns (looking for quantitative data columns)
-        const numericColumns = [];
-        
         // Find numeric columns that aren't lat/lon and ID fields
+        const numericColumns = [];
         const potentialLatLon = ['lat', 'lon', 'lng', 'latitude', 'longitude', 'x', 'y', 'coord', 'east', 'north'];
         const potentialIds = ['id', 'objectid', 'fid', 'pk', 'key'];
+        
         validFields.forEach(field => {
           // Check if the field contains mostly numeric values
           let isNumeric = false;
@@ -408,21 +409,10 @@
           }
         });
         
-        // Select the first and second numeric columns for variable1 and variable2
+        // No longer auto-selecting variable1 and variable2
+        // Just auto-select value column if available
         if (numericColumns.length > 0) {
-          setVariable1Column(numericColumns[0]);
-          
-          // If we have a second numeric column, use it for variable2
-          if (numericColumns.length > 1) {
-            setVariable2Column(numericColumns[1]);
-          }
-          
-          // If we have a third column, use it for value (or first column if no variable2)
-          if (numericColumns.length > 2) {
-            setValueColumn(numericColumns[2]);
-          } else if (numericColumns.length > 0) {
-            setValueColumn(numericColumns[0]);
-          }
+          setValueColumn(numericColumns[0]);
         }
         
         // Auto-detect status column
@@ -444,9 +434,7 @@
         
         console.log("Auto-detected columns:", { 
           labelCol, 
-          variable1: numericColumns[0], 
-          variable2: numericColumns.length > 1 ? numericColumns[1] : null,
-          valueColumn: numericColumns.length > 2 ? numericColumns[2] : numericColumns[0],
+          valueColumn: numericColumns.length > 0 ? numericColumns[0] : null,
           statusCol, 
           latCol, 
           lngCol 
@@ -466,6 +454,53 @@
       return undefined;
     };
 
+
+  /**
+   * Apply label style options to a text symbol
+   * @param {Object} symbol - The text symbol to modify
+   * @param {Object} labelOptions - The label options from configuration
+   * @returns {Object} - The modified symbol
+   */
+  const applyLabelStyleOptions = (symbol, labelOptions) => {
+    if (!symbol || !labelOptions) return symbol;
+    
+    // Create a clone of the symbol to avoid modifying the original
+    const newSymbol = symbol.clone();
+    
+    // Initialize font object if it doesn't exist
+    if (!newSymbol.font) {
+      newSymbol.font = {
+        family: "sans-serif",
+        size: labelOptions.fontSize || 10
+      };
+    }
+    
+    // Apply bold text option
+    if (labelOptions.bold === true) {
+      newSymbol.font = {
+        ...newSymbol.font,
+        weight: "bold"
+      };
+    }
+    
+    // Apply white background option
+    if (labelOptions.whiteBackground === true) {
+      newSymbol.haloSize = 1.5;
+      newSymbol.haloColor = [255, 255, 255, 0.9];
+    } else {
+      // Only set haloSize to 0 if whiteBackground is explicitly false
+      // Otherwise, respect any existing halo settings
+      if (labelOptions.whiteBackground === false) {
+        newSymbol.haloSize = 0;
+      }
+    }
+    
+    return newSymbol;
+  }
+
+
+
+
     // Helper to generate a formatted title
     const generateFormattedTitle = () => {
       // Start with the label column
@@ -479,19 +514,57 @@
       // First part is always the label
       parts.push(labelColumn || "Label");
       
-      // If we have variables, add them
+      // If we have variables, add them with their custom text
       if (hasVar1 || hasVar2) {
         const variableParts = [];
-        if (hasVar1) variableParts.push(variable1Column);
-        if (hasVar2) variableParts.push(variable2Column);
+        if (hasVar1) {
+          const var1Display = variable1Column + (variable1Text ? ' ' + variable1Text : '');
+          variableParts.push(var1Display);
+        }
+        if (hasVar2) {
+          const var2Display = variable2Column + (variable2Text ? ' ' + variable2Text : '');
+          variableParts.push(var2Display);
+        }
         
         if (variableParts.length > 0) {
-          parts.push(variableParts.join(" / "));
+          parts.push('(' + variableParts.join(", ") + ')');
         }
       }
       
-      // Join the parts with a comma
-      return parts.join(", ");
+      // Join the parts
+      return parts.join(" ");
+    };
+
+    const resetForm = () => {
+      setStep(1);
+      setMapName('New Map');
+      setMapType('comps');
+      setSelectedVisualization('');
+      setSelectedAreaType(areaTypes[0]);
+      setCustomData(null);
+      setColumns([]);
+      setLabelColumn('');
+      setVariable1Column('');
+      setVariable2Column('');
+      setVariable1Text('');
+      setVariable2Text('');
+      setValueColumn('');
+      setStatusColumn('');
+      setLatitudeColumn('');
+      setLongitudeColumn('');
+      setFileError('');
+      setGeneratedClassBreaks(null);
+      // Reset label options to defaults
+      setLabelOptions({
+        includeVariables: true,
+        avoidCollisions: true,
+        visibleAtAllZooms: false,
+        fontSize: 10,
+        bold: false,           // Reset bold option
+        whiteBackground: false, // Reset white background option
+        showLabelConfig: false
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleCreateMap = () => {
@@ -505,7 +578,7 @@
         type: mapType,
         visualizationType: mapType, // Initially set to the selected mapType
       };
-
+    
       // --- Default Symbol ---
       const defaultBaseSymbol = {
         type: "simple-marker", // Explicitly set type
@@ -513,35 +586,69 @@
         size: 10,
         outline: { color: '#FFFFFF', width: 1 }
       };
-
+    
       // --- Configuration specific to map type ---
       if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
         // Point-based maps
         mapData.areaType = { value: 'custom', label: 'Custom Data', url: null }; // Set area type for point data
-
-        // --- Build the layerConfiguration object ---
+    
         const layerConfig = {
           // Core properties expected by layer creators
           title: formattedTitle, // Use the formatted title for display
           type: mapType, // *** CRITICAL: Ensure 'type' is set within layerConfig ***
-
+        
           // Column references needed by layer creators
           labelColumn: labelColumn,
           variable1Column: variable1Column,
           variable2Column: variable2Column,
+          variable1Text: variable1Text, // Add the variable text fields
+          variable2Text: variable2Text, // Add the variable text fields
           latitudeColumn: latitudeColumn,
           longitudeColumn: longitudeColumn,
-
-          // Base symbol configuration
+        
+          // Store the formatted title formula for label display
+          labelFormatString: formattedTitle,
+          
+          // Store the generated title format specification for reuse
+          titleFormat: {
+            labelColumn: labelColumn,
+            variable1: {
+              column: variable1Column,
+              text: variable1Text
+            },
+            variable2: {
+              column: variable2Column,
+              text: variable2Text
+            },
+            formatPattern: 'label (var1, var2)'
+          },
+        
+          // Base symbol configuration with style settings applied
           symbol: {
             ...defaultBaseSymbol,
             // Assign default color based on type
             color: mapType === 'pipeline' ? '#FFA500' : (mapType === 'comps' ? '#800080' : '#FF0000'),
+            // Add font object with bold setting if enabled
+            font: {
+              family: "sans-serif",
+              size: labelOptions.fontSize || 10,
+              weight: labelOptions.bold ? 'bold' : 'normal',
+            },
+            // Apply background if enabled
+            ...(labelOptions.whiteBackground ? {
+              backgroundColor: [255, 255, 255, 0.9],
+              borderLineColor: [220, 220, 220, 0.5],
+              borderLineSize: 0.5,
+              kerning: true,
+              horizontalAlignment: "center",
+              haloSize: 0, // Explicitly remove any halo
+              haloColor: null
+            } : {})
           },
-
+        
           // Data payload (nested structure expected by graphics layer creators)
           customData: {
-              data: customData || [] // Pass the data array, ensure it's at least empty
+            data: customData || [] // Pass the data array, ensure it's at least empty
           },
           
           // Add new label configuration options
@@ -552,11 +659,13 @@
             includeVariables: labelOptions.includeVariables,
             avoidCollisions: labelOptions.avoidCollisions,
             visibleAtAllZooms: labelOptions.visibleAtAllZooms,
+            bold: labelOptions.bold, // Include bold text option
+            whiteBackground: labelOptions.whiteBackground, // Include white background option
             minZoom: 10, // Default minimum zoom level to show labels
             maxLabelsVisible: 50 // Default max number of labels to show at lower zoom levels
           }
         };
-
+    
         // Add type-specific properties to layerConfig
         if (mapType === 'comps' || mapType === 'custom') {
           layerConfig.valueColumn = valueColumn; // Add value column
@@ -573,17 +682,15 @@
         } else if (mapType === 'pipeline') {
           layerConfig.statusColumn = statusColumn; // Add status column
           layerConfig.rendererType = 'uniqueValue'; // Hint for renderer type (prefer uniqueValue if status exists)
-          // Add default status colors here if desired, or let Map.jsx handle defaults
-          // layerConfig.statusColors = { ... };
           console.log(`[NewMapDialog] Config for ${mapType}: Status column '${statusColumn}'. Using unique value renderer hint.`);
         }
         // --- End building layerConfiguration ---
-
+    
         // Assign the fully built configuration object to mapData
         mapData.layerConfiguration = layerConfig;
         // Ensure top-level viz type is also correct (redundant but safe)
         mapData.visualizationType = mapType;
-
+    
       } else {
         // Heatmap or Dot Density (Standard Layers)
         mapData.areaType = selectedAreaType; // Set the selected area type (e.g., Tract, County)
@@ -592,7 +699,7 @@
         // Standard types don't pass a layerConfig initially; Map.jsx looks it up
         mapData.layerConfiguration = null;
       }
-
+    
       // Log the final object being sent to the parent
       console.log("[NewMapDialog handleCreateMap] Final mapData object being sent:", JSON.stringify(mapData, (key, value) => {
           // Custom replacer to avoid logging the full data array
@@ -601,41 +708,13 @@
           }
           return value;
       }, 2));
-
+    
       // Call the parent function to create the map/tab
       onCreateMap(mapData);
-
+    
       // Reset the dialog form and close
       resetForm();
       onClose();
-    };
-    
-    const resetForm = () => {
-      setStep(1);
-      setMapName('New Map');
-      setMapType('comps');
-      setSelectedVisualization('');
-      setSelectedAreaType(areaTypes[0]);
-      setCustomData(null);
-      setColumns([]);
-      setLabelColumn('');
-      setVariable1Column('');
-      setVariable2Column('');
-      setValueColumn('');
-      setStatusColumn('');
-      setLatitudeColumn('');
-      setLongitudeColumn('');
-      setFileError('');
-      setGeneratedClassBreaks(null);
-      // Reset label options to defaults
-      setLabelOptions({
-        includeVariables: true,
-        avoidCollisions: true,
-        visibleAtAllZooms: false,
-        fontSize: 10,
-        showLabelConfig: false
-      });
-      if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const onCancel = () => {
@@ -749,7 +828,7 @@
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
@@ -764,9 +843,9 @@
               </svg>
             </button>
           </div>
-
+    
           {/* Content */}
-          <div className="px-6 py-4">
+          <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
             {/* Step indicators */}
             <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
               <div
@@ -797,7 +876,7 @@
                 3. Review
               </div>
             </div>
-
+    
             {/* Step 1: Choose Map Type */}
             {step === 1 && (
               <div>
@@ -813,7 +892,7 @@
                     placeholder="Enter map name (or leave blank to use formatted title)"
                   />
                 </div>
-
+    
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Map Type
@@ -830,7 +909,7 @@
                       <div className="font-medium">Comps Map</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Comparable property data with value fields</div>
                     </div>
-
+    
                     <div
                       className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                         mapType === 'pipeline'
@@ -842,7 +921,7 @@
                       <div className="font-medium">Pipeline Map</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Status-based property data (in progress, approved, etc.)</div>
                     </div>
-
+    
                     <div
                       className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                         mapType === 'custom'
@@ -855,7 +934,7 @@
                       <div className="text-sm text-gray-500 dark:text-gray-400">Simple point data with label, location, and value</div>
                     </div>
                   </div>
-
+    
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div
                       className={`border rounded-lg p-4 cursor-pointer transition-colors ${
@@ -868,7 +947,7 @@
                       <div className="font-medium">Heat Map</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Color-coded gradient data</div>
                     </div>
-
+    
                     <div
                       className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                         mapType === 'dotdensity'
@@ -882,7 +961,7 @@
                     </div>
                   </div>
                 </div>
-
+    
                 {/* Only show Area Type selection for heat maps and dot density */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -909,7 +988,7 @@
                     </p>
                   )}
                 </div>
-
+    
                 {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -961,7 +1040,7 @@
                     )}
                   </div>
                 )}
-
+    
                 {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -981,7 +1060,7 @@
                     </select>
                   </div>
                 )}
-
+    
                 {fileError && (
                   <div className="text-red-500 mt-2 text-sm">
                     {fileError}
@@ -989,284 +1068,390 @@
                 )}
               </div>
             )}
-
-            {/* Step 2: Configure Data */}
+    
+            {/* Step 2: Configure Data - Converted to a two-column layout */}
             {step === 2 && (
               <div>
                 {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
                   <div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Label Column
-                      </label>
-                      <select
-                        value={labelColumn}
-                        onChange={(e) => setLabelColumn(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column will be used for point labels on the map
-                      </p>
-                    </div>
-
-                    {/* Variable 1 Column Selection */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Variable 1 Column
-                      </label>
-                      <select
-                        value={variable1Column}
-                        onChange={(e) => setVariable1Column(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column will be displayed alongside the label in the title format: "Label, Variable 1 / Variable 2"
-                      </p>
-                    </div>
-
-                    {/* Variable 2 Column Selection */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Variable 2 Column (Optional)
-                      </label>
-                      <select
-                        value={variable2Column}
-                        onChange={(e) => setVariable2Column(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This optional column will be displayed after Variable 1 in the title format
-                      </p>
-                    </div>
-
-                    {/* Label Configuration Options */}
-                    <div className="mb-6">
-                      <div 
-                        className="flex items-center justify-between cursor-pointer" 
-                        onClick={toggleLabelConfig}
-                      >
-                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Label Display Options
-                        </h3>
-                        <svg 
-                          className={`w-5 h-5 text-gray-500 dark:text-gray-400 transform transition-transform ${labelOptions.showLabelConfig ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                      
-                      {labelOptions.showLabelConfig && (
-                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-                          {/* Include Variables Toggle */}
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm text-gray-700 dark:text-gray-300">
-                              Include Variables in Labels
+    
+                    {/* Two-column layout for form fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                      {/* Left Column */}
+                      <div>
+                        {/* Value Column (for Comps and Custom) */}
+                        {(mapType === 'comps' || mapType === 'custom') && (
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Select Value Column
                             </label>
-                            <div className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
-                                checked={labelOptions.includeVariables}
-                                onChange={(e) => updateLabelOption('includeVariables', e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                            </div>
+                            <select
+                              value={valueColumn}
+                              onChange={(e) => setValueColumn(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                              <option value="">Select column...</option>
+                              {columns.map((column) => (
+                                <option key={column} value={column}>
+                                  {column}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Determines data value for each point
+                            </p>
                           </div>
-                          
-                          {/* Label Font Size */}
-                          <div className="mb-3">
-                            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
-                              Label Font Size
-                            </label>
-                            <div className="flex items-center">
-                              <input 
-                                type="range" 
-                                min="8" 
-                                max="14" 
-                                step="1"
-                                value={labelOptions.fontSize}
-                                onChange={(e) => updateLabelOption('fontSize', parseInt(e.target.value))}
-                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                              />
-                              <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 w-8 text-center">
-                                {labelOptions.fontSize}px
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* Avoid Collisions Toggle */}
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm text-gray-700 dark:text-gray-300">
-                              Avoid Label Overlaps
-                            </label>
-                            <div className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
-                                checked={labelOptions.avoidCollisions}
-                                onChange={(e) => updateLabelOption('avoidCollisions', e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                            </div>
-                          </div>
-                          
-                          {/* Visible at All Zooms Toggle */}
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm text-gray-700 dark:text-gray-300">
-                              Show Labels at All Zoom Levels
-                            </label>
-                            <div className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
-                                checked={labelOptions.visibleAtAllZooms}
-                                onChange={(e) => updateLabelOption('visibleAtAllZooms', e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                            </div>
-                          </div>
-                          
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                            These settings help prevent label clutter and improve map readability. Labels are automatically 
-                            prioritized by importance when zoomed out.
+                        )}
+               
+                        {/* Latitude Column */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Select Latitude Column
+                          </label>
+                          <select
+                            value={latitudeColumn}
+                            onChange={(e) => setLatitudeColumn(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          >
+                            <option value="">Select column...</option>
+                            {columns.map((column) => (
+                              <option key={column} value={column}>
+                                {column}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Numeric latitude values (-90 to 90)
                           </p>
                         </div>
-                      )}
-                    </div>
 
+
+                            
+                        {/* Longitude Column */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Select Longitude Column
+                          </label>
+                          <select
+                            value={longitudeColumn}
+                            onChange={(e) => setLongitudeColumn(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          >
+                            <option value="">Select column...</option>
+                            {columns.map((column) => (
+                              <option key={column} value={column}>
+                                {column}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Numeric longitude values (-180 to 180)
+                          </p>
+                        </div>
+                        
+                      </div>
+    
+                      {/* Right Column */}
+                      <div>
+    
+                        {/* Status Column (for Pipeline) */}
+                        {mapType === 'pipeline' && (
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Select Status Column
+                            </label>
+                            <select
+                              value={statusColumn}
+                              onChange={(e) => setStatusColumn(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                              <option value="">Select column...</option>
+                              {columns.map((column) => (
+                                <option key={column} value={column}>
+                                  {column}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Shows status for each point
+                            </p>
+                          </div>
+                        )}
+                        {/* Label Column Selection */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Select Label Column
+                          </label>
+                          <select
+                            value={labelColumn}
+                            onChange={(e) => setLabelColumn(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          >
+                            <option value="">Select column...</option>
+                            {columns.map((column) => (
+                              <option key={column} value={column}>
+                                {column}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">
+                            This column will be used for point labels on the map
+                          </p>
+                        </div>
+    
+                        {/* Variable 1 Column Selection with Text Field */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Variable 1 (Optional)
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              value={variable1Column}
+                              onChange={(e) => setVariable1Column(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                              <option value="">Select column...</option>
+                              {columns.map((column) => (
+                                <option key={column} value={column}>
+                                  {column}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={variable1Text}
+                              onChange={(e) => setVariable1Text(e.target.value)}
+                              placeholder="Additional text"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Will be displayed as "Column Additional text"
+                          </p>
+                        </div>
+    
+                        {/* Variable 2 Column Selection with Text Field */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Variable 2 (Optional)
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              value={variable2Column}
+                              onChange={(e) => setVariable2Column(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                              <option value="">Select column...</option>
+                              {columns.map((column) => (
+                                <option key={column} value={column}>
+                                  {column}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={variable2Text}
+                              onChange={(e) => setVariable2Text(e.target.value)}
+                              placeholder="Additional text"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Will be displayed after Variable 1
+                          </p>
+                        </div>
+    
+                        {/* Label Configuration Options */}
+                        <div className="mb-4">
+                          <div 
+                            className="flex items-center justify-between cursor-pointer" 
+                            onClick={toggleLabelConfig}
+                          >
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Label Display Options
+                            </h3>
+                            <svg 
+                              className={`w-5 h-5 text-gray-500 dark:text-gray-400 transform transition-transform ${labelOptions.showLabelConfig ? 'rotate-180' : ''}`} 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                          
+                          {labelOptions.showLabelConfig && (
+                            <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                              {/* Include Variables Toggle */}
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="text-sm text-gray-700 dark:text-gray-300">
+                                  Include Variables in Labels
+                                </label>
+                                <div className="relative inline-flex items-center cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={labelOptions.includeVariables}
+                                    onChange={(e) => updateLabelOption('includeVariables', e.target.checked)}
+                                  />
+                                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                </div>
+                              </div>
+                              
+                              {/* Label Font Size */}
+                              <div className="mb-3">
+                                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                                  Label Font Size
+                                </label>
+                                <div className="flex items-center">
+                                  <input 
+                                    type="range" 
+                                    min="8" 
+                                    max="14" 
+                                    step="1"
+                                    value={labelOptions.fontSize}
+                                    onChange={(e) => updateLabelOption('fontSize', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                                  />
+                                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 w-8 text-center">
+                                    {labelOptions.fontSize}px
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Avoid Collisions Toggle */}
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="text-sm text-gray-700 dark:text-gray-300">
+                                  Avoid Label Overlaps
+                                </label>
+                                <div className="relative inline-flex items-center cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={labelOptions.avoidCollisions}
+                                    onChange={(e) => updateLabelOption('avoidCollisions', e.target.checked)}
+                                  />
+                                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                </div>
+                              </div>
+                              
+                              {/* Visible at All Zooms Toggle */}
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="text-sm text-gray-700 dark:text-gray-300">
+                                  Show Labels at All Zoom Levels
+                                </label>
+                                <div className="relative inline-flex items-center cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={labelOptions.visibleAtAllZooms}
+                                    onChange={(e) => updateLabelOption('visibleAtAllZooms', e.target.checked)}
+                                  />
+                                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                </div>
+                              </div>
+                              
+                              {/* Bold Text Toggle */}
+                              <div className="flex items-center justify-between mb-3">
+                              <label className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer" 
+                                    onClick={() => updateLabelOption('bold', !labelOptions.bold)}>
+                                <span className="font-bold">Bold Text</span> for Labels
+                              </label>
+                              <div className="relative inline-flex items-center">
+                                {/* Make the whole toggle area clickable */}
+                                <button 
+                                  type="button"
+                                  onClick={() => updateLabelOption('bold', !labelOptions.bold)}
+                                  className="focus:outline-none"
+                                >
+                                  <div className={`w-11 h-6 rounded-full transition-colors ${
+                                    labelOptions.bold 
+                                      ? 'bg-blue-600 dark:bg-blue-500' 
+                                      : 'bg-gray-200 dark:bg-gray-700'
+                                  }`}>
+                                    <div className={`absolute w-5 h-5 bg-white rounded-full shadow transform transition-transform top-[2px] ${
+                                      labelOptions.bold 
+                                        ? 'translate-x-5 border-blue-600' 
+                                        : 'translate-x-[2px] border-gray-300'
+                                    }`} />
+                                  </div>
+                                </button>
+                              </div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                              <label className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                                    onClick={() => updateLabelOption('whiteBackground', !labelOptions.whiteBackground)}>
+                                White Background (improves readability)
+                              </label>
+                              <div className="relative inline-flex items-center">
+                                {/* Make the whole toggle area clickable */}
+                                <button 
+                                  type="button"
+                                  onClick={() => updateLabelOption('whiteBackground', !labelOptions.whiteBackground)}
+                                  className="focus:outline-none"
+                                >
+                                  <div className={`w-11 h-6 rounded-full transition-colors ${
+                                    labelOptions.whiteBackground 
+                                      ? 'bg-blue-600 dark:bg-blue-500' 
+                                      : 'bg-gray-200 dark:bg-gray-700'
+                                  }`}>
+                                    <div className={`absolute w-5 h-5 bg-white rounded-full shadow transform transition-transform top-[2px] ${
+                                      labelOptions.whiteBackground 
+                                        ? 'translate-x-5 border-blue-600' 
+                                        : 'translate-x-[2px] border-gray-300'
+                                    }`} />
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+    
                     {/* Preview of the generated title */}
                     <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Formatted Title Preview
+                        Label Generator (Preview)
                       </label>
                       <p className="text-blue-600 dark:text-blue-400 font-medium">
                         {generateFormattedTitle()}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        This is how point titles will be formatted in the popup. You can override this with a custom map name above.
+                        This is how point titles will be formatted in the popup. Format: Label (Variable1 Text, Variable2 Text)
                       </p>
                     </div>
 
-                    {/* Value Column (for Comps and Custom) */}
-                    {(mapType === 'comps' || mapType === 'custom') && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Select Value Column
-                        </label>
-                        <select
-                          value={valueColumn}
-                          onChange={(e) => setValueColumn(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        >
-                          <option value="">Select column...</option>
-                          {columns.map((column) => (
-                            <option key={column} value={column}>
-                              {column}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          This column will determine the data value for each point and will be used to auto-generate class breaks
-                        </p>
+                    {/* Legend Preview for Comp/Custom */}
+                    {(mapType === 'comps' || mapType === 'custom') && valueColumn && (
+                      <div className="mt-4 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
+                        <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Generated Legend Preview (Based on '{valueColumn}')</h4>
+                        {generatedClassBreaks ? (
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {generatedClassBreaks.map((breakInfo, index) => (
+                              <div key={index} className="flex items-center space-x-2">
+                                <div style={{ width: '12px', height: '12px', backgroundColor: breakInfo.symbol.color, borderRadius: '50%', border: `${breakInfo.symbol.outline.width}px solid ${breakInfo.symbol.outline.color}`, flexShrink: 0 }} />
+                                <span className="text-xs text-gray-700 dark:text-gray-300">{breakInfo.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-yellow-600 dark:text-yellow-400">Could not generate legend. Ensure '{valueColumn}' contains valid numeric data. A single point style will be used.</p>
+                        )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Legend automatically generated with smart rounding. Values are rounded based on their magnitude for better readability.</p>
                       </div>
                     )}
-
-                    {/* Status Column (for Pipeline) */}
-                    {mapType === 'pipeline' && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Select Status Column
-                        </label>
-                        <select
-                          value={statusColumn}
-                          onChange={(e) => setStatusColumn(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        >
-                          <option value="">Select column...</option>
-                          {columns.map((column) => (
-                            <option key={column} value={column}>
-                              {column}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          This column will show the status for each point (e.g., "In Progress", "Approved", etc.)
-                        </p>
-                      </div>
+                    {(mapType === 'comps' || mapType === 'custom') && !valueColumn && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">Select a numeric 'Value Column' to automatically generate a legend based on data ranges with smart rounding.</p>
                     )}
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Latitude Column
-                      </label>
-                      <select
-                        value={latitudeColumn}
-                        onChange={(e) => setLatitudeColumn(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column should contain numeric latitude values (typically between -90 and 90)
-                      </p>
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Select Longitude Column
-                      </label>
-                      <select
-                        value={longitudeColumn}
-                        onChange={(e) => setLongitudeColumn(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="">Select column...</option>
-                        {columns.map((column) => (
-                          <option key={column} value={column}>
-                            {column}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        This column should contain numeric longitude values (typically between -180 and 180)
-                      </p>
-                    </div>
-
+    
                     {/* Data Preview (simplified conditional rendering) */}
                     {customData && customData.length > 0 && (labelColumn || variable1Column || variable2Column) && latitudeColumn && longitudeColumn && (
-                      <div className="mb-4">
+                      <div className="mt-4">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Data Preview (First 5 Rows)
-                          </label>
+                        </label>
                         <div className="border rounded-md overflow-x-auto max-h-60">
                           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1302,32 +1487,9 @@
                         </div>
                       </div>
                     )}
-
-                    {/* Legend Preview for Comp/Custom */}
-                    {(mapType === 'comps' || mapType === 'custom') && valueColumn && (
-                      <div className="mt-4 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/50">
-                        <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Generated Legend Preview (Based on '{valueColumn}')</h4>
-                        {generatedClassBreaks ? (
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {generatedClassBreaks.map((breakInfo, index) => (
-                              <div key={index} className="flex items-center space-x-2">
-                                <div style={{ width: '12px', height: '12px', backgroundColor: breakInfo.symbol.color, borderRadius: '50%', border: `${breakInfo.symbol.outline.width}px solid ${breakInfo.symbol.outline.color}`, flexShrink: 0 }} />
-                                <span className="text-xs text-gray-700 dark:text-gray-300">{breakInfo.label}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-yellow-600 dark:text-yellow-400">Could not generate legend. Ensure '{valueColumn}' contains valid numeric data. A single point style will be used.</p>
-                        )}
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Legend automatically generated with smart rounding. Values are rounded based on their magnitude for better readability.</p>
-                      </div>
-                    )}
-                    {(mapType === 'comps' || mapType === 'custom') && !valueColumn && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">Select a numeric 'Value Column' to automatically generate a legend based on data ranges with smart rounding.</p>
-                    )}
                   </div>
                 )}
-
+    
                 {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                   <div className="mb-4">
                     <div className="p-4 border rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
@@ -1335,12 +1497,12 @@
                       <p className="text-gray-600 dark:text-gray-300">
                         {filteredOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}
                       </p>
-
+    
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
                       <p className="text-gray-600 dark:text-gray-300">
                         {selectedAreaType?.label || 'None selected'}
                       </p>
-
+    
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                       <p className="text-gray-600 dark:text-gray-300">
                         {mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
@@ -1348,7 +1510,7 @@
                     </div>
                   </div>
                 )}
-
+    
                 {fileError && (
                   <div className="text-red-500 mt-2 text-sm">
                     {fileError}
@@ -1356,7 +1518,7 @@
                 )}
               </div>
             )}
-
+    
             {/* Step 3: Review & Create */}
             {step === 3 && (
               <div>
@@ -1365,7 +1527,7 @@
                   <p className="text-gray-600 dark:text-gray-300">
                     {mapName || generateFormattedTitle()}
                   </p>
-
+    
                   <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Map Type</h3>
                   <p className="text-gray-600 dark:text-gray-300">
                     {mapType === 'comps' ? 'Comps Map' :
@@ -1373,7 +1535,7 @@
                     mapType === 'custom' ? 'Custom Map' :
                     mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}
                   </p>
-
+    
                   {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                     <>
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Geography Level</h3>
@@ -1382,83 +1544,96 @@
                       </p>
                     </>
                   )}
-
+    
                   {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
                     <>
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Data Source</h3>
                       <p className="text-gray-600 dark:text-gray-300">
                         Custom Data File ({customData?.length || 0} rows)
                       </p>
-
+    
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Formatted Title</h3>
                       <p className="text-gray-600 dark:text-gray-300">{generateFormattedTitle()}</p>
-
-                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Data Columns</h3>
-                      <div className="space-y-2">
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Label Column:</span> {labelColumn}
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Variable 1:</span> {variable1Column || <span className="italic text-gray-400">None Selected</span>}
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Variable 2:</span> {variable2Column || <span className="italic text-gray-400">None Selected</span>}
-                        </p>
-
-                        {(mapType === 'comps' || mapType === 'custom') && (
+    
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 mt-4">
+                        <div>
+                          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Data Columns</h3>
+                          <div className="space-y-2">
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Label Column:</span> {labelColumn}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Variable 1:</span> {variable1Column ? `${variable1Column}${variable1Text ? ' ' + variable1Text : ''}` : <span className="italic text-gray-400">None Selected</span>}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Variable 2:</span> {variable2Column ? `${variable2Column}${variable2Text ? ' ' + variable2Text : ''}` : <span className="italic text-gray-400">None Selected</span>}
+                            </p>
+    
+                            {(mapType === 'comps' || mapType === 'custom') && (
+                              <p className="text-gray-600 dark:text-gray-300">
+                                <span className="font-medium">Value Column:</span> {valueColumn || <span className="italic text-gray-400">None Selected</span>}
+                              </p>
+                            )}
+    
+                            {mapType === 'pipeline' && (
+                              <p className="text-gray-600 dark:text-gray-300">
+                                <span className="font-medium">Status Column:</span> {statusColumn}
+                              </p>
+                            )}
+                          </div>
+    
+                          <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Location Coordinates</h3>
                           <p className="text-gray-600 dark:text-gray-300">
-                            <span className="font-medium">Value Column:</span> {valueColumn || <span className="italic text-gray-400">None Selected</span>}
+                            Latitude: {latitudeColumn} | Longitude: {longitudeColumn}
                           </p>
-                        )}
+                        </div>
+    
+                        <div>
+                          {/* Label Display Settings */}
+                          <h3 className="font-medium text-gray-900 dark:text-white mb-2">Label Display</h3>
+                          <div className="space-y-1">
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Include Variables:</span> {labelOptions.includeVariables ? 'Yes' : 'No'}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Font Size:</span> {labelOptions.fontSize}px
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Avoid Overlaps:</span> {labelOptions.avoidCollisions ? 'Yes' : 'No'}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Show at All Zooms:</span> {labelOptions.visibleAtAllZooms ? 'Yes' : 'No'}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Bold Text:</span> {labelOptions.bold ? 'Yes' : 'No'}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">White Background:</span> {labelOptions.whiteBackground ? 'Yes' : 'No'}
+                            </p>
+                          </div>
 
-                        {mapType === 'pipeline' && (
-                          <p className="text-gray-600 dark:text-gray-300">
-                            <span className="font-medium">Status Column:</span> {statusColumn}
-                          </p>
-                        )}
+    
+                          {/* Legend Information */}
+                          {(mapType === 'comps' || mapType === 'custom') && valueColumn && generatedClassBreaks && (
+                            <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                              Legend: <span className="text-green-600 dark:text-green-400">✅ Auto-generated with smart rounding (based on '{valueColumn}')</span>
+                            </h3>
+                          )}
+                          {(mapType === 'comps' || mapType === 'custom') && (!valueColumn || !generatedClassBreaks) && (
+                            <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                              Legend: <span className="text-gray-600 dark:text-gray-400">⚫ Single symbol style will be used</span>
+                            </h3>
+                          )}
+                          {mapType === 'pipeline' && (
+                            <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
+                              Legend: <span className="text-blue-600 dark:text-blue-400">🚦 Status-based (Edit colors later)</span>
+                            </h3>
+                          )}
+                        </div>
                       </div>
-
-                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Location Coordinates</h3>
-                      <p className="text-gray-600 dark:text-gray-300">
-                        Latitude: {latitudeColumn} | Longitude: {longitudeColumn}
-                      </p>
-
-                      {/* Label Display Settings */}
-                      <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Label Display</h3>
-                      <div className="space-y-1">
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Include Variables:</span> {labelOptions.includeVariables ? 'Yes' : 'No'}
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Font Size:</span> {labelOptions.fontSize}px
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Avoid Overlaps:</span> {labelOptions.avoidCollisions ? 'Yes' : 'No'}
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">Show at All Zooms:</span> {labelOptions.visibleAtAllZooms ? 'Yes' : 'No'}
-                        </p>
-                      </div>
-
-                      {/* Legend Information */}
-                      {(mapType === 'comps' || mapType === 'custom') && valueColumn && generatedClassBreaks && (
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
-                          Legend: <span className="text-green-600 dark:text-green-400">✅ Auto-generated with smart rounding (based on '{valueColumn}')</span>
-                        </h3>
-                      )}
-                      {(mapType === 'comps' || mapType === 'custom') && (!valueColumn || !generatedClassBreaks) && (
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
-                          Legend: <span className="text-gray-600 dark:text-gray-400">⚫ Single symbol style will be used</span>
-                        </h3>
-                      )}
-                      {mapType === 'pipeline' && (
-                        <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">
-                          Legend: <span className="text-blue-600 dark:text-blue-400">🚦 Status-based (Edit colors later)</span>
-                        </h3>
-                      )}
                     </>
                   )}
-
+    
                   {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                     <>
                       <h3 className="font-medium text-gray-900 dark:text-white mt-4 mb-2">Selected Visualization</h3>
@@ -1471,7 +1646,7 @@
               </div>
             )}
           </div>
-
+    
           {/* Footer */}
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-between rounded-b-lg">
             {step > 1 ? (
@@ -1489,7 +1664,7 @@
                 Cancel
               </button>
             )}
-
+    
             {step < 3 ? (
               <button
                 onClick={nextStep}
