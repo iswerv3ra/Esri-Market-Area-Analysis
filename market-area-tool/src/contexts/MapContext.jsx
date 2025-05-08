@@ -2699,10 +2699,10 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           color: new Color(siteData.color || styleSettings?.fillColor || "#FFC000"),
           size: parseInt(siteData.size) || 24,
           outline: {
-              color: new Color([0,0,0,0]), // Transparent color for outline
-              width: 0 // No width for outline
+              color: new Color([0, 0, 0, 1]), // Black color for outline
+              width: 1.5 // Width in pixels for the outline
           }
-        });
+      });
         // --- End of STAR symbol creation ---
 
       const graphic = new Graphic({

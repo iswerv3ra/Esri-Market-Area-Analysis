@@ -4814,19 +4814,19 @@ export default function MapComponent({ onToggleLis }) {
           </div>
         </div>
 
-        {/* Consolidated Side Panel (Positioned LEFT) */}
+        {/* Consolidated Side Panel (Positioned RIGHT) */}
         <div
           className={`
-            absolute top-0 left-0 h-full 
+            absolute top-0 right-[440px] h-full 
             w-[500px] 
             bg-white dark:bg-gray-800 
-            border-r border-gray-200 dark:border-gray-700 
+            border-l border-gray-200 dark:border-gray-700 
             transform transition-transform duration-300 ease-in-out 
             z-20 
             ${
               isEditorOpen || isLabelEditorOpen
                 ? "translate-x-0"
-                : "-translate-x-full"
+                : "translate-x-full"
             } 
           `}
         >
