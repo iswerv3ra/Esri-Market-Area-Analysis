@@ -590,6 +590,8 @@ const hexToRgb = (hex) => {
     : [0, 0, 0];
 };
 
+
+
 export const useMap = () => {
   const context = useContext(MapContext);
   if (!context) throw new Error("useMap must be used within a MapProvider");
@@ -607,6 +609,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
   const [selectedMarketArea, setSelectedMarketArea] = useState(null);
   const [editingMarketArea, setEditingMarketArea] = useState(null);
+  const STAR_SVG_PATH = "M 0 -10 L 2.939 -4.045 L 9.511 -3.09 L 4.755 1.18 L 5.878 8.09 L 0 5 L -5.878 8.09 L -4.755 1.18 L -9.511 -3.09 L -2.939 -4.045 Z";
 
   // Move hideAllFeatureLayers here, at component body level
   const hideAllFeatureLayers = useCallback(() => {
@@ -2649,80 +2652,89 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   }, []);
 
 
-  const drawSiteLocation = async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
-    console.log("[MapContext] Drawing site location:", { id: marketAreaId, point: siteData.point, size: siteData.size, color: siteData.color });
-    
+  const drawSiteLocation = useCallback(async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
+    console.log("[MapContext] Drawing site location (star):", { id: marketAreaId, point: siteData.point, size: siteData.size, color: siteData.color });
+
     try {
-      // Clear existing site location graphics for this market area to avoid duplicates
-      if (selectionGraphicsLayerRef.current) {
+        // Dynamically import necessary ArcGIS modules
+        const { default: Point } = await import("@arcgis/core/geometry/Point");
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+        const { default: SimpleMarkerSymbol } = await import("@arcgis/core/symbols/SimpleMarkerSymbol");
+        const { default: Color } = await import("@arcgis/core/Color");
+
+        // Check if the graphics layer is ready
+        if (!selectionGraphicsLayerRef.current) {
+            console.warn("[MapContext] Selection graphics layer not yet initialized. Cannot draw site location.");
+            return null;
+        }
+
+        // Clear existing site location graphics for THIS market area specifically
         const existingSiteLocationGraphics = selectionGraphicsLayerRef.current.graphics.filter(
-          (g) => g.attributes?.FEATURE_TYPE === "site_location" && 
+          (g) => g.attributes?.FEATURE_TYPE === "site_location" &&
                  g.attributes?.marketAreaId === marketAreaId
         );
-        
+
         if (existingSiteLocationGraphics.length > 0) {
           console.log(`[MapContext] Removing ${existingSiteLocationGraphics.length} existing site location graphics for ${marketAreaId}`);
           selectionGraphicsLayerRef.current.removeMany(existingSiteLocationGraphics);
         }
-      }
-      
-      if (!siteData || !siteData.point) {
-        console.error("[MapContext] Invalid site location data:", siteData);
-        return null;
-      }
-  
-      // Import necessary ArcGIS modules
-      const [Point, SimpleMarkerSymbol, Color, Graphic] = await Promise.all([
-        import("@arcgis/core/geometry/Point").then(m => m.default),
-        import("@arcgis/core/symbols/SimpleMarkerSymbol").then(m => m.default),
-        import("@arcgis/core/Color").then(m => m.default),
-        import("@arcgis/core/Graphic").then(m => m.default)
-      ]);
-  
-      // Create point geometry
-      const point = new Point({
-        longitude: parseFloat(siteData.point.longitude),
-        latitude: parseFloat(siteData.point.latitude),
-        spatialReference: { wkid: 4326 }
-      });
-  
-      // IMPORTANT: Use a valid style - "diamond" instead of "star"
-      const symbol = new SimpleMarkerSymbol({
-        style: "diamond",  // Valid style: ArcGIS doesn't support "star"
-        color: new Color(siteData.color || styleSettings.fillColor || "#FFC000"),
-        size: parseInt(siteData.size) || 24,
-        outline: {
-          color: new Color(styleSettings.borderColor || "#000000"),
-          width: styleSettings.noBorder ? 0 : (styleSettings.borderWidth || 1)
+
+        // Validate siteData and coordinates
+        if (!siteData || !siteData.point || isNaN(parseFloat(siteData.point.latitude)) || isNaN(parseFloat(siteData.point.longitude))) {
+            console.error("[MapContext] Invalid site location data or coordinates:", siteData);
+            return null;
         }
-      });
-  
-      // Create graphic
+
+        // Create point geometry
+        const point = new Point({
+            longitude: parseFloat(siteData.point.longitude),
+            latitude: parseFloat(siteData.point.latitude),
+            spatialReference: { wkid: 4326 } // Assume WGS 84
+        });
+
+        // --- Create the STAR symbol using SVG path ---
+        const symbol = new SimpleMarkerSymbol({
+          style: "path",
+          path: STAR_SVG_PATH,
+          color: new Color(siteData.color || styleSettings?.fillColor || "#FFC000"),
+          size: parseInt(siteData.size) || 24,
+          outline: {
+              color: new Color([0,0,0,0]), // Transparent color for outline
+              width: 0 // No width for outline
+          }
+        });
+        // --- End of STAR symbol creation ---
+
       const graphic = new Graphic({
-        geometry: point,
-        symbol: symbol,
-        attributes: {
-          marketAreaId: marketAreaId || "temporary",
-          order: order || 0,
-          FEATURE_TYPE: "site_location",
-          isTemporary: !!isTemporary
-        }
+          geometry: point,
+          symbol: symbol,
+          attributes: {
+            marketAreaId: marketAreaId || "temporary",
+            order: order || 0,
+            FEATURE_TYPE: "site_location",
+            isTemporary: !!isTemporary,
+            siteName: siteData.name || `Site ${marketAreaId || 'Temp'}`,
+            siteSize: siteData.size,
+            siteColor: siteData.color
+          }
       });
-  
-      // Add to graphics layer
-      if (selectionGraphicsLayerRef.current) {
-        selectionGraphicsLayerRef.current.add(graphic);
-        console.log("[MapContext] Successfully drew site location for market area", marketAreaId);
-        return graphic;
-      } else {
-        console.warn("[MapContext] Selection graphics layer not available");
-        return null;
+
+      // IMPORTANT: Remove *any existing* temporary graphic before adding a new one
+      if (isTemporary) {
+          const tempGraphics = selectionGraphicsLayerRef.current.graphics.filter(g => g.attributes?.isTemporary === true && g.attributes?.FEATURE_TYPE === 'site_location');
+          if (tempGraphics.length > 0) {
+              selectionGraphicsLayerRef.current.removeMany(tempGraphics);
+          }
       }
-    } catch (error) {
-      console.error("[MapContext] Error drawing site location:", error);
+      selectionGraphicsLayerRef.current.add(graphic);
+      console.log("[MapContext] Successfully drew site location (star) for market area", marketAreaId);
+      return graphic;
+
+  } catch (error) {
+      console.error("[MapContext] Error drawing site location (star):", error);
       return null;
-    }
-  };
+  }
+}, [selectionGraphicsLayerRef]);
 
   const extractSiteLocationInfo = useCallback((marketArea) => {
     if (!marketArea) return null;

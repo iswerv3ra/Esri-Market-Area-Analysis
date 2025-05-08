@@ -46,7 +46,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     setEditingMarketArea,
     selectionGraphicsLayer,
     mapView,
-    featureLayers: featureLayersRef,  // Alias featureLayers as featureLayersRef
+    featureLayers: featureLayersRef,
+    drawSiteLocation, // This is now from MapContext
+    // Alias featureLayers as featureLayersRef
   } = useMap();
 
   const initializationDone = useRef(false);
@@ -118,75 +120,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "md", label: "Metro Division" },
   ];
 
-  // Ensure drawSiteLocation in MarketAreaForm.jsx uses 'diamond' style
-  const drawSiteLocation = useCallback(async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
-    try {
-      if (!siteData || !siteData.point) {
-        console.error("Invalid site location data:", siteData);
-        return null;
-      }
-
-      if (isNaN(siteData.point.latitude) || isNaN(siteData.point.longitude)) {
-        console.error("Invalid coordinates in site location data:", siteData.point);
-        return null;
-      }
-
-      // Import necessary ArcGIS modules
-      const [Point, SimpleMarkerSymbol, Color, Graphic] = await Promise.all([
-        import("@arcgis/core/geometry/Point").then(m => m.default),
-        import("@arcgis/core/symbols/SimpleMarkerSymbol").then(m => m.default),
-        import("@arcgis/core/Color").then(m => m.default),
-        import("@arcgis/core/Graphic").then(m => m.default)
-      ]);
-
-      // Create point geometry
-      const point = new Point({
-        longitude: parseFloat(siteData.point.longitude),
-        latitude: parseFloat(siteData.point.latitude),
-        spatialReference: { wkid: 4326 }
-      });
-
-      // Use diamond style (supported by ArcGIS API)
-      const symbol = new SimpleMarkerSymbol({
-        style: "diamond",  // Valid style: ArcGIS doesn't support "star"
-        color: new Color(siteData.color || styleSettings.fillColor || "#FFC000"),
-        size: parseInt(siteData.size) || 24,
-        outline: {
-          color: new Color(styleSettings.borderColor || "#000000"),
-          width: styleSettings.noBorder ? 0 : (styleSettings.borderWidth || 1)
-        }
-      });
-
-      // Create graphic
-      const graphic = new Graphic({
-        geometry: point,
-        symbol: symbol,
-        attributes: {
-          marketAreaId: marketAreaId || "temporary",
-          order: order || 0,
-          FEATURE_TYPE: "site_location",
-          isTemporary: !!isTemporary
-        }
-      });
-
-      // Add to graphics layer
-      if (selectionGraphicsLayer) {
-        selectionGraphicsLayer.add(graphic);
-        console.log("Site location drawn successfully at:", siteData.point);
-        return graphic;
-      } else {
-        console.warn("Selection graphics layer not available");
-        return null;
-      }
-    } catch (error) {
-      console.error("Error drawing site location:", error);
-      toast.error("Failed to display site location");
-      return null;
-    }
-  }, [selectionGraphicsLayer]);
-
   useEffect(() => {
-    // Skip if we're not in site_location mode or not actively placing
     if (formState.maType !== "site_location" || !isPlacingSiteLocation || !mapView) {
       return;
     }
@@ -195,17 +129,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       if (!isPlacingSiteLocation) return;
 
       try {
-        // Get clicked point coordinates
         const point = mapView.toMap({ x: event.x, y: event.y });
-        
-        // Convert to geographic if needed
         let geoPoint = point;
         if (point.spatialReference && point.spatialReference.isWebMercator) {
           const webMercatorUtils = await import("@arcgis/core/geometry/support/webMercatorUtils");
           geoPoint = webMercatorUtils.webMercatorToGeographic(point);
         }
 
-        // Update site location data with new coordinates
         setSiteLocationData(prev => ({
           ...prev,
           point: {
@@ -214,7 +144,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }
         }));
 
-        // Draw temporary star at location
+        // This 'drawSiteLocation' will now be the one from MapContext
         await drawSiteLocation(
           {
             point: {
@@ -224,15 +154,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             size: siteLocationData.size,
             color: siteLocationData.color
           },
-          formState.styleSettings,
+          formState.styleSettings, // Pass current style settings from form
           editingMarketArea?.id || "temporary",
           editingMarketArea?.order || 0,
           true // isTemporary flag
         );
 
-        // Turn off placement mode after successful placement
         setIsPlacingSiteLocation(false);
-        
         toast.success("Site location placed successfully");
       } catch (err) {
         console.error("Error handling map click:", err);
@@ -240,52 +168,35 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         setIsPlacingSiteLocation(false);
       }
     };
-
-    // Non-async wrapper for event handler
+    
     const clickHandler = (event) => {
       handleMapClick(event).catch(err => {
         console.error("Unhandled error in map click handler:", err);
       });
     };
     
-    // Store the handler reference for proper cleanup
     mapEventHandlersRef.current.clickHandler = clickHandler;
-    
-    // Use a unique key for the handler
     const handlerId = `site_location_${Date.now()}`;
-    
-    console.log("Adding map click handler for site location placement");
-    
-    // Add the handler as a named event using the ArcGIS API's proper method
-    // This returns a handle object that can be used for removal
     const handle = mapView.on("click", clickHandler);
-    
-    // Store the handle in our ref
     mapEventHandlersRef.current[handlerId] = handle;
     
-    // Return cleanup function
     return () => {
-      console.log("Cleaning up site location click handler");
-      try {
-        // Remove the handler using the handle's remove method
-        if (mapEventHandlersRef.current[handlerId]) {
-          mapEventHandlersRef.current[handlerId].remove();
-          delete mapEventHandlersRef.current[handlerId];
-        }
-      } catch (cleanupError) {
-        console.error("Error during map event handler cleanup:", cleanupError);
+      if (mapEventHandlersRef.current[handlerId]) {
+        mapEventHandlersRef.current[handlerId].remove();
+        delete mapEventHandlersRef.current[handlerId];
       }
     };
   }, [
     formState.maType,
     isPlacingSiteLocation,
     mapView,
-    siteLocationData.size,
+    siteLocationData.size, // Be specific with dependencies
     siteLocationData.color,
+    formState.styleSettings, // Add if styleSettings are used for temporary draw
     editingMarketArea,
-    drawSiteLocation,
-    formState.styleSettings,
-    setSiteLocationData
+    drawSiteLocation, // This is now the context's function
+    setSiteLocationData,
+    // Removed selectionGraphicsLayerRef as a direct dependency if the local func is gone
   ]);
 
   useEffect(() => {
