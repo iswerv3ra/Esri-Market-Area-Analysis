@@ -80,10 +80,14 @@ export default function MapComponent({ onToggleLis }) {
   // Removed redundant isLayerPropsEditorOpen and isLabelEditMode, consolidating into isEditorOpen and isLabelEditorOpen
   const [labelDragger, setLabelDragger] = useState(null);
 
-
+  // Rest of existing state variables
+  const [isPlacingSiteLocation, setIsPlacingSiteLocation] = useState(false);
+  const [siteLocationMarker, setSiteLocationMarker] = useState(null);
+  const [isMarketAreaInteractionActive, setIsMarketAreaInteractionActive] = useState(false);
   // Use the first available project ID
   const projectId =
     routeProjectId || localStorageProjectId || sessionStorageProjectId;
+  const mapEventHandlersRef = useRef({});
 
   const renderCustomLegend = () => {
     // Only show if we have active special visualization type with valid config
@@ -553,6 +557,146 @@ export default function MapComponent({ onToggleLis }) {
     view.drawingHandlers = handlers;
   };
 
+
+  /**
+   * Toggles site location placement mode for market areas
+   * Controls both UI state and map interaction behavior
+   *
+   * @param {boolean} isActive - Whether to activate or deactivate placement mode
+   * @param {Object} options - Additional options for placement
+   * @returns {void}
+   */
+  const toggleSiteLocationPlacement = useCallback((isActive, options = {}) => {
+    console.log(`[Map] ${isActive ? 'Activating' : 'Deactivating'} site location placement mode`, options);
+    
+    // Update internal state
+    setIsPlacingSiteLocation(isActive);
+    setIsMarketAreaInteractionActive(isActive);
+    
+    // Clear any existing temporary marker when deactivating
+    if (!isActive && siteLocationMarker) {
+      try {
+        // Remove the marker from the map
+        if (mapView?.graphics && typeof mapView.graphics.remove === 'function') {
+          mapView.graphics.remove(siteLocationMarker);
+        }
+        setSiteLocationMarker(null);
+      } catch (error) {
+        console.error('[Map] Error clearing site location marker:', error);
+      }
+    }
+    
+    // Update cursor style to indicate placement mode
+    if (mapView?.container) {
+      mapView.container.style.cursor = isActive ? 'crosshair' : 'default';
+    }
+    
+    // If we have a MapContext reference, inform it of the mode change
+    if (window.mapContextInstance && typeof window.mapContextInstance.setPlacementMode === 'function') {
+      window.mapContextInstance.setPlacementMode('siteLocation', isActive, options);
+    } else {
+      console.warn('[Map] MapContext instance not available for site location mode change');
+    }
+  }, [mapView, siteLocationMarker]);
+
+
+  /**
+   * Handles map clicks when in site location placement mode
+   * Creates a temporary marker and notifies listeners of the coordinates
+   *
+   * @param {Object} event - Map click event object
+   * @returns {Promise<void>}
+   */
+  const handleSiteLocationPlacement = useCallback(async (event) => {
+    if (!isPlacingSiteLocation || !mapView) return;
+    
+    try {
+      // Prevent default map behavior
+      event.stopPropagation();
+      
+      console.log('[Map] Processing site location placement at', event.mapPoint);
+      
+      // Get the click coordinates
+      const point = event.mapPoint;
+      const latitude = point.latitude;
+      const longitude = point.longitude;
+      
+      // Import necessary modules
+      const [
+        { default: Graphic },
+        { default: Point },
+        { default: SimpleMarkerSymbol },
+        { default: Color }
+      ] = await Promise.all([
+        import('@arcgis/core/Graphic'),
+        import('@arcgis/core/geometry/Point'),
+        import('@arcgis/core/symbols/SimpleMarkerSymbol'),
+        import('@arcgis/core/Color')
+      ]);
+      
+      // Remove any existing temporary marker
+      if (siteLocationMarker && mapView.graphics) {
+        mapView.graphics.remove(siteLocationMarker);
+      }
+      
+      // Create a new marker symbol
+      const markerSymbol = new SimpleMarkerSymbol({
+        style: 'diamond',
+        color: new Color([255, 215, 0, 0.8]), // Gold color with transparency
+        size: 14,
+        outline: {
+          color: new Color([255, 140, 0, 1]), // Dark orange outline
+          width: 2
+        }
+      });
+      
+      // Create the point geometry
+      const pointGeometry = new Point({
+        latitude,
+        longitude,
+        spatialReference: { wkid: 4326 }
+      });
+      
+      // Create the graphic
+      const graphic = new Graphic({
+        geometry: pointGeometry,
+        symbol: markerSymbol,
+        attributes: {
+          isTemporary: true,
+          isMarketAreaSiteLocation: true,
+          latitude,
+          longitude
+        }
+      });
+      
+      // Add to map
+      mapView.graphics.add(graphic);
+      setSiteLocationMarker(graphic);
+      
+      // Dispatch custom event to notify listeners (MarketAreaForm)
+      const siteLocationEvent = new CustomEvent('siteLocationPlaced', {
+        detail: {
+          latitude,
+          longitude,
+          isTemporary: true
+        }
+      });
+      document.dispatchEvent(siteLocationEvent);
+      
+      // Also notify MapContext if available
+      if (window.mapContextInstance && typeof window.mapContextInstance.handleSiteLocationPlaced === 'function') {
+        window.mapContextInstance.handleSiteLocationPlaced(latitude, longitude);
+      }
+      
+      // Automatically exit placement mode after successful placement
+      setTimeout(() => {
+        toggleSiteLocationPlacement(false);
+      }, 300);
+    } catch (error) {
+      console.error('[Map] Error during site location placement:', error);
+      toggleSiteLocationPlacement(false);
+    }
+  }, [isPlacingSiteLocation, mapView, siteLocationMarker, toggleSiteLocationPlacement]);
 
   const setupLabelDragHandling = (view) => {
     if (!view || !view.map) return;
@@ -3075,7 +3219,7 @@ const updateVisualizationLayer = async () => {
       console.log("[updateVisualizationAndLegend] Skipping: Prerequisites not met.", { isConfigLoading, mapReady: !!mapView?.map, legendReady: !!legend, labelManagerReady: isLabelManagerReady });
       return null;
     }
-    // ... (rest of the initial checks, saveLabels, layer removal) ...
+    // ... (keep existing initial checks, saveLabels, layer removal) ...
      console.log("[updateVisualizationAndLegend] Starting update (Label Manager Ready) for Active Tab:", activeTab);
      let labelLoadTimeoutId = null;
      try {
@@ -3101,6 +3245,7 @@ const updateVisualizationLayer = async () => {
              let vizType = activeTabData.visualizationType;
              if (vizType === "pipeline") vizType = "pipe";
              if (vizType === "comps") vizType = "comp";
+             if (vizType === "site_location") vizType = "site_location"; // Support for site location type
 
              const config = activeTabData.layerConfiguration;
              const areaType = activeTabData.areaType;
@@ -3117,13 +3262,78 @@ const updateVisualizationLayer = async () => {
 
              let newLayer = null;
              try {
-                 const specialTypes = ["pipe", "comp", "custom"];
+                 const specialTypes = ["pipe", "comp", "custom", "site_location"]; // Add site_location to special types
                  const isSpecialType = specialTypes.includes(effectiveType) || (config?.customData && !["class-breaks", "dot-density"].includes(effectiveType));
 
                  if (isSpecialType) {
                    const configForCreator = { ...(config || {}), type: effectiveType };
                    if (effectiveType === "pipe") newLayer = await createPipeLayer(configForCreator);
                    else if (effectiveType === "comp") newLayer = await createCompLayer(configForCreator);
+                   else if (effectiveType === "site_location") {
+                     // Create a graphics layer for site location visualization
+                     const { default: GraphicsLayer } = await import("@arcgis/core/layers/GraphicsLayer");
+                     newLayer = new GraphicsLayer({
+                       title: "Site Location",
+                       visualizationType: "site_location",
+                       isVisualizationLayer: true,
+                       listMode: "hide"
+                     });
+                     
+                     // If there's specific site data in the config, display it 
+                     if (config?.siteData?.point) {
+                       const siteData = {
+                         point: config.siteData.point,
+                         size: config.siteData.size || 20,
+                         color: config.siteData.color || "#FFD700"
+                       };
+                       
+                       // We'll draw the site point after adding the layer to the map
+                       setTimeout(() => {
+                         if (mapView && newLayer) {
+                           const drawSite = async () => {
+                             try {
+                               const { default: Graphic } = await import("@arcgis/core/Graphic");
+                               const { default: Point } = await import("@arcgis/core/geometry/Point");
+                               const { default: SimpleMarkerSymbol } = await import("@arcgis/core/symbols/SimpleMarkerSymbol");
+                               const { default: Color } = await import("@arcgis/core/Color");
+                               
+                               const pointGeom = new Point({
+                                 longitude: siteData.point.longitude || siteData.point.x,
+                                 latitude: siteData.point.latitude || siteData.point.y,
+                                 spatialReference: { wkid: 4326 }
+                               });
+                               
+                               const symbol = new SimpleMarkerSymbol({
+                                 style: "star",
+                                 size: siteData.size,
+                                 color: new Color(siteData.color),
+                                 outline: {
+                                   color: new Color("#000000"),
+                                   width: 1
+                                 }
+                               });
+                               
+                               const graphic = new Graphic({
+                                 geometry: pointGeom,
+                                 symbol: symbol,
+                                 attributes: {
+                                   FEATURE_TYPE: "site_location",
+                                   id: "site-location-default",
+                                   isVisualization: true
+                                 }
+                               });
+                               
+                               newLayer.add(graphic);
+                             } catch (error) {
+                               console.error("[Site Location] Error drawing site point:", error);
+                             }
+                           };
+                           
+                           drawSite();
+                         }
+                       }, 500);
+                     }
+                   }
                    else newLayer = await createGraphicsLayerFromCustomData(configForCreator);
                  } else {
                    newLayer = await createLayers(effectiveType, config, initialLayerConfigurations, areaType);
@@ -3225,7 +3435,26 @@ const updateVisualizationLayer = async () => {
       loadLabelPositions, notifyLabelManagerAboutLayer, setCustomLegendContent,
       createLayers, createPipeLayer, createCompLayer, createGraphicsLayerFromCustomData
   ]); // End of useCallback
+
   // --- CONSOLIDATED EFFECT HOOKS ---
+
+
+  // Site Location market area placement event listener
+  useEffect(() => {
+    const handlePlacementRequest = (event) => {
+      const { activate, options } = event.detail || {};
+      console.log(`[Map] Received site location placement request. Activate: ${activate}`);
+      toggleSiteLocationPlacement(activate, options);
+    };
+    
+    // Listen for the custom event from MarketAreaForm
+    document.addEventListener('requestSiteLocationPlacement', handlePlacementRequest);
+    
+    return () => {
+      document.removeEventListener('requestSiteLocationPlacement', handlePlacementRequest);
+    };
+  }, [toggleSiteLocationPlacement]);
+
 
   // 1. Project change event handler
   useEffect(() => {
@@ -3409,6 +3638,7 @@ const updateVisualizationLayer = async () => {
         // Initialize drawing tools
         initializeDrawingTools(view);
 
+        view.on('click', handleSiteLocationPlacement);
 
         setupLabelDragHandling(view);
 
@@ -3441,7 +3671,16 @@ const updateVisualizationLayer = async () => {
     };
 
     initializeMap(); // Run the initialization
-
+    // Clean up site location click handler
+    if (mapView) {
+      // Find and remove the click event handler for site location
+      const clickHandlers = mapView._clickHandlers || [];
+      for (const handler of clickHandlers) {
+        if (handler && handler.remove) {
+          handler.remove();
+        }
+      }
+    }
     // --- Cleanup Function ---
     return () => {
       console.log("[Map] Component unmounting, performing cleanup");
@@ -4044,14 +4283,33 @@ const updateVisualizationLayer = async () => {
       {/* Main Map Area */}
       <div className="flex flex-1 overflow-hidden relative"> {/* <-- ADDED relative */}
 
-        {/* Map container */}
-        <div className="flex-1 relative"> {/* Keep relative if needed for map overlays */}
-          <div ref={mapRef} className="w-full h-full">
-            {/* Zoom Alert Overlay */}
-            <ZoomAlert />
-            {renderCustomLegend()}
-          </div>
+      {/* Map container */}
+      <div className="flex-1 relative">
+        <div ref={mapRef} className="w-full h-full">
+          {/* Zoom Alert Overlay */}
+          <ZoomAlert />
+          {renderCustomLegend()}
+          
+          {/* Site Location Placement Mode Indicator */}
+          {isPlacingSiteLocation && (
+            <div className="absolute top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-md shadow-md z-30 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Click on the map to place site location
+              <button 
+                onClick={() => toggleSiteLocationPlacement(false)} 
+                className="ml-2 p-1 bg-yellow-600 rounded-full hover:bg-yellow-700"
+                aria-label="Cancel site location placement"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
+      </div>
 
         {/* --- Consolidated Side Panel (Positioned LEFT) --- */}
         <div

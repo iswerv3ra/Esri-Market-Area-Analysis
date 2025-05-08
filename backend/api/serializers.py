@@ -100,12 +100,64 @@ class MarketAreaSerializer(serializers.ModelSerializer):
         model = MarketArea
         fields = [
             'id', 'name', 'short_name', 'ma_type', 'geometry',
-            'style_settings', 'locations', 'radius_points',
-            'created_at', 'last_modified',
-            'project_number',
-            'order',  # Add this line
+            'style_settings', 'locations', 'radius_points', 'drive_time_points',
+            'site_location_data', 'created_at', 'last_modified',
+            'project_number', 'order',
         ]
-        read_only_fields = ['created_at', 'last_modified', 'order']  # Add 'order' here
+        read_only_fields = ['created_at', 'last_modified', 'order']
+
+    def validate(self, data):
+        ma_type = data.get('ma_type')
+        site_location_data = data.get('site_location_data')
+        
+        # Validate site_location_data if ma_type is 'site_location'
+        if ma_type == 'site_location' and site_location_data:
+            # Check that site_location_data has the expected structure
+            if not isinstance(site_location_data, dict):
+                raise serializers.ValidationError({
+                    "site_location_data": "Site location data must be a dictionary"
+                })
+            
+            # Check for required fields in site_location_data
+            point = site_location_data.get('point')
+            if not point or not isinstance(point, dict):
+                raise serializers.ValidationError({
+                    "site_location_data": "Site location data must contain a 'point' object"
+                })
+            
+            # Validate point coordinates
+            latitude = point.get('latitude')
+            longitude = point.get('longitude')
+            if latitude is None or longitude is None:
+                raise serializers.ValidationError({
+                    "site_location_data": "Point must contain both 'latitude' and 'longitude'"
+                })
+            
+            try:
+                float(latitude)
+                float(longitude)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError({
+                    "site_location_data": "Latitude and longitude must be numeric values"
+                })
+            
+            # Validate optional fields if they exist
+            size = site_location_data.get('size')
+            if size is not None:
+                try:
+                    int(size)
+                except (ValueError, TypeError):
+                    raise serializers.ValidationError({
+                        "site_location_data": "Size must be an integer"
+                    })
+            
+            color = site_location_data.get('color')
+            if color and not isinstance(color, str):
+                raise serializers.ValidationError({
+                    "site_location_data": "Color must be a string (hex code or color name)"
+                })
+        
+        return data
 
 class ProjectListSerializer(serializers.ModelSerializer):
     market_areas_count = serializers.IntegerField(read_only=True)
@@ -185,8 +237,6 @@ class VariablePresetSerializer(serializers.ModelSerializer):
         data['is_global'] = True
         return data
     
-# serializers.py - Update the MapConfigurationSerializer
-
 class MapConfigurationSerializer(serializers.ModelSerializer):
     project = serializers.UUIDField(write_only=True)
     

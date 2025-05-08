@@ -2648,21 +2648,209 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
     }
   }, []);
 
+
+  const drawSiteLocation = async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
+    console.log("[MapContext] Drawing site location:", { id: marketAreaId, point: siteData.point, size: siteData.size, color: siteData.color });
+    
+    try {
+      // Clear existing site location graphics for this market area to avoid duplicates
+      if (selectionGraphicsLayerRef.current) {
+        const existingSiteLocationGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes?.FEATURE_TYPE === "site_location" && 
+                 g.attributes?.marketAreaId === marketAreaId
+        );
+        
+        if (existingSiteLocationGraphics.length > 0) {
+          console.log(`[MapContext] Removing ${existingSiteLocationGraphics.length} existing site location graphics for ${marketAreaId}`);
+          selectionGraphicsLayerRef.current.removeMany(existingSiteLocationGraphics);
+        }
+      }
+      
+      if (!siteData || !siteData.point) {
+        console.error("[MapContext] Invalid site location data:", siteData);
+        return null;
+      }
+  
+      // Import necessary ArcGIS modules
+      const [Point, SimpleMarkerSymbol, Color, Graphic] = await Promise.all([
+        import("@arcgis/core/geometry/Point").then(m => m.default),
+        import("@arcgis/core/symbols/SimpleMarkerSymbol").then(m => m.default),
+        import("@arcgis/core/Color").then(m => m.default),
+        import("@arcgis/core/Graphic").then(m => m.default)
+      ]);
+  
+      // Create point geometry
+      const point = new Point({
+        longitude: parseFloat(siteData.point.longitude),
+        latitude: parseFloat(siteData.point.latitude),
+        spatialReference: { wkid: 4326 }
+      });
+  
+      // IMPORTANT: Use a valid style - "diamond" instead of "star"
+      const symbol = new SimpleMarkerSymbol({
+        style: "diamond",  // Valid style: ArcGIS doesn't support "star"
+        color: new Color(siteData.color || styleSettings.fillColor || "#FFC000"),
+        size: parseInt(siteData.size) || 24,
+        outline: {
+          color: new Color(styleSettings.borderColor || "#000000"),
+          width: styleSettings.noBorder ? 0 : (styleSettings.borderWidth || 1)
+        }
+      });
+  
+      // Create graphic
+      const graphic = new Graphic({
+        geometry: point,
+        symbol: symbol,
+        attributes: {
+          marketAreaId: marketAreaId || "temporary",
+          order: order || 0,
+          FEATURE_TYPE: "site_location",
+          isTemporary: !!isTemporary
+        }
+      });
+  
+      // Add to graphics layer
+      if (selectionGraphicsLayerRef.current) {
+        selectionGraphicsLayerRef.current.add(graphic);
+        console.log("[MapContext] Successfully drew site location for market area", marketAreaId);
+        return graphic;
+      } else {
+        console.warn("[MapContext] Selection graphics layer not available");
+        return null;
+      }
+    } catch (error) {
+      console.error("[MapContext] Error drawing site location:", error);
+      return null;
+    }
+  };
+
+  const extractSiteLocationInfo = useCallback((marketArea) => {
+    if (!marketArea) return null;
+  
+    try {
+      // Case 1: Direct site_location_data property
+      if (marketArea.site_location_data) {
+        let siteData;
+  
+        // Parse if it's a string
+        if (typeof marketArea.site_location_data === 'string') {
+          try {
+            siteData = JSON.parse(marketArea.site_location_data);
+          } catch (e) {
+            console.warn(`Failed to parse site_location_data for market area ${marketArea.id}:`, e);
+            return null;
+          }
+        } else {
+          siteData = marketArea.site_location_data;
+        }
+  
+        // Ensure it has the required structure
+        if (!siteData.point) {
+          console.warn(`Invalid site location data for market area ${marketArea.id}: missing point`);
+          return null;
+        }
+  
+        return {
+          point: siteData.point,
+          size: siteData.size || 20,
+          color: siteData.color || "#FFD700", // Default: gold color
+          style: siteData.style || marketArea.style || null
+        };
+      }
+  
+      // Case 2: Check for ma_geometry_data
+      else if (marketArea.ma_geometry_data) {
+        let geoData;
+  
+        // Parse if it's a string
+        if (typeof marketArea.ma_geometry_data === 'string') {
+          try {
+            geoData = JSON.parse(marketArea.ma_geometry_data);
+          } catch (e) {
+            console.warn(`Failed to parse ma_geometry_data for market area ${marketArea.id}:`, e);
+            return null;
+          }
+        } else {
+          geoData = marketArea.ma_geometry_data;
+        }
+  
+        // Check if it contains site location information
+        if (geoData.point) {
+          return {
+            point: geoData.point,
+            size: geoData.size || 20,
+            color: geoData.color || "#FFD700",
+            style: geoData.style || marketArea.style || null
+          };
+        }
+      }
+  
+      // Case 3: Check for geometry property that might contain coordinates
+      else if (marketArea.geometry) {
+        // Try to extract a point from geometry
+        const geo = marketArea.geometry;
+  
+        if (geo.x !== undefined && geo.y !== undefined) {
+          // Web Mercator or similar coordinates
+          return {
+            point: {
+              x: geo.x,
+              y: geo.y,
+              spatialReference: geo.spatialReference
+            },
+            size: 20, // Default size
+            color: "#FFD700", // Default color
+            style: marketArea.style || null
+          };
+        }
+        else if (geo.longitude !== undefined && geo.latitude !== undefined) {
+          // Geographic coordinates
+          return {
+            point: {
+              longitude: geo.longitude,
+              latitude: geo.latitude,
+              spatialReference: geo.spatialReference
+            },
+            size: 20, // Default size
+            color: "#FFD700", // Default color 
+            style: marketArea.style || null
+          };
+        }
+      }
+  
+      // Case 4: Last resort - create a default site location in a reasonable location
+      console.warn(`No valid site location data found for market area ${marketArea.id}, using default`);
+      return {
+        point: {
+          longitude: -117.8311, // Orange County location
+          latitude: 33.7175
+        },
+        size: 20, // Default size
+        color: "#FFD700", // Default color
+        style: marketArea.style || null
+      };
+  
+    } catch (error) {
+      console.error(`Error extracting site location info for market area ${marketArea.id}:`, error);
+      return null;
+    }
+  }, []);
+
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     console.log("[MapContext] Clear graphics called:", { marketAreaId });
-
+  
     if (!selectionGraphicsLayerRef.current) {
       console.log("[MapContext] No graphics layer available");
       return;
     }
-
+  
     try {
       // Get all graphics from the layer
       const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-
+  
       // If no marketAreaId, clear all market area graphics
       let graphicsToRemove;
-
+  
       if (!marketAreaId) {
         // When no specific ID is provided, remove all market area graphics
         console.log("[MapContext] Clearing ALL market area graphics");
@@ -2670,7 +2858,8 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           graphic.attributes?.marketAreaId ||
           graphic.attributes?.FEATURE_TYPE === 'radius' ||
           graphic.attributes?.FEATURE_TYPE === 'drivetime' ||
-          graphic.attributes?.FEATURE_TYPE === 'drivetime_point'
+          graphic.attributes?.FEATURE_TYPE === 'drivetime_point' ||
+          graphic.attributes?.FEATURE_TYPE === 'site_location'
         );
       } else {
         // Enhanced filtering to ensure we catch all graphics related to this market area
@@ -2679,26 +2868,30 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           return (
             // Direct match on marketAreaId
             (graphic.attributes?.marketAreaId === marketAreaId) ||
-
+  
             // Match radius circle IDs that start with this market area ID
             (graphic.attributes?.circleId &&
               graphic.attributes.circleId.startsWith(`${marketAreaId}-`)) ||
-
+  
             // Match any drivetime feature with this market area ID
             (graphic.attributes?.FEATURE_TYPE === 'drivetime' &&
               graphic.attributes?.marketAreaId === marketAreaId) ||
-
+  
             // Match any drivetime_point feature with this market area ID
             (graphic.attributes?.FEATURE_TYPE === 'drivetime_point' &&
               graphic.attributes?.marketAreaId === marketAreaId) ||
-
+              
+            // Match any site_location feature with this market area ID
+            (graphic.attributes?.FEATURE_TYPE === 'site_location' &&
+              graphic.attributes?.marketAreaId === marketAreaId) ||
+  
             // Additional matching to catch any edge cases for this market area
             ((graphic.attributes?.order !== undefined) &&
               (graphic.attributes?.id && String(graphic.attributes.id).includes(marketAreaId)))
           );
         });
       }
-
+  
       if (graphicsToRemove.length > 0) {
         console.log(`[MapContext] Removing ${graphicsToRemove.length} graphics for market area ${marketAreaId || 'ALL'}:`, {
           details: graphicsToRemove.map(g => ({
@@ -2707,13 +2900,13 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             circleId: g.attributes?.circleId
           }))
         });
-
+  
         // Remove them all at once
         selectionGraphicsLayerRef.current.removeMany(graphicsToRemove);
       } else {
         console.log(`[MapContext] No graphics found for market area: ${marketAreaId || 'ALL'}`);
       }
-
+  
       return true;
     } catch (error) {
       console.error("[MapContext] Error clearing graphics:", error);
@@ -2836,6 +3029,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       return null;
     }
   }, []);
+
 
   // Use this function in your useEffect to handle drive time points more robustly
   const processDriveTimePoints = useCallback(async (marketArea) => {
@@ -3425,7 +3619,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   const toggleMarketAreaEditMode = useCallback(
     async (marketAreaId) => {
       if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
-
+  
       try {
         // Find the market area being edited
         const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
@@ -3433,20 +3627,20 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           console.warn(`Market area ${marketAreaId} not found`);
           return;
         }
-
+  
         // Clear existing selections and graphics
         clearSelection();
         clearMarketAreaGraphics();
-
+  
         // Set the editing state
         setEditingMarketArea(marketArea);
-
+  
         // Different handling based on market area type
         if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
           const points = Array.isArray(marketArea.radius_points)
             ? marketArea.radius_points
             : [marketArea.radius_points];
-
+  
           for (const point of points) {
             const transformedPoint = transformRadiusPoint(point, marketAreaId);
             if (transformedPoint) {
@@ -3463,7 +3657,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           const points = Array.isArray(marketArea.drive_time_points)
             ? marketArea.drive_time_points
             : [marketArea.drive_time_points];
-
+  
           for (const point of points) {
             const transformedPoint = transformDriveTimePoint(point, marketAreaId);
             if (transformedPoint) {
@@ -3476,6 +3670,20 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             }
           }
         }
+        else if (marketArea.ma_type === 'site_location') {
+          // Handle site location market area type
+          const siteData = extractSiteLocationInfo(marketArea);
+          if (siteData) {
+            await drawSiteLocation(
+              siteData,
+              marketArea.style_settings,
+              marketAreaId,
+              marketArea.order
+            );
+          } else {
+            console.warn(`Site location market area ${marketAreaId} has no valid site data`);
+          }
+        }
         else if (marketArea.locations) {
           const features = marketArea.locations.map((loc) => ({
             geometry: loc.geometry,
@@ -3485,7 +3693,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               order: marketArea.order,
             },
           }));
-
+  
           await updateFeatureStyles(
             features,
             {
@@ -3497,7 +3705,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             marketArea.ma_type
           );
         }
-
+  
         console.log("[MapContext] Market area edit mode toggled", {
           marketAreaId,
           marketAreaType: marketArea.ma_type,
@@ -3513,9 +3721,11 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       clearMarketAreaGraphics,
       drawRadius,
       drawDriveTimePolygon,
+      drawSiteLocation,
       updateFeatureStyles,
       transformRadiusPoint,
       transformDriveTimePoint,
+      extractSiteLocationInfo,
     ]
   );
 
@@ -4713,16 +4923,16 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       const visibleMarketAreas = marketAreas.filter(ma =>
         visibleMarketAreaIds.includes(ma.id)
       );
-
+  
       console.log("[MapContext] Processing visible market areas:", {
         count: visibleMarketAreas.length,
         ids: visibleMarketAreas.map(ma => ma.id),
         types: visibleMarketAreas.map(ma => ma.ma_type)
       });
-
+  
       // Keep track of which market areas we've processed to avoid duplicates
       const processedMarketAreaIds = new Set();
-
+  
       // Process each market area
       visibleMarketAreas.forEach(async (ma) => {
         // Skip if we've already processed this market area
@@ -4730,26 +4940,26 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           console.log(`[MapContext] Skipping already processed market area: ${ma.id}`);
           return;
         }
-
+  
         // Mark as processed
         processedMarketAreaIds.add(ma.id);
-
+  
         if (ma.ma_type === 'radius') {
           console.log("[MapContext] Processing radius market area:", ma.id);
-
+  
           // Handle radius type market areas
           try {
             // Check if there are already graphics for this market area
             const existingRadiusGraphics = selectionGraphicsLayerRef.current.graphics.filter(
               g => g.attributes?.marketAreaId === ma.id && g.attributes?.FEATURE_TYPE === 'radius'
             );
-
+  
             // If there are existing graphics and it's visible, no need to redraw
             if (existingRadiusGraphics.length > 0) {
               console.log(`[MapContext] Market area ${ma.id} already has radius graphics, skipping drawing`);
               return;
             }
-
+  
             if (ma.radius_points) {
               let radiusPoints;
               try {
@@ -4761,15 +4971,15 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
                 console.warn("[MapContext] Failed to parse radius_points:", e);
                 radiusPoints = ma.radius_points;
               }
-
+  
               // Normalize to array
               const points = Array.isArray(radiusPoints) ? radiusPoints : [radiusPoints];
-
+  
               console.log("[MapContext] Drawing radius points:", {
                 count: points.length,
                 firstPoint: points[0]
               });
-
+  
               // Actually draw the radius points here
               for (const point of points) {
                 await drawRadius(
@@ -4798,11 +5008,11 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             driveTimePoints: ma.drive_time_points,
             geometry: ma.geometry
           });
-
+  
           // Ensure drive time points is an array
           let driveTimePoints = ma.drive_time_points;
           let polygonGeometry = ma.geometry;
-
+  
           // Robust parsing for drive time points
           if (typeof driveTimePoints === 'string') {
             try {
@@ -4818,12 +5028,12 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               }
             }
           }
-
+  
           // Ensure driveTimePoints is an array
           if (!Array.isArray(driveTimePoints)) {
             driveTimePoints = driveTimePoints ? [driveTimePoints] : [];
           }
-
+  
           // Fallback point generation if no points found
           if (driveTimePoints.length === 0 && polygonGeometry) {
             try {
@@ -4841,7 +5051,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               console.warn(`[MapContext] Failed to extract points from geometry for market area ${ma.id}:`, err);
             }
           }
-
+  
           // Normalize and validate points
           const validPoints = driveTimePoints
             .map(point => {
@@ -4862,12 +5072,12 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               point.center?.longitude !== undefined &&
               point.center?.latitude !== undefined
             );
-
+  
           if (validPoints.length === 0) {
             console.warn(`[MapContext] No valid drive time points for market area ${ma.id}`);
             return;
           }
-
+  
           // Draw each validated point
           for (const point of validPoints) {
             try {
@@ -4875,7 +5085,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               if (!point.polygon) {
                 point.polygon = await calculateDriveTimePolygon(point);
               }
-
+  
               // Draw the drive time polygon
               await drawDriveTimePolygon(
                 point,
@@ -4894,23 +5104,66 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               console.error(`[MapContext] Error processing drive time point for market area ${ma.id}:`, error);
             }
           }
+        } else if (ma.ma_type === "site_location") {
+          console.log("[MapContext] Processing site location market area:", ma.id);
+          
+          try {
+            // Parse site_location_data if it's a string
+            let siteData = ma.site_location_data;
+            if (typeof siteData === 'string') {
+              try {
+                siteData = JSON.parse(siteData);
+              } catch (e) {
+                console.error("[MapContext] Error parsing site location data:", e);
+              }
+            }
+            
+            // Only proceed if we have valid point data
+            if (siteData && siteData.point && 
+                siteData.point.latitude && siteData.point.longitude) {
+              
+              console.log("[MapContext] Drawing site location:", {
+                id: ma.id,
+                point: siteData.point,
+                size: siteData.size,
+                color: siteData.color
+              });
+              
+              // Call the corrected drawSiteLocation function
+              await drawSiteLocation(
+                siteData,
+                ma.style_settings || {
+                  fillColor: "#0078D4",
+                  fillOpacity: 0.35,
+                  borderColor: "#0078D4",
+                  borderWidth: 3,
+                  noFill: false,
+                  noBorder: false
+                },
+                ma.id,
+                ma.order || 0
+              );
+            }
+          } catch (err) {
+            console.error("[MapContext] Error processing site location market area:", err);
+          }
         } else if (ma.locations && ma.locations.length > 0) {
           // Handle regular polygon-based market areas
           console.log("[MapContext] Processing polygon market area:", {
             id: ma.id,
             locationsCount: ma.locations.length
           });
-
+  
           // Check for existing graphics for this market area to avoid duplicates
           const existingMarketAreaGraphics = selectionGraphicsLayerRef.current.graphics.filter(
             g => g.attributes?.marketAreaId === ma.id
           );
-
+  
           if (existingMarketAreaGraphics.length > 0) {
             console.log(`[MapContext] Market area ${ma.id} already has graphics, skipping processing`);
             return;
           }
-
+  
           // Convert locations to feature format
           const features = ma.locations.map(loc => ({
             geometry: loc.geometry,
@@ -4921,10 +5174,10 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               order: ma.order || 0
             }
           }));
-
+  
           // Display the features on the map WITHOUT clearing existing graphics
           await displayFeatures(features);
-
+  
           // Apply styling if needed - this will be run on ALL graphics for the market area
           if (ma.style) {
             const marketAreaFeatures = selectionGraphicsLayerRef.current.graphics.filter(
@@ -4933,7 +5186,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               geometry: g.geometry,
               attributes: g.attributes
             }));
-
+  
             if (marketAreaFeatures.length > 0) {
               updateFeatureStyles(
                 marketAreaFeatures,
@@ -4957,8 +5210,11 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
     updateFeatureStyles,
     calculateDriveTimePolygon,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     layersReady,
   ]);
+
 
   useEffect(() => {
     if (mapView && !selectionGraphicsLayerRef.current) {
@@ -5389,6 +5645,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       drawRadius,
       drawPoint,
       drawDriveTimePolygon,
+      drawSiteLocation, // Only include once
       calculateDriveTimePolygon,
       clearMarketAreaGraphics,
       toggleMarketAreaEditMode,
@@ -5400,6 +5657,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       setVisibleMarketAreaIds,
       editingMarketArea,
       setEditingMarketArea,
+      extractSiteLocationInfo,
       zoomToExtent,
       zoomToMarketArea,
       isOutsideZoomRange,
@@ -5427,6 +5685,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       drawRadius,
       drawPoint,
       drawDriveTimePolygon,
+      drawSiteLocation, // Only include once in dependencies
       calculateDriveTimePolygon,
       isMapSelectionActive,
       setIsMapSelectionActive,
@@ -5434,6 +5693,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       visibleMarketAreaIds,
       editingMarketArea,
       setEditingMarketArea,
+      extractSiteLocationInfo,
       zoomToExtent,
       zoomToMarketArea,
       isOutsideZoomRange,

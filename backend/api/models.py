@@ -1,5 +1,3 @@
-# models.py
-
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -82,6 +80,7 @@ class MarketArea(models.Model):
         ('state', 'State'),
         ('usa', 'USA'),
         ('custom', 'Custom Data'),  # Add this line to include 'custom' type
+        ('site_location', 'Site Location'),  # Added site_location as a valid choice
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -94,6 +93,7 @@ class MarketArea(models.Model):
     locations = models.JSONField(null=True, blank=True)  # Store location data
     radius_points = models.JSONField(null=True, blank=True)  # Store radius points data
     drive_time_points = models.JSONField(null=True, blank=True)  # Added explicit field for drive time points
+    site_location_data = models.JSONField(null=True, blank=True)  # Store site location specific data
     order = models.IntegerField(default=0)  # New field for ordering
     created_at = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)

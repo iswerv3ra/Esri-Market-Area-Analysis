@@ -84,9 +84,29 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
+
+  const toggleSiteLocationPlacement = useCallback((active) => {
+    setIsPlacingSiteLocation(active);
+    setIsMapSelectionActive(active);
+  }, [setIsMapSelectionActive]);
+
+  const [siteLocationData, setSiteLocationData] = useState(
+    editingMarketArea?.site_location_data || {
+      point: { latitude: null, longitude: null },
+      size: 24,
+      color: "#FFC000" // Default to yellow
+    }
+  );
+
+  // Add this state for site placement mode
+  const [isPlacingSiteLocation, setIsPlacingSiteLocation] = useState(false);
+  const { default: PictureMarkerSymbol } =  import("@arcgis/core/symbols/PictureMarkerSymbol");
+  const mapEventHandlersRef = useRef({});
+
   const maTypes = [
     { value: "radius", label: "Radius" },
-    { value: "drivetime", label: "Drive Time" }, // Add this line
+    { value: "drivetime", label: "Drive Time" },
+    { value: "site_location", label: "Site Location" }, // Add this line
     { value: "zip", label: "Zip Code" },
     { value: "county", label: "County" },
     { value: "place", label: "Place" },
@@ -97,6 +117,176 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     { value: "state", label: "State" },
     { value: "md", label: "Metro Division" },
   ];
+
+  // Ensure drawSiteLocation in MarketAreaForm.jsx uses 'diamond' style
+  const drawSiteLocation = useCallback(async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
+    try {
+      if (!siteData || !siteData.point) {
+        console.error("Invalid site location data:", siteData);
+        return null;
+      }
+
+      if (isNaN(siteData.point.latitude) || isNaN(siteData.point.longitude)) {
+        console.error("Invalid coordinates in site location data:", siteData.point);
+        return null;
+      }
+
+      // Import necessary ArcGIS modules
+      const [Point, SimpleMarkerSymbol, Color, Graphic] = await Promise.all([
+        import("@arcgis/core/geometry/Point").then(m => m.default),
+        import("@arcgis/core/symbols/SimpleMarkerSymbol").then(m => m.default),
+        import("@arcgis/core/Color").then(m => m.default),
+        import("@arcgis/core/Graphic").then(m => m.default)
+      ]);
+
+      // Create point geometry
+      const point = new Point({
+        longitude: parseFloat(siteData.point.longitude),
+        latitude: parseFloat(siteData.point.latitude),
+        spatialReference: { wkid: 4326 }
+      });
+
+      // Use diamond style (supported by ArcGIS API)
+      const symbol = new SimpleMarkerSymbol({
+        style: "diamond",  // Valid style: ArcGIS doesn't support "star"
+        color: new Color(siteData.color || styleSettings.fillColor || "#FFC000"),
+        size: parseInt(siteData.size) || 24,
+        outline: {
+          color: new Color(styleSettings.borderColor || "#000000"),
+          width: styleSettings.noBorder ? 0 : (styleSettings.borderWidth || 1)
+        }
+      });
+
+      // Create graphic
+      const graphic = new Graphic({
+        geometry: point,
+        symbol: symbol,
+        attributes: {
+          marketAreaId: marketAreaId || "temporary",
+          order: order || 0,
+          FEATURE_TYPE: "site_location",
+          isTemporary: !!isTemporary
+        }
+      });
+
+      // Add to graphics layer
+      if (selectionGraphicsLayer) {
+        selectionGraphicsLayer.add(graphic);
+        console.log("Site location drawn successfully at:", siteData.point);
+        return graphic;
+      } else {
+        console.warn("Selection graphics layer not available");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error drawing site location:", error);
+      toast.error("Failed to display site location");
+      return null;
+    }
+  }, [selectionGraphicsLayer]);
+
+  useEffect(() => {
+    // Skip if we're not in site_location mode or not actively placing
+    if (formState.maType !== "site_location" || !isPlacingSiteLocation || !mapView) {
+      return;
+    }
+
+    const handleMapClick = async (event) => {
+      if (!isPlacingSiteLocation) return;
+
+      try {
+        // Get clicked point coordinates
+        const point = mapView.toMap({ x: event.x, y: event.y });
+        
+        // Convert to geographic if needed
+        let geoPoint = point;
+        if (point.spatialReference && point.spatialReference.isWebMercator) {
+          const webMercatorUtils = await import("@arcgis/core/geometry/support/webMercatorUtils");
+          geoPoint = webMercatorUtils.webMercatorToGeographic(point);
+        }
+
+        // Update site location data with new coordinates
+        setSiteLocationData(prev => ({
+          ...prev,
+          point: {
+            latitude: geoPoint.latitude,
+            longitude: geoPoint.longitude
+          }
+        }));
+
+        // Draw temporary star at location
+        await drawSiteLocation(
+          {
+            point: {
+              latitude: geoPoint.latitude, 
+              longitude: geoPoint.longitude
+            },
+            size: siteLocationData.size,
+            color: siteLocationData.color
+          },
+          formState.styleSettings,
+          editingMarketArea?.id || "temporary",
+          editingMarketArea?.order || 0,
+          true // isTemporary flag
+        );
+
+        // Turn off placement mode after successful placement
+        setIsPlacingSiteLocation(false);
+        
+        toast.success("Site location placed successfully");
+      } catch (err) {
+        console.error("Error handling map click:", err);
+        toast.error("Failed to place site location");
+        setIsPlacingSiteLocation(false);
+      }
+    };
+
+    // Non-async wrapper for event handler
+    const clickHandler = (event) => {
+      handleMapClick(event).catch(err => {
+        console.error("Unhandled error in map click handler:", err);
+      });
+    };
+    
+    // Store the handler reference for proper cleanup
+    mapEventHandlersRef.current.clickHandler = clickHandler;
+    
+    // Use a unique key for the handler
+    const handlerId = `site_location_${Date.now()}`;
+    
+    console.log("Adding map click handler for site location placement");
+    
+    // Add the handler as a named event using the ArcGIS API's proper method
+    // This returns a handle object that can be used for removal
+    const handle = mapView.on("click", clickHandler);
+    
+    // Store the handle in our ref
+    mapEventHandlersRef.current[handlerId] = handle;
+    
+    // Return cleanup function
+    return () => {
+      console.log("Cleaning up site location click handler");
+      try {
+        // Remove the handler using the handle's remove method
+        if (mapEventHandlersRef.current[handlerId]) {
+          mapEventHandlersRef.current[handlerId].remove();
+          delete mapEventHandlersRef.current[handlerId];
+        }
+      } catch (cleanupError) {
+        console.error("Error during map event handler cleanup:", cleanupError);
+      }
+    };
+  }, [
+    formState.maType,
+    isPlacingSiteLocation,
+    mapView,
+    siteLocationData.size,
+    siteLocationData.color,
+    editingMarketArea,
+    drawSiteLocation,
+    formState.styleSettings,
+    setSiteLocationData
+  ]);
 
   useEffect(() => {
     if (formState.maType === "drive_time" && driveTimePoints.length > 0) {
@@ -139,24 +329,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     if (!editingMarketArea) clearSelection();
   }, [editingMarketArea, clearSelection]);
 
-  // Initialize the form if we are in "edit" mode
   useEffect(() => {
     const initializeForm = async () => {
       if (!editingMarketArea || initializationDone.current) return;
       initializationDone.current = true;
-
+  
       try {
-        // Non-radius, non-drivetime area
-        if (editingMarketArea.ma_type !== "radius" && editingMarketArea.ma_type !== "drivetime") {
+        // Non-radius, non-drivetime, non-site_location area
+        if (editingMarketArea.ma_type !== "radius" && 
+            editingMarketArea.ma_type !== "drivetime" && 
+            editingMarketArea.ma_type !== "site_location") {
           await addActiveLayer(editingMarketArea.ma_type);
-
+  
           // If it has locations already
           if (
             editingMarketArea.locations?.length > 0 &&
             !locationsInitialized.current
           ) {
             locationsInitialized.current = true;
-
+  
             const features = editingMarketArea.locations
               .map((loc) => ({
                 geometry: loc.geometry,
@@ -171,7 +362,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 (f) =>
                   formatLocationName(f, editingMarketArea.ma_type).trim() !== ""
               );
-
+  
             // Update form state
             setFormState((prev) => ({
               ...prev,
@@ -202,13 +393,85 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   },
                 })),
             }));
-
+  
             // Update map with this area's style
             await updateFeatureStyles(
               features,
               editingMarketArea.style_settings,
               editingMarketArea.ma_type
             );
+          }
+        }
+        else if (editingMarketArea.ma_type === "site_location") {
+          // Site Location market area
+          console.log("Initializing site location market area for editing");
+          
+          setFormState((prev) => ({
+            ...prev,
+            maType: editingMarketArea.ma_type,
+            maName: editingMarketArea.name,
+            shortName: editingMarketArea.short_name,
+            styleSettings: {
+              ...prev.styleSettings,
+              ...editingMarketArea.style_settings,
+              noBorder: editingMarketArea.style_settings?.borderWidth === 0,
+              noFill: editingMarketArea.style_settings?.fillOpacity === 0,
+            },
+          }));
+        
+          // Parse site_location_data if needed
+          let siteData = editingMarketArea.site_location_data;
+          if (typeof siteData === 'string') {
+            try {
+              siteData = JSON.parse(siteData);
+            } catch (e) {
+              console.error("Error parsing site location data:", e);
+              siteData = { 
+                point: { latitude: null, longitude: null },
+                size: 24,
+                color: "#FFC000"
+              };
+            }
+          }
+        
+          // Use default values if any properties are missing
+          const defaultSiteData = {
+            point: { latitude: null, longitude: null },
+            size: 24,
+            color: "#FFC000" 
+          };
+          
+          const normalizedSiteData = {
+            ...defaultSiteData,
+            ...siteData,
+            point: {
+              ...defaultSiteData.point,
+              ...(siteData?.point || {})
+            }
+          };
+        
+          // Set site location data
+          setSiteLocationData(normalizedSiteData);
+          console.log("Set site location data:", normalizedSiteData);
+        
+          // Draw the site location if coordinates exist
+          if (normalizedSiteData.point && 
+              normalizedSiteData.point.latitude && 
+              normalizedSiteData.point.longitude) {
+            console.log("Drawing existing site location");
+            try {
+              await drawSiteLocation(
+                normalizedSiteData,
+                editingMarketArea.style_settings || formState.styleSettings,
+                editingMarketArea.id,
+                editingMarketArea.order
+              );
+            } catch (err) {
+              console.error("Error drawing existing site location:", err);
+              toast.error("Failed to display existing site location");
+            }
+          } else {
+            console.log("No coordinates for site location, skipping initial draw");
           }
         }
         else if (editingMarketArea.ma_type === "drivetime") {
@@ -226,7 +489,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
               },
             }));
-
+  
             // Set drive time points
             let points = editingMarketArea.drive_time_points;
             if (typeof points === 'string') {
@@ -237,14 +500,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 points = [];
               }
             }
-
+  
             // Ensure points is an array
             if (!Array.isArray(points)) {
               points = [points].filter(Boolean);
             }
-
+  
             setDriveTimePoints(points);
-
+  
             // Draw the drive time area(s)
             for (const point of points) {
               if (!point.driveTimePolygon) {
@@ -256,7 +519,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                   continue; // Skip this point if calculation fails
                 }
               }
-
+  
               await drawDriveTimePolygon(
                 point,
                 editingMarketArea.style_settings,
@@ -281,9 +544,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
                 noFill: editingMarketArea.style_settings?.fillOpacity === 0,
               },
             }));
-
+  
             setRadiusPoints(editingMarketArea.radius_points);
-
+  
             // Draw the radius(es)
             for (const point of editingMarketArea.radius_points) {
               await drawRadius(
@@ -300,7 +563,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         toast.error("Failed to load market area for editing");
       }
     };
-
+  
     initializeForm();
   }, [
     editingMarketArea,
@@ -309,7 +572,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formatLocationName,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
     calculateDriveTimePolygon,
+    setSiteLocationData
   ]);
 
   const updateStyles = useCallback(() => {
@@ -382,6 +647,31 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           }
         }
       }
+      else if (formState.maType === "site_location") {
+        // Clear existing site location graphics first
+        if (selectionGraphicsLayer) {
+          const siteLocationGraphics = selectionGraphicsLayer.graphics.filter(
+            (g) => g.attributes?.FEATURE_TYPE === "site_location"
+          );
+          selectionGraphicsLayer.removeMany(siteLocationGraphics);
+        }
+  
+        // Redraw site location with new style settings
+        if (siteLocationData && siteLocationData.point && 
+            siteLocationData.point.latitude && siteLocationData.point.longitude) {
+          drawSiteLocation(
+            siteLocationData,
+            {
+              fillColor,
+              fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
+              borderColor,
+              borderWidth: formState.styleSettings.noBorder ? 0 : borderWidth,
+            },
+            editingMarketArea?.id || "temporary",
+            editingMarketArea?.order || 0
+          );
+        }
+      }
       else if (formState.selectedLocations.length > 0) {
         // Handle feature-based market areas
         const featureSelection = formState.selectedLocations.map((location) => ({
@@ -415,9 +705,11 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.maType,
     radiusPoints,
     driveTimePoints,
+    siteLocationData,
     updateFeatureStyles,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
     editingMarketArea,
     selectionGraphicsLayer
   ]);
@@ -530,13 +822,13 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const handleMATypeChange = useCallback(
     async (e) => {
       const newType = e.target.value;
-      console.log("Changing to type:", newType); // Debug log
+      console.log("Changing to type:", newType);
       try {
         clearSelection();
         if (formState.maType) {
           await removeActiveLayer(formState.maType);
         }
-
+  
         setFormState((prev) => ({
           ...prev,
           maType: newType,
@@ -544,13 +836,25 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           availableLocations: [],
           selectedLocations: [],
         }));
-
+  
+        // Clear existing points
         setRadiusPoints([]);
+        setSiteLocationData({
+          point: { latitude: null, longitude: null },
+          size: 24,
+          color: "#FFC000" // Default to yellow
+        });
+        setDriveTimePoints([]);
         setError(null);
-
-        if (newType && newType !== "radius") {
+  
+        // Only initialize layer for geographic feature types
+        // Skip for radius, drivetime, and site_location which use graphics
+        if (newType && 
+            newType !== "radius" && 
+            newType !== "drivetime" && 
+            newType !== "site_location") {
           try {
-            console.log("Adding active layer for:", newType); // Debug log
+            console.log("Adding active layer for:", newType);
             await addActiveLayer(newType);
           } catch (err) {
             console.error(`Error initializing layer ${newType}:`, err);
@@ -558,6 +862,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               `Failed to initialize ${newType} layer. Please try again.`
             );
           }
+        } else {
+          console.log(`Skipping layer activation for ${newType} type`);
         }
       } catch (err) {
         console.error("Error switching market area type:", err);
@@ -571,6 +877,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
       removeActiveLayer,
       formState.maType,
       setError,
+      setSiteLocationData
     ]
   );
 
@@ -1528,7 +1835,6 @@ const handleStyleChange = useCallback((type, value) => {
       };
   
       // If they picked "md" as a type, treat it as "place"
-      // No need to map drivetime to radius anymore
       const mappedType = formState.maType === "md" ? "place" : formState.maType;
   
       // Validate market area type
@@ -1542,8 +1848,54 @@ const handleStyleChange = useCallback((type, value) => {
   
       let marketAreaData;
   
+      // Handling site location type market areas
+      if (formState.maType === "site_location") {
+        console.group('Site Location Market Area Submission');
+        console.log("Processing site location type market area");
+        console.log("Current site location data:", siteLocationData);
+      
+        // Enhanced validation for site location data
+        if (!siteLocationData || 
+            !siteLocationData.point || 
+            siteLocationData.point.latitude === null || 
+            siteLocationData.point.longitude === null) {
+          throw new Error("Site location coordinates are required");
+        }
+      
+        const lat = parseFloat(siteLocationData.point.latitude);
+        const lon = parseFloat(siteLocationData.point.longitude);
+      
+        if (isNaN(lat) || isNaN(lon) || 
+            lat < -90 || lat > 90 || 
+            lon < -180 || lon > 180) {
+          throw new Error("Invalid site location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.");
+        }
+      
+        // Create market area data with validated site location data
+        marketAreaData = {
+          ma_type: "site_location",
+          name: formState.maName,
+          short_name: formState.shortName,
+          style_settings: styleSettings,
+          locations: [], // Site location doesn't use locations array
+          radius_points: [], // Empty for site location
+          drive_time_points: [], // Empty for site location
+          site_location_data: {
+            point: {
+              latitude: lat,
+              longitude: lon,
+              spatialReference: { wkid: 4326 }
+            },
+            size: parseInt(siteLocationData.size) || 24,
+            color: siteLocationData.color || "#FFC000"
+          }
+        };
+      
+        console.log("Final market area data for site location:", marketAreaData);
+        console.groupEnd();
+      }
       // Handling drive time type market areas
-      if (formState.maType === "drivetime") {
+      else if (formState.maType === "drivetime") {
         console.log("Processing drive time type market area");
         console.log("Current drive time points:", driveTimePoints);
   
@@ -1737,6 +2089,7 @@ const handleStyleChange = useCallback((type, value) => {
           })),
           radius_points: [],
           drive_time_points: [], // Include empty drive time points
+          site_location_data: null, // Include empty site location data
         };
       }
   
@@ -1795,6 +2148,13 @@ const handleStyleChange = useCallback((type, value) => {
         },
       }));
   
+      // Reset site location data
+      setSiteLocationData({
+        point: { latitude: null, longitude: null },
+        size: 24,
+        color: "#FFC000"
+      });
+  
       // Clear radius points and drive time points
       setRadiusPoints([]);
       setDriveTimePoints([]);
@@ -1811,7 +2171,9 @@ const handleStyleChange = useCallback((type, value) => {
       });
   
       // Apply specific post-save handling for non-radius, non-drivetime types
-      if (formState.maType !== "radius" && formState.maType !== "drivetime") {
+      if (formState.maType !== "radius" && 
+          formState.maType !== "drivetime" &&
+          formState.maType !== "site_location") {
         // For non-radius market areas, handle visualizations in the current view
         const currentSelections = formState.selectedLocations.map((loc) => ({
           geometry: loc.geometry || loc.feature?.geometry,
@@ -2115,10 +2477,12 @@ const handleStyleChange = useCallback((type, value) => {
             </div>
           </div>
 
-          <StyleSettingsPanel
-            styleSettings={formState.styleSettings}
-            onStyleChange={handleStyleChange}
-          />
+          {formState.maType !== "site_location" && (
+            <StyleSettingsPanel
+              styleSettings={formState.styleSettings}
+              onStyleChange={handleStyleChange}
+            />
+          )}
 
           {formState.maType === "radius" ? (
             <Radius
@@ -2136,6 +2500,120 @@ const handleStyleChange = useCallback((type, value) => {
               styleSettings={formState.styleSettings}
               existingDriveTimePoints={driveTimePoints}
             />
+          ) : formState.maType === "site_location" ? (
+            <div className="space-y-4 border p-4 rounded-md">
+              <h3 className="font-medium text-gray-700 dark:text-gray-300">Site Location</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={siteLocationData.point.latitude || ''}
+                    onChange={(e) => 
+                      setSiteLocationData(prev => ({
+                        ...prev, 
+                        point: {
+                          ...prev.point,
+                          latitude: parseFloat(e.target.value)
+                        }
+                      }))
+                    }
+                    placeholder="Enter latitude"
+                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                            bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
+                            focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={siteLocationData.point.longitude || ''}
+                    onChange={(e) => 
+                      setSiteLocationData(prev => ({
+                        ...prev, 
+                        point: {
+                          ...prev.point,
+                          longitude: parseFloat(e.target.value)
+                        }
+                      }))
+                    }
+                    placeholder="Enter longitude"
+                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                            bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
+                            focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Size
+                </label>
+                <input
+                  type="range"
+                  min="8"
+                  max="48"
+                  value={siteLocationData.size}
+                  onChange={(e) => 
+                    setSiteLocationData(prev => ({
+                      ...prev, 
+                      size: parseInt(e.target.value)
+                    }))
+                  }
+                  className="mt-1 block w-full"
+                />
+                <div className="text-sm text-gray-500 text-right">{siteLocationData.size}px</div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Color
+                </label>
+                <input
+                  type="color"
+                  value={siteLocationData.color}
+                  onChange={(e) => 
+                    setSiteLocationData(prev => ({
+                      ...prev, 
+                      color: e.target.value
+                    }))
+                  }
+                  className="mt-1 block w-full h-10"
+                />
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => toggleSiteLocationPlacement(true)}
+                className="mt-2 inline-flex items-center px-4 py-2 border border-transparent
+                        text-sm font-medium rounded-md shadow-sm text-white bg-blue-600
+                        hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2
+                        focus:ring-blue-500"
+              >
+                {isPlacingSiteLocation ? "Placing Site..." : "Place Site on Map"}
+              </button>
+              
+              {isPlacingSiteLocation && (
+                <div className="text-sm text-blue-600 animate-pulse">
+                  Click on the map to place your site location
+                </div>
+              )}
+              
+              {siteLocationData.point.latitude && siteLocationData.point.longitude && (
+                <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
+                  Current location: {siteLocationData.point.latitude.toFixed(6)}, {siteLocationData.point.longitude.toFixed(6)}
+                </div>
+              )}
+            </div>
           ) : (
             formState.maType && (
               <>
@@ -2159,8 +2637,8 @@ const handleStyleChange = useCallback((type, value) => {
                       }
                       placeholder={`Search ${formState.maType} locations...`}
                       className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
-                               bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
-                               focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                              bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
+                              focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
                       disabled={!formState.maType || isLayerLoading}
                     />
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -2249,43 +2727,47 @@ const handleStyleChange = useCallback((type, value) => {
               </>
             )
           )}
-        </form>
-      </div>
-      {/* Right-aligned container with centered buttons */}
-      <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
-                   hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
-                   dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
-                   focus:ring-offset-2 disabled:opacity-50 shadow-lg"
-          disabled={isSaving}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
-                   hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
-                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                   disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                   disabled={
-                    isSaving ||
-                    (formState.maType === "radius" && radiusPoints.length === 0) ||
-                    (formState.maType === "drivetime" && driveTimePoints.length === 0) || // Changed from "drive_time" to "drivetime"
-                    (formState.maType !== "radius" && formState.maType !== "drivetime" &&
+          </form>
+          </div>
+          {/* Right-aligned container with centered buttons */}
+          <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
+                    hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
+                    dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
+                    focus:ring-offset-2 disabled:opacity-50 shadow-lg"
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
+                    hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                    disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                    disabled={
+                      isSaving ||
+                      (formState.maType === "radius" && radiusPoints.length === 0) ||
+                      (formState.maType === "drivetime" && driveTimePoints.length === 0) ||
+                      (formState.maType === "site_location" && 
+                        (!siteLocationData.point.latitude || !siteLocationData.point.longitude)) ||
+                      (formState.maType !== "radius" && 
+                      formState.maType !== "drivetime" && 
+                      formState.maType !== "site_location" &&
                       formState.selectedLocations.length === 0) ||
-                    !formState.maName
-                  }
-        >
-          {isSaving
-            ? "Saving..."
-            : editingMarketArea
-              ? "Update & Exit"
-              : "Save & Exit"}
-        </button>
-      </div>
-    </div>
+                      !formState.maName
+                    }
+          >
+            {isSaving
+              ? "Saving..."
+              : editingMarketArea
+                ? "Update & Exit"
+                : "Save & Exit"}
+          </button>
+          </div>
+          </div>
   );
 }

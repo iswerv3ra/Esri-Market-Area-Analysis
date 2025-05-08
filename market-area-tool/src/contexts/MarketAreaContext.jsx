@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
-import { useMap } from './MapContext'; // Add this import
+import { useMap } from './MapContext';
 
 const MarketAreaContext = createContext();
 
@@ -21,7 +21,7 @@ export const MarketAreaProvider = ({ children }) => {
   const [isEditing, setIsEditing] = useState(false);
   const fetchInProgress = useRef(false);
   const initialFetchDone = useRef(false);
-  const { clearMarketAreaGraphics } = useMap(); // Use this to access the function
+  const { clearMarketAreaGraphics } = useMap();
 
   const fetchMarketAreas = useCallback(async (projectId) => {
     if (!projectId) {
@@ -296,6 +296,49 @@ export const MarketAreaProvider = ({ children }) => {
           console.warn(`Drive time market area ${area.id} has no valid points or geometry`);
           return false;
         }
+        
+        // Special handling for site_location market areas
+        else if (area.ma_type === 'site_location') {
+          console.log('Processing site location market area:', area.id);
+          
+          // Validate site_location_data exists
+          if (!area.site_location_data) {
+            console.warn(`Site location market area ${area.id} missing site_location_data`);
+            return false;
+          }
+          
+          try {
+            // Parse if it's a string
+            if (typeof area.site_location_data === 'string') {
+              area.site_location_data = JSON.parse(area.site_location_data);
+            }
+            
+            // Validate required properties
+            if (!area.site_location_data.point || 
+                !area.site_location_data.point.latitude || 
+                !area.site_location_data.point.longitude) {
+              console.warn(`Site location market area ${area.id} missing point coordinates`);
+              return false;
+            }
+            
+            // Ensure size exists, or provide default
+            if (area.site_location_data.size === undefined) {
+              console.log(`Site location market area ${area.id} missing size, using default`);
+              area.site_location_data.size = 24; // Default size
+            }
+            
+            // Ensure color exists, or provide default
+            if (!area.site_location_data.color) {
+              console.log(`Site location market area ${area.id} missing color, using default`);
+              area.site_location_data.color = "#FFD700"; // Default yellow color
+            }
+            
+            return true;
+          } catch (e) {
+            console.error(`Error processing site_location_data for market area ${area.id}:`, e);
+            return false;
+          }
+        }
 
         // Handle polygon-based market areas
         else if (area.locations && Array.isArray(area.locations)) {
@@ -327,22 +370,23 @@ export const MarketAreaProvider = ({ children }) => {
             return false;
           }
         } else {
-          // No locations and not a radius or drivetime - invalid
-          console.warn(`Market area ${area.id} has no locations and is not a radius or drivetime type`);
+          // No locations and not a radius or drivetime or site_location - invalid
+          console.warn(`Market area ${area.id} has no locations and is not a radius, drivetime, or site_location type`);
           return false;
         }
   
         return true;
       });
   
-      // Log validation results
+      // Log validation results with site_location included
       console.log('Market Areas Validation:', {
         totalReceived: areas.length,
         validCount: validatedAreas.length,
         byType: {
           radius: validatedAreas.filter(a => a.ma_type === 'radius').length,
           drivetime: validatedAreas.filter(a => a.ma_type === 'drivetime').length,
-          other: validatedAreas.filter(a => a.ma_type !== 'radius' && a.ma_type !== 'drivetime').length
+          site_location: validatedAreas.filter(a => a.ma_type === 'site_location').length,
+          other: validatedAreas.filter(a => !['radius', 'drivetime', 'site_location'].includes(a.ma_type)).length
         }
       });
   
@@ -416,6 +460,33 @@ export const MarketAreaProvider = ({ children }) => {
     setIsLoading(true);
     try {
       let newMarketArea;
+      
+      // Handle site_location type before sending to API
+      if (marketAreaData.ma_type === 'site_location') {
+        // Ensure site_location_data is properly formatted
+        if (!marketAreaData.site_location_data) {
+          marketAreaData.site_location_data = {};
+        }
+        
+        // Make sure the point exists
+        if (!marketAreaData.site_location_data.point) {
+          throw new Error('Site location requires coordinates (point with latitude/longitude)');
+        }
+        
+        // Apply defaults if needed
+        if (marketAreaData.site_location_data.size === undefined) {
+          marketAreaData.site_location_data.size = 24;
+        }
+        
+        if (!marketAreaData.site_location_data.color) {
+          marketAreaData.site_location_data.color = "#FFD700";
+        }
+        
+        // Clear other geometry fields that should be empty for site_location type
+        marketAreaData.locations = [];
+        marketAreaData.radius_points = [];
+        marketAreaData.drive_time_points = [];
+      }
   
       if (marketAreaData.id) {
         // Existing market area: update it
@@ -468,6 +539,46 @@ export const MarketAreaProvider = ({ children }) => {
     if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
     setIsLoading(true);
     try {
+      // Special handling for site_location type updates
+      if (updateData.ma_type === 'site_location') {
+        // Ensure site_location_data exists
+        if (!updateData.site_location_data) {
+          updateData.site_location_data = {};
+        }
+        
+        // If changing to site_location type, make sure we have default data
+        if (!updateData.site_location_data.point) {
+          const existingArea = marketAreas.find(ma => ma.id === marketAreaId);
+          
+          // Try to initialize from existing geometry if possible
+          if (existingArea && existingArea.ma_type === 'radius' && existingArea.radius_points?.[0]?.center) {
+            updateData.site_location_data.point = {
+              latitude: existingArea.radius_points[0].center.latitude,
+              longitude: existingArea.radius_points[0].center.longitude
+            };
+          } else if (existingArea && existingArea.ma_type === 'drivetime' && existingArea.drive_time_points?.[0]?.center) {
+            updateData.site_location_data.point = {
+              latitude: existingArea.drive_time_points[0].center.latitude,
+              longitude: existingArea.drive_time_points[0].center.longitude
+            };
+          }
+        }
+        
+        // Apply defaults for size and color if needed
+        if (updateData.site_location_data.size === undefined) {
+          updateData.site_location_data.size = 24;
+        }
+        
+        if (!updateData.site_location_data.color) {
+          updateData.site_location_data.color = "#FFD700";
+        }
+        
+        // Clear other geometry fields
+        updateData.locations = [];
+        updateData.radius_points = [];
+        updateData.drive_time_points = [];
+      }
+      
       const response = await api.patch(
         `/api/projects/${projectId}/market-areas/${marketAreaId}/`,
         updateData
@@ -487,7 +598,7 @@ export const MarketAreaProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [marketAreas]);
 
   const deleteMarketArea = useCallback(async (projectId, marketAreaId) => {
     if (!projectId || !marketAreaId) throw new Error('Project ID and Market Area ID are required');
@@ -557,7 +668,6 @@ export const MarketAreaProvider = ({ children }) => {
       setIsLoading(false);
     }
   }, [marketAreas, order]);
-
 
   const value = {
     marketAreas: marketAreas || [],

@@ -8,6 +8,7 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.http import HttpResponse
 from datetime import timedelta, datetime
+from django.http import Http404
 from .models import (
     Project, 
     MarketArea, 
@@ -24,7 +25,7 @@ from .serializers import (
     MarketAreaSerializer, StylePresetSerializer, VariablePresetSerializer,
     ColorKeySerializer, TcgThemeSerializer, AdminUserSerializer,
     AdminUserUpdateSerializer, PasswordResetSerializer, EnrichmentUsageSerializer,
-    MapConfigurationSerializer, LabelPositionSerializer  # Add this import
+    MapConfigurationSerializer, LabelPositionSerializer
 )
 from decimal import Decimal, ROUND_HALF_UP
 import csv
@@ -737,6 +738,7 @@ class MapConfigurationViewSet(viewsets.ModelViewSet):
             error_detail = getattr(e, 'detail', str(e))
             status_code = getattr(e, 'status_code', status.HTTP_400_BAD_REQUEST)
             return Response({"detail": error_detail}, status=status_code)
+
     def perform_create(self, serializer):
         # Ensure the project FK is correctly handled by the serializer's create method
         # If project is write_only=True, the serializer needs to handle the lookup
