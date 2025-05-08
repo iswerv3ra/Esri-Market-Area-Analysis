@@ -106,9 +106,9 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
   const mapEventHandlersRef = useRef({});
 
   const maTypes = [
+    { value: "site_location", label: "Site Location" },
     { value: "radius", label: "Radius" },
     { value: "drivetime", label: "Drive Time" },
-    { value: "site_location", label: "Site Location" }, // Add this line
     { value: "zip", label: "Zip Code" },
     { value: "county", label: "County" },
     { value: "place", label: "Place" },
@@ -2414,57 +2414,6 @@ const handleStyleChange = useCallback((type, value) => {
           ) : formState.maType === "site_location" ? (
             <div className="space-y-4 border p-4 rounded-md">
               <h3 className="font-medium text-gray-700 dark:text-gray-300">Site Location</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Latitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    value={siteLocationData.point.latitude || ''}
-                    onChange={(e) => 
-                      setSiteLocationData(prev => ({
-                        ...prev, 
-                        point: {
-                          ...prev.point,
-                          latitude: parseFloat(e.target.value)
-                        }
-                      }))
-                    }
-                    placeholder="Enter latitude"
-                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
-                            bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
-                            focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Longitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    value={siteLocationData.point.longitude || ''}
-                    onChange={(e) => 
-                      setSiteLocationData(prev => ({
-                        ...prev, 
-                        point: {
-                          ...prev.point,
-                          longitude: parseFloat(e.target.value)
-                        }
-                      }))
-                    }
-                    placeholder="Enter longitude"
-                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
-                            bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
-                            focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                  />
-                </div>
-              </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Size
@@ -2519,11 +2468,7 @@ const handleStyleChange = useCallback((type, value) => {
                 </div>
               )}
               
-              {siteLocationData.point.latitude && siteLocationData.point.longitude && (
-                <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
-                  Current location: {siteLocationData.point.latitude.toFixed(6)}, {siteLocationData.point.longitude.toFixed(6)}
-                </div>
-              )}
+
             </div>
           ) : (
             formState.maType && (
