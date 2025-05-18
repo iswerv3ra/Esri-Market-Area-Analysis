@@ -67,7 +67,8 @@ const LabelEditor = ({
   const [draggerInitialized, setDraggerInitialized] = useState(false);
   const [localLabelDragger, setLocalLabelDragger] = useState(null);
   const textInputRef = useRef(null);
-  
+  const [allLabelsVisible, setAllLabelsVisible] = useState(true);
+
   // State for Position Adjustment Mode (formerly Multi-Drag Mode)
   const [isMultiDragMode, setIsMultiDragMode] = useState(false);
   const [draggedLabels, setDraggedLabels] = useState([]); // { graphic, originalPosition, currentPosition }
@@ -76,6 +77,73 @@ const LabelEditor = ({
   const [originalNavState, setOriginalNavState] = useState(null); // Used by Position Adjustment Mode
   
 
+
+  const toggleAllLabelsVisibility = () => {
+    if (!labelManager || typeof labelManager.getAllLabelGraphics !== 'function') {
+      console.warn("[LabelEditor] Cannot toggle visibility: Missing required methods");
+      return;
+    }
+    
+    try {
+      const allLabels = labelManager.getAllLabelGraphics();
+      if (!allLabels || allLabels.length === 0) {
+        setStatusMessage({ type: 'info', text: 'No labels found to toggle visibility', timeout: 3000 });
+        return;
+      }
+      
+      // Toggle the visibility state
+      const newVisibleState = !allLabelsVisible;
+      setAllLabelsVisible(newVisibleState);
+      
+      let updateCount = 0;
+      
+      // Apply visibility to all labels
+      allLabels.forEach(label => {
+        if (label) {
+          label.visible = newVisibleState;
+          
+          // Update in label manager tracking if available
+          const labelId = labelManager.getLabelId(label);
+          if (labelId && labelManager.editedLabels) {
+            const existingData = labelManager.editedLabels.get(labelId) || {};
+            labelManager.editedLabels.set(labelId, {
+              ...existingData, 
+              graphic: label,
+              visible: newVisibleState
+            });
+          }
+          updateCount++;
+        }
+      });
+      
+      // Force refresh
+      if (labelManager.refreshLabels) {
+        labelManager.refreshLabels();
+      } else if (mapView?.graphics) {
+        mapView.graphics.refresh();
+      }
+      
+      // Save changes
+      if (typeof labelManager.savePositions === 'function') {
+        labelManager.savePositions(true);
+      }
+      
+      setStatusMessage({ 
+        type: 'success', 
+        text: `${newVisibleState ? 'Showed' : 'Hidden'} ${updateCount} labels`, 
+        timeout: 3000 
+      });
+      
+      console.log(`[LabelEditor] ${newVisibleState ? 'Showed' : 'Hidden'} ${updateCount} labels`);
+    } catch (error) {
+      console.error("[LabelEditor] Error toggling label visibility:", error);
+      setStatusMessage({ 
+        type: 'error', 
+        text: `Failed to toggle label visibility: ${error.message}`, 
+        timeout: 3000 
+      });
+    }
+  };
   useEffect(() => {
     // Only try to initialize if the editor is open and prerequisites are available
     if (!isOpen || !mapView || !labelManager) return;
@@ -1266,6 +1334,29 @@ const finalizeLabels = async (silent = false) => {
             </button>
           </div>
         </div>
+
+        <div className="flex items-center space-x-2">
+  {/* Existing buttons */}
+  <button
+    onClick={toggleAllLabelsVisibility}
+    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+    title={allLabelsVisible ? "Hide all labels" : "Show all labels"}
+  >
+    {allLabelsVisible ? (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off">
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+        <line x1="2" y1="2" x2="22" y2="22" />
+      </svg>
+    ) : (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye">
+        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    )}
+  </button>
+</div>
       </div>
 
       {/* Mode Indicator Banners */}

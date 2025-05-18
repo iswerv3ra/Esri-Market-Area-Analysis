@@ -840,391 +840,286 @@ export const createPipeLayer = (config) => {
   return graphicsLayer;
 };
 
-/**
- * Creates a custom data map layer with improved label handling
- * 
- * @param {Object} config - Configuration for the custom data layer
- * @returns {Promise<GraphicsLayer>} The configured custom graphics layer
- */
-export async function createGraphicsLayerFromCustomData(config) {
-  // Log the received config
-  console.log("[createGraphicsLayerFromCustomData] Creating graphics layer with config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
+export const createGraphicsLayerFromCustomData = async (config) => {
+  console.log("[createGraphicsLayerFromCustomData] Received config:", JSON.stringify(config, (k, v) => 
+    (k === "data" || k === "customData") ? `[${v?.data?.length || v?.length} items]` : v));
 
-  if (!config || !config.customData || !Array.isArray(config.customData.data)) {
-    console.error("[createGraphicsLayerFromCustomData] Invalid configuration for custom data layer:", config);
-    return null;
-  }
+  // Dynamic imports
+  const { default: GraphicsLayer } = await import("@arcgis/core/layers/GraphicsLayer");
+  const { default: Graphic } = await import("@arcgis/core/Graphic");
+  const { default: Point } = await import("@arcgis/core/geometry/Point");
+  const { default: SimpleMarkerSymbol } = await import("@arcgis/core/symbols/SimpleMarkerSymbol");
+  const { default: TextSymbol } = await import("@arcgis/core/symbols/TextSymbol");
+  const { default: Color } = await import("@arcgis/core/Color");
+  const { default: PopupTemplate } = await import("@arcgis/core/PopupTemplate");
 
-  const customLayer = new GraphicsLayer({
-    title: config.title || "Custom Data Points",
-    listMode: "show",
+  const layer = new GraphicsLayer({
+    title: config.title || "Custom Data Layer",
+    listMode: "hide",
+    visualizationType: "custom",
+    rendererType: config.rendererType || "simple",
+    isVisualizationLayer: true,
   });
   
-  // Set flags
-  customLayer.isVisualizationLayer = true;
-  customLayer.isCustomDataLayer = true;
-  customLayer.visualizationType = "custom"; // Explicitly set type
-  
-  // Add this flag to indicate this layer manages its own labels
-  // This signals to UniversalLabelManager not to create duplicate labels
-  customLayer.hasLabelGraphics = true;
-
-  // --- Enhanced data extraction ---
-  const data = config.customData.data || [];
-  const labelColumn = config.labelColumn || config.customData.labelColumn;
-  const variable1Column = config.variable1Column || config.customData.variable1Column;
-  const variable2Column = config.variable2Column || config.customData.variable2Column;
-  const valueColumn = config.field || config.valueColumn || config.customData.valueColumn;
-  const latitudeColumn = config.latitudeColumn || config.customData.latitudeColumn || "latitude";
-  const longitudeColumn = config.longitudeColumn || config.customData.longitudeColumn || "longitude";
-  const symbolConfig = config.symbol || {};
-  const classBreakInfos = config.classBreakInfos || [];
-  const rendererType = config.rendererType || (classBreakInfos.length > 0 ? 'classBreaks' : 'simple');
-  const valueFormat = config.valueFormat;
-  
-  // --- Extract label configuration ---
-  const labelOptions = config?.labelOptions || {};
-  const fontSize = labelOptions.fontSize || 10;
-  const includeVariables = labelOptions.includeVariables !== false; // Default to true
-  const avoidCollisions = labelOptions.avoidCollisions !== false; // Default to true
-  const visibleAtAllZooms = labelOptions.visibleAtAllZooms || false;
-  const minZoom = labelOptions.minZoom || 10; // Default minimum zoom for labels
-  
-  // Set flag for visibility tracking
-  customLayer.labelVisibilityTracking = { 
-    enabled: !visibleAtAllZooms,
-    minimumZoom: minZoom,
-    currentlyVisible: false
-  };
-
-  if (data.length === 0) {
-    console.warn("[createGraphicsLayerFromCustomData] No data points found in configuration for custom layer.");
-    return customLayer; // Return empty layer
+  let customData = [];
+  if (config.customData?.data) {
+    customData = config.customData.data;
+  } else if (config.data) {
+    customData = config.data;
+  } else if (config.customData && Array.isArray(config.customData)) {
+    customData = config.customData;
   }
 
-  // --- Default Symbol Properties ---
-  const defaultColor = '#FF0000'; // Default Red for custom
-  const defaultSize = 10;
-  const defaultOutlineColor = '#FFFFFF';
-  const defaultOutlineWidth = 1;
-  const defaultStyle = 'circle';
+  if (!Array.isArray(customData) || customData.length === 0) {
+    console.warn("[createGraphicsLayerFromCustomData] No custom data provided.");
+    return layer;
+  }
 
-  const pointColor = symbolConfig.color || defaultColor;
-  const pointSize = typeof symbolConfig.size === 'number' && !isNaN(symbolConfig.size)
-                    ? symbolConfig.size : defaultSize;
-  const outlineConfig = symbolConfig.outline || {};
-  const outlineColor = outlineConfig.color || defaultOutlineColor;
-  const outlineWidth = typeof outlineConfig.width === 'number' && !isNaN(outlineConfig.width)
-                       ? outlineConfig.width : defaultOutlineWidth;
-  const pointStyle = symbolConfig.style || defaultStyle;
+  const latCol = config.latitudeColumn || "latitude";
+  const lonCol = config.longitudeColumn || "longitude";
+  const labelCol = config.labelColumn || "name";
+  const var1Col = config.variable1Column;
+  const var2Col = config.variable2Column;
+  const var1Text = config.variable1Text || "";
+  const var2Text = config.variable2Text || "";
+  
+  const isDualValueRender = config.rendererType === 'custom-dual-value';
+  const valueCol1 = config.valueColumn1;
+  const valueCol2 = config.valueColumn2;
+  
+  const colorBreaks = Array.isArray(config.colorClassBreakInfos) ? config.colorClassBreakInfos : [];
+  const sizeBreaks = Array.isArray(config.sizeInfos) ? config.sizeInfos : [];
 
-  // Helper function to determine color based on class breaks
-  const getColorForValue = (value) => {
-    if (value === undefined || value === null || value === '' ||
-        !valueColumn || !classBreakInfos || classBreakInfos.length === 0 ||
-        rendererType !== 'classBreaks') {
-      return pointColor; // Use default color
-    }
-    
-    const numValue = Number(value);
-    if (isNaN(numValue)) { return pointColor; }
-    
-    for (const breakInfo of classBreakInfos) {
-      const maxVal = (breakInfo.maxValue === Infinity || breakInfo.maxValue === undefined) 
-                    ? Infinity : Number(breakInfo.maxValue);
-      const minVal = (breakInfo.minValue === -Infinity || breakInfo.minValue === undefined) 
-                    ? -Infinity : Number(breakInfo.minValue);
-                    
-      if ((minVal === -Infinity || numValue >= minVal) && 
-          (maxVal === Infinity || numValue <= maxVal)) {
-        return breakInfo.symbol?.color || pointColor;
+  // --- MODIFICATION START ---
+  // Define baseSymbolConfig based on rendererType
+  let baseSymbolConfig;
+  const inputSymbolConfig = config.symbol || {};
+
+  if (isDualValueRender) {
+    // For dual-value, base symbol defines outline, style, and min/max for ramps.
+    // Fixed color/size are ignored; they come from breaks.
+    baseSymbolConfig = {
+      type: "simple-marker", // Ensure type is always set
+      style: inputSymbolConfig.style || "circle",
+      outline: inputSymbolConfig.outline || { color: "#FFFFFF", width: 1 },
+      minSize: inputSymbolConfig.minSize || 6, // Crucial for size ramp default
+      maxSize: inputSymbolConfig.maxSize || 24,
+      // Explicitly DO NOT include 'color' or 'size' for dual-value base
+    };
+  } else {
+    // For simple or single class-break custom maps, a base color/size might be intended.
+    baseSymbolConfig = {
+      type: "simple-marker", // Ensure type is always set
+      style: inputSymbolConfig.style || "circle",
+      outline: inputSymbolConfig.outline || { color: "#FFFFFF", width: 1 },
+      color: inputSymbolConfig.color || "#FF0000", // Default red for non-dual-value
+      size: inputSymbolConfig.size || 10,         // Default size for non-dual-value
+    };
+  }
+  // --- MODIFICATION END ---
+
+  console.log(`[createGraphicsLayerFromCustomData] Processing ${customData.length} points with:`, {
+    rendererType: config.rendererType || 'simple',
+    isDualValue: isDualValueRender,
+    colorColumn: valueCol1 || 'N/A',
+    sizeColumn: valueCol2 || 'N/A',
+    colorBreaksCount: colorBreaks.length,
+    sizeBreaksCount: sizeBreaks.length,
+    baseSymbolConfig: baseSymbolConfig // Log the determined baseSymbolConfig
+  });
+
+  const pointGraphics = [];
+  const labelGraphics = [];
+
+  customData.forEach((item, index) => {
+    try {
+      let lat, lon;
+      if (item[latCol] !== undefined && item[lonCol] !== undefined) {
+        lat = parseFloat(item[latCol]);
+        lon = parseFloat(item[lonCol]);
+      } else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
+        lat = item.geometry.y;
+        lon = item.geometry.x;
+      } else if (item.lat !== undefined && item.lon !== undefined) {
+        lat = parseFloat(item.lat);
+        lon = parseFloat(item.lon);
+      } else if (item.latitude !== undefined && item.longitude !== undefined) {
+        lat = parseFloat(item.latitude);
+        lon = parseFloat(item.longitude);
       }
-    }
-    
-    return pointColor;
-  };
 
-  // Create popup template based on available columns
-  let popupTemplate = null;
-  const fieldInfos = [];
-  // Always add name if column exists
-  if (labelColumn) fieldInfos.push({ fieldName: labelColumn, label: labelColumn || "Name" });
-  // Add value if column exists
-  if (valueColumn) fieldInfos.push({
-      fieldName: valueColumn, // Use original value column name for binding
-      label: valueColumn || "Value",
-      format: valueFormat ? {
-        digitSeparator: true,
-        places: valueFormat.decimals ?? 0,
-        prefix: valueFormat.prefix || '',
-        suffix: valueFormat.suffix || ''
-      } : { digitSeparator: true, places: 2 } // Default format
-  });
-  // Add Lat/Lon
-  fieldInfos.push({ fieldName: latitudeColumn, label: 'Latitude', format: { places: 6 } });
-  fieldInfos.push({ fieldName: longitudeColumn, label: 'Longitude', format: { places: 6 } });
+      if (isNaN(lat) || isNaN(lon)) {
+        console.warn(`[createGraphicsLayerFromCustomData] Skipping item ${index} due to invalid coordinates.`);
+        return;
+      }
 
-  popupTemplate = new PopupTemplate({
-      title: "{displayName}",
-      content: [{ type: "fields", fieldInfos: fieldInfos }]
-  });
-  
-  // First pass: gather point positions for label collision detection if needed
-  const labelPositions = new Map();
-  
-  if (avoidCollisions) {
-    const pointData = data
-      .map((item, index) => {
-        // Skip if missing coordinates
-        let latitude, longitude;
-        
-        // Robust coordinate extraction
-        if (item[latitudeColumn] !== undefined && item[longitudeColumn] !== undefined) {
-            latitude = parseFloat(item[latitudeColumn]); 
-            longitude = parseFloat(item[longitudeColumn]);
-        } else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
-            latitude = item.geometry.y; 
-            longitude = item.geometry.x;
-        } else if (typeof item["lat"] === "number" && typeof item["lon"] === "number") {
-            latitude = item["lat"]; 
-            longitude = item["lon"];
-        } else if (typeof item["latitude"] === "number" && typeof item["longitude"] === "number") {
-            latitude = item["latitude"]; 
-            longitude = item["longitude"];
-        } else {
-            return null; // Skip invalid coordinates
+      const point = new Point({ 
+        longitude: lon, 
+        latitude: lat, 
+        spatialReference: { wkid: 4326 } 
+      });
+
+      // --- MODIFICATION START: Default finalColorHex and finalSize ---
+      let finalColorHex = isDualValueRender ? "#808080" : (baseSymbolConfig.color || "#FF0000"); // Default grey for unmatched dual-value
+      let finalSize = isDualValueRender 
+        ? (baseSymbolConfig.minSize || 6) // Default to minSize for unmatched dual-value
+        : (parseFloat(baseSymbolConfig.size || 10));
+      // --- MODIFICATION END ---
+
+      if (isDualValueRender) {
+        if (valueCol1 && colorBreaks.length > 0 && item[valueCol1] !== undefined) {
+          const val1 = parseFloat(item[valueCol1]);
+          if (!isNaN(val1)) {
+            for (const breakInfo of colorBreaks) {
+              const minVal = breakInfo.minValue !== undefined ? parseFloat(breakInfo.minValue) : -Infinity;
+              const maxVal = breakInfo.maxValue !== undefined ? parseFloat(breakInfo.maxValue) : Infinity;
+              if (val1 >= minVal && val1 <= maxVal) {
+                if (breakInfo.symbol && breakInfo.symbol.color) {
+                  finalColorHex = breakInfo.symbol.color;
+                  break;
+                }
+              }
+            }
+          }
         }
         
-        if (isNaN(latitude) || isNaN(longitude)) return null;
-        
-        // Generate label text
-        const labelText = formatPointLabel(item, {
-          labelColumn,
-          variable1Column,
-          variable2Column,
-          labelOptions: { includeVariables }
+        if (valueCol2 && sizeBreaks.length > 0 && item[valueCol2] !== undefined) {
+          const val2 = parseFloat(item[valueCol2]);
+          if (!isNaN(val2)) {
+            for (const sizeBreak of sizeBreaks) {
+              const minVal = sizeBreak.minValue !== undefined ? parseFloat(sizeBreak.minValue) : -Infinity;
+              const maxVal = sizeBreak.maxValue !== undefined ? parseFloat(sizeBreak.maxValue) : Infinity;
+              if (val2 >= minVal && val2 <= maxVal) {
+                if (sizeBreak.size !== undefined) {
+                  finalSize = parseFloat(sizeBreak.size);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } 
+      else if (config.classBreakInfos && config.classBreakInfos.length > 0 && config.field) {
+        const value = parseFloat(item[config.field]);
+        if (!isNaN(value)) {
+          for (const classBreak of config.classBreakInfos) {
+            const minVal = classBreak.minValue !== undefined ? parseFloat(classBreak.minValue) : -Infinity;
+            const maxVal = classBreak.maxValue !== undefined ? parseFloat(classBreak.maxValue) : Infinity;
+            if (value >= minVal && value <= maxVal) {
+              if (classBreak.symbol) {
+                finalColorHex = classBreak.symbol.color || baseSymbolConfig.color || "#FF0000";
+                finalSize = parseFloat(classBreak.symbol.size || baseSymbolConfig.size || 10);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const pointSymbol = new SimpleMarkerSymbol({
+        style: baseSymbolConfig.style || "circle",
+        color: new Color(finalColorHex),
+        size: finalSize,
+        outline: {
+          color: new Color(baseSymbolConfig.outline?.color || "#FFFFFF"),
+          width: parseFloat(baseSymbolConfig.outline?.width || 1)
+        }
+      });
+
+      let displayLabel = String(item[labelCol] || `Point ${index + 1}`);
+      if (config.labelOptions?.includeVariables !== false) {
+        if (var1Col && item[var1Col] !== undefined) {
+          displayLabel += `, ${item[var1Col]}${var1Text ? ' ' + var1Text : ''}`;
+        }
+        if (var2Col && item[var2Col] !== undefined) {
+          displayLabel += ` / ${item[var2Col]}${var2Text ? ' ' + var2Text : ''}`;
+        }
+      }
+
+      const attributes = {
+        ...item,
+        _internalId: `custom-${index}`,
+        labelText: displayLabel,
+        isCustomPoint: true,
+        FEATURE_TYPE: "custom",
+        parentID: `custom-${index}`,
+        rendererType: config.rendererType,
+        [valueCol1]: item[valueCol1],
+        [valueCol2]: item[valueCol2],
+        [labelCol]: item[labelCol] || `Point ${index + 1}`
+      };
+
+      const popupTemplate = new PopupTemplate({
+        title: attributes.labelText,
+        content: [{
+          type: "fields",
+          fieldInfos: Object.keys(item)
+            .filter(key => !['geometry', '_internalId'].includes(key))
+            .map(key => ({ fieldName: key, label: key }))
+        }]
+      });
+
+      pointGraphics.push(new Graphic({ 
+        geometry: point, 
+        symbol: pointSymbol, 
+        attributes, 
+        popupTemplate 
+      }));
+
+      if (config.labelOptions?.showLabels !== false) {
+        const labelFontSize = config.labelOptions?.fontSize || 10;
+        const labelSymbol = new TextSymbol({
+          text: displayLabel,
+          color: new Color(config.labelOptions?.color || "#000000"),
+          haloColor: new Color(config.labelOptions?.haloColor || "#FFFFFF"),
+          haloSize: config.labelOptions?.haloSize || 1,
+          font: {
+            size: labelFontSize,
+            family: config.labelOptions?.fontFamily || "sans-serif",
+            weight: config.labelOptions?.bold ? "bold" : "normal"
+          },
+          yoffset: -(finalSize / 2 + labelFontSize / 2 + 2)
         });
         
-        return {
-          id: `label-${index}`,
-          screenX: 0, // Will be calculated later
-          screenY: 0, // Will be calculated later
-          latitude,
-          longitude,
-          labelText,
-          priority: index < 20 ? 2 : 1 // Prioritize first 20 points
-        };
-      })
-      .filter(Boolean); // Remove null values
-    
-    // Arrange in a grid pattern for demonstration (in real implementation, use view.toScreen())
-    const gridSize = Math.ceil(Math.sqrt(pointData.length));
-    pointData.forEach((point, index) => {
-      const row = Math.floor(index / gridSize);
-      const col = index % gridSize;
-      point.screenX = col * 100; // 100px spacing
-      point.screenY = row * 100; // 100px spacing
-    });
-    
-    // Use advanced staggered pattern for label positioning
-    const positions = pointData.map((point, index) => {
-      // Create a quasi-random but deterministic pattern based on index
-      // This helps distribute labels more evenly than simple rotation
-      const seed = (index * 17) % 100; // Use prime number multiplication for better distribution
-      let x = 0, y = 0, visible = true;
-      
-      // Use the seed to determine position
-      if (seed < 20) {
-        // Below
-        x = 0;
-        y = fontSize + 4;
-      } else if (seed < 40) {
-        // Right
-        x = fontSize + 4;
-        y = 0;
-      } else if (seed < 60) {
-        // Above
-        x = 0;
-        y = -(fontSize + 4);
-      } else if (seed < 80) {
-        // Left
-        x = -(fontSize + 4);
-        y = 0;
-      } else {
-        // Diagonals for remaining 20%
-        const diagonalType = seed % 4;
-        const offset = fontSize + 4;
-        
-        switch (diagonalType) {
-          case 0: // Top-right
-            x = offset;
-            y = -offset;
-            break;
-          case 1: // Bottom-right
-            x = offset;
-            y = offset;
-            break;
-          case 2: // Bottom-left
-            x = -offset;
-            y = offset;
-            break;
-          case 3: // Top-left
-            x = -offset;
-            y = -offset;
-            break;
-        }
+        labelGraphics.push(new Graphic({
+          geometry: point,
+          symbol: labelSymbol,
+          attributes: { 
+            ...attributes, 
+            isLabel: true,
+            FEATURE_TYPE: "label",
+            layerId: layer.id,
+            parentID: `parent-custom-${index}`
+          }
+        }));
       }
-      
-      // Limit visible labels based on priority and position
-      visible = (point.priority > 1) || (index < 50);
-      
-      return {
-        id: point.id,
-        x,
-        y,
-        visible
-      };
-    });
-    
-    // Store calculated positions
-    positions.forEach(pos => {
-      labelPositions.set(pos.id, pos);
-    });
-  }
-
-  let addedCount = 0;
-  let errorCount = 0;
-  
-  data.forEach((item, index) => {
-    let latitude, longitude;
-    // Robust coordinate extraction
-    if (item[latitudeColumn] !== undefined && item[longitudeColumn] !== undefined) {
-        latitude = parseFloat(item[latitudeColumn]); longitude = parseFloat(item[longitudeColumn]);
-    } else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
-        latitude = item.geometry.y; longitude = item.geometry.x;
-    } else if (typeof item["lat"] === "number" && typeof item["lon"] === "number") {
-        latitude = item["lat"]; longitude = item["lon"];
-    } else if (typeof item["latitude"] === "number" && typeof item["longitude"] === "number") {
-        latitude = item["latitude"]; longitude = item["longitude"];
-    } else {
-        console.warn(`[createGraphicsLayerFromCustomData] Item ${index} missing valid coordinates. Skipping.`);
-        errorCount++; return;
-    }
-
-    if (isNaN(latitude) || isNaN(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-        console.warn(`[createGraphicsLayerFromCustomData] Item ${index} has invalid coordinates. Skipping.`);
-        errorCount++; return;
-    }
-
-    try {
-      const point = new Point({
-        longitude: longitude,
-        latitude: latitude,
-        spatialReference: { wkid: 4326 },
-      });
-
-      // Get the value and determine color based on class breaks/rendererType
-      const pointValue = valueColumn ? item[valueColumn] : null;
-      const itemColor = getColorForValue(pointValue);
-
-      const markerSymbol = new SimpleMarkerSymbol({
-        style: pointStyle,
-        color: new Color(itemColor), // Use determined color
-        size: pointSize,
-        outline: {
-          color: new Color(outlineColor),
-          width: outlineWidth
-        },
-      });
-
-      // Generate formatted title for popup using all variables
-      const pointTitle = generatePointTitle(item, {
-        labelColumn,
-        variable1Column,
-        variable2Column
-      });
-
-      // Prepare attributes, ensuring popup fields exist
-      const attributes = {
-        ...item, // Include all original data
-        OBJECTID: index, // Standard field
-        // Ensure columns needed for popup binding exist
-        [latitudeColumn]: latitude,
-        [longitudeColumn]: longitude,
-        displayName: pointTitle, // Use the formatted title
-        ...(labelColumn && { [labelColumn]: item[labelColumn] ?? "N/A" }),
-        ...(valueColumn && { [valueColumn]: item[valueColumn] ?? null }),
-      };
-
-      const pointGraphic = new Graphic({
-        geometry: point,
-        symbol: markerSymbol,
-        attributes: attributes,
-        popupTemplate: popupTemplate, // Use the single template
-      });
-
-      // Add the point graphic to the layer
-      customLayer.add(pointGraphic);
-      
-      // Create label text (includes variables if configured)
-      const labelText = formatPointLabel(item, {
-        labelColumn,
-        variable1Column, 
-        variable2Column,
-        labelOptions: { includeVariables }
-      });
-      
-      // Get label position if we're avoiding collisions
-      const labelId = `label-${index}`;
-      let labelOffset = { x: 0, y: fontSize + 4, visible: true }; // Default offset
-      
-      if (avoidCollisions && labelPositions.has(labelId)) {
-        labelOffset = labelPositions.get(labelId);
-      }
-      
-      // Create a text symbol for the label with applied offset and font size
-      const textSymbol = new TextSymbol({
-        text: labelText,
-        font: {
-          size: fontSize,
-          family: "sans-serif",
-          weight: "normal"
-        },
-        color: new Color([0, 0, 0, 0.9]),
-        haloColor: new Color([255, 255, 255, 0.9]),
-        haloSize: 1,
-        xoffset: labelOffset.x, // Apply calculated x offset
-        yoffset: labelOffset.y, // Apply calculated y offset
-      });
-      
-      // Create a label graphic
-      const labelGraphic = new Graphic({
-        geometry: point,
-        symbol: textSymbol,
-        attributes: {
-          ...item,
-          OBJECTID: `label-${index}`,
-          parentID: index,
-          isLabel: true,
-          visible: labelOffset.visible
-        },
-        // Labels should be invisible at low zoom levels if configured
-        visible: labelOffset.visible && visibleAtAllZooms
-      });
-      
-      // Add the label graphic to the layer
-      customLayer.add(labelGraphic);
-      
-      addedCount++;
-    } catch (graphicError) {
-      console.error(`[createGraphicsLayerFromCustomData] Error creating graphic for point ${index}:`, graphicError);
-      errorCount++;
+    } catch (error) {
+      console.error(`[createGraphicsLayerFromCustomData] Error processing item ${index}:`, error, item);
     }
   });
 
-  console.log(`[createGraphicsLayerFromCustomData] Added ${addedCount} points with labels to custom graphics layer. ${errorCount} errors occurred.`);
-  return customLayer;
-}
+  if (pointGraphics.length > 0) {
+    layer.addMany(pointGraphics);
+  }
+  if (labelGraphics.length > 0) {
+    layer.addMany(labelGraphics);
+  }
+  
+  layer.customConfig = {
+    rendererType: config.rendererType,
+    valueColumn1: valueCol1,
+    valueColumn2: valueCol2,
+    colorBreaks: colorBreaks,
+    sizeBreaks: sizeBreaks,
+    isDualValue: isDualValueRender,
+    pointCount: pointGraphics.length,
+    labelCount: labelGraphics.length
+  };
+  
+  console.log(`[createGraphicsLayerFromCustomData] Successfully created layer with ${pointGraphics.length} points, ${labelGraphics.length} labels using ${isDualValueRender ? 'custom-dual-value' : (config.rendererType || 'simple')} renderer`);
+  
+  return layer;
+};
 
 /**
  * Creates and returns an appropriate layer based on visualization type

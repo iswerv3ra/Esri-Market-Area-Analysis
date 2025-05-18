@@ -2653,7 +2653,14 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
 
 
   const drawSiteLocation = useCallback(async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
-    console.log("[MapContext] Drawing site location (star):", { id: marketAreaId, point: siteData.point, size: siteData.size, color: siteData.color });
+    console.log("[MapContext] Drawing site location (star):", { 
+        id: marketAreaId, 
+        point: siteData.point, 
+        size: siteData.size, 
+        color: siteData.color,
+        borderColor: siteData.borderColor || styleSettings?.borderColor,
+        borderWidth: siteData.borderWidth || styleSettings?.borderWidth
+    });
 
     try {
         // Dynamically import necessary ArcGIS modules
@@ -2675,8 +2682,8 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
         );
 
         if (existingSiteLocationGraphics.length > 0) {
-          console.log(`[MapContext] Removing ${existingSiteLocationGraphics.length} existing site location graphics for ${marketAreaId}`);
-          selectionGraphicsLayerRef.current.removeMany(existingSiteLocationGraphics);
+            console.log(`[MapContext] Removing ${existingSiteLocationGraphics.length} existing site location graphics for ${marketAreaId}`);
+            selectionGraphicsLayerRef.current.removeMany(existingSiteLocationGraphics);
         }
 
         // Validate siteData and coordinates
@@ -2692,48 +2699,76 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             spatialReference: { wkid: 4326 } // Assume WGS 84
         });
 
-        // --- Create the STAR symbol using SVG path ---
+        // Process the border color - handle various formats
+        let borderColorValue;
+        if (siteData.borderColor) {
+            // If it's a hex color string
+            if (typeof siteData.borderColor === 'string' && siteData.borderColor.startsWith('#')) {
+                borderColorValue = new Color(siteData.borderColor);
+            } 
+            // If it's an RGB array
+            else if (Array.isArray(siteData.borderColor)) {
+                borderColorValue = new Color(siteData.borderColor);
+            }
+            // Default border color
+            else {
+                borderColorValue = new Color(styleSettings?.borderColor || "#000000");
+            }
+        } else {
+            borderColorValue = new Color(styleSettings?.borderColor || "#000000");
+        }
+
+        // Process border width - ensure it's a number
+        const borderWidth = parseFloat(siteData.borderWidth) || 
+                           parseFloat(styleSettings?.borderWidth) || 1.5;
+
+        // --- Create the STAR symbol using SVG path with dynamic border properties ---
         const symbol = new SimpleMarkerSymbol({
-          style: "path",
-          path: STAR_SVG_PATH,
-          color: new Color(siteData.color || styleSettings?.fillColor || "#FFC000"),
-          size: parseInt(siteData.size) || 24,
-          outline: {
-              color: new Color([0, 0, 0, 1]), // Black color for outline
-              width: 1.5 // Width in pixels for the outline
-          }
-      });
-        // --- End of STAR symbol creation ---
+            style: "path",
+            path: STAR_SVG_PATH,
+            color: new Color(siteData.color || styleSettings?.fillColor || "#FFC000"),
+            size: parseInt(siteData.size) || 24,
+            outline: {
+                color: borderColorValue,
+                width: borderWidth
+            }
+        });
 
-      const graphic = new Graphic({
-          geometry: point,
-          symbol: symbol,
-          attributes: {
-            marketAreaId: marketAreaId || "temporary",
-            order: order || 0,
-            FEATURE_TYPE: "site_location",
-            isTemporary: !!isTemporary,
-            siteName: siteData.name || `Site ${marketAreaId || 'Temp'}`,
-            siteSize: siteData.size,
-            siteColor: siteData.color
-          }
-      });
+        const graphic = new Graphic({
+            geometry: point,
+            symbol: symbol,
+            attributes: {
+                marketAreaId: marketAreaId || "temporary",
+                order: order || 0,
+                FEATURE_TYPE: "site_location",
+                isTemporary: !!isTemporary,
+                siteName: siteData.name || `Site ${marketAreaId || 'Temp'}`,
+                siteSize: siteData.size,
+                siteColor: siteData.color,
+                siteBorderColor: siteData.borderColor,
+                siteBorderWidth: siteData.borderWidth
+            }
+        });
 
-      // IMPORTANT: Remove *any existing* temporary graphic before adding a new one
-      if (isTemporary) {
-          const tempGraphics = selectionGraphicsLayerRef.current.graphics.filter(g => g.attributes?.isTemporary === true && g.attributes?.FEATURE_TYPE === 'site_location');
-          if (tempGraphics.length > 0) {
-              selectionGraphicsLayerRef.current.removeMany(tempGraphics);
-          }
-      }
-      selectionGraphicsLayerRef.current.add(graphic);
-      console.log("[MapContext] Successfully drew site location (star) for market area", marketAreaId);
-      return graphic;
+        // IMPORTANT: Remove *any existing* temporary graphic before adding a new one
+        if (isTemporary) {
+            const tempGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+                g => g.attributes?.isTemporary === true && 
+                     g.attributes?.FEATURE_TYPE === 'site_location'
+            );
+            if (tempGraphics.length > 0) {
+                selectionGraphicsLayerRef.current.removeMany(tempGraphics);
+            }
+        }
+        
+        selectionGraphicsLayerRef.current.add(graphic);
+        console.log("[MapContext] Successfully drew site location (star) for market area", marketAreaId);
+        return graphic;
 
-  } catch (error) {
-      console.error("[MapContext] Error drawing site location (star):", error);
-      return null;
-  }
+    } catch (error) {
+        console.error("[MapContext] Error drawing site location (star):", error);
+        return null;
+    }
 }, [selectionGraphicsLayerRef]);
 
   const extractSiteLocationInfo = useCallback((marketArea) => {
@@ -3790,15 +3825,14 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
 
     // Create the graphics layer
     const layer = new GraphicsLayer({
-      id: `comp-layer-${Date.now()}`,
-      title: config?.title || "Comp Points",
-      listMode: "hide", // Hide from layer list
-      // Set visualization type properties
-      visualizationType: "comp",
+      id: `custom-layer-${Date.now()}`,
+      title: config?.title || "Custom Data",
+      listMode: "hide",
+      labelsVisible: !disableLayerLabels, // Set labelsVisible based on config
+      visualizationType: "custom",
       isVisualizationLayer: true,
-      // Prevent accidental removal
-      _preventRemoval: true,
-      _isCompLayer: true
+      _hasNoLabels: disableLayerLabels, // Add layer-level flag
+      _hideAllLabels: disableLayerLabels // Add layer-level flag
     });
 
     // Create symbol from config or use default

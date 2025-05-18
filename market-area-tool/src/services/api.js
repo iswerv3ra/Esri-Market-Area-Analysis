@@ -534,6 +534,20 @@ export const mapConfigurationsAPI = {
 
       console.log(`[API] Received map configurations response status: ${response.status}`, response.data);
 
+      // Parse layer_configuration if it's a string
+      if (response.data && Array.isArray(response.data)) {
+        response.data = response.data.map(config => {
+          if (config.layer_configuration && typeof config.layer_configuration === 'string') {
+            try {
+              config.layer_configuration = JSON.parse(config.layer_configuration);
+            } catch (e) {
+              console.warn(`[API] Failed to parse layer_configuration for config ${config.id}`, e);
+            }
+          }
+          return config;
+        });
+      }
+
       return response;
     } catch (error) {
       console.error(`[API] Error fetching map configurations for project ${projectId}:`, error.response?.data || error.message || error);
@@ -549,17 +563,42 @@ export const mapConfigurationsAPI = {
       }
 
       // Deep clone config to avoid reference issues
-      const preparedData = { ...configData };
+      const preparedData = JSON.parse(JSON.stringify(configData));
+      
+      // Ensure renderer type is preserved
+      if (preparedData.layer_configuration && preparedData.layer_configuration.rendererType) {
+        console.log(`[API] Preserving renderer type: ${preparedData.layer_configuration.rendererType}`);
+      }
       
       // Ensure layer_configuration is properly serialized
       if (preparedData.layer_configuration && typeof preparedData.layer_configuration !== 'string') {
-        preparedData.layer_configuration = JSON.stringify(preparedData.layer_configuration);
+        try {
+          preparedData.layer_configuration = JSON.stringify(preparedData.layer_configuration);
+        } catch (e) {
+          console.error('[API] Failed to stringify layer_configuration:', e);
+          throw new Error('Failed to process layer configuration: ' + e.message);
+        }
       }
       
-      console.log(`[API] Creating map configuration for project: ${projectId}`, preparedData);
+      console.log(`[API] Creating map configuration for project: ${projectId}`, {
+        tabName: preparedData.tab_name,
+        vizType: preparedData.visualization_type,
+        configType: JSON.parse(preparedData.layer_configuration || '{}').type,
+        rendererType: JSON.parse(preparedData.layer_configuration || '{}').rendererType
+      });
 
       const response = await api.post('/api/map-configurations/', preparedData);
       console.log(`[API] Created map configuration, response status: ${response.status}`, response.data);
+      
+      // Parse the layer_configuration in the response if it's a string
+      if (response.data && response.data.layer_configuration && typeof response.data.layer_configuration === 'string') {
+        try {
+          response.data.layer_configuration = JSON.parse(response.data.layer_configuration);
+        } catch (e) {
+          console.warn('[API] Failed to parse returned layer_configuration', e);
+        }
+      }
+      
       return response;
     } catch (error) {
       console.error(`[API] Error creating map configuration for project ${projectId}:`, error.response?.data || error.message || error);
@@ -572,20 +611,171 @@ export const mapConfigurationsAPI = {
     }
   },
   
-  delete: async (configId) => {
+  update: async (configId, configData) => {
+    try {
+      if (!configId) {
+        console.error('[API] mapConfigurationsAPI.update called without configId!');
+        throw new Error('Config ID is required to update map configuration');
+      }
+
+      // Deep clone config to avoid reference issues
+      const preparedData = JSON.parse(JSON.stringify(configData));
+      
+      // Log renderer type for debugging
+      if (preparedData.layer_configuration && preparedData.layer_configuration.rendererType) {
+        console.log(`[API] Updating config with renderer type: ${preparedData.layer_configuration.rendererType}`);
+      }
+      
+      // Ensure layer_configuration is properly serialized
+      if (preparedData.layer_configuration && typeof preparedData.layer_configuration !== 'string') {
+        try {
+          preparedData.layer_configuration = JSON.stringify(preparedData.layer_configuration);
+        } catch (e) {
+          console.error('[API] Failed to stringify layer_configuration for update:', e);
+          throw new Error('Failed to process layer configuration: ' + e.message);
+        }
+      }
+      
+      console.log(`[API] Updating map configuration: ${configId}`, {
+        tabName: preparedData.tab_name,
+        vizType: preparedData.visualization_type,
+        areaType: preparedData.area_type
+      });
+
+      const response = await api.put(`/api/map-configurations/${configId}/`, preparedData);
+      console.log(`[API] Updated map configuration, response status: ${response.status}`, response.data);
+      
+      // Parse the layer_configuration in the response if it's a string
+      if (response.data && response.data.layer_configuration && typeof response.data.layer_configuration === 'string') {
+        try {
+          response.data.layer_configuration = JSON.parse(response.data.layer_configuration);
+        } catch (e) {
+          console.warn('[API] Failed to parse returned layer_configuration after update', e);
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error(`[API] Error updating map configuration ${configId}:`, error.response?.data || error.message || error);
+      
+      if (error.response?.status === 400) {
+        console.error('[API] Validation errors:', error.response.data);
+      }
+      
+      throw error;
+    }
+  },
+  
+  // Add this method to support deleting dual value type map configurations
+  deleteDualValueConfig: async (configId) => {
+    try {
+      if (!configId) {
+        console.error('[API] deleteDualValueConfig called without configId!');
+        throw new Error('Config ID is required to delete dual value map configuration');
+      }
+      
+      console.log(`[API] Deleting dual value map configuration: ${configId}`);
+      
+      // First, ensure we're using the correct endpoint format
+      // The error suggests the URL format might be different than expected
+      const response = await api.delete(`/api/map-configurations/${configId}/`);
+      
+      console.log(`[API] Successfully deleted dual value configuration, response status: ${response.status}`);
+      return response;
+    } catch (error) {
+      // Enhanced error handling to provide more details about the failure
+      console.error(`[API] Error deleting dual value map configuration ${configId}:`, {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        message: error.message
+      });
+      
+      // If we get a 404, try an alternative endpoint format as fallback
+      if (error.response?.status === 404) {
+        try {
+          console.log(`[API] Attempting alternative endpoint for dual value config deletion`);
+          // Try alternative endpoint format (without trailing slash)
+          const altResponse = await api.delete(`/api/map-configurations/${configId}`);
+          console.log(`[API] Alternative endpoint succeeded: ${altResponse.status}`);
+          return altResponse;
+        } catch (altError) {
+          console.error('[API] Alternative endpoint also failed:', altError);
+          throw altError;
+        }
+      }
+      
+      throw error;
+    }
+  },
+  
+  delete: async (configId, options = {}) => {
     try {
       if (!configId) {
         console.error('[API] mapConfigurationsAPI.delete called without configId!');
         throw new Error('Config ID is required to delete map configuration');
       }
 
+      // Check if this is a dual value configuration
+      const isDualValue = options.isDualValue || options.hasDualValue || options.vizType === 'dual_value';
+      
+      // If identified as a dual value map, use specialized method
+      if (isDualValue) {
+        console.log(`[API] Detected dual value map configuration, using specialized delete method`);
+        return await mapConfigurationsAPI.deleteDualValueConfig(configId);
+      }
+      
       console.log(`[API] Deleting map configuration: ${configId}`);
       const response = await api.delete(`/api/map-configurations/${configId}/`);
       console.log(`[API] Deleted map configuration, response status: ${response.status}`);
       return response;
     } catch (error) {
       console.error(`[API] Error deleting map configuration ${configId}:`, error.response?.data || error.message || error);
+      
+      // If the regular delete fails with 404 and we didn't already try the dual value method,
+      // try the dual value delete method as a fallback
+      if (error.response?.status === 404 && !options.isDualValue) {
+        console.log(`[API] Regular delete failed with 404, attempting dual value delete as fallback`);
+        return await mapConfigurationsAPI.deleteDualValueConfig(configId);
+      }
+      
       throw error;
+    }
+  },
+  
+  // Helper method to properly serialize complex configurations
+  serializeConfig: (config) => {
+    if (!config) return null;
+    
+    try {
+      // Make a deep copy to prevent modifying the original
+      const configCopy = JSON.parse(JSON.stringify(config));
+      
+      // Make sure important properties are preserved
+      const preserveProps = ['type', 'rendererType', 'valueColumn1', 'valueColumn2'];
+      preserveProps.forEach(prop => {
+        if (config[prop] !== undefined && configCopy[prop] === undefined) {
+          configCopy[prop] = config[prop];
+        }
+      });
+      
+      return configCopy;
+    } catch (e) {
+      console.error('[API] Error serializing config:', e);
+      return config; // Return original if serialization fails
+    }
+  },
+  
+  // Helper method to parse string configurations
+  parseConfig: (configStr) => {
+    if (!configStr || typeof configStr !== 'string') return configStr;
+    
+    try {
+      return JSON.parse(configStr);
+    } catch (e) {
+      console.warn('[API] Failed to parse config string:', e);
+      return configStr;
     }
   }
 };

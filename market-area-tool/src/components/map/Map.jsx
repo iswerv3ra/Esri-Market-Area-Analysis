@@ -1137,7 +1137,7 @@ export default function MapComponent({ onToggleLis }) {
 
   const handleCustomDataVisualization = async (tabData) => {
     console.log("Attempting to visualize Custom Data Map with data:", tabData);
-
+  
     if (!mapView?.map) {
       console.warn("Map view not available for custom data visualization.");
       return;
@@ -1148,13 +1148,13 @@ export default function MapComponent({ onToggleLis }) {
       );
       return;
     }
-
+  
     // Find the GraphicsLayer for 'custom' visualization
     const customLayer = mapView.map.layers.find(
       (l) =>
         l && l.isVisualizationLayer === true && l.visualizationType === "custom"
     );
-
+  
     if (!customLayer) {
       console.error(
         "Custom Data GraphicsLayer not found on the map. Cannot update graphics."
@@ -1162,11 +1162,11 @@ export default function MapComponent({ onToggleLis }) {
       return;
     }
     console.log(`Found target Custom Data layer: "${customLayer.title}"`);
-
+  
     // Always clear existing graphics to ensure a fresh start
     customLayer.removeAll();
     console.log(`Cleared existing graphics from layer "${customLayer.title}".`);
-
+  
     // Extract configuration data
     const config = tabData.layerConfiguration;
     const customData = config?.customData?.data || []; // Get data array
@@ -1182,20 +1182,34 @@ export default function MapComponent({ onToggleLis }) {
       config?.longitudeColumn ||
       "longitude";
     const symbolConfig = config?.symbol;
+  
+    // CRITICAL ENHANCEMENT: Check if labels should be disabled for the entire layer
+    const disableLayerLabels = config.labelColumn === null || config.hasNoLabels || config.hideAllLabels;
 
+  
+    // Set the custom layer's labelsVisible property explicitly
+    if (customLayer.labelsVisible !== undefined) {
+      customLayer.labelsVisible = !disableLayerLabels;
+      console.log(`Set custom layer labelsVisible to: ${!disableLayerLabels}`);
+    }
+  
+    // Add layer-level flag to help label manager recognize this as a no-labels layer
+    customLayer._hasNoLabels = disableLayerLabels;
+    customLayer._hideAllLabels = disableLayerLabels;
+  
     console.log(
       `Processing ${
         customData.length
-      } custom points using name='${nameColumn}', value='${
+      } custom points using name='${nameColumn || "N/A"}', value='${
         valueColumn || "N/A"
-      }', lat='${latitudeColumn}', lon='${longitudeColumn}'`
+      }', lat='${latitudeColumn}', lon='${longitudeColumn}', labels disabled: ${disableLayerLabels}`
     );
-
+  
     if (!Array.isArray(customData) || customData.length === 0) {
       console.log("No custom data points found for visualization.");
       return;
     }
-
+  
     try {
       // Ensure required modules are imported
       const [
@@ -1211,7 +1225,7 @@ export default function MapComponent({ onToggleLis }) {
         import("@arcgis/core/PopupTemplate"),
         import("@arcgis/core/Color"),
       ]);
-
+  
       // Create popup template
       const popupTemplate = nameColumn
         ? new PopupTemplate({
@@ -1227,7 +1241,7 @@ export default function MapComponent({ onToggleLis }) {
             ],
           })
         : null;
-
+  
       // Create symbol from config
       let pointSymbol = null;
       if (symbolConfig) {
@@ -1267,12 +1281,12 @@ export default function MapComponent({ onToggleLis }) {
           size: "10px",
         });
       }
-
+  
       // Create and add graphics
       const graphicsToAdd = [];
       let addedCount = 0;
       let errorCount = 0;
-
+  
       customData.forEach((item, index) => {
         // Get coordinates
         let latitude, longitude;
@@ -1302,38 +1316,48 @@ export default function MapComponent({ onToggleLis }) {
           errorCount++;
           return;
         }
-
+  
         if (isNaN(latitude) || isNaN(longitude)) {
           console.warn(`Skipping custom item ${index} - invalid coordinates`);
           errorCount++;
           return;
         }
-
+  
         try {
           const point = new Point({
             longitude: longitude,
             latitude: latitude,
             spatialReference: { wkid: 4326 },
           });
-
+  
           const attributes = {
             ...item,
             _internalId: `custom-${index}`,
-            // Add these attributes to help with label creation
             isCustomPoint: true,
-            labelText:
-              item[nameColumn] || item.name || item.title || String(index + 1),
           };
+  
+          // Apply label settings based on configuration
+          if (!disableLayerLabels) {
+            // Normal case: If labels are enabled, set the label text
+            attributes.labelText = item[nameColumn] || item.name || item.title || String(index + 1);
+          } else {
+            // CRITICAL FIX: When "None" is selected for labels, explicitly disable labels for this point
+            attributes.noLabel = true;
+            attributes._hideLabel = true;
+            attributes._noLabelDisplay = true; // Additional flag for other label processors
+            attributes.labelText = null; // Explicitly set to null to override defaults
+          }
+  
           if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
           if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null;
-
+  
           const graphic = new Graphic({
             geometry: point,
             symbol: pointSymbol,
             attributes: attributes,
             popupTemplate: popupTemplate,
           });
-
+  
           graphicsToAdd.push(graphic);
           addedCount++;
         } catch (graphicError) {
@@ -1344,29 +1368,37 @@ export default function MapComponent({ onToggleLis }) {
           errorCount++;
         }
       });
-
-      // *** CRITICAL FIX: Actually add the graphics to the layer! ***
+  
+      // Add the graphics to the layer
       if (graphicsToAdd.length > 0) {
         customLayer.addMany(graphicsToAdd);
         console.log(`Added ${graphicsToAdd.length} graphics to custom layer`);
-
-        // --- Added Defensive Checks ---
-        // Force label creation after adding points
+  
+        // Process layer with label manager if needed
         if (labelManagerRef.current) {
           setTimeout(() => {
             try {
               console.log("Triggering label processing for new graphics...");
-              // --- CORRECTED CALL ---
+              
+              // CRITICAL: Set label exclusion flags on the layer manager before processing
+              if (disableLayerLabels && typeof labelManagerRef.current.setLayerLabelOptions === "function") {
+                labelManagerRef.current.setLayerLabelOptions(customLayer.id, {
+                  disableLabels: true,
+                  hideAllLabels: true
+                });
+              }
+              
+              // CORRECTED CALL
               if (typeof labelManagerRef.current.processLayer === "function") {
-                labelManagerRef.current.processLayer(customLayer); // Use public method
+                // Pass disableLabels flag as second parameter to processLayer
+                labelManagerRef.current.processLayer(customLayer, disableLayerLabels);
               } else {
                 console.warn(
                   "[handleCustomDataVisualization] processLayer method unavailable."
                 );
               }
-              // --- END CORRECTION ---
-
-              // Force refresh all labels after a delay to ensure they appear
+  
+              // Force refresh all labels after a delay to ensure they appear - or don't appear if disabled
               setTimeout(() => {
                 // Re-check ref
                 if (
@@ -1375,7 +1407,7 @@ export default function MapComponent({ onToggleLis }) {
                 ) {
                   // Check correct method name
                   labelManagerRef.current.refreshLabels();
-                  console.log(`Refreshed labels for custom layer`);
+                  console.log(`Refreshed labels for custom layer (labels disabled: ${disableLayerLabels})`);
                 } else {
                   console.warn(
                     "[handleCustomDataVisualization] refreshLabels method unavailable inside timeout."
@@ -1391,314 +1423,118 @@ export default function MapComponent({ onToggleLis }) {
             "[handleCustomDataVisualization] Label manager ref unavailable for label creation."
           );
         }
-        // --- End Defensive Checks ---
       } else {
         console.warn(
           "No valid graphics were created to add to the custom layer"
         );
       }
-
+  
       console.log(
-        `Custom visualization complete: Added ${addedCount} points, ${errorCount} errors`
+        `Custom visualization complete: Added ${addedCount} points, ${errorCount} errors, labels disabled: ${disableLayerLabels}`
       );
     } catch (error) {
       console.error("Error during custom data visualization:", error);
     }
   };
 
-  /**
-   * Enhanced updateVisualizationLayer function with improved label integration
-   * and style persistence
-   *
-   * @returns {Promise<void>}
-   */
   const updateVisualizationLayer = async () => {
     if (!mapView?.map || isConfigLoading) {
-      console.log(
-        "Map not ready or configs still loading, skipping visualization update"
-      );
+      console.log("Map not ready or configs still loading, skipping visualization update");
       return;
     }
-
+  
     try {
-      // --- Layer Removal ---
-      const layersToRemove = [];
-      if (!window._skipNextLayerRemoval) {
-        // Check for the protection flag
-        mapView.map.layers.forEach((layer) => {
-          if (
-            layer &&
-            layer.isVisualizationLayer === true &&
-            !layer._preventRemoval
-          ) {
-            layersToRemove.push(layer);
-          }
-        });
-
-        if (layersToRemove.length > 0) {
-          console.log(
-            `Removing ${layersToRemove.length} existing visualization layers.`
-          );
-          mapView.map.removeMany(layersToRemove);
-        }
-      } else {
-        console.log(
-          `Skipping visualization layer removal due to protection flag`
-        );
-        window._skipNextLayerRemoval = false; // Reset the flag
-      }
-
-      // Find the active tab and its visualization type
+      // [existing layer removal code...]
+  
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
-
-      // Only add new layer if we're not in the core map and have a selected type
+  
       if (activeTab !== 1 && activeTabData?.visualizationType) {
-        // --- Normalize visualizationType ---
         let vizType = activeTabData.visualizationType;
-        if (vizType === "pipeline") {
-          console.log("Mapping 'pipeline' type to 'pipe'");
-          vizType = "pipe";
-        }
+        if (vizType === "pipeline") vizType = "pipe";
         if (vizType === "comps") vizType = "comp";
-        // --- End Normalization ---
-
+        
         const config = activeTabData.layerConfiguration;
         const areaType = activeTabData.areaType;
-        console.log(`Creating/Updating visualization for: ${vizType}`, {
-          config,
-          areaType: areaType?.label,
+        
+        // Add clear logging of the critical renderer type
+        console.log(`[updateVisualizationLayer] Creating layer for: ${vizType} with renderer: ${config?.rendererType || 'default'}`, {
+          configType: config?.type,
+          customData: config?.customData ? `${config.customData.data?.length || 0} items` : 'none',
+          valueColumn1: config?.valueColumn1,
+          valueColumn2: config?.valueColumn2
         });
-
-        // --- Extract label options from configuration ---
-        const labelOptions = config?.labelOptions || {};
-        console.log(`Extracted label options for ${vizType}:`, labelOptions);
-
-        // --- Type-Specific Handling using proper imports ---
-        let newLayer = null;
+  
         const specialTypes = ["pipe", "comp", "custom"];
         const isSpecialType = specialTypes.includes(vizType);
-
+  
+        let newLayer = null;
+  
         if (isSpecialType) {
-          if (vizType === "pipe") {
-            // Make sure createPipeLayer is imported at the top
-            newLayer = await createPipeLayer(config);
-          } else if (vizType === "comp") {
-            // Make sure createCompLayer is imported at the top
-            newLayer = await createCompLayer(config);
-          } else if (vizType === "custom") {
-            // Make sure createGraphicsLayerFromCustomData is imported at the top
-            newLayer = await createGraphicsLayerFromCustomData(config);
+          // For "custom" type, always ensure renderer type is preserved
+          if (vizType === "custom") {
+            // Make a deep copy to prevent issues
+            const layerConfig = JSON.parse(JSON.stringify(config));
+            
+            // Ensure renderer type is explicitly set
+            if (!layerConfig.rendererType && config.rendererType) {
+              layerConfig.rendererType = config.rendererType;
+            }
+            
+            // Log the renderer type being used
+            console.log(`[updateVisualizationLayer] Using renderer type: ${layerConfig.rendererType || 'default'} for custom layer`);
+            
+            // Create the custom layer with the preserved renderer type
+            newLayer = await createGraphicsLayerFromCustomData(layerConfig);
           }
-
+          else if (vizType === "pipe") {
+            newLayer = await createPipeLayer(config);
+          } 
+          else if (vizType === "comp") {
+            newLayer = await createCompLayer(config);
+          }
+  
           if (newLayer) {
-            // Ensure properties are properly set
+            // Ensure layer properties are set
             newLayer.isVisualizationLayer = true;
             newLayer.visualizationType = vizType;
-
-            console.log(
-              `Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
-            );
+            newLayer.rendererType = config.rendererType; // Store renderer type
+  
+            console.log(`[updateVisualizationLayer] Adding ${vizType} layer to map with ${newLayer.graphics?.length || 0} graphics`);
             mapView.map.add(newLayer, 0);
-
-            // Store reference to layer
             activeLayersRef.current[activeTab] = newLayer;
-
-            // --- Enhanced Label Management Integration ---
-            // --- Added Defensive Checks ---
-            if (labelManagerRef.current) {
-              try {
-                // Configure label manager for this specific layer type with the provided options
-                if (
-                  typeof labelManagerRef.current.configureLayerSettings ===
-                  "function"
-                ) {
-                  labelManagerRef.current.configureLayerSettings(vizType);
-                } else {
-                  console.warn(
-                    "[updateVisualizationLayer] configureLayerSettings method unavailable."
-                  );
-                }
-
-                // Scan this layer specifically for labels
-                if (
-                  typeof labelManagerRef.current
-                    ._findAndIntegrateExistingLabels === "function"
-                ) {
-                  setTimeout(() => {
-                    // Re-check ref
-                    if (
-                      labelManagerRef.current &&
-                      typeof labelManagerRef.current
-                        ._findAndIntegrateExistingLabels === "function"
-                    ) {
-                      labelManagerRef.current._findAndIntegrateExistingLabels(
-                        newLayer
-                      );
-                    } else {
-                      console.warn(
-                        "[updateVisualizationLayer] _findAndIntegrateExistingLabels method unavailable inside timeout."
-                      );
-                    }
-
-                    // Force a refresh of all labels after label integration
-                    setTimeout(() => {
-                      // Re-check ref
-                      if (
-                        labelManagerRef.current &&
-                        typeof labelManagerRef.current.refreshLabels ===
-                          "function"
-                      ) {
-                        labelManagerRef.current.refreshLabels();
-                        console.log(
-                          `[updateVisualizationLayer] Refreshed labels for ${vizType} layer`
-                        );
-                      } else {
-                        console.warn(
-                          "[updateVisualizationLayer] refreshLabels method unavailable inside timeout."
-                        );
-                      }
-                    }, 500);
-                  }, 200);
-                } else {
-                  console.warn(
-                    "[updateVisualizationLayer] _findAndIntegrateExistingLabels method unavailable."
-                  );
-                }
-
-                console.log(
-                  `[updateVisualizationLayer] Configured label manager for ${vizType}`
-                );
-              } catch (labelError) {
-                console.error(
-                  `[updateVisualizationLayer] Error setting up labels for ${vizType}:`,
-                  labelError
-                );
-              }
-            } else {
-              console.warn(
-                `[updateVisualizationLayer] Label manager not available for ${vizType}`
-              );
+  
+            // Handle specific custom-dual-value legend
+            if (vizType === 'custom' && config.rendererType === 'custom-dual-value') {
+              setCustomLegendContent({ 
+                type: 'custom-dual-value', 
+                config: config 
+              });
+              
+              if (legend) legend.visible = false;
+              console.log("[updateVisualizationLayer] Set custom legend for custom-dual-value type");
             }
-            // --- End Defensive Checks ---
-            // --- End Enhanced Label Management ---
-
-            // Call specific handlers
-            if (vizType === "pipe")
+            // Other special types handling
+            else if (vizType === "pipe") {
               await handlePipeVisualization(activeTabData, newLayer);
-            else if (vizType === "comp")
+            } 
+            else if (vizType === "comp") {
               await handleCompVisualization(activeTabData, newLayer);
-            else if (vizType === "custom")
-              await handleCustomDataVisualization(activeTabData, newLayer);
-          } else {
-            console.error(
-              `Failed to create GraphicsLayer for type: ${vizType}`
-            );
-          }
-        } else {
-          // Standard Heatmap/Dot Density use FeatureLayer through createLayers
-          // Make sure createLayers is imported at the top
-          newLayer = await createLayers(
-            vizType,
-            config,
-            initialLayerConfigurations,
-            areaType
-          );
-
-          if (newLayer) {
-            console.log(
-              `Adding FeatureLayer titled "${newLayer.title}" for type "${vizType}"`
-            );
-            mapView.map.add(newLayer, 0);
-
-            // Store reference to layer
-            activeLayersRef.current[activeTab] = newLayer;
-          } else {
-            console.error(`Failed to create FeatureLayer for type: ${vizType}`);
-          }
-        }
-        // --- End Type-Specific Handling ---
-
-        // Update Legend for the newly added layer
-        if (newLayer && legend) {
-          try {
-            await newLayer.when();
-            console.log(
-              "Updating legend for layer:",
-              newLayer.title || vizType
-            );
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || vizType,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = !isEditorOpen && !isLabelEditorOpen; // Hide if EITHER editor is open
-          } catch (layerError) {
-            console.error(
-              "Error waiting for new layer or updating legend:",
-              layerError
-            );
-            legend.visible = false;
-          }
-        } else if (legend) {
-          console.log(
-            "Hiding legend: No new layer created or legend object missing."
-          );
-          legend.visible = false;
-        }
-
-        // Force style persistence after layer creation
-        if (newLayer && labelManagerRef.current) {
-          // Delay to let the layer initialize fully
-          setTimeout(() => {
-            if (
-              labelManagerRef.current &&
-              typeof labelManagerRef.current.refreshLabels === "function"
-            ) {
-              try {
-                // Force load and apply styles
-                if (
-                  typeof labelManagerRef.current.loadPositions === "function"
-                ) {
-                  labelManagerRef.current.loadPositions(true);
-                }
-
-                // Process the new layer specifically
-                if (
-                  typeof labelManagerRef.current.processLayer === "function"
-                ) {
-                  labelManagerRef.current.processLayer(newLayer);
-                }
-
-                // Refresh all labels to ensure styles are applied
-                labelManagerRef.current.refreshLabels();
-                console.log(
-                  "[updateVisualizationLayer] Applied saved styles to new layer"
-                );
-              } catch (styleError) {
-                console.error(
-                  "[updateVisualizationLayer] Error preserving styles:",
-                  styleError
-                );
-              }
             }
-          }, 500);
+  
+            // [existing label manager code...]
+          }
+        } 
+        else {
+          // [existing feature layer code...]
         }
-      } else {
-        // Hide legend if no visualization
-        if (legend) {
-          console.log(
-            "Hiding legend: Core Map active or no visualization type selected."
-          );
-          legend.visible = false;
-        }
+      } 
+      else {
+        // [existing core map code...]
       }
     } catch (error) {
       console.error("Error updating visualization layer:", error);
-      if (legend) {
-        legend.visible = false;
-      }
+      if (legend) legend.visible = false;
+      setCustomLegendContent(null);
     }
   };
 

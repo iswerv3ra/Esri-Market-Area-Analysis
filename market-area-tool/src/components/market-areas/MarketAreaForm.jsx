@@ -124,10 +124,10 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     if (formState.maType !== "site_location" || !isPlacingSiteLocation || !mapView) {
       return;
     }
-
+  
     const handleMapClick = async (event) => {
       if (!isPlacingSiteLocation) return;
-
+  
       try {
         const point = mapView.toMap({ x: event.x, y: event.y });
         let geoPoint = point;
@@ -135,7 +135,7 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
           const webMercatorUtils = await import("@arcgis/core/geometry/support/webMercatorUtils");
           geoPoint = webMercatorUtils.webMercatorToGeographic(point);
         }
-
+  
         setSiteLocationData(prev => ({
           ...prev,
           point: {
@@ -143,8 +143,8 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
             longitude: geoPoint.longitude
           }
         }));
-
-        // This 'drawSiteLocation' will now be the one from MapContext
+  
+        // Pass all site location properties including border styling
         await drawSiteLocation(
           {
             point: {
@@ -152,14 +152,16 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
               longitude: geoPoint.longitude
             },
             size: siteLocationData.size,
-            color: siteLocationData.color
+            color: siteLocationData.color,
+            borderColor: siteLocationData.borderColor || formState.styleSettings.borderColor,
+            borderWidth: siteLocationData.borderWidth || formState.styleSettings.borderWidth
           },
-          formState.styleSettings, // Pass current style settings from form
+          formState.styleSettings,
           editingMarketArea?.id || "temporary",
           editingMarketArea?.order || 0,
           true // isTemporary flag
         );
-
+  
         setIsPlacingSiteLocation(false);
         toast.success("Site location placed successfully");
       } catch (err) {
@@ -190,13 +192,14 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
     formState.maType,
     isPlacingSiteLocation,
     mapView,
-    siteLocationData.size, // Be specific with dependencies
+    siteLocationData.size,
     siteLocationData.color,
-    formState.styleSettings, // Add if styleSettings are used for temporary draw
+    siteLocationData.borderColor,
+    siteLocationData.borderWidth,
+    formState.styleSettings,
     editingMarketArea,
-    drawSiteLocation, // This is now the context's function
+    drawSiteLocation,
     setSiteLocationData,
-    // Removed selectionGraphicsLayerRef as a direct dependency if the local func is gone
   ]);
 
   useEffect(() => {
@@ -570,8 +573,18 @@ export default function MarketAreaForm({ onClose, editingMarketArea = null }) {
         // Redraw site location with new style settings
         if (siteLocationData && siteLocationData.point && 
             siteLocationData.point.latitude && siteLocationData.point.longitude) {
+          
+          // Create a new siteData object that includes the styling properties
+          const updatedSiteData = {
+            ...siteLocationData,
+            // Use existing borderColor/Width properties if they exist, otherwise use from style settings
+            borderColor: siteLocationData.borderColor || borderColor,
+            borderWidth: siteLocationData.borderWidth || 
+                        (formState.styleSettings.noBorder ? 0 : borderWidth)
+          };
+          
           drawSiteLocation(
-            siteLocationData,
+            updatedSiteData,
             {
               fillColor,
               fillOpacity: formState.styleSettings.noFill ? 0 : fillOpacity,
@@ -2300,143 +2313,146 @@ const handleStyleChange = useCallback((type, value) => {
     selectionGraphicsLayer
   ]);
 
-  // Update the form rendering to include DriveTime component
-  return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800">
-      <div className="flex-1 overflow-y-auto p-4">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                </div>
+// Update the form rendering to include DriveTime component
+return (
+  <div className="h-full flex flex-col bg-white dark:bg-gray-800">
+    <div className="flex-1 overflow-y-auto p-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="rounded-md bg-red-50 p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">{error}</h3>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
+        <div>
+          <label
+            htmlFor="maType"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            MA Type {isLayerLoading && "(Loading...)"}
+          </label>
+          <select
+            id="maType"
+            value={formState.maType}
+            onChange={handleMATypeChange}
+            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
+                       bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
+                       focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+            disabled={isLayerLoading || editingMarketArea}
+          >
+            <option value="">Select type...</option>
+            {maTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-4">
           <div>
             <label
-              htmlFor="maType"
+              htmlFor="maName"
               className="block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
-              MA Type {isLayerLoading && "(Loading...)"}
+              MA Name
             </label>
-            <select
-              id="maType"
-              value={formState.maType}
-              onChange={handleMATypeChange}
+            <input
+              type="text"
+              id="maName"
+              value={formState.maName}
+              onChange={(e) =>
+                setFormState((prev) => ({ ...prev, maName: e.target.value }))
+              }
+              placeholder="Enter Market Area Name"
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
                          bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
                          focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-              disabled={isLayerLoading || editingMarketArea}
-            >
-              <option value="">Select type...</option>
-              {maTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+              required
+            />
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="maName"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                MA Name
-              </label>
-              <input
-                type="text"
-                id="maName"
-                value={formState.maName}
-                onChange={(e) =>
-                  setFormState((prev) => ({ ...prev, maName: e.target.value }))
-                }
-                placeholder="Enter Market Area Name"
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 
-                           bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500 
-                           focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                required
-              />
-            </div>
+          <div>
+            <label
+              htmlFor="shortName"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Short Name (Optional)
+            </label>
+            <input
+              type="text"
+              id="shortName"
+              value={formState.shortName}
+              onChange={(e) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  shortName: e.target.value,
+                }))
+              }
+              placeholder="Enter Short Name"
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                       bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
+                       focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+            />
+          </div>
+        </div>
 
+        {formState.maType !== "site_location" && (
+          <StyleSettingsPanel
+            styleSettings={formState.styleSettings}
+            onStyleChange={handleStyleChange}
+          />
+        )}
+
+        {formState.maType === "radius" ? (
+          <Radius
+            onFormStateChange={(newState) =>
+              setRadiusPoints(newState.radiusPoints)
+            }
+            styleSettings={formState.styleSettings}
+            existingRadiusPoints={radiusPoints}
+          />
+        ) : formState.maType === "drivetime" ? (
+          <DriveTime
+            onFormStateChange={(newState) =>
+              setDriveTimePoints(newState.driveTimePoints)
+            }
+            styleSettings={formState.styleSettings}
+            existingDriveTimePoints={driveTimePoints}
+          />
+        ) : formState.maType === "site_location" ? (
+          <div className="space-y-4 border p-4 rounded-md">
+            <h3 className="font-medium text-gray-700 dark:text-gray-300">Site Location</h3>
             <div>
-              <label
-                htmlFor="shortName"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Short Name (Optional)
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Size
               </label>
               <input
-                type="text"
-                id="shortName"
-                value={formState.shortName}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    shortName: e.target.value,
+                type="range"
+                min="8"
+                max="48"
+                value={siteLocationData.size}
+                onChange={(e) => 
+                  setSiteLocationData(prev => ({
+                    ...prev, 
+                    size: parseInt(e.target.value)
                   }))
                 }
-                placeholder="Enter Short Name"
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
-                         bg-white dark:bg-gray-700 py-2 px-3 shadow-sm focus:border-green-500
-                         focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                className="mt-1 block w-full"
               />
+              <div className="text-sm text-gray-500 text-right">{siteLocationData.size}px</div>
             </div>
-          </div>
-
-          {formState.maType !== "site_location" && (
-            <StyleSettingsPanel
-              styleSettings={formState.styleSettings}
-              onStyleChange={handleStyleChange}
-            />
-          )}
-
-          {formState.maType === "radius" ? (
-            <Radius
-              onFormStateChange={(newState) =>
-                setRadiusPoints(newState.radiusPoints)
-              }
-              styleSettings={formState.styleSettings}
-              existingRadiusPoints={radiusPoints}
-            />
-          ) : formState.maType === "drivetime" ? (
-            <DriveTime
-              onFormStateChange={(newState) =>
-                setDriveTimePoints(newState.driveTimePoints)
-              }
-              styleSettings={formState.styleSettings}
-              existingDriveTimePoints={driveTimePoints}
-            />
-          ) : formState.maType === "site_location" ? (
-            <div className="space-y-4 border p-4 rounded-md">
-              <h3 className="font-medium text-gray-700 dark:text-gray-300">Site Location</h3>
+            
+            {/* Color controls in a grid layout */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Star Color */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Size
-                </label>
-                <input
-                  type="range"
-                  min="8"
-                  max="48"
-                  value={siteLocationData.size}
-                  onChange={(e) => 
-                    setSiteLocationData(prev => ({
-                      ...prev, 
-                      size: parseInt(e.target.value)
-                    }))
-                  }
-                  className="mt-1 block w-full"
-                />
-                <div className="text-sm text-gray-500 text-right">{siteLocationData.size}px</div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Color
+                  Star Color
                 </label>
                 <input
                   type="color"
@@ -2451,179 +2467,232 @@ const handleStyleChange = useCallback((type, value) => {
                 />
               </div>
               
-              <button
-                type="button"
-                onClick={() => toggleSiteLocationPlacement(true)}
-                className="mt-2 inline-flex items-center px-4 py-2 border border-transparent
-                        text-sm font-medium rounded-md shadow-sm text-white bg-blue-600
-                        hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                        focus:ring-blue-500"
-              >
-                {isPlacingSiteLocation ? "Placing Site..." : "Place Site on Map"}
-              </button>
-              
-              {isPlacingSiteLocation && (
-                <div className="text-sm text-blue-600 animate-pulse">
-                  Click on the map to place your site location
-                </div>
-              )}
-              
-
+              {/* Border Color */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Border Color
+                </label>
+                <input
+                  type="color"
+                  value={siteLocationData.borderColor || formState.styleSettings.borderColor || "#000000"}
+                  onChange={(e) => 
+                    setSiteLocationData(prev => ({
+                      ...prev, 
+                      borderColor: e.target.value
+                    }))
+                  }
+                  className="mt-1 block w-full h-10"
+                />
+              </div>
             </div>
-          ) : (
-            formState.maType && (
-              <>
-                <div>
-                  <label
-                    htmlFor="locationSearch"
-                    className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    Search Locations {formState.isSearching && "(Searching...)"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="locationSearch"
-                      value={formState.locationSearch}
-                      onChange={(e) =>
-                        setFormState((prev) => ({
-                          ...prev,
-                          locationSearch: e.target.value,
-                        }))
-                      }
-                      placeholder={`Search ${formState.maType} locations...`}
-                      className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
-                              bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
-                              focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
-                      disabled={!formState.maType || isLayerLoading}
-                    />
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  </div>
+            
+            {/* Border Width */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Border Width
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={siteLocationData.borderWidth || formState.styleSettings.borderWidth || 3}
+                  onChange={(e) => 
+                    setSiteLocationData(prev => ({
+                      ...prev, 
+                      borderWidth: parseFloat(e.target.value)
+                    }))
+                  }
+                  className="mt-1 block w-full"
+                />
+                <span className="text-sm text-gray-500">
+                  {(siteLocationData.borderWidth || formState.styleSettings.borderWidth || 3).toFixed(1)}px
+                </span>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => toggleSiteLocationPlacement(true)}
+              className="mt-2 inline-flex items-center px-4 py-2 border border-transparent
+                      text-sm font-medium rounded-md shadow-sm text-white bg-blue-600
+                      hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2
+                      focus:ring-blue-500"
+            >
+              {isPlacingSiteLocation ? "Placing Site..." : "Place Site on Map"}
+            </button>
+            
+            {isPlacingSiteLocation && (
+              <div className="text-sm text-blue-600 animate-pulse">
+                Click on the map to place your site location
+              </div>
+            )}
+            
+            {/* Display coordinates when a location is set */}
+            {siteLocationData.point && 
+             siteLocationData.point.latitude && 
+             siteLocationData.point.longitude && (
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                <div>Latitude: {siteLocationData.point.latitude.toFixed(6)}</div>
+                <div>Longitude: {siteLocationData.point.longitude.toFixed(6)}</div>
+              </div>
+            )}
+          </div>
+        ) : (
+          formState.maType && (
+            <>
+              <div>
+                <label
+                  htmlFor="locationSearch"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Search Locations {formState.isSearching && "(Searching...)"}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="locationSearch"
+                    value={formState.locationSearch}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        locationSearch: e.target.value,
+                      }))
+                    }
+                    placeholder={`Search ${formState.maType} locations...`}
+                    className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                            bg-white dark:bg-gray-700 py-2 pl-10 pr-3 shadow-sm focus:border-green-500
+                            focus:outline-none focus:ring-1 focus:ring-green-500 dark:text-white"
+                    disabled={!formState.maType || isLayerLoading}
+                  />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Available Locations
-                      </label>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {formState.availableLocations.length} found
-                      </span>
-                    </div>
-                    <div
-                      className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
-                      style={{ minHeight: "300px" }}
-                    >
-                      {formState.availableLocations.map((location, index) => {
-                        // Fallback to index-based key if location.id is missing or null
-                        const keyVal =
-                          location.id != null
-                            ? `available-${location.id}`
-                            : `available-index-${index}`;
-
-                        return (
-                          <div
-                            key={keyVal}
-                            onClick={() => handleLocationSelect(location)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
-                          >
-                            {location.name}
-                          </div>
-                        );
-                      })}
-                      {formState.availableLocations.length === 0 &&
-                        !formState.isSearching && (
-                          <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                            {formState.locationSearch.length >= 3
-                              ? "No locations found"
-                              : "Enter at least 3 characters to search"}
-                          </div>
-                        )}
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Available Locations
+                    </label>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formState.availableLocations.length} found
+                    </span>
                   </div>
+                  <div
+                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                    style={{ minHeight: "300px" }}
+                  >
+                    {formState.availableLocations.map((location, index) => {
+                      // Fallback to index-based key if location.id is missing or null
+                      const keyVal =
+                        location.id != null
+                          ? `available-${location.id}`
+                          : `available-index-${index}`;
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Selected Locations
-                      </label>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {formState.selectedLocations.length} selected
-                      </span>
-                    </div>
-                    <div
-                      className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
-                      style={{ minHeight: "300px" }}
-                    >
-                      {formState.selectedLocations.map((location, index) => {
-                        const keyVal =
-                          location.id != null
-                            ? `selected-${location.id}`
-                            : `selected-index-${index}`;
-
-                        return (
-                          <div
-                            key={keyVal}
-                            onClick={() => handleLocationDeselect(location)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
-                          >
-                            {location.name}
-                          </div>
-                        );
-                      })}
-                      {formState.selectedLocations.length === 0 && (
+                      return (
+                        <div
+                          key={keyVal}
+                          onClick={() => handleLocationSelect(location)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+                        >
+                          {location.name}
+                        </div>
+                      );
+                    })}
+                    {formState.availableLocations.length === 0 &&
+                      !formState.isSearching && (
                         <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                          No locations selected
+                          {formState.locationSearch.length >= 3
+                            ? "No locations found"
+                            : "Enter at least 3 characters to search"}
                         </div>
                       )}
-                    </div>
                   </div>
                 </div>
-              </>
-            )
-          )}
-          </form>
-          </div>
-          {/* Right-aligned container with centered buttons */}
-          <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
-                    hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
-                    dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
-                    focus:ring-offset-2 disabled:opacity-50 shadow-lg"
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
-                    hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
-                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                    disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    disabled={
-                      isSaving ||
-                      (formState.maType === "radius" && radiusPoints.length === 0) ||
-                      (formState.maType === "drivetime" && driveTimePoints.length === 0) ||
-                      (formState.maType === "site_location" && 
-                        (!siteLocationData.point.latitude || !siteLocationData.point.longitude)) ||
-                      (formState.maType !== "radius" && 
-                      formState.maType !== "drivetime" && 
-                      formState.maType !== "site_location" &&
-                      formState.selectedLocations.length === 0) ||
-                      !formState.maName
-                    }
-          >
-            {isSaving
-              ? "Saving..."
-              : editingMarketArea
-                ? "Update & Exit"
-                : "Save & Exit"}
-          </button>
-          </div>
-          </div>
-  );
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Selected Locations
+                    </label>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formState.selectedLocations.length} selected
+                    </span>
+                  </div>
+                  <div
+                    className="border rounded-md overflow-y-auto bg-white dark:bg-gray-700"
+                    style={{ minHeight: "300px" }}
+                  >
+                    {formState.selectedLocations.map((location, index) => {
+                      const keyVal =
+                        location.id != null
+                          ? `selected-${location.id}`
+                          : `selected-index-${index}`;
+
+                      return (
+                        <div
+                          key={keyVal}
+                          onClick={() => handleLocationDeselect(location)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+                        >
+                          {location.name}
+                        </div>
+                      );
+                    })}
+                    {formState.selectedLocations.length === 0 && (
+                      <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        No locations selected
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )
+        )}
+      </form>
+    </div>
+    {/* Right-aligned container with centered buttons */}
+    <div className="sticky bottom-4 flex items-center justify-center w-full max-w-md ml-auto pr-4 gap-3 z-10">
+      <button
+        type="button"
+        onClick={handleCancel}
+        className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700
+                hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
+                dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500
+                focus:ring-offset-2 disabled:opacity-50 shadow-lg"
+        disabled={isSaving}
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleSubmit}
+        className="px-4 py-2 rounded-md border border-transparent bg-blue-600 text-white
+                hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        disabled={
+          isSaving ||
+          (formState.maType === "radius" && radiusPoints.length === 0) ||
+          (formState.maType === "drivetime" && driveTimePoints.length === 0) ||
+          (formState.maType === "site_location" && 
+            (!siteLocationData.point.latitude || !siteLocationData.point.longitude)) ||
+          (formState.maType !== "radius" && 
+          formState.maType !== "drivetime" && 
+          formState.maType !== "site_location" &&
+          formState.selectedLocations.length === 0) ||
+          !formState.maName
+        }
+      >
+        {isSaving
+          ? "Saving..."
+          : editingMarketArea
+            ? "Update & Exit"
+            : "Save & Exit"}
+      </button>
+    </div>
+  </div>
+);
 }
