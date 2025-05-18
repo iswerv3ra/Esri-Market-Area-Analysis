@@ -979,23 +979,11 @@ const applyLabelStyleOptions = (symbol, labelOptions) => {
                   placeholder="Enter map name (or leave blank for auto-title)"
                 />
               </div>
-  
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Map Type
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div
-                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      mapType === 'custom' // Highlight 'custom'
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                        : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
-                    }`}
-                    onClick={() => setMapType('custom')}
-                  >
-                    <div className="font-medium">Custom Points Map</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Points with color by Value1, size by Value2.</div>
-                  </div>
                   <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'comps'
@@ -1007,7 +995,7 @@ const applyLabelStyleOptions = (symbol, labelOptions) => {
                     <div className="font-medium">Comps Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Comparable property data (value based color).</div>
                   </div>
-  
+
                   <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'pipeline'
@@ -1019,9 +1007,7 @@ const applyLabelStyleOptions = (symbol, labelOptions) => {
                     <div className="font-medium">Pipeline Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Status-based property data.</div>
                   </div>
-                </div>
-  
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                   <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'heatmap'
@@ -1033,7 +1019,9 @@ const applyLabelStyleOptions = (symbol, labelOptions) => {
                     <div className="font-medium">Heat Map</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Color-coded gradient data.</div>
                   </div>
-  
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div
                     className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                       mapType === 'dotdensity'
@@ -1044,6 +1032,12 @@ const applyLabelStyleOptions = (symbol, labelOptions) => {
                   >
                     <div className="font-medium">Dot Density</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Points representing data quantity.</div>
+                  </div>
+
+                  {/* Custom Points Map - Disabled/Coming Soon */}
+                  <div className="border rounded-lg p-4 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-60">
+                    <div className="font-medium text-gray-500 dark:text-gray-400">Custom Points Map</div>
+                    <div className="text-sm text-gray-400 dark:text-gray-500">Coming Soon - Points with color by Value1, size by Value2.</div>
                   </div>
                 </div>
               </div>

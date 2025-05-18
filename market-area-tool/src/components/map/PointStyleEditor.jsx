@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HelpCircle, Plus, Trash2, ArrowUp, ArrowDown, Info } from 'lucide-react';
+import { mapConfigurationsAPI } from '../../services/api';
 
 // Helper to safely get nested properties with defaults
 const getConfigProp = (config, path, defaultValue) => {
@@ -11,7 +12,6 @@ const getConfigProp = (config, path, defaultValue) => {
     if (current === undefined || current === null) return defaultValue;
     current = current[key];
   }
-  // Ensure the final value is not undefined/null before returning
   return current !== undefined && current !== null ? current : defaultValue;
 };
 
@@ -19,26 +19,146 @@ const getConfigProp = (config, path, defaultValue) => {
 const smartRound = (value) => {
   if (typeof value !== 'number' || isNaN(value) || value === Infinity) return value;
   
-  // For values less than 10, round to nearest whole number
   if (Math.abs(value) < 10) {
     return Math.round(value);
-  }
-  // For values between 10-100, round to nearest 10
-  else if (Math.abs(value) < 100) {
+  } else if (Math.abs(value) < 100) {
     return Math.round(value / 10) * 10;
-  }
-  // For values between 100-1000, round to nearest 100
-  else if (Math.abs(value) < 1000) {
+  } else if (Math.abs(value) < 1000) {
     return Math.round(value / 100) * 100;
-  }
-  // For values between 1000-10000, round to nearest 1000
-  else if (Math.abs(value) < 10000) {
+  } else if (Math.abs(value) < 10000) {
     return Math.round(value / 1000) * 1000;
-  }
-  // For larger values, round to nearest 10000
-  else {
+  } else {
     return Math.round(value / 10000) * 10000;
   }
+};
+
+// Enhanced helper function to convert area type to string with better validation
+const convertAreaTypeToString = (value) => {
+  console.log('[PointStyleEditor] Converting area type:', { value, type: typeof value });
+  
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    console.log('[PointStyleEditor] Area type is null/undefined, defaulting to tract');
+    return 'tract';
+  }
+  
+  // Handle array (incorrect format)
+  if (Array.isArray(value)) {
+    console.warn('[PointStyleEditor] Area type received as array:', value);
+    // If array has elements, use the first one, otherwise default
+    if (value.length > 0) {
+      return convertAreaTypeToString(value[0]);
+    }
+    return 'tract';
+  }
+  
+  // Handle object with value property
+  if (typeof value === 'object' && value.value !== undefined) {
+    console.log('[PointStyleEditor] Area type is object with value property:', value.value);
+    return convertAreaTypeToString(value.value);
+  }
+  
+  // Handle string (already correct format)
+  if (typeof value === 'string') {
+    console.log('[PointStyleEditor] Area type is already string:', value);
+    // Validate known area types
+    const validAreaTypes = ['tract', 'county', 'block_group', 'msa', 'state'];
+    if (validAreaTypes.includes(value)) {
+      return value;
+    }
+    // If not a known type, default to tract
+    console.warn('[PointStyleEditor] Unknown area type string:', value, 'defaulting to tract');
+    return 'tract';
+  }
+  
+  // Handle numeric (legacy format)
+  if (typeof value === 'number') {
+    console.log('[PointStyleEditor] Area type is numeric:', value);
+    switch (value) {
+      case 11: return 'county';
+      case 12: return 'tract';
+      case 150: return 'block_group';
+      default: 
+        console.warn('[PointStyleEditor] Unknown numeric area type:', value, 'defaulting to tract');
+        return 'tract';
+    }
+  }
+  
+  // Fallback for any other type
+  console.warn('[PointStyleEditor] Unexpected area type format:', value, typeof value, 'defaulting to tract');
+  return 'tract';
+};
+
+// Helper function to get project ID from multiple sources with validation
+const getProjectId = () => {
+  const routeProjectId = new URLSearchParams(window.location.search).get('projectId');
+  const localStorageProjectId = localStorage.getItem("currentProjectId");
+  const sessionStorageProjectId = sessionStorage.getItem("currentProjectId");
+  
+  const projectId = routeProjectId || localStorageProjectId || sessionStorageProjectId;
+  
+  console.log('[PointStyleEditor] Project ID sources:', {
+    route: routeProjectId,
+    localStorage: localStorageProjectId,
+    sessionStorage: sessionStorageProjectId,
+    final: projectId
+  });
+  
+  return projectId;
+};
+
+// Helper function to clean undefined values from object
+const cleanObject = (obj) => {
+  const cleaned = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined && obj[key] !== null) {
+      // Special handling for empty strings and arrays
+      if (obj[key] === '' || (Array.isArray(obj[key]) && obj[key].length === 0)) {
+        // Skip empty strings and arrays
+        return;
+      }
+      cleaned[key] = obj[key];
+    }
+  });
+  return cleaned;
+};
+
+// Helper function to validate configuration before sending to API
+const validateConfigurationData = (configData) => {
+  const errors = [];
+  
+  // Required fields validation
+  if (!configData.project_id) {
+    errors.push('Project ID is required');
+  }
+  
+  if (!configData.tab_name || configData.tab_name.trim() === '') {
+    errors.push('Tab name is required');
+  }
+  
+  if (!configData.visualization_type) {
+    errors.push('Visualization type is required');
+  }
+  
+  // Area type validation
+  if (!configData.area_type || typeof configData.area_type !== 'string') {
+    errors.push(`Area type must be a valid string, received: ${JSON.stringify(configData.area_type)}`);
+  }
+  
+  // Layer configuration validation
+  if (configData.layer_configuration) {
+    if (typeof configData.layer_configuration !== 'string') {
+      errors.push('Layer configuration must be a serialized JSON string');
+    } else {
+      try {
+        JSON.parse(configData.layer_configuration);
+      } catch (e) {
+        errors.push('Layer configuration is not valid JSON');
+      }
+    }
+  }
+  
+  return errors;
 };
 
 const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'comps' }) => {
@@ -47,42 +167,20 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     return <div className="p-4 text-gray-500 dark:text-gray-400">Loading configuration...</div>;
   }
 
-  // --- Define Default Properties based on mapType ---
+  // Default properties based on mapType
   const getTypeDefaults = () => {
     switch(mapType) {
       case 'pipe':
         return {
-          symbol: {
-            type: 'simple-marker',
-            style: 'circle',
-            color: '#4CAF50', // Green for pipe
-            size: 8,
-            outline: {
-              color: '#FFFFFF',
-              width: 1
-            }
-          },
-          legend: {
-            label: 'Pipeline Property'
-          },
+          symbol: { type: 'simple-marker', style: 'circle', color: '#4CAF50', size: 8, outline: { color: '#FFFFFF', width: 1 } },
+          legend: { label: 'Pipeline Property' },
           valueColumn: 'Status'
         };
       case 'comps':
       default:
         return {
-          symbol: {
-            type: 'simple-marker',
-            style: 'circle',
-            color: '#800080', // Purple for comp
-            size: 10,
-            outline: {
-              color: '#FFFFFF',
-              width: 1
-            }
-          },
-          legend: {
-            label: 'Comparison Property'
-          },
+          symbol: { type: 'simple-marker', style: 'circle', color: '#800080', size: 10, outline: { color: '#FFFFFF', width: 1 } },
+          legend: { label: 'Comparison Property' },
           valueColumn: 'AvgBasePSF'
         };
     }
@@ -91,89 +189,33 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
   const typeDefaults = getTypeDefaults();
   const defaultSymbolProps = typeDefaults.symbol;
   const defaultLegendProps = typeDefaults.legend;
-  const defaultValueColumn = typeDefaults.valueColumn;
 
-  // Default class breaks - used when creating a new legend
+  // Default class breaks template
   const defaultClassBreaks = [
-    {
-      minValue: 2,
-      maxValue: 3,
-      label: "2 - 3",
-      symbol: {
-        type: "simple-marker",
-        style: "circle",
-        color: "#3182ce",
-        size: 10,
-        outline: { color: "#FFFFFF", width: 1 }
-      }
-    },
-    {
-      minValue: 3,
-      maxValue: 4,
-      label: "3 - 4",
-      symbol: {
-        type: "simple-marker",
-        style: "circle",
-        color: "#8371cc",
-        size: 10,
-        outline: { color: "#FFFFFF", width: 1 }
-      }
-    },
-    {
-      minValue: 4,
-      maxValue: 5,
-      label: "4 - 5",
-      symbol: {
-        type: "simple-marker",
-        style: "circle",
-        color: "#be56b0",
-        size: 10,
-        outline: { color: "#FFFFFF", width: 1 }
-      }
-    },
-    {
-      minValue: 5,
-      maxValue: 6,
-      label: "5 - 6",
-      symbol: {
-        type: "simple-marker",
-        style: "circle",
-        color: "#e13b7d",
-        size: 10,
-        outline: { color: "#FFFFFF", width: 1 }
-      }
-    },
-    {
-      minValue: 6,
-      maxValue: 7,
-      label: "6 - 7",
-      symbol: {
-        type: "simple-marker",
-        style: "circle",
-        color: "#e53e3e",
-        size: 10,
-        outline: { color: "#FFFFFF", width: 1 }
-      }
-    }
+    { minValue: 2, maxValue: 3, label: "2 - 3", symbol: { type: "simple-marker", style: "circle", color: "#3182ce", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 3, maxValue: 4, label: "3 - 4", symbol: { type: "simple-marker", style: "circle", color: "#8371cc", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 4, maxValue: 5, label: "4 - 5", symbol: { type: "simple-marker", style: "circle", color: "#be56b0", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 5, maxValue: 6, label: "5 - 6", symbol: { type: "simple-marker", style: "circle", color: "#e13b7d", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 6, maxValue: 7, label: "6 - 7", symbol: { type: "simple-marker", style: "circle", color: "#e53e3e", size: 10, outline: { color: "#FFFFFF", width: 1 } } }
   ];
 
-  // --- Get current values safely, using defaults ---
+  // Get current values safely with defaults
   const currentSymbol = config?.symbol ?? defaultSymbolProps;
   const currentLegendInfo = config?.legendInfo ?? defaultLegendProps;
   const currentClassBreaks = config?.classBreakInfos || [];
   const renderType = config?.rendererType || (currentClassBreaks.length > 0 ? 'classBreaks' : 'simple');
 
-  // Initialize state variables
+  // State variables
   const [workingConfig, setWorkingConfig] = useState(JSON.parse(JSON.stringify(config)));
   const [classBreaks, setClassBreaks] = useState(currentClassBreaks.length > 0 ? currentClassBreaks : []);
   const [useClassBreaks, setUseClassBreaks] = useState(renderType === 'classBreaks');
   const [valueColumn, setValueColumn] = useState(config?.valueColumn || 'AvgBasePSF');
   const [availableColumns, setAvailableColumns] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  // Original configuration backup for cancel operation
+  const [isSaving, setIsSaving] = useState(false);
   const [originalConfig] = useState(JSON.parse(JSON.stringify(config)));
   
-  // Get values from the working config
+  // Working values derived from state
   const workingSymbol = workingConfig?.symbol ?? defaultSymbolProps;
   const workingLegendInfo = workingConfig?.legendInfo ?? defaultLegendProps;
   const workingSize = workingSymbol.size ?? defaultSymbolProps.size;
@@ -183,7 +225,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
   const workingOutlineColor = workingOutline.color ?? defaultSymbolProps.outline.color;
   const workingLegendLabel = workingLegendInfo.label ?? defaultLegendProps.label;
 
-  // Get list of available columns from custom data
+  // Extract available numeric columns from custom data
   useEffect(() => {
     if (config?.customData?.data && config.customData.data.length > 0) {
       const firstItem = config.customData.data[0];
@@ -201,27 +243,322 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     setHasUnsavedChanges(false);
   }, [config]);
 
-  // --- Handler for simple style changes ---
+  /**
+   * Saves configuration to localStorage as fallback option
+   * Maintains backward compatibility and provides offline persistence
+   */
+  const savePointStyleConfigurationToLocalStorage = async () => {
+    const MANUAL_SAVE_KEY = "mapConfigurations_default";
+    
+    try {
+      console.log("[PointStyleEditor] Starting localStorage save");
+      
+      // Get existing configurations from localStorage
+      let existingConfigs = [];
+      try {
+        const saved = localStorage.getItem(MANUAL_SAVE_KEY);
+        if (saved) {
+          existingConfigs = JSON.parse(saved);
+        }
+      } catch (parseError) {
+        console.warn("Could not parse existing localStorage configurations:", parseError);
+        existingConfigs = [];
+      }
+      
+      // Prepare configuration for localStorage with proper area type handling
+      const configToSave = {
+        tab_name: workingConfig.title || `${mapType} Map`,
+        visualization_type: mapType,
+        area_type: convertAreaTypeToString(workingConfig.areaType?.value || workingConfig.areaType || 'tract'),
+        layer_configuration: workingConfig,
+        order: existingConfigs.length,
+        created_at: new Date().toISOString()
+      };
+      
+      console.log("[PointStyleEditor] LocalStorage config prepared:", {
+        tab_name: configToSave.tab_name,
+        visualization_type: configToSave.visualization_type,
+        area_type: configToSave.area_type,
+        area_type_type: typeof configToSave.area_type
+      });
+      
+      // Find existing configuration to update or add new one
+      const existingIndex = existingConfigs.findIndex(savedConfig =>
+        (savedConfig.layer_configuration?.type === workingConfig.type) ||
+        (savedConfig.layer_configuration?.title === workingConfig.title) ||
+        (savedConfig.visualization_type === mapType && savedConfig.tab_name === workingConfig.title)
+      );
+      
+      if (existingIndex >= 0) {
+        // Update existing configuration
+        existingConfigs[existingIndex] = {
+          ...existingConfigs[existingIndex],
+          ...configToSave,
+          updated_at: new Date().toISOString()
+        };
+        console.log("[PointStyleEditor] Updated localStorage config at index:", existingIndex);
+      } else {
+        // Add new configuration
+        existingConfigs.push(configToSave);
+        console.log("[PointStyleEditor] Added new localStorage config");
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem(MANUAL_SAVE_KEY, JSON.stringify(existingConfigs));
+      
+      console.log("[PointStyleEditor] LocalStorage save completed successfully");
+      return { success: true, count: existingConfigs.length, type: 'localStorage' };
+      
+    } catch (error) {
+      console.error("[PointStyleEditor] LocalStorage save failed:", error);
+      throw new Error(`LocalStorage save failed: ${error.message}`);
+    }
+  };
+
+  /**
+   * Saves configuration to the database with robust error handling and validation
+   * Uses the same successful pattern as the Map component
+   */
+  const savePointStyleConfigurationToDatabase = async () => {
+    const projectId = getProjectId();
+    
+    if (!projectId) {
+      throw new Error("No project ID available for saving configuration. Please ensure you are logged in and have selected a project.");
+    }
+
+    console.log("[PointStyleEditor] Starting database save for project:", projectId);
+
+    try {
+      // Get all existing configurations for this project
+      const existingConfigsResponse = await mapConfigurationsAPI.getAll(projectId);
+      const existingConfigs = existingConfigsResponse?.data || [];
+      
+      console.log("[PointStyleEditor] Found existing configurations:", existingConfigs.length);
+      
+      // Find configuration to update/replace using multiple strategies
+      let targetConfig = null;
+      
+      // Strategy 1: Match by configId (most reliable)
+      if (workingConfig.configId) {
+        targetConfig = existingConfigs.find(config => config.id === workingConfig.configId);
+        if (targetConfig) {
+          console.log("[PointStyleEditor] Found config by configId:", workingConfig.configId);
+        }
+      }
+      
+      // Strategy 2: Match by tab name and visualization type
+      if (!targetConfig) {
+        targetConfig = existingConfigs.find(config => 
+          config.tab_name === workingConfig.title && 
+          config.visualization_type === mapType
+        );
+        if (targetConfig) {
+          console.log("[PointStyleEditor] Found config by title and type:", targetConfig.id);
+        }
+      }
+      
+      // Strategy 3: Match by visualization type only (for single configs of this type)
+      if (!targetConfig) {
+        const sameTypeConfigs = existingConfigs.filter(config => 
+          config.visualization_type === mapType
+        );
+        if (sameTypeConfigs.length === 1) {
+          targetConfig = sameTypeConfigs[0];
+          console.log("[PointStyleEditor] Found config by unique type match:", targetConfig.id);
+        }
+      }
+      
+      // If we found an existing configuration, delete it first
+      // This avoids the complex field validation issues with updates
+      if (targetConfig && targetConfig.id) {
+        console.log("[PointStyleEditor] Deleting existing config:", targetConfig.id);
+        try {
+          await mapConfigurationsAPI.delete(targetConfig.id);
+          console.log("[PointStyleEditor] Successfully deleted existing config");
+        } catch (deleteError) {
+          console.warn("[PointStyleEditor] Failed to delete existing config, continuing with create:", deleteError.message);
+          // Continue with creation even if deletion fails
+        }
+      }
+      
+      // FIXED: Use the same pattern as the working Map component
+      // Prepare configuration data exactly like the Map component does
+      const configData = {
+        project_id: projectId,        // Include both project_id and project fields
+        project: projectId,           // Backend might expect either/both
+        tab_name: workingConfig.title || `${mapType} Map`,
+        visualization_type: mapType,
+        area_type: convertAreaTypeToString(workingConfig.areaType?.value || workingConfig.areaType || 'tract'),
+        layer_configuration: workingConfig,
+        order: targetConfig?.order ?? existingConfigs.length
+      };
+      
+      console.log("[PointStyleEditor] Configuration data prepared:", {
+        project_id: configData.project_id,
+        project: configData.project,
+        tab_name: configData.tab_name,
+        visualization_type: configData.visualization_type,
+        area_type: configData.area_type,
+        area_type_type: typeof configData.area_type,
+        has_layer_configuration: !!configData.layer_configuration,
+        renderer_type: configData.layer_configuration?.rendererType
+      });
+      
+      // Clean the configuration data to remove undefined values (but preserve projectId fields)
+      const cleanedConfigData = cleanObject(configData);
+      
+      // CRITICAL: Ensure project fields are not accidentally removed
+      if (!cleanedConfigData.project_id && projectId) {
+        cleanedConfigData.project_id = projectId;
+      }
+      if (!cleanedConfigData.project && projectId) {
+        cleanedConfigData.project = projectId;
+      }
+      
+      // Validate the configuration before sending
+      const validationErrors = validateConfigurationData({
+        ...cleanedConfigData,
+        layer_configuration: JSON.stringify(cleanedConfigData.layer_configuration)
+      });
+      
+      if (validationErrors.length > 0) {
+        throw new Error(`Configuration validation failed: ${validationErrors.join(', ')}`);
+      }
+      
+      console.log("[PointStyleEditor] Creating new config with validated data");
+      
+      // FIXED: Use the same API call pattern as the Map component
+      // The Map component does: mapConfigurationsAPI.create(projectId, { ...config, project: projectId })
+      const createResponse = await mapConfigurationsAPI.create(
+        projectId, 
+        { ...cleanedConfigData, project: projectId }  // Ensure project field is present, matching Map component
+      );
+      
+      if (createResponse.data && createResponse.data.id) {
+        console.log("[PointStyleEditor] Database save successful:", {
+          configId: createResponse.data.id,
+          status: createResponse.status
+        });
+        
+        // Update working config with the new database ID
+        workingConfig.configId = createResponse.data.id;
+        
+        return {
+          success: true,
+          type: targetConfig ? 'recreate' : 'create',
+          configId: createResponse.data.id,
+          action: targetConfig ? 'updated' : 'created'
+        };
+      } else {
+        throw new Error("Database API returned no configuration ID");
+      }
+      
+    } catch (apiError) {
+      console.error("[PointStyleEditor] Database API error:", apiError);
+      
+      // Enhanced error logging for debugging
+      if (apiError.response) {
+        console.error("[PointStyleEditor] API Error Details:", {
+          status: apiError.response.status,
+          statusText: apiError.response.statusText,
+          data: apiError.response.data,
+          url: apiError.config?.url,
+          method: apiError.config?.method
+        });
+        
+        // Check for specific validation errors
+        if (apiError.response.status === 400) {
+          const validationData = apiError.response.data;
+          let errorMessage = "Database validation failed: ";
+          
+          if (validationData.area_type) {
+            errorMessage += `Area type error: ${JSON.stringify(validationData.area_type)}. `;
+          }
+          if (validationData.project_id || validationData.project) {
+            errorMessage += `Project ID error: ${JSON.stringify(validationData.project_id || validationData.project)}. `;
+          }
+          if (validationData.layer_configuration) {
+            errorMessage += `Layer configuration error: ${JSON.stringify(validationData.layer_configuration)}. `;
+          }
+          if (validationData.detail) {
+            errorMessage += `${validationData.detail}. `;
+          }
+          
+          throw new Error(errorMessage || `Validation error: ${JSON.stringify(validationData)}`);
+        }
+      }
+      
+      throw new Error(`Database save failed: ${apiError.message}`);
+    }
+  };  
+
+  /**
+   * Primary save function that attempts database save with localStorage fallback
+   * Provides comprehensive error handling and user feedback
+   */
+  const savePointStyleConfiguration = async () => {
+    try {
+      // Attempt database save first
+      const databaseResult = await savePointStyleConfigurationToDatabase();
+      
+      if (databaseResult.success) {
+        // Also save to localStorage as a backup
+        try {
+          await savePointStyleConfigurationToLocalStorage();
+          console.log("[PointStyleEditor] Backup localStorage save completed");
+        } catch (localStorageError) {
+          console.warn("[PointStyleEditor] Backup localStorage save failed:", localStorageError);
+          // Don't fail the entire operation if backup fails
+        }
+        
+        return databaseResult;
+      }
+    } catch (databaseError) {
+      console.error("[PointStyleEditor] Database save failed, attempting localStorage fallback:", databaseError);
+      
+      // Fallback to localStorage save
+      try {
+        const localStorageResult = await savePointStyleConfigurationToLocalStorage();
+        console.log("[PointStyleEditor] LocalStorage fallback save successful");
+        
+        return {
+          success: true,
+          type: 'localStorage',
+          message: 'Saved to local storage (database unavailable)',
+          fallbackReason: databaseError.message
+        };
+      } catch (localStorageError) {
+        console.error("[PointStyleEditor] Both database and localStorage saves failed");
+        throw new Error(
+          `Database save failed: ${databaseError.message}. ` + 
+          `LocalStorage fallback also failed: ${localStorageError.message}`
+        );
+      }
+    }
+  };
+
+  /**
+   * Handles configuration property changes with deep cloning for safety
+   * Maintains immutability and triggers change detection
+   */
   const handleConfigChange = (propPath, value) => {
-    // Start with a deep clone of the existing working config
     const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
 
-    // Ensure base objects exist before setting nested properties
+    // Initialize nested objects as needed
     if (propPath.startsWith('symbol.') && !updatedConfig.symbol) {
-      updatedConfig.symbol = { ...defaultSymbolProps }; // Initialize with defaults
+      updatedConfig.symbol = { ...defaultSymbolProps };
     }
     if (propPath.startsWith('symbol.outline.') && updatedConfig.symbol && !updatedConfig.symbol.outline) {
-      updatedConfig.symbol.outline = { ...defaultSymbolProps.outline }; // Initialize outline
+      updatedConfig.symbol.outline = { ...defaultSymbolProps.outline };
     }
     if (propPath.startsWith('legendInfo.') && !updatedConfig.legendInfo) {
-      updatedConfig.legendInfo = { ...defaultLegendProps }; // Initialize legendInfo
+      updatedConfig.legendInfo = { ...defaultLegendProps };
     }
 
-    // Navigate and set the property
+    // Navigate to the target property and set the value
     const keys = propPath.split('.');
     let current = updatedConfig;
     for (let i = 0; i < keys.length - 1; i++) {
-      // If a key in the path doesn't exist, create an empty object (should be rare now with initialization above)
       if (current[keys[i]] === undefined || current[keys[i]] === null) {
         current[keys[i]] = {};
       }
@@ -229,34 +566,31 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     }
     current[keys[keys.length - 1]] = value;
 
-    // Ensure symbol type is correct if modifying symbol
+    // Ensure symbol properties are correct for markers
     if (propPath.startsWith('symbol.')) {
       updatedConfig.symbol.type = 'simple-marker';
       updatedConfig.symbol.style = 'circle';
     }
 
-    // Mark that we have unsaved changes
     setHasUnsavedChanges(true);
-    
-    // Update working config
     setWorkingConfig(updatedConfig);
   };
 
-  // --- Handler for class breaks changes ---
+  /**
+   * Handles class breaks changes with validation and state synchronization
+   * Ensures renderer type consistency and propagates size changes
+   */
   const handleClassBreaksChange = (newBreaks, newValueColumn = valueColumn) => {
-    // Update local state
     setClassBreaks(newBreaks);
     setHasUnsavedChanges(true);
     
-    // Clone the working config to avoid mutations
     const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
     
-    // Update class breaks and renderer type
     updatedConfig.classBreakInfos = newBreaks;
     updatedConfig.rendererType = newBreaks.length > 0 ? 'classBreaks' : 'simple';
     updatedConfig.valueColumn = newValueColumn;
     
-    // Apply to size to all breaks if different from current
+    // Apply current symbol size to all breaks
     if (updatedConfig.symbol && updatedConfig.symbol.size !== undefined && newBreaks.length > 0) {
       const symbolSize = Number(updatedConfig.symbol.size);
       newBreaks.forEach(breakInfo => {
@@ -266,93 +600,143 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       });
     }
     
-    // Update working config
     setWorkingConfig(updatedConfig);
   };
 
-  // Preview changes
+  /**
+   * Previews changes without saving
+   * Allows users to see visual feedback before committing
+   */
   const previewChanges = () => {
-    // Call the preview function with the working config
     if (onPreview) {
       onPreview(workingConfig);
     }
   };
 
-  const applyChanges = () => {
-    // First apply the changes to the configuration
-    onChange(workingConfig);
-    
-    // Apply preview if needed
-    if (onPreview) {
-      onPreview(workingConfig);
-    }
-    
-    // Reset local state
-    setHasUnsavedChanges(false);
-    
-    // Call onClose directly
-    if (typeof onClose === 'function') {
-      console.log("Applying changes and closing editor via onClose prop");
-      onClose();
-    } else {
-      console.warn("onClose function is not available. Component may not close properly.");
+  /**
+   * Applies and saves all changes with comprehensive error handling
+   * Provides detailed user feedback and manages UI state appropriately
+   */
+  const applyChanges = async () => {
+    try {
+      setIsSaving(true);
+
+      // Apply changes to parent configuration
+      onChange(workingConfig);
       
-      // Fallback mechanisms to try to close the editor
-      try {
-        // Fallback 1: Dispatch the escape key event
-        document.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'Escape',
-          code: 'Escape',
-          keyCode: 27,
-          which: 27,
-          bubbles: true
-        }));
-        
-        // Fallback 2: Dispatch a custom event
-        const closeEvent = new CustomEvent('point-style-editor-close', { 
-          detail: { applied: true, configId: workingConfig.id || 'unknown' } 
-        });
-        window.dispatchEvent(closeEvent);
-      } catch (e) {
-        console.error("Fallback closing methods failed:", e);
+      // Apply preview if callback provided
+      if (onPreview) {
+        onPreview(workingConfig);
       }
+      
+      // Save configuration with fallback handling
+      const saveResult = await savePointStyleConfiguration();
+      
+      if (saveResult.success) {
+        // Prepare success message based on save type
+        const successMessages = {
+          create: "Style configuration created successfully",
+          recreate: "Style configuration updated successfully", 
+          update: "Style configuration updated successfully",
+          localStorage: "Configuration saved to local storage (database temporarily unavailable)"
+        };
+        
+        const message = successMessages[saveResult.type] || "Style configuration saved successfully";
+        alert(message);
+        
+        // Reset change tracking
+        setHasUnsavedChanges(false);
+        
+        // Close the editor
+        if (typeof onClose === 'function') {
+          console.log("[PointStyleEditor] Closing editor after successful save");
+          onClose();
+        } else {
+          // Fallback close mechanisms if onClose prop is missing
+          console.warn("[PointStyleEditor] onClose prop missing, using fallback close methods");
+          
+          try {
+            // Dispatch escape key event
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true
+            }));
+            
+            // Dispatch custom close event
+            const closeEvent = new CustomEvent('point-style-editor-close', { 
+              detail: { 
+                applied: true, 
+                saved: true, 
+                configId: workingConfig.configId || 'unknown',
+                saveType: saveResult.type
+              } 
+            });
+            window.dispatchEvent(closeEvent);
+          } catch (fallbackError) {
+            console.error("[PointStyleEditor] Fallback close methods failed:", fallbackError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[PointStyleEditor] Failed to apply and save changes:", error);
+      
+      // Provide user-friendly error messages based on error type
+      let userMessage = "Failed to save configuration changes. ";
+      
+      if (error.message.includes('No project ID')) {
+        userMessage += "Project context is missing. Please refresh the page and try again.";
+      } else if (error.message.includes('Database save failed')) {
+        userMessage += "Unable to connect to the server. Your changes have been saved locally.";
+      } else if (error.message.includes('LocalStorage')) {
+        userMessage += "Both database and local storage saves failed. Please try again.";
+      } else if (error.message.includes('Area type error')) {
+        userMessage += "There was an issue with the area type configuration. Please try again or contact support.";
+      } else if (error.message.includes('validation failed')) {
+        userMessage += "The configuration data is invalid. Please check your settings and try again.";
+      } else {
+        userMessage += "An unexpected error occurred. Your changes were applied but may not be saved.";
+      }
+      
+      alert(userMessage);
+      
+      // Still attempt to close the editor even if save failed
+      if (typeof onClose === 'function') {
+        onClose();
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
   
-  // Cancel changes and close
+  /**
+   * Cancels all changes and reverts to original configuration
+   * Provides clean rollback with state restoration
+   */
   const cancelChanges = () => {
-    // Reset working config to original
+    // Revert all working state to original values
     setWorkingConfig(JSON.parse(JSON.stringify(originalConfig)));
-    
-    // Reset class breaks if they exist in original
-    setClassBreaks(originalConfig?.classBreakInfos?.length > 0 ? 
-      [...originalConfig.classBreakInfos] : []);
-    
-    // Reset use class breaks flag
-    setUseClassBreaks(originalConfig?.rendererType === 'classBreaks' || 
-      (originalConfig?.classBreakInfos?.length > 0));
-    
-    // Reset value column
+    setClassBreaks(originalConfig?.classBreakInfos?.length > 0 ? [...originalConfig.classBreakInfos] : []);
+    setUseClassBreaks(originalConfig?.rendererType === 'classBreaks' || (originalConfig?.classBreakInfos?.length > 0));
     setValueColumn(originalConfig?.valueColumn || 'AvgBasePSF');
-    
-    // Reset unsaved changes flag
     setHasUnsavedChanges(false);
     
-    // Preview original config
+    // Preview original configuration
     if (onPreview) {
       onPreview(originalConfig);
     }
     
-    // Call onClose directly
+    // Close the editor
     if (typeof onClose === 'function') {
-      console.log("Canceling changes and closing editor via onClose prop");
+      console.log("[PointStyleEditor] Canceling changes and closing editor");
       onClose();
     } else {
-      console.warn("onClose function is not available. Component may not close properly.");
+      // Fallback close mechanisms
+      console.warn("[PointStyleEditor] onClose prop missing for cancel, using fallback methods");
       
-      // Fallback mechanisms to try to close the editor
       try {
-        // Fallback 1: Dispatch the escape key event
         document.dispatchEvent(new KeyboardEvent('keydown', {
           key: 'Escape',
           code: 'Escape',
@@ -361,34 +745,23 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           bubbles: true
         }));
         
-        // Fallback 2: Dispatch a custom event
         const closeEvent = new CustomEvent('point-style-editor-close', { 
           detail: { applied: false, configId: originalConfig.id || 'unknown' } 
         });
         window.dispatchEvent(closeEvent);
-      } catch (e) {
-        console.error("Fallback closing methods failed:", e);
+      } catch (fallbackError) {
+        console.error("[PointStyleEditor] Fallback cancel close methods failed:", fallbackError);
       }
     }
   };
 
-  // Add a component did mount effect to listen for external close events
-  React.useEffect(() => {
-    // Add a class to the component root element to help with DOM selection
-    const rootEl = document.getElementById('point-style-editor-root');
-    if (rootEl) {
-      rootEl.classList.add('point-style-editor');
-    }
-    
-    // Setup listener for parent component that might want to close this
+  // Setup external close event listener on component mount
+  useEffect(() => {
     const handleExternalClose = () => {
       if (hasUnsavedChanges) {
-        // Maybe show a confirmation dialog here
-        console.warn("Component received external close with unsaved changes");
+        console.warn("[PointStyleEditor] External close requested with unsaved changes");
       }
-      // Reset state
       setHasUnsavedChanges(false);
-      // Try standard close
       if (typeof onClose === 'function') {
         onClose();
       }
@@ -396,29 +769,26 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     
     window.addEventListener('close-point-style-editor', handleExternalClose);
     
-    // Debug log to check if onClose is available
-    console.log("PointStyleEditor received onClose prop:", !!onClose);
-    
-    // Cleanup
     return () => {
       window.removeEventListener('close-point-style-editor', handleExternalClose);
-      console.log("PointStyleEditor unmounted");
     };
   }, [hasUnsavedChanges, onClose]);
 
-  // --- Toggle between simple styling and class breaks ---
+  /**
+   * Toggles between simple styling and class breaks rendering
+   * Manages renderer type and preserves existing breaks when toggling
+   */
   const handleToggleClassBreaks = (e) => {
     const useClasses = e.target.checked;
     setUseClassBreaks(useClasses);
     setHasUnsavedChanges(true);
     
-    // Clone config
     const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
     
     if (useClasses) {
       // Switching to class breaks
       if (classBreaks.length === 0) {
-        // If no breaks exist, create default ones
+        // Create default breaks if none exist
         const newBreaks = JSON.parse(JSON.stringify(defaultClassBreaks));
         setClassBreaks(newBreaks);
         updatedConfig.classBreakInfos = newBreaks;
@@ -428,43 +798,44 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       }
       updatedConfig.rendererType = 'classBreaks';
       
-      // Set value column if not already set
+      // Set default value column if not already set
       if (!updatedConfig.valueColumn) {
         updatedConfig.valueColumn = 'AvgBasePSF';
       }
     } else {
       // Switching to simple styling
       updatedConfig.rendererType = 'simple';
-      // Keep classBreakInfos for when user toggles back
+      // Keep classBreakInfos for potential future toggle back
     }
     
-    // Update working config
     setWorkingConfig(updatedConfig);
   };
   
-  // --- Add a new class break ---
+  /**
+   * Adds a new class break with smart defaults
+   * Calculates appropriate ranges and applies current symbol styling
+   */
   const addClassBreak = () => {
     const newBreaks = [...classBreaks];
     
-    // Determine min/max values for the new break
+    // Calculate min/max values for the new break
     let minValue = 0, maxValue = 1;
     
     if (newBreaks.length > 0) {
-      // Use the last break's max value as the new min value
       const lastBreak = newBreaks[newBreaks.length - 1];
       minValue = lastBreak.maxValue;
-      maxValue = minValue + 1; // Default increment
+      maxValue = minValue + 1;
     }
     
-    // Apply smart rounding to the values
+    // Apply smart rounding
     minValue = smartRound(minValue);
     maxValue = smartRound(maxValue);
     
-    // Generate a color based on position
+    // Cycle through colors for visual distinction
     const colorIndex = newBreaks.length % 5;
     const colors = ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'];
     
-    // Create the new break with current symbol size and outline
+    // Create new break with current symbol settings
     const newBreak = {
       minValue: minValue,
       maxValue: maxValue,
@@ -473,7 +844,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
         type: "simple-marker",
         style: "circle",
         color: colors[colorIndex],
-        size: workingSize, // Use working symbol size
+        size: workingSize,
         outline: {
           color: workingOutlineColor,
           width: workingOutlineWidth
@@ -486,27 +857,36 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     handleClassBreaksChange(newBreaks);
   };
   
-  // --- Remove a class break ---
+  /**
+   * Removes a class break by index
+   * Handles array bounds and triggers state updates
+   */
   const removeClassBreak = (index) => {
+    if (index < 0 || index >= classBreaks.length) return;
+    
     const newBreaks = [...classBreaks];
     newBreaks.splice(index, 1);
     setHasUnsavedChanges(true);
     handleClassBreaksChange(newBreaks);
   };
   
-  // --- Update a specific class break ---
+  /**
+   * Updates a specific field in a class break
+   * Handles different field types with appropriate type conversion
+   */
   const updateClassBreak = (index, field, value) => {
+    if (index < 0 || index >= classBreaks.length) return;
+    
     const newBreaks = [...classBreaks];
     const breakToUpdate = { ...newBreaks[index] };
     
-    // Handle different field types
+    // Handle numeric fields
     if (field === 'minValue' || field === 'maxValue') {
-      // Allow any value the user enters, don't force rounding
       const numericValue = parseFloat(value);
       if (!isNaN(numericValue)) {
         breakToUpdate[field] = numericValue;
         
-        // Update the label to reflect the new range
+        // Update label to reflect new range
         if (breakToUpdate.maxValue === Infinity) {
           breakToUpdate.label = `${breakToUpdate.minValue} and above`;
         } else {
@@ -514,9 +894,11 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
         }
       }
     }
+    // Handle label field
     else if (field === 'label') {
       breakToUpdate.label = value;
     }
+    // Handle nested symbol fields
     else if (field.startsWith('symbol.')) {
       const symbolField = field.split('.')[1];
       if (!breakToUpdate.symbol) breakToUpdate.symbol = { ...defaultSymbolProps };
@@ -539,45 +921,64 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     handleClassBreaksChange(newBreaks);
   };
   
-  // --- Move a class break up or down ---
+  /**
+   * Moves a class break up or down in the order
+   * Handles array bounds and maintains data integrity
+   */
   const moveClassBreak = (index, direction) => {
+    if (index < 0 || index >= classBreaks.length) return;
+    
     const newBreaks = [...classBreaks];
+    
     if (direction === 'up' && index > 0) {
       [newBreaks[index], newBreaks[index - 1]] = [newBreaks[index - 1], newBreaks[index]];
     } else if (direction === 'down' && index < newBreaks.length - 1) {
       [newBreaks[index], newBreaks[index + 1]] = [newBreaks[index + 1], newBreaks[index]];
+    } else {
+      return; // No movement needed
     }
+    
     setHasUnsavedChanges(true);
     handleClassBreaksChange(newBreaks);
   };
   
-  // --- Generate Class Breaks Based on Data ---
+  /**
+   * Auto-generates class breaks based on data distribution
+   * Creates evenly distributed breaks with smart rounding
+   */
   const generateClassBreaksFromData = () => {
-    if (!workingConfig?.customData?.data || !valueColumn) return;
+    if (!workingConfig?.customData?.data || !valueColumn) {
+      console.warn("[PointStyleEditor] Cannot generate breaks: missing data or value column");
+      return;
+    }
     
-    // Extract values from data
+    // Extract numeric values from the data
     const values = workingConfig.customData.data
       .map(item => parseFloat(item[valueColumn]))
       .filter(value => !isNaN(value));
     
-    if (values.length === 0) return;
+    if (values.length === 0) {
+      console.warn("[PointStyleEditor] No valid numeric values found for auto-generation");
+      return;
+    }
     
-    // Find min and max
+    // Calculate min and max values
     const min = Math.min(...values);
     const max = Math.max(...values);
     
     // Create 5 evenly distributed breaks
+    const breakCount = 5;
     const range = max - min;
-    const interval = range / 5;
+    const interval = range / breakCount;
     
     const colors = ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'];
-    
     const newBreaks = [];
-    for (let i = 0; i < 5; i++) {
+    
+    for (let i = 0; i < breakCount; i++) {
       const minValue = min + (i * interval);
-      const maxValue = i === 4 ? max : min + ((i + 1) * interval);
+      const maxValue = i === breakCount - 1 ? max : min + ((i + 1) * interval);
       
-      // Apply smart rounding to the min and max values
+      // Apply smart rounding
       const roundedMin = smartRound(minValue);
       const roundedMax = smartRound(maxValue);
       
@@ -598,29 +999,30 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       });
     }
     
-    // Update state and config
+    console.log("[PointStyleEditor] Generated", newBreaks.length, "class breaks from data");
     setHasUnsavedChanges(true);
     handleClassBreaksChange(newBreaks);
   };
 
-  // --- Render Simple Legend Preview ---
+  /**
+   * Renders the simple legend preview component
+   * Shows single symbol with label for simple renderer type
+   */
   const renderSimpleLegendPreview = () => (
     <div className="mt-4 p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
       <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Legend Preview</h4>
       <div className="flex items-center space-x-2">
-        {/* Symbol Preview */}
         <div
           style={{
             width: `${workingSize}px`,
             height: `${workingSize}px`,
             backgroundColor: workingColor,
             border: `${workingOutlineWidth}px solid ${workingOutlineColor}`,
-            borderRadius: '50%', // Assuming circle marker
+            borderRadius: '50%',
             flexShrink: 0,
           }}
-          aria-hidden="true" // Indicate it's decorative
+          aria-hidden="true"
         />
-        {/* Label Preview */}
         <span className="text-sm text-gray-800 dark:text-gray-100 break-all">
           {workingLegendLabel || '(No Label)'}
         </span>
@@ -628,29 +1030,32 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     </div>
   );
   
-  // --- Render Class Breaks Legend Preview ---
+  /**
+   * Renders the class breaks legend preview component
+   * Shows all breaks with their symbols and labels
+   */
   const renderClassBreaksLegendPreview = () => (
     <div className="mt-4 p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
       <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Class Breaks Legend Preview</h4>
       {classBreaks.length === 0 ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400">No class breaks defined yet. Add breaks below.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          No class breaks defined yet. Add breaks below or use auto-generation.
+        </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-32 overflow-y-auto">
           {classBreaks.map((breakInfo, index) => (
             <div key={index} className="flex items-center space-x-2">
-              {/* Symbol Preview */}
               <div
                 style={{
                   width: `${breakInfo.symbol?.size || workingSize}px`,
                   height: `${breakInfo.symbol?.size || workingSize}px`,
                   backgroundColor: breakInfo.symbol?.color,
                   border: `${breakInfo.symbol?.outline?.width || workingOutlineWidth}px solid ${breakInfo.symbol?.outline?.color || workingOutlineColor}`,
-                  borderRadius: '50%', // Assuming circle marker
+                  borderRadius: '50%',
                   flexShrink: 0,
                 }}
                 aria-hidden="true"
               />
-              {/* Label Preview */}
               <span className="text-sm text-gray-800 dark:text-gray-100 break-all">
                 {breakInfo.label || `${breakInfo.minValue} - ${breakInfo.maxValue === Infinity ? 'and above' : breakInfo.maxValue}`}
               </span>
@@ -661,7 +1066,10 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     </div>
   );
   
-  // --- Render Value Column Input Field ---
+  /**
+   * Renders the value column input and auto-generation controls
+   * Only shown when class breaks mode is enabled
+   */
   const renderValueColumnInput = () => (
     <div className="space-y-1">
       <label htmlFor="value-column" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
@@ -675,26 +1083,31 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           const newValue = e.target.value;
           setValueColumn(newValue);
           setHasUnsavedChanges(true);
-          // Update class breaks with new value column
           handleClassBreaksChange(classBreaks, newValue);
         }}
         className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
+        disabled={availableColumns.length === 0}
       >
-        {availableColumns.map(col => (
-          <option key={col} value={col}>{col}</option>
-        ))}
+        {availableColumns.length === 0 ? (
+          <option value="">No numeric columns available</option>
+        ) : (
+          availableColumns.map(col => (
+            <option key={col} value={col}>{col}</option>
+          ))
+        )}
       </select>
       
       <div className="flex items-center justify-between mt-2">
         <p className="flex items-center text-xs text-gray-500 dark:text-gray-400">
           <HelpCircle size={12} className="mr-1 flex-shrink-0" />
-          <span>Select column containing numeric values for classification</span>
+          <span>Select column with numeric values for classification</span>
         </p>
         
         <button
           onClick={generateClassBreaksFromData}
-          className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded"
+          className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
           title="Generate class breaks based on data distribution"
+          disabled={!valueColumn || availableColumns.length === 0}
         >
           Auto-Generate Breaks
         </button>
@@ -704,14 +1117,17 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b pb-2 mb-4">
-          Comp Property Style & Legend
+          {mapType === 'comps' ? 'Comp Property Style & Legend' : 
+           mapType === 'pipe' ? 'Pipeline Property Style & Legend' : 
+           'Style & Legend Configuration'}
         </h3>
         
         <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
           <Info size={16} className="mr-1" />
-          <span>Visualization Type: Comps</span>
+          <span>Type: {mapType.charAt(0).toUpperCase() + mapType.slice(1)}</span>
         </div>
       </div>
 
@@ -730,21 +1146,22 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
         <span className="text-sm text-gray-700 dark:text-gray-300 ml-2">Class Breaks</span>
       </div>
 
-      {/* --- Value Column Input (for Class Breaks) --- */}
+      {/* Value Column Input (for Class Breaks) */}
       {useClassBreaks && renderValueColumnInput()}
 
-      {/* --- Symbol Styling (Always visible, used in simple mode or as defaults for class breaks) --- */}
+      {/* Symbol Styling Section */}
       <fieldset className="border border-gray-300 dark:border-gray-600 p-3 rounded space-y-3">
         <legend className="text-sm font-medium px-1 text-gray-600 dark:text-gray-300">
           {useClassBreaks ? 'Default Symbol Style' : 'Symbol Style'}
         </legend>
+        
         {/* Point Size */}
         <div className="space-y-1">
-          <label htmlFor="point-size-comp" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
+          <label htmlFor="point-size" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
             Size (px)
           </label>
           <input
-            id="point-size-comp"
+            id="point-size"
             type="number"
             value={workingSize}
             onChange={(e) => {
@@ -755,28 +1172,30 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
             className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
           />
         </div>
+        
         {/* Point Color (visible only in simple mode) */}
         {!useClassBreaks && (
           <div className="space-y-1">
-            <label htmlFor="point-color-comp" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
+            <label htmlFor="point-color" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
               Fill Color
             </label>
             <input
-              id="point-color-comp"
+              id="point-color"
               type="color"
-              value={workingColor} // Input type color expects hex
+              value={workingColor}
               onChange={(e) => handleConfigChange('symbol.color', e.target.value)}
               className="w-full h-8 p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded cursor-pointer"
             />
           </div>
         )}
+        
         {/* Outline Width */}
         <div className="space-y-1">
-          <label htmlFor="outline-width-comp" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
+          <label htmlFor="outline-width" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
             Outline Width (px)
           </label>
           <input
-            id="outline-width-comp"
+            id="outline-width"
             type="number"
             value={workingOutlineWidth}
             onChange={(e) => {
@@ -787,55 +1206,53 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
             className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
           />
         </div>
+        
         {/* Outline Color */}
         <div className="space-y-1">
-          <label htmlFor="outline-color-comp" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
+          <label htmlFor="outline-color" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
             Outline Color
           </label>
           <input
-            id="outline-color-comp"
+            id="outline-color"
             type="color"
-            value={workingOutlineColor} // Input type color expects hex
+            value={workingOutlineColor}
             onChange={(e) => handleConfigChange('symbol.outline.color', e.target.value)}
             className="w-full h-8 p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded cursor-pointer"
           />
         </div>
       </fieldset>
 
-      {/* --- Legend Configuration (Simple Mode) --- */}
+      {/* Legend Configuration (Simple Mode) */}
       {!useClassBreaks && (
         <fieldset className="border border-gray-300 dark:border-gray-600 p-3 rounded space-y-3">
           <legend className="text-sm font-medium px-1 text-gray-600 dark:text-gray-300">Legend</legend>
           <div className="space-y-1">
-            <label htmlFor="legend-label-comp" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
+            <label htmlFor="legend-label" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
               Label
             </label>
             <input
-              id="legend-label-comp"
+              id="legend-label"
               type="text"
               value={workingLegendLabel}
               onChange={(e) => handleConfigChange('legendInfo.label', e.target.value)}
-              placeholder="e.g., Comparable Property"
+              placeholder={`e.g., ${mapType === 'comps' ? 'Comparable Property' : 'Property Location'}`}
               className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
             />
-            {/* Tooltip */}
             <p className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-1">
               <HelpCircle size={12} className="mr-1 flex-shrink-0" />
               <span>This label appears below the symbol in the map legend.</span>
             </p>
           </div>
 
-          {/* Simple Legend Preview */}
           {renderSimpleLegendPreview()}
         </fieldset>
       )}
 
-      {/* --- Class Breaks Configuration --- */}
+      {/* Class Breaks Configuration */}
       {useClassBreaks && (
         <fieldset className="border border-gray-300 dark:border-gray-600 p-3 rounded space-y-3">
           <legend className="text-sm font-medium px-1 text-gray-600 dark:text-gray-300">Class Breaks</legend>
           
-          {/* Class Breaks Legend Preview */}
           {renderClassBreaksLegendPreview()}
           
           {/* Class Breaks Editor */}
@@ -843,7 +1260,9 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
             {classBreaks.map((breakInfo, index) => (
               <div key={index} className="border border-gray-200 dark:border-gray-700 rounded p-2 space-y-2">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Break {index + 1}</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Break {index + 1}
+                  </span>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => moveClassBreak(index, 'up')}
@@ -871,7 +1290,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
                   </div>
                 </div>
                 
-                {/* Min/Max Value */}
+                {/* Min/Max Value Inputs */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label htmlFor={`break-${index}-min`} className="block text-xs font-medium text-gray-700 dark:text-gray-200">
@@ -907,7 +1326,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
                   </div>
                 </div>
                 
-                {/* Label */}
+                {/* Label Input */}
                 <div className="space-y-1">
                   <label htmlFor={`break-${index}-label`} className="block text-xs font-medium text-gray-700 dark:text-gray-200">
                     Label
@@ -925,7 +1344,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
                   />
                 </div>
                 
-                {/* Color */}
+                {/* Color Input */}
                 <div className="space-y-1">
                   <label htmlFor={`break-${index}-color`} className="block text-xs font-medium text-gray-700 dark:text-gray-200">
                     Color
@@ -952,7 +1371,8 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           
           {/* Help Text */}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            Class breaks determine how properties are styled based on their values. Properties with values in a break's range will use that break's color.
+            Class breaks determine how properties are styled based on their values. 
+            Properties with values in a break's range will use that break's color.
           </p>
         </fieldset>
       )}
@@ -960,23 +1380,34 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       {/* Helpful Tips */}
       <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded">
         <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center">
-          <Info size={16} className="mr-1" /> Tips for Comps Map
+          <Info size={16} className="mr-1" /> Tips for {mapType === 'comps' ? 'Comps' : 'Property'} Map
         </h4>
         <ul className="mt-2 text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc pl-4">
-          <li>For rent comparison, use "AvgBasePSF" or "AvgNetPSF" as the value column</li>
-          <li>For occupancy analysis, use the "Occupancy" column (values from 0-1)</li>
+          {mapType === 'comps' ? (
+            <>
+              <li>For rent comparison, use "AvgBasePSF" or "AvgNetPSF" as the value column</li>
+              <li>For occupancy analysis, use the "Occupancy" column (values from 0-1)</li>
+            </>
+          ) : (
+            <>
+              <li>Use numeric columns for meaningful class break classification</li>
+              <li>Consider the data range when setting break values</li>
+            </>
+          )}
           <li>Use "Auto-Generate Breaks" to create even class breaks based on your data</li>
           <li>Set the last break's maximum value to blank for "and above" classification</li>
-          <li>Values are automatically rounded based on their magnitude, but you can enter any value</li>
+          <li>Values are automatically rounded based on their magnitude for better readability</li>
+          <li>Changes are only saved when you click "Apply, Save & Close"</li>
         </ul>
       </div>
 
-      {/* Add padding at the bottom to prevent content from being hidden behind the fixed footer */}
+      {/* Bottom padding to prevent content being hidden behind fixed footer */}
       <div className="pb-20"></div>
       
-      {/* Fixed footer with action buttons */}
+      {/* Fixed Footer with Action Buttons */}
       <div className="fixed bottom-0 left-0 right-0 bg-gray-800 dark:bg-gray-900 py-3 px-4 border-t border-gray-700 shadow-lg z-10">
         <div className="container mx-auto max-w-screen-lg flex items-center justify-between">
+          {/* Unsaved Changes Indicator */}
           {hasUnsavedChanges && (
             <div className="flex items-center text-sm text-amber-400">
               <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -986,11 +1417,12 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
             </div>
           )}
           
+          {/* Action Buttons */}
           <div className="flex ml-auto space-x-3">
             <button
               onClick={cancelChanges}
               className="px-4 py-2 text-sm bg-transparent hover:bg-gray-700 text-white rounded border border-gray-600"
-              disabled={!hasUnsavedChanges}
+              disabled={!hasUnsavedChanges || isSaving}
             >
               Cancel
             </button>
@@ -998,17 +1430,34 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
             <button
               onClick={previewChanges}
               className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded"
-              disabled={!hasUnsavedChanges}
+              disabled={!hasUnsavedChanges || isSaving}
             >
               Preview
             </button>
             
             <button
               onClick={applyChanges}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded"
-              disabled={!hasUnsavedChanges}
+              className={`px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded flex items-center ${
+                isSaving ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+              disabled={!hasUnsavedChanges || isSaving}
             >
-              Apply Changes
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3 3m3-3V4" />
+                  </svg>
+                  Apply, Save & Close
+                </>
+              )}
             </button>
           </div>
         </div>

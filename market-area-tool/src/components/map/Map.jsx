@@ -4396,6 +4396,21 @@ export default function MapComponent({ onToggleLis }) {
                     activeVisOption.type === "dot-density");
                 const showEditButton = activeTab !== 1;
 
+                // Determine filter category based on visualization type
+                let filterCategory = null;
+                if (activeVisOption) {
+                  switch (activeVisOption.type) {
+                    case "class-breaks":
+                      filterCategory = "Heat Map";
+                      break;
+                    case "dot-density":
+                      filterCategory = "Dot Density Map";
+                      break;
+                    default:
+                      filterCategory = null;
+                  }
+                }
+
                 return (
                   <>
                     {showDropdowns && (
@@ -4411,9 +4426,9 @@ export default function MapComponent({ onToggleLis }) {
                             handleAreaTypeChange(activeTab, newAreaType);
                           }}
                           className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
-                                   bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
-                                   text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
-                                   focus:ring-blue-500 focus:border-blue-500"
+                                  bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+                                  text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
+                                  focus:ring-blue-500 focus:border-blue-500"
                         >
                           {areaTypes.map((type) => (
                             <option key={type.value} value={type.value}>
@@ -4428,9 +4443,18 @@ export default function MapComponent({ onToggleLis }) {
                           onChange={(newValue) =>
                             handleVisualizationChange(activeTab, newValue)
                           }
-                          placeholder="Select visualization"
-                          searchPlaceholder="Search visualizations..."
+                          placeholder={
+                            filterCategory 
+                              ? `Select ${filterCategory.toLowerCase()}`
+                              : "Select visualization"
+                          }
+                          searchPlaceholder={
+                            filterCategory
+                              ? `Search ${filterCategory.toLowerCase()}s...`
+                              : "Search visualizations..."
+                          }
                           className="w-56"
+                          filterCategory={filterCategory}
                         />
                       </>
                     )}
@@ -4459,143 +4483,6 @@ export default function MapComponent({ onToggleLis }) {
                 );
               })()}
 
-            {/* Save Button (Always visible) */}
-            <button
-              onClick={async () => {
-                if (
-                  labelManagerRef.current &&
-                  typeof labelManagerRef.current.savePositions === "function"
-                ) {
-                  try {
-                    await labelManagerRef.current.savePositions(true);
-                    console.log(
-                      "[Save Button] Label positions saved before saving map configs."
-                    );
-                  } catch (labelSaveError) {
-                    console.error(
-                      "Error saving label positions before map config save:",
-                      labelSaveError
-                    );
-                    alert(
-                      "Warning: Could not save label positions. Proceeding with map config save."
-                    );
-                  }
-                } else {
-                  console.warn(
-                    "[Save Button] Label manager not available to save positions."
-                  );
-                }
-                try {
-                  setIsSaving(true);
-                  const configurations = tabs
-                    .filter((tab) => tab.id !== 1)
-                    .map((tab, index) => ({
-                      project_id: projectId,
-                      project: projectId,
-                      tab_name: tab.name,
-                      visualization_type: tab.visualizationType || "",
-                      area_type: convertAreaTypeToString(
-                        tab.id === activeTab
-                          ? selectedAreaType.value
-                          : tab.areaType?.value
-                      ),
-                      layer_configuration: tab.layerConfiguration,
-                      order: index,
-                    }));
-
-                  const existingConfigsResponse =
-                    await mapConfigurationsAPI.getAll(projectId);
-                  const existingConfigs = existingConfigsResponse?.data;
-
-                  if (
-                    Array.isArray(existingConfigs) &&
-                    existingConfigs.length > 0
-                  ) {
-                    await Promise.all(
-                      existingConfigs.map((config) =>
-                        mapConfigurationsAPI
-                          .delete(config.id)
-                          .catch((err) =>
-                            console.error(
-                              `Failed to delete config ${config.id}:`,
-                              err
-                            )
-                          )
-                      )
-                    );
-                    console.log(
-                      `Deleted ${existingConfigs.length} existing configurations.`
-                    );
-                  }
-
-                  const createdConfigs = [];
-                  for (const config of configurations) {
-                    const response = await mapConfigurationsAPI.create(
-                      projectId,
-                      { ...config, project: projectId }
-                    );
-                    if (response.data && response.data.id) {
-                      createdConfigs.push({
-                        tabName: config.tab_name,
-                        configId: response.data.id,
-                        originalTabId: tabs.find(
-                          (t) => t.name === config.tab_name
-                        )?.id,
-                      });
-                    }
-                  }
-                  setTabs((prevTabs) =>
-                    prevTabs.map((t) => {
-                      const created = createdConfigs.find(
-                        (c) => c.originalTabId === t.id
-                      );
-                      return {
-                        ...t,
-                        configId: created ? created.configId : t.configId,
-                      };
-                    })
-                  );
-
-                  console.log(
-                    `Saved ${configurations.length} map configurations.`
-                  );
-                  alert("Map configurations saved successfully");
-                } catch (error) {
-                  console.error(
-                    "[Save] Error saving map configurations:",
-                    error.response?.data || error.message || error
-                  );
-                  alert(
-                    "Failed to save map configurations. Check console for details."
-                  );
-                } finally {
-                  setIsSaving(false);
-                }
-              }}
-              className={`p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400
-                          dark:hover:text-gray-300 focus:outline-none ${
-                            isSaving
-                              ? "opacity-50 cursor-not-allowed animate-pulse"
-                              : ""
-                          }`}
-              title="Save map configurations"
-              disabled={isSaving}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

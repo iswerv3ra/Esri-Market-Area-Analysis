@@ -3284,709 +3284,884 @@ export const initialLayerConfigurations = {
 
 // --- Visualization Options ---
 export const visualizationOptions = [
-    // Original Heat Map Options
-    {
-      value: "income_HEAT",
-      label: "Median Household Income (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "growth_HEAT",
-      label: "Household Growth Rate (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "affordability_HEAT",
-      label: "Housing Affordability Index (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "density_HEAT",
-      label: "Population Density (Heat)",
-      type: "class-breaks",
-    },
-    { value: "age_HEAT", label: "Median Age (Heat)", type: "class-breaks" },
-    {
-      value: "unemployment_HEAT",
-      label: "Unemployment Rate (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "homeValue_HEAT",
-      label: "Median Home Value (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Income Heat Maps
-    {
-      value: "MEDHINC_CY_HEAT",
-      label: "Median Household Income (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "AVGHINC_CY_HEAT",
-      label: "Average Household Income (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC0_CY_HEAT",
-      label: "Household Income < $15K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC15_CY_HEAT",
-      label: "Household Income $15K-$25K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC25_CY_HEAT",
-      label: "Household Income $25K-$35K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC35_CY_HEAT",
-      label: "Household Income $35K-$50K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC50_CY_HEAT",
-      label: "Household Income $50K-$75K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC75_CY_HEAT",
-      label: "Household Income $75K-$100K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC100_CY_HEAT",
-      label: "Household Income $100K-$150K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC150_CY_HEAT",
-      label: "Household Income $150K-$200K (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HINC200_CY_HEAT",
-      label: "Household Income $200K+ (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Dot Density Population Demographics
-    {
-      value: "TOTPOP_CY",
-      label: "Total Population 2024 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "TOTHH_CY",
-      label: "Total Households 2024 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "DPOP_CY",
-      label: "Daytime Population 2024 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "DPOPWRK_CY",
-      label: "Daytime Workers 2024 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "WORKAGE_CY",
-      label: "Working Age Population 18-64 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "SENIOR_CY",
-      label: "Senior Population 65+ (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "CHILD_CY",
-      label: "Child Population <18 (Dot)",
-      type: "dot-density",
-    },
-  
-    // Detailed Age Groups (Dot)
-    { value: "POP0_CY", label: "Population Age 0-4 (Dot)", type: "dot-density" },
-    { value: "POP5_CY", label: "Population Age 5-9 (Dot)", type: "dot-density" },
-    {
-      value: "POP10_CY",
-      label: "Population Age 10-14 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP15_CY",
-      label: "Population Age 15-19 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP20_CY",
-      label: "Population Age 20-24 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP25_CY",
-      label: "Population Age 25-29 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP30_CY",
-      label: "Population Age 30-34 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP35_CY",
-      label: "Population Age 35-39 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP40_CY",
-      label: "Population Age 40-44 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP45_CY",
-      label: "Population Age 45-49 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP50_CY",
-      label: "Population Age 50-54 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP55_CY",
-      label: "Population Age 55-59 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP60_CY",
-      label: "Population Age 60-64 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP65_CY",
-      label: "Population Age 65-69 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP70_CY",
-      label: "Population Age 70-74 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP75_CY",
-      label: "Population Age 75-79 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "POP80_CY",
-      label: "Population Age 80-84 (Dot)",
-      type: "dot-density",
-    },
-    { value: "POP85_CY", label: "Population Age 85+ (Dot)", type: "dot-density" },
-  
-    // Generations (Dot)
-    {
-      value: "GENALPHACY",
-      label: "Generation Alpha (Born 2017+) (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "GENZ_CY",
-      label: "Generation Z (Born 1999-2016) (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "MILLENN_CY",
-      label: "Millennials (Born 1981-1998) (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "GENX_CY",
-      label: "Generation X (Born 1965-1980) (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "BABYBOOMCY",
-      label: "Baby Boomers (Born 1946-1964) (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "OLDRGENSCY",
-      label: "Silent & Greatest Gens (Born pre-1946) (Dot)",
-      type: "dot-density",
-    },
-  
-    // Race and Ethnicity Percentages (Heat)
-    {
-      value: "hispanic_HEAT",
-      label: "Hispanic Population Percentage (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "diversity_HEAT",
-      label: "White Non-Hispanic Percentage (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "NHSPBLK_CY_PCT_HEAT",
-      label: "Black Non-Hispanic Percentage (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "NHSPASN_CY_PCT_HEAT",
-      label: "Asian Non-Hispanic Percentage (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Race and Ethnicity (Dot)
-    {
-      value: "HISPPOP_CY",
-      label: "Hispanic Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPWHT_CY",
-      label: "White Non-Hispanic Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPBLK_CY",
-      label: "Black Non-Hispanic Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPASN_CY",
-      label: "Asian Non-Hispanic Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPAI_CY",
-      label: "American Indian/Alaska Native Non-Hispanic (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPPI_CY",
-      label: "Pacific Islander Non-Hispanic (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPOTH_CY",
-      label: "Other Race Non-Hispanic (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "NHSPMLT_CY",
-      label: "Multiple Races Non-Hispanic (Dot)",
-      type: "dot-density",
-    },
-  
-    // Education (Dot)
-    {
-      value: "NOHS_CY",
-      label: "Less than 9th Grade Education (Dot)",
-      type: "dot-density",
-    },
-    { value: "SOMEHS_CY", label: "Some High School (Dot)", type: "dot-density" },
-    {
-      value: "HSGRAD_CY",
-      label: "High School Graduates (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "GED_CY",
-      label: "GED/Alternative Credential (Dot)",
-      type: "dot-density",
-    },
-    { value: "SMCOLL_CY", label: "Some College (Dot)", type: "dot-density" },
-    {
-      value: "ASSCDEG_CY",
-      label: "Associate's Degree (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "BACHDEG_CY",
-      label: "Bachelor's Degree (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "GRADDEG_CY",
-      label: "Graduate/Professional Degree (Dot)",
-      type: "dot-density",
-    },
-  
-    // Education Percentages (Heat)
-    {
-      value: "HSGRAD_LESS_CY_PCT_HEAT",
-      label: "Less than High School Percentage (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "BACHDEG_PLUS_CY_PCT_HEAT",
-      label: "Bachelor's Degree or Higher Percentage (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Home Values (Dot)
-    {
-      value: "VAL0_CY",
-      label: "Home Value < $50,000 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL50K_CY",
-      label: "Home Value $50K-$99,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL100K_CY",
-      label: "Home Value $100K-$149,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL150K_CY",
-      label: "Home Value $150K-$199,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL200K_CY",
-      label: "Home Value $200K-$249,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL250K_CY",
-      label: "Home Value $250K-$299,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL300K_CY",
-      label: "Home Value $300K-$399,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL400K_CY",
-      label: "Home Value $400K-$499,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL500K_CY",
-      label: "Home Value $500K-$749,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL750K_CY",
-      label: "Home Value $750K-$999,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL1M_CY",
-      label: "Home Value $1M-$1.5M (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VAL1PT5MCY",
-      label: "Home Value $1.5M-$2M (Dot)",
-      type: "dot-density",
-    },
-    { value: "VAL2M_CY", label: "Home Value $2M+ (Dot)", type: "dot-density" },
-  
-    // Home Values (Heat)
-    {
-      value: "MEDVAL_CY_HEAT",
-      label: "Median Home Value (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "AVGVAL_CY_HEAT",
-      label: "Average Home Value (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Housing (Dot)
-    {
-      value: "OWNER_CY",
-      label: "Owner Occupied Housing Units (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "RENTER_CY",
-      label: "Renter Occupied Housing Units (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "TOTHU_CY",
-      label: "Total Housing Units (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "VACANT_CY",
-      label: "Vacant Housing Units (Dot)",
-      type: "dot-density",
-    },
-  
-    // Housing (Heat)
-    {
-      value: "PCTHOMEOWNER_HEAT",
-      label: "Homeownership Rate (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "VACANT_CY_PCT_HEAT",
-      label: "Vacancy Rate (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Income Brackets (Dot)
-    {
-      value: "HINC0_CY",
-      label: "Households < $15,000 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC15_CY",
-      label: "Households $15,000-$24,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC25_CY",
-      label: "Households $25,000-$34,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC35_CY",
-      label: "Households $35,000-$49,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC50_CY",
-      label: "Households $50,000-$74,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC75_CY",
-      label: "Households $75,000-$99,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC100_CY",
-      label: "Households $100,000-$149,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC150_CY",
-      label: "Households $150,000-$199,999 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "HINC200_CY",
-      label: "Households $200,000+ (Dot)",
-      type: "dot-density",
-    },
-  
-    // Additional Metrics
-    {
-      value: "POPGRWCYFY_HEAT",
-      label: "Population Growth Rate 2024-2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HHGRWCYFY_HEAT",
-      label: "Household Growth Rate 2024-2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "MHIGRWCYFY_HEAT",
-      label: "Median Household Income Growth Rate 2024-2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "POPGRW20CY",
-      label: "Population Growth Rate 2020-2024 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HHGRW20CY_HEAT",
-      label: "Household Growth Rate 2020-2024 (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Economic Indicators (Heat)
-    {
-      value: "UNEMPRT_CY_HEAT",
-      label: "Unemployment Rate (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "HAI_CY_HEAT",
-      label: "Housing Affordability Index (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "INCMORT_CY_HEAT",
-      label: "Percent of Income for Mortgage (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "WLTHINDXCY_HEAT",
-      label: "Wealth Index (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "SEI_CY_HEAT",
-      label: "Socioeconomic Status Index (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "PCI_CY_HEAT",
-      label: "Per Capita Income (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Future Projections (Heat)
-    {
-      value: "TOTPOP_FY_HEAT",
-      label: "Projected Total Population 2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "TOTHH_FY_HEAT",
-      label: "Projected Total Households 2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "MEDHINC_FY_HEAT",
-      label: "Projected Median Household Income 2029 (Heat)",
-      type: "class-breaks",
-    },
-    {
-      value: "POPDENS_FY_HEAT",
-      label: "Projected Population Density 2029 (Heat)",
-      type: "class-breaks",
-    },
-  
-    // Demographic Composition (Dot)
-    { value: "MALES_CY", label: "Male Population (Dot)", type: "dot-density" },
-    {
-      value: "FEMALES_CY",
-      label: "Female Population (Dot)",
-      type: "dot-density",
-    },
-  
-    // Advanced Demographic Categories (Dot)
-    {
-      value: "EMPAGE16CY",
-      label: "Employed Population Age 16-24 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPAGE25CY",
-      label: "Employed Population Age 25-54 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPAGE55CY",
-      label: "Employed Population Age 55-64 (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPAGE65CY",
-      label: "Employed Population 65+ (Dot)",
-      type: "dot-density",
-    },
-  
-    // Employment and Labor (Dot)
-    { value: "EMP_CY", label: "Employed Population (Dot)", type: "dot-density" },
-    {
-      value: "UNEMP_CY",
-      label: "Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "CIVLBFR_CY",
-      label: "Civilian Labor Force (Dot)",
-      type: "dot-density",
-    },
-  
-    // Detailed Race and Employment (Dot)
-    {
-      value: "EMPWHTCY",
-      label: "White Employed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPBLKCY",
-      label: "Black Employed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPASNCY",
-      label: "Asian Employed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPAICY",
-      label: "American Indian/Alaska Native Employed (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPPICY",
-      label: "Pacific Islander Employed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPOTHCY",
-      label: "Other Race Employed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "EMPMLTCY",
-      label: "Multiple Races Employed Population (Dot)",
-      type: "dot-density",
-    },
-  
-    // Unemployed by Race (Dot)
-    {
-      value: "UNWHTCY",
-      label: "White Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNBLKCY",
-      label: "Black Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNASNCY",
-      label: "Asian Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNAICY",
-      label: "American Indian/Alaska Native Unemployed (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNPICY",
-      label: "Pacific Islander Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNOTHCY",
-      label: "Other Race Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-    {
-      value: "UNMLTCY",
-      label: "Multiple Races Unemployed Population (Dot)",
-      type: "dot-density",
-    },
-  ];
+  // Original Heat Map Options
+  {
+    value: "income_HEAT",
+    label: "Median Household Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "growth_HEAT",
+    label: "Household Growth Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "affordability_HEAT",
+    label: "Housing Affordability Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "density_HEAT",
+    label: "Population Density",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "age_HEAT",
+    label: "Median Age",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "unemployment_HEAT",
+    label: "Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "homeValue_HEAT",
+    label: "Median Home Value",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Income Heat Maps
+  {
+    value: "MEDHINC_CY_HEAT",
+    label: "Median Household Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "AVGHINC_CY_HEAT",
+    label: "Average Household Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC0_CY_HEAT",
+    label: "Household Income < $15K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC15_CY_HEAT",
+    label: "Household Income $15K-$25K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC25_CY_HEAT",
+    label: "Household Income $25K-$35K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC35_CY_HEAT",
+    label: "Household Income $35K-$50K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC50_CY_HEAT",
+    label: "Household Income $50K-$75K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC75_CY_HEAT",
+    label: "Household Income $75K-$100K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC100_CY_HEAT",
+    label: "Household Income $100K-$150K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC150_CY_HEAT",
+    label: "Household Income $150K-$200K",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HINC200_CY_HEAT",
+    label: "Household Income $200K+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Dot Density Population Demographics
+  {
+    value: "TOTPOP_CY",
+    label: "Total Population 2024",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "TOTHH_CY",
+    label: "Total Households 2024",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOP_CY",
+    label: "Daytime Population 2024",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOPWRK_CY",
+    label: "Daytime Workers 2024",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "WORKAGE_CY",
+    label: "Working Age Population 18-64",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SENIOR_CY",
+    label: "Senior Population 65+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CHILD_CY",
+    label: "Child Population <18",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Detailed Age Groups
+  {
+    value: "POP0_CY",
+    label: "Population Age 0-4",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP5_CY",
+    label: "Population Age 5-9",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP10_CY",
+    label: "Population Age 10-14",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP15_CY",
+    label: "Population Age 15-19",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP20_CY",
+    label: "Population Age 20-24",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP25_CY",
+    label: "Population Age 25-29",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP30_CY",
+    label: "Population Age 30-34",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP35_CY",
+    label: "Population Age 35-39",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP40_CY",
+    label: "Population Age 40-44",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP45_CY",
+    label: "Population Age 45-49",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP50_CY",
+    label: "Population Age 50-54",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP55_CY",
+    label: "Population Age 55-59",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP60_CY",
+    label: "Population Age 60-64",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP65_CY",
+    label: "Population Age 65-69",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP70_CY",
+    label: "Population Age 70-74",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP75_CY",
+    label: "Population Age 75-79",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP80_CY",
+    label: "Population Age 80-84",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "POP85_CY",
+    label: "Population Age 85+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Generations
+  {
+    value: "GENALPHACY",
+    label: "Generation Alpha (Born 2017+)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "GENZ_CY",
+    label: "Generation Z (Born 1999-2016)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MILLENN_CY",
+    label: "Millennials (Born 1981-1998)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "GENX_CY",
+    label: "Generation X (Born 1965-1980)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "BABYBOOMCY",
+    label: "Baby Boomers (Born 1946-1964)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "OLDRGENSCY",
+    label: "Silent & Greatest Gens (Born pre-1946)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Race and Ethnicity Percentages
+  {
+    value: "hispanic_HEAT",
+    label: "Hispanic Population Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "diversity_HEAT",
+    label: "White Non-Hispanic Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPBLK_CY_PCT_HEAT",
+    label: "Black Non-Hispanic Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPASN_CY_PCT_HEAT",
+    label: "Asian Non-Hispanic Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Race and Ethnicity
+  {
+    value: "HISPPOP_CY",
+    label: "Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPWHT_CY",
+    label: "White Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPBLK_CY",
+    label: "Black Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPASN_CY",
+    label: "Asian Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPAI_CY",
+    label: "American Indian/Alaska Native Non-Hispanic",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPPI_CY",
+    label: "Pacific Islander Non-Hispanic",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPOTH_CY",
+    label: "Other Race Non-Hispanic",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPMLT_CY",
+    label: "Multiple Races Non-Hispanic",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Education
+  {
+    value: "NOHS_CY",
+    label: "Less than 9th Grade Education",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SOMEHS_CY",
+    label: "Some High School",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HSGRAD_CY",
+    label: "High School Graduates",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "GED_CY",
+    label: "GED/Alternative Credential",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SMCOLL_CY",
+    label: "Some College",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "ASSCDEG_CY",
+    label: "Associate's Degree",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "BACHDEG_CY",
+    label: "Bachelor's Degree",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "GRADDEG_CY",
+    label: "Graduate/Professional Degree",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Education Percentages
+  {
+    value: "HSGRAD_LESS_CY_PCT_HEAT",
+    label: "Less than High School Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "BACHDEG_PLUS_CY_PCT_HEAT",
+    label: "Bachelor's Degree or Higher Percentage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Home Values
+  {
+    value: "VAL0_CY",
+    label: "Home Value < $50,000",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL50K_CY",
+    label: "Home Value $50K-$99,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL100K_CY",
+    label: "Home Value $100K-$149,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL150K_CY",
+    label: "Home Value $150K-$199,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL200K_CY",
+    label: "Home Value $200K-$249,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL250K_CY",
+    label: "Home Value $250K-$299,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL300K_CY",
+    label: "Home Value $300K-$399,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL400K_CY",
+    label: "Home Value $400K-$499,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL500K_CY",
+    label: "Home Value $500K-$749,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL750K_CY",
+    label: "Home Value $750K-$999,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL1M_CY",
+    label: "Home Value $1M-$1.5M",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL1PT5MCY",
+    label: "Home Value $1.5M-$2M",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL2M_CY",
+    label: "Home Value $2M+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Home Values
+  {
+    value: "MEDVAL_CY_HEAT",
+    label: "Median Home Value",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "AVGVAL_CY_HEAT",
+    label: "Average Home Value",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Housing
+  {
+    value: "OWNER_CY",
+    label: "Owner Occupied Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RENTER_CY",
+    label: "Renter Occupied Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "TOTHU_CY",
+    label: "Total Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VACANT_CY",
+    label: "Vacant Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Housing
+  {
+    value: "PCTHOMEOWNER_HEAT",
+    label: "Homeownership Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VACANT_CY_PCT_HEAT",
+    label: "Vacancy Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Income Brackets
+  {
+    value: "HINC0_CY",
+    label: "Households < $15,000",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC15_CY",
+    label: "Households $15,000-$24,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC25_CY",
+    label: "Households $25,000-$34,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC35_CY",
+    label: "Households $35,000-$49,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC50_CY",
+    label: "Households $50,000-$74,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC75_CY",
+    label: "Households $75,000-$99,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC100_CY",
+    label: "Households $100,000-$149,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC150_CY",
+    label: "Households $150,000-$199,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HINC200_CY",
+    label: "Households $200,000+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Additional Metrics
+  {
+    value: "POPGRWCYFY_HEAT",
+    label: "Population Growth Rate 2024-2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HHGRWCYFY_HEAT",
+    label: "Household Growth Rate 2024-2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MHIGRWCYFY_HEAT",
+    label: "Median Household Income Growth Rate 2024-2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "POPGRW20CY",
+    label: "Population Growth Rate 2020-2024",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HHGRW20CY_HEAT",
+    label: "Household Growth Rate 2020-2024",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Economic Indicators
+  {
+    value: "UNEMPRT_CY_HEAT",
+    label: "Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HAI_CY_HEAT",
+    label: "Housing Affordability Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "INCMORT_CY_HEAT",
+    label: "Percent of Income for Mortgage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "WLTHINDXCY_HEAT",
+    label: "Wealth Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SEI_CY_HEAT",
+    label: "Socioeconomic Status Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "PCI_CY_HEAT",
+    label: "Per Capita Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Future Projections
+  {
+    value: "TOTPOP_FY_HEAT",
+    label: "Projected Total Population 2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "TOTHH_FY_HEAT",
+    label: "Projected Total Households 2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MEDHINC_FY_HEAT",
+    label: "Projected Median Household Income 2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "POPDENS_FY_HEAT",
+    label: "Projected Population Density 2029",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Demographic Composition
+  {
+    value: "MALES_CY",
+    label: "Male Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "FEMALES_CY",
+    label: "Female Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Advanced Demographic Categories
+  {
+    value: "EMPAGE16CY",
+    label: "Employed Population Age 16-24",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE25CY",
+    label: "Employed Population Age 25-54",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE55CY",
+    label: "Employed Population Age 55-64",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE65CY",
+    label: "Employed Population 65+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Employment and Labor
+  {
+    value: "EMP_CY",
+    label: "Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNEMP_CY",
+    label: "Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLBFR_CY",
+    label: "Civilian Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Detailed Race and Employment
+  {
+    value: "EMPWHTCY",
+    label: "White Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPBLKCY",
+    label: "Black Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPASNCY",
+    label: "Asian Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAICY",
+    label: "American Indian/Alaska Native Employed",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPPICY",
+    label: "Pacific Islander Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPOTHCY",
+    label: "Other Race Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPMLTCY",
+    label: "Multiple Races Employed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+
+  // Unemployed by Race
+  {
+    value: "UNWHTCY",
+    label: "White Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNBLKCY",
+    label: "Black Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNASNCY",
+    label: "Asian Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNAICY",
+    label: "American Indian/Alaska Native Unemployed",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNPICY",
+    label: "Pacific Islander Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNOTHCY",
+    label: "Other Race Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNMLTCY",
+    label: "Multiple Races Unemployed Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+];
 
 // --- Area Types ---
 export const areaTypes = [
