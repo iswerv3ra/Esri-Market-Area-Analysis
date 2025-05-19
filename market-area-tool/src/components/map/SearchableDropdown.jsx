@@ -7,21 +7,45 @@ const SearchableDropdown = ({
   onChange, 
   placeholder = "Select an option",
   searchPlaceholder = "Search...",
-  className = "" 
+  className = "",
+  filterCategory = null // New prop for category filtering
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Find the selected option label
+  // First filter by category if provided, then by search term
+  const getFilteredOptions = () => {
+    let filtered = options;
+    
+    // Filter by category first (e.g., "Heat", "Dot Density")
+    if (filterCategory) {
+      filtered = options.filter(option => {
+        // Handle case-insensitive matching for category
+        const optionCategory = option.category?.toLowerCase();
+        const searchCategory = filterCategory.toLowerCase();
+        
+        // Support partial matching for categories like "Heat Map" matching "Heat"
+        return optionCategory && optionCategory.includes(searchCategory);
+      });
+    }
+    
+    // Then filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(option => 
+        option.label.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  };
+
+  const filteredOptions = getFilteredOptions();
+
+  // Find the selected option label from all options (not just filtered ones)
   const selectedOption = options.find(option => option.value === value);
   
-  // Filter options based on search term
-  const filteredOptions = options.filter(option => 
-    option.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -43,6 +67,19 @@ const SearchableDropdown = ({
     }
   }, [isOpen]);
 
+  // Reset search term when filter category changes
+  useEffect(() => {
+    setSearchTerm('');
+    // Close dropdown if currently selected option doesn't match new category
+    if (filterCategory && selectedOption && selectedOption.category) {
+      const optionCategory = selectedOption.category.toLowerCase();
+      const searchCategory = filterCategory.toLowerCase();
+      if (!optionCategory.includes(searchCategory)) {
+        setIsOpen(false);
+      }
+    }
+  }, [filterCategory, selectedOption]);
+
   const handleSelect = (option) => {
     onChange(option.value);
     setIsOpen(false);
@@ -58,6 +95,7 @@ const SearchableDropdown = ({
 
   // For debugging
   console.log('Dropdown is open:', isOpen);
+  console.log('Filter category:', filterCategory);
   console.log('Filtered options:', filteredOptions);
 
   return (
@@ -112,6 +150,13 @@ const SearchableDropdown = ({
             />
           </div>
           
+          {/* Category filter indicator */}
+          {filterCategory && (
+            <div className="px-4 py-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
+              Showing {filterCategory} options only
+            </div>
+          )}
+          
           {/* Options list */}
           <div className="py-1">
             {filteredOptions.length > 0 ? (
@@ -122,12 +167,19 @@ const SearchableDropdown = ({
                   className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 
                     ${option.value === value ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}
                 >
-                  {option.label}
+                  <div className="flex items-center justify-between">
+                    <span>{option.label}</span>
+                    {option.category && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">
+                        {option.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (
               <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                No results found
+                {filterCategory ? `No ${filterCategory} options found` : 'No results found'}
               </div>
             )}
           </div>
@@ -142,6 +194,7 @@ SearchableDropdown.propTypes = {
     PropTypes.shape({
       value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
       label: PropTypes.string.isRequired,
+      category: PropTypes.string, // New optional category field
     })
   ).isRequired,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -149,6 +202,7 @@ SearchableDropdown.propTypes = {
   placeholder: PropTypes.string,
   searchPlaceholder: PropTypes.string,
   className: PropTypes.string,
+  filterCategory: PropTypes.string, // New prop for filtering by category
 };
 
 export default SearchableDropdown;

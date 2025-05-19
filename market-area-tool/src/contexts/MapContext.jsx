@@ -590,6 +590,8 @@ const hexToRgb = (hex) => {
     : [0, 0, 0];
 };
 
+
+
 export const useMap = () => {
   const context = useContext(MapContext);
   if (!context) throw new Error("useMap must be used within a MapProvider");
@@ -607,6 +609,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
   const [visibleMarketAreaIds, setVisibleMarketAreaIds] = useState([]);
   const [selectedMarketArea, setSelectedMarketArea] = useState(null);
   const [editingMarketArea, setEditingMarketArea] = useState(null);
+  const STAR_SVG_PATH = "M 0 -10 L 2.939 -4.045 L 9.511 -3.09 L 4.755 1.18 L 5.878 8.09 L 0 5 L -5.878 8.09 L -4.755 1.18 L -9.511 -3.09 L -2.939 -4.045 Z";
 
   // Move hideAllFeatureLayers here, at component body level
   const hideAllFeatureLayers = useCallback(() => {
@@ -2648,21 +2651,253 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
     }
   }, []);
 
+
+  const drawSiteLocation = useCallback(async (siteData, styleSettings, marketAreaId, order, isTemporary = false) => {
+    console.log("[MapContext] Drawing site location (star):", { 
+        id: marketAreaId, 
+        point: siteData.point, 
+        size: siteData.size, 
+        color: siteData.color,
+        borderColor: siteData.borderColor || styleSettings?.borderColor,
+        borderWidth: siteData.borderWidth || styleSettings?.borderWidth
+    });
+
+    try {
+        // Dynamically import necessary ArcGIS modules
+        const { default: Point } = await import("@arcgis/core/geometry/Point");
+        const { default: Graphic } = await import("@arcgis/core/Graphic");
+        const { default: SimpleMarkerSymbol } = await import("@arcgis/core/symbols/SimpleMarkerSymbol");
+        const { default: Color } = await import("@arcgis/core/Color");
+
+        // Check if the graphics layer is ready
+        if (!selectionGraphicsLayerRef.current) {
+            console.warn("[MapContext] Selection graphics layer not yet initialized. Cannot draw site location.");
+            return null;
+        }
+
+        // Clear existing site location graphics for THIS market area specifically
+        const existingSiteLocationGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+          (g) => g.attributes?.FEATURE_TYPE === "site_location" &&
+                 g.attributes?.marketAreaId === marketAreaId
+        );
+
+        if (existingSiteLocationGraphics.length > 0) {
+            console.log(`[MapContext] Removing ${existingSiteLocationGraphics.length} existing site location graphics for ${marketAreaId}`);
+            selectionGraphicsLayerRef.current.removeMany(existingSiteLocationGraphics);
+        }
+
+        // Validate siteData and coordinates
+        if (!siteData || !siteData.point || isNaN(parseFloat(siteData.point.latitude)) || isNaN(parseFloat(siteData.point.longitude))) {
+            console.error("[MapContext] Invalid site location data or coordinates:", siteData);
+            return null;
+        }
+
+        // Create point geometry
+        const point = new Point({
+            longitude: parseFloat(siteData.point.longitude),
+            latitude: parseFloat(siteData.point.latitude),
+            spatialReference: { wkid: 4326 } // Assume WGS 84
+        });
+
+        // Process the border color - handle various formats
+        let borderColorValue;
+        if (siteData.borderColor) {
+            // If it's a hex color string
+            if (typeof siteData.borderColor === 'string' && siteData.borderColor.startsWith('#')) {
+                borderColorValue = new Color(siteData.borderColor);
+            } 
+            // If it's an RGB array
+            else if (Array.isArray(siteData.borderColor)) {
+                borderColorValue = new Color(siteData.borderColor);
+            }
+            // Default border color
+            else {
+                borderColorValue = new Color(styleSettings?.borderColor || "#000000");
+            }
+        } else {
+            borderColorValue = new Color(styleSettings?.borderColor || "#000000");
+        }
+
+        // Process border width - ensure it's a number
+        const borderWidth = parseFloat(siteData.borderWidth) || 
+                           parseFloat(styleSettings?.borderWidth) || 1.5;
+
+        // --- Create the STAR symbol using SVG path with dynamic border properties ---
+        const symbol = new SimpleMarkerSymbol({
+            style: "path",
+            path: STAR_SVG_PATH,
+            color: new Color(siteData.color || styleSettings?.fillColor || "#FFC000"),
+            size: parseInt(siteData.size) || 24,
+            outline: {
+                color: borderColorValue,
+                width: borderWidth
+            }
+        });
+
+        const graphic = new Graphic({
+            geometry: point,
+            symbol: symbol,
+            attributes: {
+                marketAreaId: marketAreaId || "temporary",
+                order: order || 0,
+                FEATURE_TYPE: "site_location",
+                isTemporary: !!isTemporary,
+                siteName: siteData.name || `Site ${marketAreaId || 'Temp'}`,
+                siteSize: siteData.size,
+                siteColor: siteData.color,
+                siteBorderColor: siteData.borderColor,
+                siteBorderWidth: siteData.borderWidth
+            }
+        });
+
+        // IMPORTANT: Remove *any existing* temporary graphic before adding a new one
+        if (isTemporary) {
+            const tempGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+                g => g.attributes?.isTemporary === true && 
+                     g.attributes?.FEATURE_TYPE === 'site_location'
+            );
+            if (tempGraphics.length > 0) {
+                selectionGraphicsLayerRef.current.removeMany(tempGraphics);
+            }
+        }
+        
+        selectionGraphicsLayerRef.current.add(graphic);
+        console.log("[MapContext] Successfully drew site location (star) for market area", marketAreaId);
+        return graphic;
+
+    } catch (error) {
+        console.error("[MapContext] Error drawing site location (star):", error);
+        return null;
+    }
+}, [selectionGraphicsLayerRef]);
+
+  const extractSiteLocationInfo = useCallback((marketArea) => {
+    if (!marketArea) return null;
+  
+    try {
+      // Case 1: Direct site_location_data property
+      if (marketArea.site_location_data) {
+        let siteData;
+  
+        // Parse if it's a string
+        if (typeof marketArea.site_location_data === 'string') {
+          try {
+            siteData = JSON.parse(marketArea.site_location_data);
+          } catch (e) {
+            console.warn(`Failed to parse site_location_data for market area ${marketArea.id}:`, e);
+            return null;
+          }
+        } else {
+          siteData = marketArea.site_location_data;
+        }
+  
+        // Ensure it has the required structure
+        if (!siteData.point) {
+          console.warn(`Invalid site location data for market area ${marketArea.id}: missing point`);
+          return null;
+        }
+  
+        return {
+          point: siteData.point,
+          size: siteData.size || 20,
+          color: siteData.color || "#FFD700", // Default: gold color
+          style: siteData.style || marketArea.style || null
+        };
+      }
+  
+      // Case 2: Check for ma_geometry_data
+      else if (marketArea.ma_geometry_data) {
+        let geoData;
+  
+        // Parse if it's a string
+        if (typeof marketArea.ma_geometry_data === 'string') {
+          try {
+            geoData = JSON.parse(marketArea.ma_geometry_data);
+          } catch (e) {
+            console.warn(`Failed to parse ma_geometry_data for market area ${marketArea.id}:`, e);
+            return null;
+          }
+        } else {
+          geoData = marketArea.ma_geometry_data;
+        }
+  
+        // Check if it contains site location information
+        if (geoData.point) {
+          return {
+            point: geoData.point,
+            size: geoData.size || 20,
+            color: geoData.color || "#FFD700",
+            style: geoData.style || marketArea.style || null
+          };
+        }
+      }
+  
+      // Case 3: Check for geometry property that might contain coordinates
+      else if (marketArea.geometry) {
+        // Try to extract a point from geometry
+        const geo = marketArea.geometry;
+  
+        if (geo.x !== undefined && geo.y !== undefined) {
+          // Web Mercator or similar coordinates
+          return {
+            point: {
+              x: geo.x,
+              y: geo.y,
+              spatialReference: geo.spatialReference
+            },
+            size: 20, // Default size
+            color: "#FFD700", // Default color
+            style: marketArea.style || null
+          };
+        }
+        else if (geo.longitude !== undefined && geo.latitude !== undefined) {
+          // Geographic coordinates
+          return {
+            point: {
+              longitude: geo.longitude,
+              latitude: geo.latitude,
+              spatialReference: geo.spatialReference
+            },
+            size: 20, // Default size
+            color: "#FFD700", // Default color 
+            style: marketArea.style || null
+          };
+        }
+      }
+  
+      // Case 4: Last resort - create a default site location in a reasonable location
+      console.warn(`No valid site location data found for market area ${marketArea.id}, using default`);
+      return {
+        point: {
+          longitude: -117.8311, // Orange County location
+          latitude: 33.7175
+        },
+        size: 20, // Default size
+        color: "#FFD700", // Default color
+        style: marketArea.style || null
+      };
+  
+    } catch (error) {
+      console.error(`Error extracting site location info for market area ${marketArea.id}:`, error);
+      return null;
+    }
+  }, []);
+
   const clearMarketAreaGraphics = useCallback((marketAreaId) => {
     console.log("[MapContext] Clear graphics called:", { marketAreaId });
-
+  
     if (!selectionGraphicsLayerRef.current) {
       console.log("[MapContext] No graphics layer available");
       return;
     }
-
+  
     try {
       // Get all graphics from the layer
       const allGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
-
+  
       // If no marketAreaId, clear all market area graphics
       let graphicsToRemove;
-
+  
       if (!marketAreaId) {
         // When no specific ID is provided, remove all market area graphics
         console.log("[MapContext] Clearing ALL market area graphics");
@@ -2670,7 +2905,8 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           graphic.attributes?.marketAreaId ||
           graphic.attributes?.FEATURE_TYPE === 'radius' ||
           graphic.attributes?.FEATURE_TYPE === 'drivetime' ||
-          graphic.attributes?.FEATURE_TYPE === 'drivetime_point'
+          graphic.attributes?.FEATURE_TYPE === 'drivetime_point' ||
+          graphic.attributes?.FEATURE_TYPE === 'site_location'
         );
       } else {
         // Enhanced filtering to ensure we catch all graphics related to this market area
@@ -2679,26 +2915,30 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           return (
             // Direct match on marketAreaId
             (graphic.attributes?.marketAreaId === marketAreaId) ||
-
+  
             // Match radius circle IDs that start with this market area ID
             (graphic.attributes?.circleId &&
               graphic.attributes.circleId.startsWith(`${marketAreaId}-`)) ||
-
+  
             // Match any drivetime feature with this market area ID
             (graphic.attributes?.FEATURE_TYPE === 'drivetime' &&
               graphic.attributes?.marketAreaId === marketAreaId) ||
-
+  
             // Match any drivetime_point feature with this market area ID
             (graphic.attributes?.FEATURE_TYPE === 'drivetime_point' &&
               graphic.attributes?.marketAreaId === marketAreaId) ||
-
+              
+            // Match any site_location feature with this market area ID
+            (graphic.attributes?.FEATURE_TYPE === 'site_location' &&
+              graphic.attributes?.marketAreaId === marketAreaId) ||
+  
             // Additional matching to catch any edge cases for this market area
             ((graphic.attributes?.order !== undefined) &&
               (graphic.attributes?.id && String(graphic.attributes.id).includes(marketAreaId)))
           );
         });
       }
-
+  
       if (graphicsToRemove.length > 0) {
         console.log(`[MapContext] Removing ${graphicsToRemove.length} graphics for market area ${marketAreaId || 'ALL'}:`, {
           details: graphicsToRemove.map(g => ({
@@ -2707,13 +2947,13 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             circleId: g.attributes?.circleId
           }))
         });
-
+  
         // Remove them all at once
         selectionGraphicsLayerRef.current.removeMany(graphicsToRemove);
       } else {
         console.log(`[MapContext] No graphics found for market area: ${marketAreaId || 'ALL'}`);
       }
-
+  
       return true;
     } catch (error) {
       console.error("[MapContext] Error clearing graphics:", error);
@@ -2836,6 +3076,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       return null;
     }
   }, []);
+
 
   // Use this function in your useEffect to handle drive time points more robustly
   const processDriveTimePoints = useCallback(async (marketArea) => {
@@ -3425,7 +3666,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
   const toggleMarketAreaEditMode = useCallback(
     async (marketAreaId) => {
       if (!marketAreaId || !selectionGraphicsLayerRef.current) return;
-
+  
       try {
         // Find the market area being edited
         const marketArea = marketAreas.find((ma) => ma.id === marketAreaId);
@@ -3433,20 +3674,20 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           console.warn(`Market area ${marketAreaId} not found`);
           return;
         }
-
+  
         // Clear existing selections and graphics
         clearSelection();
         clearMarketAreaGraphics();
-
+  
         // Set the editing state
         setEditingMarketArea(marketArea);
-
+  
         // Different handling based on market area type
         if (marketArea.ma_type === 'radius' && marketArea.radius_points) {
           const points = Array.isArray(marketArea.radius_points)
             ? marketArea.radius_points
             : [marketArea.radius_points];
-
+  
           for (const point of points) {
             const transformedPoint = transformRadiusPoint(point, marketAreaId);
             if (transformedPoint) {
@@ -3463,7 +3704,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           const points = Array.isArray(marketArea.drive_time_points)
             ? marketArea.drive_time_points
             : [marketArea.drive_time_points];
-
+  
           for (const point of points) {
             const transformedPoint = transformDriveTimePoint(point, marketAreaId);
             if (transformedPoint) {
@@ -3476,6 +3717,20 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             }
           }
         }
+        else if (marketArea.ma_type === 'site_location') {
+          // Handle site location market area type
+          const siteData = extractSiteLocationInfo(marketArea);
+          if (siteData) {
+            await drawSiteLocation(
+              siteData,
+              marketArea.style_settings,
+              marketAreaId,
+              marketArea.order
+            );
+          } else {
+            console.warn(`Site location market area ${marketAreaId} has no valid site data`);
+          }
+        }
         else if (marketArea.locations) {
           const features = marketArea.locations.map((loc) => ({
             geometry: loc.geometry,
@@ -3485,7 +3740,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               order: marketArea.order,
             },
           }));
-
+  
           await updateFeatureStyles(
             features,
             {
@@ -3497,7 +3752,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             marketArea.ma_type
           );
         }
-
+  
         console.log("[MapContext] Market area edit mode toggled", {
           marketAreaId,
           marketAreaType: marketArea.ma_type,
@@ -3513,30 +3768,513 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       clearMarketAreaGraphics,
       drawRadius,
       drawDriveTimePolygon,
+      drawSiteLocation,
       updateFeatureStyles,
       transformRadiusPoint,
       transformDriveTimePoint,
+      extractSiteLocationInfo,
     ]
   );
 
 
-  const createPipeLayer = (config) => {
-    console.log("Placeholder: Creating Pipe Layer GraphicsLayer", config);
-    return new GraphicsLayer({
-      title: config?.title || "Pipe Map Layer",
-      listMode: "show", // Or hide, depending on desired behavior
-      graphics: [] // Start empty
+  /**
+   * Enhanced createCompLayer function
+   * Creates a GraphicsLayer for comp visualization with improved label support
+   * 
+   * @param {Object} config - Configuration options
+   * @returns {GraphicsLayer} GraphicsLayer with points and labels
+   */
+  const createCompLayer = async (config) => {
+    console.log("[createCompLayer] Received config:", JSON.stringify(config, (k, v) => 
+      k === "data" ? `[${v?.length} items]` : v));
+
+    // Ensure we have the required modules
+    const [
+      { default: GraphicsLayer },
+      { default: Graphic },
+      { default: Point },
+      { default: SimpleMarkerSymbol },
+      { default: TextSymbol },
+      { default: Color },
+      { default: PopupTemplate }
+    ] = await Promise.all([
+      import("@arcgis/core/layers/GraphicsLayer"),
+      import("@arcgis/core/Graphic"),
+      import("@arcgis/core/geometry/Point"),
+      import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+      import("@arcgis/core/symbols/TextSymbol"),
+      import("@arcgis/core/Color"),
+      import("@arcgis/core/PopupTemplate")
+    ]);
+
+    // Extract data from config
+    const compData = config?.customData?.data || [];
+    if (!Array.isArray(compData) || compData.length === 0) {
+      console.warn("[createCompLayer] No comp data provided");
+      return null;
+    }
+
+    // Determine column names
+    const latColumn = config?.latitudeColumn || "Latitude";
+    const lonColumn = config?.longitudeColumn || "Longitude";
+    const labelColumn = config?.labelColumn || "name";
+    const valueColumn = config?.valueColumn || config?.field;
+    const var1Column = config?.variable1Column;
+    const var2Column = config?.variable2Column;
+    const statusColumn = config?.statusColumn;
+
+    // Create the graphics layer
+    const layer = new GraphicsLayer({
+      id: `custom-layer-${Date.now()}`,
+      title: config?.title || "Custom Data",
+      listMode: "hide",
+      labelsVisible: !disableLayerLabels, // Set labelsVisible based on config
+      visualizationType: "custom",
+      isVisualizationLayer: true,
+      _hasNoLabels: disableLayerLabels, // Add layer-level flag
+      _hideAllLabels: disableLayerLabels // Add layer-level flag
     });
-  };
-  
-  const createCompLayer = (config) => {
-    console.log("Placeholder: Creating Comp Layer GraphicsLayer", config);
-    return new GraphicsLayer({
-      title: config?.title || "Comparison Map Layer",
-      listMode: "show",
-      graphics: []
+
+    // Create symbol from config or use default
+    const defaultSymbol = new SimpleMarkerSymbol({
+      style: "circle",
+      color: new Color(config?.symbol?.color || "#800080"), // Default purple
+      size: config?.symbol?.size || 10,
+      outline: {
+        color: new Color(config?.symbol?.outline?.color || "#FFFFFF"),
+        width: config?.symbol?.outline?.width || 1
+      }
     });
+
+    // Determine class breaks if provided
+    const classBreaks = config?.classBreakInfos || [];
+    const renderByClasses = classBreaks.length > 0 && valueColumn;
+
+    // Track created points and labels count
+    let pointsCount = 0;
+    let labelsCount = 0;
+    let processedCount = 0;
+    let errorCount = 0;
+
+    // Array to hold graphics before adding to layer (more efficient)
+    const pointGraphics = [];
+    const labelGraphics = [];
+
+    // Process each data point
+    for (const item of compData) {
+      try {
+        // Get coordinates - check various possible formats
+        let lat, lon;
+        
+        // Try direct latitude/longitude columns
+        if (item[latColumn] !== undefined && item[lonColumn] !== undefined) {
+          lat = parseFloat(item[latColumn]);
+          lon = parseFloat(item[lonColumn]);
+        } 
+        // Try geometry object if present
+        else if (item.geometry && typeof item.geometry.y === "number" && typeof item.geometry.x === "number") {
+          lat = item.geometry.y;
+          lon = item.geometry.x;
+        }
+        // Try common alternative column names
+        else if (item.lat !== undefined && item.lon !== undefined) {
+          lat = parseFloat(item.lat);
+          lon = parseFloat(item.lon);
+        }
+        else if (item.latitude !== undefined && item.longitude !== undefined) {
+          lat = parseFloat(item.latitude);
+          lon = parseFloat(item.longitude);
+        }
+        
+        // Skip if we couldn't determine coordinates
+        if (isNaN(lat) || isNaN(lon)) {
+          console.warn(`[createCompLayer] Invalid coordinates for comp item:`, item);
+          errorCount++;
+          continue;
+        }
+
+        // Generate label text
+        let labelText = "";
+        if (item[labelColumn]) {
+          labelText = String(item[labelColumn]);
+          
+          // Add variables if requested in config
+          if (config?.labelOptions?.includeVariables !== false) {
+            if (var1Column && item[var1Column] !== undefined) {
+              labelText += `, ${item[var1Column]}`;
+            }
+            
+            if (var2Column && item[var2Column] !== undefined) {
+              labelText += ` / ${item[var2Column]}`;
+            }
+          }
+        } else {
+          // Fallback label - try common name fields
+          labelText = item.name || item.title || item.NAME || item.LABEL || 
+                    `Comp ${processedCount + 1}`;
+        }
+
+        // Create the point geometry
+        const point = new Point({
+          longitude: lon,
+          latitude: lat,
+          spatialReference: { wkid: 4326 } // WGS84
+        });
+
+        // Determine symbol based on class breaks if applicable
+        let pointSymbol = defaultSymbol;
+        if (renderByClasses && valueColumn && item[valueColumn] !== undefined) {
+          const value = parseFloat(item[valueColumn]);
+          if (!isNaN(value)) {
+            // Find matching class break
+            const matchingBreak = classBreaks.find(
+              br => (br.minValue === undefined || value >= br.minValue) && 
+                  (br.maxValue === undefined || value <= br.maxValue)
+            );
+            
+            if (matchingBreak && matchingBreak.symbol) {
+              // Create symbol from class break definition
+              pointSymbol = new SimpleMarkerSymbol({
+                style: matchingBreak.symbol.style || "circle",
+                color: new Color(matchingBreak.symbol.color || defaultSymbol.color),
+                size: matchingBreak.symbol.size || defaultSymbol.size,
+                outline: {
+                  color: new Color(matchingBreak.symbol.outline?.color || "#FFFFFF"),
+                  width: matchingBreak.symbol.outline?.width || 1
+                }
+              });
+            }
+          }
+        }
+
+        // Create popup content
+        const popupTemplate = new PopupTemplate({
+          title: labelText,
+          content: [{
+            type: "fields",
+            fieldInfos: [
+              // Add all fields as popup content
+              ...Object.entries(item)
+                .filter(([key]) => key !== "geometry" && !key.startsWith("_"))
+                .map(([key, value]) => ({
+                  fieldName: key,
+                  label: key,
+                  visible: true
+                }))
+            ]
+          }]
+        });
+
+        // Create attributes object with all data and metadata
+        const attributes = {
+          ...item,
+          _internalId: `comp-${processedCount}`,
+          labelText, // Store label text for label management
+          isComp: true,
+          // Add explicit values for commonly accessed fields
+          name: item[labelColumn] || item.name || "",
+          value: item[valueColumn] || "",
+          status: item[statusColumn] || "",
+          variable1: item[var1Column] || "",
+          variable2: item[var2Column] || ""
+        };
+
+        // Create point graphic
+        const pointGraphic = new Graphic({
+          geometry: point,
+          symbol: pointSymbol,
+          attributes,
+          popupTemplate
+        });
+
+        // Create label graphic with direct geometry reference to ensure positioning
+        const labelSymbol = new TextSymbol({
+          text: labelText,
+          font: {
+            size: config?.labelOptions?.fontSize || 10,
+            family: "sans-serif",
+            weight: "normal"
+          },
+          color: new Color([0, 0, 0, 0.9]),
+          haloColor: new Color([255, 255, 255, 0.8]),
+          haloSize: 2,
+          yoffset: -15 // Position above the point
+        });
+
+        const labelGraphic = new Graphic({
+          geometry: point,
+          symbol: labelSymbol,
+          attributes: {
+            ...attributes,
+            isLabel: true, // Mark as label for identification
+            parentID: `comp-${processedCount}`, // Reference to parent point
+            layerId: layer.id
+          }
+        });
+
+        // Add to collection arrays
+        pointGraphics.push(pointGraphic);
+        labelGraphics.push(labelGraphic);
+        
+        pointsCount++;
+        labelsCount++;
+        processedCount++;
+      } catch (error) {
+        console.error(`[createCompLayer] Error processing comp item:`, error);
+        errorCount++;
+      }
+    }
+
+    // Add all graphics to layer at once (more efficient)
+    if (pointGraphics.length > 0) {
+      try {
+        layer.addMany(pointGraphics);
+        console.log(`[createCompLayer] Added ${pointsCount} point graphics to layer`);
+      } catch (error) {
+        console.error(`[createCompLayer] Error adding point graphics:`, error);
+      }
+    }
+
+    if (labelGraphics.length > 0) {
+      try {
+        layer.addMany(labelGraphics);
+        console.log(`[createCompLayer] Added ${labelsCount} label graphics to layer`);
+      } catch (error) {
+        console.error(`[createCompLayer] Error adding label graphics:`, error);
+      }
+    }
+
+    // Final logging
+    console.log(`[createCompLayer] Added ${pointsCount} points and ${labelsCount} labels to comp layer "${layer.title}".`);
+    
+    // Add metadata to the layer for future reference
+    layer.metadata = {
+      type: "comp",
+      config,
+      pointsCount,
+      labelsCount,
+      processedCount,
+      errorCount,
+      createdAt: new Date().toISOString()
+    };
+
+    return layer;
   };
+
+  /**
+   * Enhanced createPipeLayer function with label support
+   * @param {Object} config - Layer configuration object
+   * @returns {GraphicsLayer} - The created graphics layer
+   */
+  const createPipeLayer = async (config) => {
+    console.log("Creating Pipe Layer with config:", config);
+    
+    try {
+      // Dynamically import required modules
+      const [
+        { default: GraphicsLayer },
+        { default: Graphic },
+        { default: Point },
+        { default: SimpleMarkerSymbol },
+        { default: TextSymbol },
+        { default: Color },
+        { default: PopupTemplate }
+      ] = await Promise.all([
+        import("@arcgis/core/layers/GraphicsLayer"),
+        import("@arcgis/core/Graphic"),
+        import("@arcgis/core/geometry/Point"),
+        import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+        import("@arcgis/core/symbols/TextSymbol"),
+        import("@arcgis/core/Color"),
+        import("@arcgis/core/PopupTemplate")
+      ]);
+      
+      // Create the graphics layer
+      const graphicsLayer = new GraphicsLayer({
+        title: config?.title || "Pipeline Map Layer",
+        listMode: "show",
+        // Add the layer type identifier for the label manager to recognize
+        visualizationType: "pipe",
+        isVisualizationLayer: true
+      });
+      
+      // Extract needed configuration
+      const { 
+        customData, 
+        nameColumn, 
+        statusColumn, 
+        latitudeColumn, 
+        longitudeColumn,
+        symbol = {},
+        labelOptions = {} // Extract label options
+      } = config;
+      
+      // Default symbol properties if not specified
+      const pointSize = symbol.size !== undefined ? Number(symbol.size) : 12;
+      const defaultColor = "#0078D4";
+      const outlineColor = symbol.outline?.color || "#FFFFFF";
+      const outlineWidth = symbol.outline?.width !== undefined ? Number(symbol.outline.width) : 1;
+      
+      // Process label options
+      const enableLabels = labelOptions?.includeVariables !== false; // Default to true
+      const labelFontSize = labelOptions?.fontSize || 10;
+      const visibleAtAllZooms = labelOptions?.visibleAtAllZooms || false;
+      const avoidCollisions = labelOptions?.avoidCollisions !== false; // Default to true
+      
+      console.log("Pipe layer label options:", {
+        enableLabels,
+        labelFontSize,
+        visibleAtAllZooms,
+        avoidCollisions
+      });
+      
+      // Status color mapping
+      const statusColors = config.statusColors || {
+        "In Progress": "#FFB900",
+        "Approved": "#107C10",
+        "Pending": "#0078D4",
+        "Completed": "#107C10",
+        "Rejected": "#D13438",
+        "default": defaultColor
+      };
+      
+      // Check if we have the necessary data
+      if (Array.isArray(customData) && customData.length > 0 && 
+          latitudeColumn && longitudeColumn) {
+        
+        // Create graphics for each data point
+        customData.forEach((item, index) => {
+          // Skip if missing coordinates
+          if (!item[latitudeColumn] || !item[longitudeColumn]) return;
+          
+          const lat = parseFloat(item[latitudeColumn]);
+          const lon = parseFloat(item[longitudeColumn]);
+          
+          // Skip invalid coordinates
+          if (isNaN(lat) || isNaN(lon)) return;
+          
+          // Get the status and corresponding color
+          const status = item[statusColumn] || "default";
+          const pointColor = statusColors[status] || statusColors.default || defaultColor;
+          
+          // Create the point geometry
+          const point = new Point({
+            longitude: lon,
+            latitude: lat,
+            spatialReference: { wkid: 4326 }
+          });
+          
+          // Create the symbol with status-based color
+          const pointSymbol = new SimpleMarkerSymbol({
+            style: symbol.style || "circle",
+            size: pointSize,
+            color: new Color(pointColor),
+            outline: {
+              color: new Color(outlineColor),
+              width: outlineWidth
+            }
+          });
+          
+          // Determine label text based on configuration
+          let labelText = '';
+          if (nameColumn && item[nameColumn]) {
+            labelText = String(item[nameColumn]);
+            
+            // Include status if available and options allow it
+            if (enableLabels && statusColumn && item[statusColumn]) {
+              labelText += `: ${item[statusColumn]}`;
+            }
+          } else if (statusColumn && item[statusColumn]) {
+            labelText = String(item[statusColumn]);
+          } else {
+            labelText = `Point ${index + 1}`;
+          }
+          
+          // Create the main graphic with attributes
+          const pointGraphic = new Graphic({
+            geometry: point,
+            symbol: pointSymbol,
+            attributes: {
+              ...item,
+              OBJECTID: index,
+              displayName: item[nameColumn] || `Point ${index + 1}`,
+              status: item[statusColumn] || "Unknown",
+              // Add attributes to identify this as a pipe feature
+              FEATURE_TYPE: "pipe",
+              // Add attributes needed for label integration
+              labelText: labelText,
+              parentID: `pipe-${index}` // Unique identifier for label parent
+            },
+            popupTemplate: new PopupTemplate({
+              title: "{displayName}",
+              content: [
+                {
+                  type: "fields",
+                  fieldInfos: [
+                    { fieldName: "status", label: statusColumn || "Status" }
+                  ]
+                }
+              ]
+            })
+          });
+          
+          // Add the graphic to the layer
+          graphicsLayer.add(pointGraphic);
+          
+          // Create label graphic if labels are enabled
+          if (enableLabels && labelText) {
+            // Create the label symbol
+            const textSymbol = new TextSymbol({
+              text: labelText,
+              font: {
+                size: labelFontSize,
+                family: "Arial",
+                weight: "normal"
+              },
+              haloColor: new Color([255, 255, 255, 0.9]),
+              haloSize: 1.5,
+              color: new Color([0, 0, 0, 1]),
+              verticalAlignment: "middle",
+              horizontalAlignment: "center",
+              // Add offset so label doesn't overlap with point
+              yoffset: -pointSize - 5
+            });
+            
+            // Create the label graphic
+            const labelGraphic = new Graphic({
+              geometry: point,
+              symbol: textSymbol,
+              attributes: {
+                OBJECTID: `label-${index}`,
+                isLabel: true, // Flag for label manager to identify
+                parentID: `pipe-${index}`, // Match with main feature for relationship
+                labelText: labelText,
+                FEATURE_TYPE: "label"
+              }
+            });
+            
+            // Add the label graphic to the layer
+            graphicsLayer.add(labelGraphic);
+          }
+        });
+        
+        console.log(`Added ${graphicsLayer.graphics.length} points to pipeline layer`);
+      } else {
+        console.warn("Missing required data for pipeline layer: customData, latitudeColumn, or longitudeColumn");
+      }
+      
+      return graphicsLayer;
+    } catch (error) {
+      console.error("Error creating pipe layer:", error);
+      // Create a minimal graphics layer so the application doesn't break
+      const GraphicsLayer = (await import("@arcgis/core/layers/GraphicsLayer")).default;
+      return new GraphicsLayer({
+        title: "Error: Pipeline Map Layer",
+        listMode: "show"
+      });
+    }
+  };
+
 
   const extractRadiusProperties = (feature) => {
     // Attempt to extract radius info from various feature formats
@@ -4231,16 +4969,16 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       const visibleMarketAreas = marketAreas.filter(ma =>
         visibleMarketAreaIds.includes(ma.id)
       );
-
+  
       console.log("[MapContext] Processing visible market areas:", {
         count: visibleMarketAreas.length,
         ids: visibleMarketAreas.map(ma => ma.id),
         types: visibleMarketAreas.map(ma => ma.ma_type)
       });
-
+  
       // Keep track of which market areas we've processed to avoid duplicates
       const processedMarketAreaIds = new Set();
-
+  
       // Process each market area
       visibleMarketAreas.forEach(async (ma) => {
         // Skip if we've already processed this market area
@@ -4248,26 +4986,26 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
           console.log(`[MapContext] Skipping already processed market area: ${ma.id}`);
           return;
         }
-
+  
         // Mark as processed
         processedMarketAreaIds.add(ma.id);
-
+  
         if (ma.ma_type === 'radius') {
           console.log("[MapContext] Processing radius market area:", ma.id);
-
+  
           // Handle radius type market areas
           try {
             // Check if there are already graphics for this market area
             const existingRadiusGraphics = selectionGraphicsLayerRef.current.graphics.filter(
               g => g.attributes?.marketAreaId === ma.id && g.attributes?.FEATURE_TYPE === 'radius'
             );
-
+  
             // If there are existing graphics and it's visible, no need to redraw
             if (existingRadiusGraphics.length > 0) {
               console.log(`[MapContext] Market area ${ma.id} already has radius graphics, skipping drawing`);
               return;
             }
-
+  
             if (ma.radius_points) {
               let radiusPoints;
               try {
@@ -4279,15 +5017,15 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
                 console.warn("[MapContext] Failed to parse radius_points:", e);
                 radiusPoints = ma.radius_points;
               }
-
+  
               // Normalize to array
               const points = Array.isArray(radiusPoints) ? radiusPoints : [radiusPoints];
-
+  
               console.log("[MapContext] Drawing radius points:", {
                 count: points.length,
                 firstPoint: points[0]
               });
-
+  
               // Actually draw the radius points here
               for (const point of points) {
                 await drawRadius(
@@ -4316,11 +5054,11 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
             driveTimePoints: ma.drive_time_points,
             geometry: ma.geometry
           });
-
+  
           // Ensure drive time points is an array
           let driveTimePoints = ma.drive_time_points;
           let polygonGeometry = ma.geometry;
-
+  
           // Robust parsing for drive time points
           if (typeof driveTimePoints === 'string') {
             try {
@@ -4336,12 +5074,12 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               }
             }
           }
-
+  
           // Ensure driveTimePoints is an array
           if (!Array.isArray(driveTimePoints)) {
             driveTimePoints = driveTimePoints ? [driveTimePoints] : [];
           }
-
+  
           // Fallback point generation if no points found
           if (driveTimePoints.length === 0 && polygonGeometry) {
             try {
@@ -4359,7 +5097,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               console.warn(`[MapContext] Failed to extract points from geometry for market area ${ma.id}:`, err);
             }
           }
-
+  
           // Normalize and validate points
           const validPoints = driveTimePoints
             .map(point => {
@@ -4380,12 +5118,12 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               point.center?.longitude !== undefined &&
               point.center?.latitude !== undefined
             );
-
+  
           if (validPoints.length === 0) {
             console.warn(`[MapContext] No valid drive time points for market area ${ma.id}`);
             return;
           }
-
+  
           // Draw each validated point
           for (const point of validPoints) {
             try {
@@ -4393,7 +5131,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               if (!point.polygon) {
                 point.polygon = await calculateDriveTimePolygon(point);
               }
-
+  
               // Draw the drive time polygon
               await drawDriveTimePolygon(
                 point,
@@ -4412,23 +5150,66 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               console.error(`[MapContext] Error processing drive time point for market area ${ma.id}:`, error);
             }
           }
+        } else if (ma.ma_type === "site_location") {
+          console.log("[MapContext] Processing site location market area:", ma.id);
+          
+          try {
+            // Parse site_location_data if it's a string
+            let siteData = ma.site_location_data;
+            if (typeof siteData === 'string') {
+              try {
+                siteData = JSON.parse(siteData);
+              } catch (e) {
+                console.error("[MapContext] Error parsing site location data:", e);
+              }
+            }
+            
+            // Only proceed if we have valid point data
+            if (siteData && siteData.point && 
+                siteData.point.latitude && siteData.point.longitude) {
+              
+              console.log("[MapContext] Drawing site location:", {
+                id: ma.id,
+                point: siteData.point,
+                size: siteData.size,
+                color: siteData.color
+              });
+              
+              // Call the corrected drawSiteLocation function
+              await drawSiteLocation(
+                siteData,
+                ma.style_settings || {
+                  fillColor: "#0078D4",
+                  fillOpacity: 0.35,
+                  borderColor: "#0078D4",
+                  borderWidth: 3,
+                  noFill: false,
+                  noBorder: false
+                },
+                ma.id,
+                ma.order || 0
+              );
+            }
+          } catch (err) {
+            console.error("[MapContext] Error processing site location market area:", err);
+          }
         } else if (ma.locations && ma.locations.length > 0) {
           // Handle regular polygon-based market areas
           console.log("[MapContext] Processing polygon market area:", {
             id: ma.id,
             locationsCount: ma.locations.length
           });
-
+  
           // Check for existing graphics for this market area to avoid duplicates
           const existingMarketAreaGraphics = selectionGraphicsLayerRef.current.graphics.filter(
             g => g.attributes?.marketAreaId === ma.id
           );
-
+  
           if (existingMarketAreaGraphics.length > 0) {
             console.log(`[MapContext] Market area ${ma.id} already has graphics, skipping processing`);
             return;
           }
-
+  
           // Convert locations to feature format
           const features = ma.locations.map(loc => ({
             geometry: loc.geometry,
@@ -4439,10 +5220,10 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               order: ma.order || 0
             }
           }));
-
+  
           // Display the features on the map WITHOUT clearing existing graphics
           await displayFeatures(features);
-
+  
           // Apply styling if needed - this will be run on ALL graphics for the market area
           if (ma.style) {
             const marketAreaFeatures = selectionGraphicsLayerRef.current.graphics.filter(
@@ -4451,7 +5232,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
               geometry: g.geometry,
               attributes: g.attributes
             }));
-
+  
             if (marketAreaFeatures.length > 0) {
               updateFeatureStyles(
                 marketAreaFeatures,
@@ -4475,8 +5256,11 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
     updateFeatureStyles,
     calculateDriveTimePolygon,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     layersReady,
   ]);
+
 
   useEffect(() => {
     if (mapView && !selectionGraphicsLayerRef.current) {
@@ -4907,6 +5691,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       drawRadius,
       drawPoint,
       drawDriveTimePolygon,
+      drawSiteLocation, // Only include once
       calculateDriveTimePolygon,
       clearMarketAreaGraphics,
       toggleMarketAreaEditMode,
@@ -4918,6 +5703,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       setVisibleMarketAreaIds,
       editingMarketArea,
       setEditingMarketArea,
+      extractSiteLocationInfo,
       zoomToExtent,
       zoomToMarketArea,
       isOutsideZoomRange,
@@ -4945,6 +5731,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       drawRadius,
       drawPoint,
       drawDriveTimePolygon,
+      drawSiteLocation, // Only include once in dependencies
       calculateDriveTimePolygon,
       isMapSelectionActive,
       setIsMapSelectionActive,
@@ -4952,6 +5739,7 @@ const zoomToMarketArea = useCallback(async (marketAreaId) => {
       visibleMarketAreaIds,
       editingMarketArea,
       setEditingMarketArea,
+      extractSiteLocationInfo,
       zoomToExtent,
       zoomToMarketArea,
       isOutsideZoomRange,

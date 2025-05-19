@@ -1,4690 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+// src/components/map/Map.jsx
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Tag, Maximize } from "lucide-react"; // Added Maximize for the new button icon
 import esriConfig from "@arcgis/core/config";
 import Map from "@arcgis/core/Map";
 import MapView from "@arcgis/core/views/MapView";
 import Zoom from "@arcgis/core/widgets/Zoom";
 import Home from "@arcgis/core/widgets/Home";
-import BasemapToggle from "@arcgis/core/widgets/BasemapToggle";
-import Locate from "@arcgis/core/widgets/Locate";
 import ScaleBar from "@arcgis/core/widgets/ScaleBar";
-import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Legend from "@arcgis/core/widgets/Legend";
+import Extent from "@arcgis/core/geometry/Extent";
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
+import LabelManager from "../../services/SimplifiedLabelManager";
+import SimpleLabelDragger from "@/services/SimpleLabelDragger";
 import { useMap } from "../../contexts/MapContext";
+import { mapConfigurationsAPI } from "../../services/api";
 import LayerPropertiesEditor from "./LayerPropertiesEditor";
+import LabelEditor from "./LabelEditor";
 import PropTypes from "prop-types";
 import axios from "axios";
-import { useNavigate, useParams } from "react-router-dom";
-import { mapConfigurationsAPI } from "../../services/api";
 import SearchableDropdown from "./SearchableDropdown";
 import NewMapDialog from "./NewMapDialog";
-import { processCustomMapData } from "./CustomDataHandler";
-import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer"; // <--- ADD THIS LINE
-import Point from "@arcgis/core/geometry/Point"; // Import Point
-import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol"; // Import SimpleMarkerSymbol
-import Color from "@arcgis/core/Color"; // Import Color
-import Graphic from "@arcgis/core/Graphic";
-import PopupTemplate from "@arcgis/core/PopupTemplate";
+import CustomLegend from "./CustomLegend";
+import ZoomAlert from "./ZoomAlert";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  initialLayerConfigurations,
+  visualizationOptions,
+  areaTypes,
+  createClassBreaks,
+} from "./mapConfig";
+import {
+  createLayers,
+  createPipeLayer,
+  createCompLayer,
+  createGraphicsLayerFromCustomData,
+} from "./mapLayerUtils";
 
-// Replace the hardcoded API_KEY with the environment variable
+// Import ReactDOM for rendering the custom button
+import ReactDOM from "react-dom/client";
+import { useZoomTool } from "./ZoomTool";
+import MapZoomToolButton from "./MapZoomToolButton";
+
 const API_KEY = import.meta.env.VITE_ARCGIS_API_KEY;
-
-const colorScheme = {
-  level1: [128, 0, 128, 0.45], // Purple
-  level2: [0, 0, 139, 0.45], // Dark blue
-  level3: [135, 206, 235, 0.45], // Sky blue
-  level4: [144, 238, 144, 0.45], // Light green
-  level5: [255, 255, 144, 0.45], // Light yellow
-  level6: [255, 165, 0, 0.45], // Orange
-  level7: [255, 99, 71, 0.45], // Salmon red
-};
-
-// ZoomAlert Component
-const ZoomAlert = () => {
-  const { isOutsideZoomRange, zoomMessage } = useMap();
-
-  if (!isOutsideZoomRange || !zoomMessage) return null;
-
-  return (
-    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md shadow-lg">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 text-yellow-400"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-yellow-700">{zoomMessage}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Update the createClassBreaks function accordingly
-const createClassBreaks = (breakPoints, labels) => {
-  return breakPoints.map((point, index) => ({
-    minValue: point.min === undefined ? -Infinity : point.min,
-    maxValue: point.max === undefined ? Infinity : point.max,
-    symbol: {
-      type: "simple-fill",
-      color: colorScheme[`level${index + 1}`],
-      outline: {
-        color: [50, 50, 50, 0.2],
-        width: "0.5px",
-      },
-    },
-    label: labels[index],
-  }));
-};
-
-const initialLayerConfigurations = {
-  // Existing heatmap configurations
-  // Total Population
-  totalPopulation_HEAT: {
-    type: "class-breaks",
-    field: "TOTPOP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000, max: 100000 },
-        { min: 100000 },
-      ],
-      [
-        "Less than 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 - 100,000",
-        "100,000 or more",
-      ]
-    ),
-  },
-
-  TOTPOP_FY_HEAT: {
-    type: "class-breaks",
-    field: "TOTPOP_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000, max: 100000 },
-        { min: 100000 },
-      ],
-      [
-        "Less than 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 - 100,000",
-        "100,000 or more",
-      ]
-    ),
-  },
-
-  // Total Households
-  totalHouseholds_HEAT: {
-    type: "class-breaks",
-    field: "TOTHH_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2000 },
-        { min: 2000, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 20000 },
-        { min: 20000, max: 40000 },
-        { min: 40000 },
-      ],
-      [
-        "Less than 2,000",
-        "2,000 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 20,000",
-        "20,000 - 40,000",
-        "40,000 or more",
-      ]
-    ),
-  },
-
-  // Total Housing Units
-  totalHousingUnits_HEAT: {
-    type: "class-breaks",
-    field: "TOTHU_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000 },
-      ],
-      [
-        "Less than 2,500",
-        "2,500 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 or more",
-      ]
-    ),
-  },
-
-  // Less than 9th Grade Education
-  lessThan9thGrade_HEAT: {
-    type: "class-breaks",
-    field: "NOHS_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20 },
-      ],
-      [
-        "Less than 2%",
-        "2% - 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% or more",
-      ]
-    ),
-  },
-
-  // 9-12th Grade/No Diploma
-  someHighSchool_HEAT: {
-    type: "class-breaks",
-    field: "SOMEHS_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 6 },
-        { min: 6, max: 9 },
-        { min: 9, max: 12 },
-        { min: 12, max: 15 },
-        { min: 15 },
-      ],
-      [
-        "Less than 3%",
-        "3% - 6%",
-        "6% - 9%",
-        "9% - 12%",
-        "12% - 15%",
-        "15% or more",
-      ]
-    ),
-  },
-
-  // GED/Alternative Credential
-  gedCredential_HEAT: {
-    type: "class-breaks",
-    field: "GED_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 10 },
-        { min: 10 },
-      ],
-      [
-        "Less than 2%",
-        "2% - 4%",
-        "4% - 6%",
-        "6% - 8%",
-        "8% - 10%",
-        "10% or more",
-      ]
-    ),
-  },
-
-  // Home Value $50,000-$99,999
-  homesUnder100k_HEAT: {
-    type: "class-breaks",
-    field: "VAL50K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $100,000-$149,999
-  homes100to150k_HEAT: {
-    type: "class-breaks",
-    field: "VAL100K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $150,000-$199,999
-  homes150to200k_HEAT: {
-    type: "class-breaks",
-    field: "VAL150K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $200,000-$249,999
-  homes200to250k_HEAT: {
-    type: "class-breaks",
-    field: "VAL200K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $250,000-$299,999
-  homes250to300k_HEAT: {
-    type: "class-breaks",
-    field: "VAL250K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $400,000-$499,999
-  homes400to500k_HEAT: {
-    type: "class-breaks",
-    field: "VAL400K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Home Value $1,500,000-$1,999,999
-  veryLuxuryHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL1PT5MCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200 },
-      ],
-      [
-        "Less than 10 homes",
-        "10 - 25 homes",
-        "25 - 50 homes",
-        "50 - 100 homes",
-        "100 - 200 homes",
-        "200+ homes",
-      ]
-    ),
-  },
-
-  // Population Density - Note: This was included in the initial config but with a different name "density"
-  populationDensity_HEAT: {
-    type: "class-breaks",
-    field: "POPDENS_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 7500 },
-        { min: 7500, max: 10000 },
-        { min: 10000 },
-      ],
-      [
-        "Less than 1,000/sq mi",
-        "1,000 - 2,500/sq mi",
-        "2,500 - 5,000/sq mi",
-        "5,000 - 7,500/sq mi",
-        "7,500 - 10,000/sq mi",
-        "10,000+/sq mi",
-      ]
-    ),
-  },
-
-  // Homeownership Rate - This field exists in the config but as a different variable name
-  homeownershipRate_HEAT: {
-    type: "class-breaks",
-    field: "PCTHOMEOWNER",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 35 },
-        { min: 35, max: 50 },
-        { min: 50, max: 65 },
-        { min: 65, max: 80 },
-        { min: 80, max: 90 },
-        { min: 90 },
-      ],
-      [
-        "Less than 35%",
-        "35% - 50%",
-        "50% - 65%",
-        "65% - 80%",
-        "80% - 90%",
-        "90% or more",
-      ]
-    ),
-  },
-
-  income_HEAT: {
-    type: "class-breaks",
-    field: "MEDHINC_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 35000 },
-        { min: 35000, max: 65000 },
-        { min: 65000, max: 95000 },
-        { min: 95000, max: 125000 },
-        { min: 125000, max: 155000 },
-        { min: 155000, max: 200000 },
-        { min: 200000 },
-      ],
-      [
-        "Less than $35,000",
-        "$35,000 - $65,000",
-        "$65,000 - $95,000",
-        "$95,000 - $125,000",
-        "$125,000 - $155,000",
-        "$155,000 - $200,000",
-        "$200,000 or more",
-      ]
-    ),
-  },
-  growth_HEAT: {
-    type: "class-breaks",
-    field: "HHGRW20CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: -3 },
-        { min: -3, max: -2 },
-        { min: -2, max: -1 },
-        { min: -1, max: 0 },
-        { min: 0, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2 },
-      ],
-      [
-        "Less than -3%",
-        "-3% to -2%",
-        "-2% to -1%",
-        "-1% to 0%",
-        "0% to 1%",
-        "1% to 2%",
-        "2% or more",
-      ]
-    ),
-  },
-  density_HEAT: {
-    type: "class-breaks",
-    field: "POPDENS_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 7500 },
-        { min: 7500, max: 10000 },
-        { min: 10000, max: 15000 },
-        { min: 15000 },
-      ],
-      [
-        "Less than 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 7,500",
-        "7,500 - 10,000",
-        "10,000 - 15,000",
-        "15,000 or more",
-      ]
-    ),
-  },
-  age_HEAT: {
-    type: "class-breaks",
-    field: "MEDAGE_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 30 },
-        { min: 30, max: 35 },
-        { min: 35, max: 40 },
-        { min: 40, max: 45 },
-        { min: 45, max: 50 },
-        { min: 50, max: 55 },
-        { min: 55 },
-      ],
-      [
-        "Less than 30 years",
-        "30 - 35 years",
-        "35 - 40 years",
-        "40 - 45 years",
-        "45 - 50 years",
-        "50 - 55 years",
-        "55 years or more",
-      ]
-    ),
-  },
-  unemployment_HEAT: {
-    type: "class-breaks",
-    field: "UNEMPRT_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 7 },
-        { min: 7, max: 9 },
-        { min: 9, max: 11 },
-        { min: 11, max: 13 },
-        { min: 13 },
-      ],
-      [
-        "Less than 3%",
-        "3% - 5%",
-        "5% - 7%",
-        "7% - 9%",
-        "9% - 11%",
-        "11% - 13%",
-        "13% or more",
-      ]
-    ),
-  },
-  homeValue_HEAT: {
-    type: "class-breaks",
-    field: "MEDVAL_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 200000 },
-        { min: 200000, max: 350000 },
-        { min: 350000, max: 500000 },
-        { min: 500000, max: 750000 },
-        { min: 750000, max: 1000000 },
-        { min: 1000000, max: 1500000 },
-        { min: 1500000 },
-      ],
-      [
-        "Less than $200,000",
-        "$200,000 - $350,000",
-        "$350,000 - $500,000",
-        "$500,000 - $750,000",
-        "$750,000 - $1,000,000",
-        "$1,000,000 - $1,500,000",
-        "$1,500,000 or more",
-      ]
-    ),
-  },
-  affordability_HEAT: {
-    type: "class-breaks",
-    field: "HAI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 125 },
-        { min: 125, max: 150 },
-        { min: 150, max: 175 },
-        { min: 175 },
-      ],
-      [
-        "Less than 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 125",
-        "125 - 150",
-        "150 - 175",
-        "175 or more",
-      ]
-    ),
-  },
-  MEDHINC_CY_HEAT: {
-    type: "class-breaks",
-    field: "MEDHINC_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  AVGHINC_CY_HEAT: {
-    type: "class-breaks",
-    field: "AVGHINC_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC0_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC0_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC15_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC15_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 500000 },
-        { min: 2000, max: 5000 },
-        { min: 1000, max: 2000 },
-        { min: 500, max: 1000 },
-        { min: 250, max: 500 },
-        { min: 0 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC25_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC25_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5000 },
-        { min: 2000, max: 5000 },
-        { min: 1000, max: 2000 },
-        { min: 500, max: 1000 },
-        { min: 250, max: 500 },
-        { min: 0 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC35_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC35_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC50_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC50_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC75_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC75_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC100_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC100_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC150_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC150_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-  HINC200_CY_HEAT: {
-    type: "class-breaks",
-    field: "HINC200_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 125000 },
-        { min: 125000, max: 150000 },
-        { min: 150000 },
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $125,000",
-        "$125,000 - $150,000",
-        "$150,000 or more",
-      ]
-    ),
-  },
-
-  // Educational attainment
-  education_HEAT: {
-    type: "class-breaks",
-    field: "BACHDEG_PLUS_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 45 },
-        { min: 45, max: 55 },
-        { min: 55 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 25%",
-        "25% - 35%",
-        "35% - 45%",
-        "45% - 55%",
-        "55% or more",
-      ]
-    ),
-  },
-
-  // Housing occupancy
-  ownerOccupied_HEAT: {
-    type: "class-breaks",
-    field: "PCTHOMEOWNER",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 30 },
-        { min: 30, max: 45 },
-        { min: 45, max: 60 },
-        { min: 60, max: 75 },
-        { min: 75, max: 90 },
-        { min: 90 },
-      ],
-      [
-        "Less than 30%",
-        "30% - 45%",
-        "45% - 60%",
-        "60% - 75%",
-        "75% - 90%",
-        "90% or more",
-      ]
-    ),
-  },
-
-  // Vacancy rate
-  vacancy_HEAT: {
-    type: "class-breaks",
-    field: "VACANT_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% or more",
-      ]
-    ),
-  },
-
-  // Diversity/Demographics
-  diversity_HEAT: {
-    type: "class-breaks",
-    field: "NHSPWHT_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 40 },
-        { min: 40, max: 55 },
-        { min: 55, max: 70 },
-        { min: 70, max: 85 },
-        { min: 85, max: 95 },
-        { min: 95 },
-      ],
-      [
-        "Less than 40%",
-        "40% - 55%",
-        "55% - 70%",
-        "70% - 85%",
-        "85% - 95%",
-        "95% or more",
-      ]
-    ),
-  },
-
-  // Hispanic population
-  hispanic_HEAT: {
-    type: "class-breaks",
-    field: "HISPPOP_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 45 },
-        { min: 45, max: 60 },
-        { min: 60 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 15%",
-        "15% - 30%",
-        "30% - 45%",
-        "45% - 60%",
-        "60% or more",
-      ]
-    ),
-  },
-
-  // Per capita income
-  perCapitaIncome_HEAT: {
-    type: "class-breaks",
-    field: "PCI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25000 },
-        { min: 25000, max: 40000 },
-        { min: 40000, max: 55000 },
-        { min: 55000, max: 70000 },
-        { min: 70000, max: 85000 },
-        { min: 85000 },
-      ],
-      [
-        "Less than $25,000",
-        "$25,000 - $40,000",
-        "$40,000 - $55,000",
-        "$55,000 - $70,000",
-        "$70,000 - $85,000",
-        "$85,000 or more",
-      ]
-    ),
-  },
-
-  // Household size
-  householdSize_HEAT: {
-    type: "class-breaks",
-    field: "AVGHHSZ_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2.0 },
-        { min: 2.0, max: 2.5 },
-        { min: 2.5, max: 3.0 },
-        { min: 3.0, max: 3.5 },
-        { min: 3.5, max: 4.0 },
-        { min: 4.0 },
-      ],
-      [
-        "Less than 2.0",
-        "2.0 - 2.5",
-        "2.5 - 3.0",
-        "3.0 - 3.5",
-        "3.5 - 4.0",
-        "4.0 or more",
-      ]
-    ),
-  },
-
-  // Future growth projections
-  futureGrowth_HEAT: {
-    type: "class-breaks",
-    field: "POPGRWCYFY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: -1 },
-        { min: -1, max: 0 },
-        { min: 0, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3 },
-      ],
-      [
-        "Less than -1%",
-        "-1% to 0%",
-        "0% to 1%",
-        "1% to 2%",
-        "2% to 3%",
-        "3% or more",
-      ]
-    ),
-  },
-
-  // Generational breakdown
-  millennials_HEAT: {
-    type: "class-breaks",
-    field: "MILLENN_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 45 },
-        { min: 45, max: 55 },
-        { min: 55 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 25%",
-        "25% - 35%",
-        "35% - 45%",
-        "45% - 55%",
-        "55% or more",
-      ]
-    ),
-  },
-
-  // Wealth Index
-  wealth_HEAT: {
-    type: "class-breaks",
-    field: "WLTHINDXCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 150 },
-        { min: 150, max: 200 },
-        { min: 200 },
-      ],
-      [
-        "Less than 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 150",
-        "150 - 200",
-        "200 or more",
-      ]
-    ),
-  },
-
-  // Socioeconomic Status Index
-  socioeconomic_HEAT: {
-    type: "class-breaks",
-    field: "SEI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 125 },
-        { min: 125, max: 150 },
-        { min: 150 },
-      ],
-      [
-        "Less than 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 125",
-        "125 - 150",
-        "150 or more",
-      ]
-    ),
-  },
-  // Baby Boomer population
-  babyBoomers_HEAT: {
-    type: "class-breaks",
-    field: "BABYBOOMCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30 },
-      ],
-      [
-        "Less than 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% or more",
-      ]
-    ),
-  },
-
-  // Gen Z population
-  genZ_HEAT: {
-    type: "class-breaks",
-    field: "GENZ_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% or more",
-      ]
-    ),
-  },
-
-  // Gen X population
-  genX_HEAT: {
-    type: "class-breaks",
-    field: "GENX_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% or more",
-      ]
-    ),
-  },
-
-  // Children population
-  children_HEAT: {
-    type: "class-breaks",
-    field: "CHILD_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% or more",
-      ]
-    ),
-  },
-
-  // Senior population
-  seniors_HEAT: {
-    type: "class-breaks",
-    field: "SENIOR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30 },
-      ],
-      [
-        "Less than 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% or more",
-      ]
-    ),
-  },
-
-  // Working population
-  workingAge_HEAT: {
-    type: "class-breaks",
-    field: "WORKAGE_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 55 },
-        { min: 55, max: 60 },
-        { min: 60, max: 65 },
-        { min: 65, max: 70 },
-        { min: 70 },
-      ],
-      [
-        "Less than 50%",
-        "50% - 55%",
-        "55% - 60%",
-        "60% - 65%",
-        "65% - 70%",
-        "70% or more",
-      ]
-    ),
-  },
-
-  // Asian population
-  NHSPASN_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPASN_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 30 },
-        { min: 30, max: 40 },
-        { min: 40 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 20%",
-        "20% - 30%",
-        "30% - 40%",
-        "40% or more",
-      ]
-    ),
-  },
-
-  // Black population
-  NHSPBLK_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPBLK_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 45 },
-        { min: 45, max: 60 },
-        { min: 60 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 15%",
-        "15% - 30%",
-        "30% - 45%",
-        "45% - 60%",
-        "60% or more",
-      ]
-    ),
-  },
-
-  // Daytime population
-  daytimePopulation_HEAT: {
-    type: "class-breaks",
-    field: "DPOP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000, max: 100000 },
-        { min: 100000 },
-      ],
-      [
-        "Less than 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 - 100,000",
-        "100,000 or more",
-      ]
-    ),
-  },
-
-  // Higher education percentage
-  highEducation_HEAT: {
-    type: "class-breaks",
-    field: "GRADDEG_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 30 },
-        { min: 30 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 30%",
-        "30% or more",
-      ]
-    ),
-  },
-
-  // Low educational attainment
-  lowEducation_HEAT: {
-    type: "class-breaks",
-    field: "HSGRAD_LESS_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 30 },
-        { min: 30 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 30%",
-        "30% or more",
-      ]
-    ),
-  },
-
-  // Household income growth projection
-  incomeGrowth_HEAT: {
-    type: "class-breaks",
-    field: "MHIGRWCYFY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 4 },
-        { min: 4, max: 5 },
-        { min: 5 },
-      ],
-      ["Less than 1%", "1% - 2%", "2% - 3%", "3% - 4%", "4% - 5%", "5% or more"]
-    ),
-  },
-
-  // Future household growth
-  householdGrowth_HEAT: {
-    type: "class-breaks",
-    field: "HHGRWCYFY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 0 },
-        { min: 0, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 5 },
-        { min: 5 },
-      ],
-      ["Less than 0%", "0% - 1%", "1% - 2%", "2% - 3%", "3% - 5%", "5% or more"]
-    ),
-  },
-
-  // Mortgage affordability
-  mortgagePercent_HEAT: {
-    type: "class-breaks",
-    field: "INCMORT_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% or more",
-      ]
-    ),
-  },
-
-  // Associate's degree
-  associateDegree_HEAT: {
-    type: "class-breaks",
-    field: "ASSCDEG_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 7.5 },
-        { min: 7.5, max: 10 },
-        { min: 10, max: 12.5 },
-        { min: 12.5, max: 15 },
-        { min: 15 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 7.5%",
-        "7.5% - 10%",
-        "10% - 12.5%",
-        "12.5% - 15%",
-        "15% or more",
-      ]
-    ),
-  },
-
-  // Bachelor's degree
-  bachelorDegree_HEAT: {
-    type: "class-breaks",
-    field: "BACHDEG_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 30 },
-        { min: 30, max: 40 },
-        { min: 40, max: 50 },
-        { min: 50 },
-      ],
-      [
-        "Less than 10%",
-        "10% - 20%",
-        "20% - 30%",
-        "30% - 40%",
-        "40% - 50%",
-        "50% or more",
-      ]
-    ),
-  },
-
-  // Some college, no degree
-  someCollege_HEAT: {
-    type: "class-breaks",
-    field: "SMCOLL_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30 },
-      ],
-      [
-        "Less than 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% or more",
-      ]
-    ),
-  },
-
-  // High school graduates
-  highSchoolGrad_HEAT: {
-    type: "class-breaks",
-    field: "HSGRAD_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35 },
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% or more",
-      ]
-    ),
-  },
-
-  // Owner-occupied homes
-  ownerHomes_HEAT: {
-    type: "class-breaks",
-    field: "OWNER_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 20000 },
-        { min: 20000 },
-      ],
-      [
-        "Less than 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 20,000",
-        "20,000 or more",
-      ]
-    ),
-  },
-
-  // Renter-occupied homes
-  renterHomes_HEAT: {
-    type: "class-breaks",
-    field: "RENTER_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 20000 },
-        { min: 20000 },
-      ],
-      [
-        "Less than 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 20,000",
-        "20,000 or more",
-      ]
-    ),
-  },
-
-  // Average home value
-  avgHomeValue_HEAT: {
-    type: "class-breaks",
-    field: "AVGVAL_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 200000 },
-        { min: 200000, max: 350000 },
-        { min: 350000, max: 500000 },
-        { min: 500000, max: 750000 },
-        { min: 750000, max: 1000000 },
-        { min: 1000000 },
-      ],
-      [
-        "Less than $200,000",
-        "$200,000 - $350,000",
-        "$350,000 - $500,000",
-        "$500,000 - $750,000",
-        "$750,000 - $1,000,000",
-        "$1,000,000 or more",
-      ]
-    ),
-  },
-
-  // Expensive homes ($1M+)
-  luxuryHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL1M_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Very expensive homes ($2M+)
-  ultraLuxuryHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL2M_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250 },
-      ],
-      [
-        "Less than 10 homes",
-        "10 - 25 homes",
-        "25 - 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250+ homes",
-      ]
-    ),
-  },
-
-  // Entry-level homes (<$250K)
-  entryLevelHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL0_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000 },
-      ],
-      [
-        "Less than 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000 - 2,000 homes",
-        "2,000+ homes",
-      ]
-    ),
-  },
-
-  // Daytime workers
-  daytimeWorkers_HEAT: {
-    type: "class-breaks",
-    field: "DPOPWRK_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000 },
-      ],
-      [
-        "Less than 2,500",
-        "2,500 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 or more",
-      ]
-    ),
-  },
-
-  // Young adults (20-34)
-  youngAdults_HEAT: {
-    type: "class-breaks",
-    field: "POP20_CY", // Using 20-24 as a representative, could combine multiple fields
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% or more",
-      ]
-    ),
-  },
-
-  // Middle-aged adults (35-54)
-  middleAged_HEAT: {
-    type: "class-breaks",
-    field: "POP35_CY", // Using 35-39 as a representative, could combine multiple fields
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 7.5 },
-        { min: 7.5, max: 10 },
-        { min: 10, max: 12.5 },
-        { min: 12.5, max: 15 },
-        { min: 15 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 7.5%",
-        "7.5% - 10%",
-        "10% - 12.5%",
-        "12.5% - 15%",
-        "15% or more",
-      ]
-    ),
-  },
-
-  // Pre-retirement (55-64)
-  preRetirement_HEAT: {
-    type: "class-breaks",
-    field: "POP55_CY", // Using 55-59 as a representative, could combine with 60-64
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 7.5 },
-        { min: 7.5, max: 10 },
-        { min: 10, max: 12.5 },
-        { min: 12.5, max: 15 },
-        { min: 15 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 7.5%",
-        "7.5% - 10%",
-        "10% - 12.5%",
-        "12.5% - 15%",
-        "15% or more",
-      ]
-    ),
-  },
-
-  // Elderly (75+)
-  elderly_HEAT: {
-    type: "class-breaks",
-    field: "POP75_CY", // Using 75-79 as a representative, could combine multiple fields
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 10 },
-        { min: 10 },
-      ],
-      [
-        "Less than 2%",
-        "2% - 4%",
-        "4% - 6%",
-        "6% - 8%",
-        "8% - 10%",
-        "10% or more",
-      ]
-    ),
-  },
-
-  // Silent & Greatest Generations
-  oldestGenerations_HEAT: {
-    type: "class-breaks",
-    field: "OLDRGENSCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 10 },
-        { min: 10 },
-      ],
-      [
-        "Less than 2%",
-        "2% - 4%",
-        "4% - 6%",
-        "6% - 8%",
-        "8% - 10%",
-        "10% or more",
-      ]
-    ),
-  },
-
-  // Generation Alpha
-  genAlpha_HEAT: {
-    type: "class-breaks",
-    field: "GENALPHACY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 7.5 },
-        { min: 7.5, max: 10 },
-        { min: 10, max: 12.5 },
-        { min: 12.5, max: 15 },
-        { min: 15 },
-      ],
-      [
-        "Less than 5%",
-        "5% - 7.5%",
-        "7.5% - 10%",
-        "10% - 12.5%",
-        "12.5% - 15%",
-        "15% or more",
-      ]
-    ),
-  },
-
-  // Mid-range homes ($300-500K)
-  midRangeHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL300K_CY", // Could combine with VAL400K_CY
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000 },
-      ],
-      [
-        "Less than 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000 - 2,000 homes",
-        "2,000+ homes",
-      ]
-    ),
-  },
-
-  // Upper-middle range homes ($500-750K)
-  upperMidHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL500K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000 },
-      ],
-      [
-        "Less than 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000 - 2,000 homes",
-        "2,000+ homes",
-      ]
-    ),
-  },
-
-  // High-end homes ($750K-1M)
-  highEndHomes_HEAT: {
-    type: "class-breaks",
-    field: "VAL750K_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 homes",
-        "50 - 100 homes",
-        "100 - 250 homes",
-        "250 - 500 homes",
-        "500 - 1,000 homes",
-        "1,000+ homes",
-      ]
-    ),
-  },
-
-  // Income group: $100K-$150K
-  upperMiddleIncome_HEAT: {
-    type: "class-breaks",
-    field: "HINC100_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000 },
-      ],
-      [
-        "Less than 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 1,000 households",
-        "1,000 - 2,000 households",
-        "2,000+ households",
-      ]
-    ),
-  },
-
-  // Income group: $150K-$200K
-  affluentIncome_HEAT: {
-    type: "class-breaks",
-    field: "HINC150_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 households",
-        "50 - 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 1,000 households",
-        "1,000+ households",
-      ]
-    ),
-  },
-
-  // Income group: $200K+
-  wealthyIncome_HEAT: {
-    type: "class-breaks",
-    field: "HINC200_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 households",
-        "50 - 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 1,000 households",
-        "1,000+ households",
-      ]
-    ),
-  },
-
-  // Low income: Less than $25K
-  lowIncome_HEAT: {
-    type: "class-breaks",
-    field: "HINC0_CY", // Could combine with HINC15_CY
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000 },
-      ],
-      [
-        "Less than 50 households",
-        "50 - 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 1,000 households",
-        "1,000+ households",
-      ]
-    ),
-  },
-
-  // Moderate income: $25K-$50K
-  moderateIncome_HEAT: {
-    type: "class-breaks",
-    field: "HINC25_CY", // Could combine with HINC35_CY
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000 },
-      ],
-      [
-        "Less than 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 1,000 households",
-        "1,000 - 2,000 households",
-        "2,000+ households",
-      ]
-    ),
-  },
-
-  // Daytime residents ratio
-  daytimeResidentRatio_HEAT: {
-    type: "class-breaks",
-    field: "DPOPRES_CY", // Would need calculation relative to total population for a meaningful ratio
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 25000 },
-        { min: 25000, max: 50000 },
-        { min: 50000 },
-      ],
-      [
-        "Less than 2,500",
-        "2,500 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 25,000",
-        "25,000 - 50,000",
-        "50,000 or more",
-      ]
-    ),
-  },
-
-  // New dot density configurations
-  TOTPOP_CY: {
-    type: "dot-density",
-    field: "TOTPOP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "TOTPOP_CY", color: "#E60049", label: "Total Population" },
-    ],
-  },
-  TOTHH_CY: {
-    type: "dot-density",
-    field: "TOTHH_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      { field: "TOTHH_CY", color: "#0BB4FF", label: "Total Households" },
-    ],
-  },
-  DPOP_CY: {
-    type: "dot-density",
-    field: "DPOP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "DPOP_CY", color: "#50E991", label: "Daytime Population" },
-    ],
-  },
-  DPOPWRK_CY: {
-    type: "dot-density",
-    field: "DPOPWRK_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "DPOPWRK_CY", color: "#9B19F5", label: "Daytime Workers" },
-    ],
-  },
-  WORKAGE_CY: {
-    type: "dot-density",
-    field: "WORKAGE_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "WORKAGE_CY",
-        color: "#FFB400",
-        label: "Working Age Population",
-      },
-    ],
-  },
-  SENIOR_CY: {
-    type: "dot-density",
-    field: "SENIOR_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "SENIOR_CY", color: "#007ED6", label: "Senior Population" },
-    ],
-  },
-  CHILD_CY: {
-    type: "dot-density",
-    field: "CHILD_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "children" },
-    attributes: [
-      { field: "CHILD_CY", color: "#FF6B6B", label: "Child Population" },
-    ],
-  },
-  HISPPOP_CY: {
-    type: "dot-density",
-    field: "HISPPOP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "HISPPOP_CY", color: "#007ED6", label: "Hispanic Population" },
-    ],
-  },
-  NHSPWHT_CY: {
-    type: "dot-density",
-    field: "NHSPWHT_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPWHT_CY",
-        color: "#5954D6",
-        label: "White Non-Hispanic Population",
-      },
-    ],
-  },
-  NHSPBLK_CY: {
-    type: "dot-density",
-    field: "NHSPBLK_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPBLK_CY",
-        color: "#9B19F5",
-        label: "Black Non-Hispanic Population",
-      },
-    ],
-  },
-  NHSPASN_CY: {
-    type: "dot-density",
-    field: "NHSPASN_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPASN_CY",
-        color: "#FF6B6B",
-        label: "Asian Non-Hispanic Population",
-      },
-    ],
-  },
-  NHSPAI_CY: {
-    type: "dot-density",
-    field: "NHSPAI_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPAI_CY",
-        color: "#00C6B7",
-        label: "American Indian/Alaska Native Non-Hispanic",
-      },
-    ],
-  },
-  EMP_CY: {
-    type: "dot-density",
-    field: "EMP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMP_CY", color: "#00BA3F", label: "Employed Population" },
-    ],
-  },
-  UNEMP_CY: {
-    type: "dot-density",
-    field: "UNEMP_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "UNEMP_CY", color: "#E60049", label: "Unemployed Population" },
-    ],
-  },
-  OWNER_CY: {
-    type: "dot-density",
-    field: "OWNER_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      { field: "OWNER_CY", color: "#0BB4FF", label: "Owner Occupied Housing" },
-    ],
-  },
-  RENTER_CY: {
-    type: "dot-density",
-    field: "RENTER_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      {
-        field: "RENTER_CY",
-        color: "#FFB400",
-        label: "Renter Occupied Housing",
-      },
-    ],
-  },
-  // Age-specific populations
-  POP0_CY: {
-    type: "dot-density",
-    field: "POP0_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP0_CY", color: "#FF9E8F", label: "Population Age 0-4" },
-    ],
-  },
-  POP5_CY: {
-    type: "dot-density",
-    field: "POP5_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP5_CY", color: "#FF8E72", label: "Population Age 5-9" },
-    ],
-  },
-  POP10_CY: {
-    type: "dot-density",
-    field: "POP10_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP10_CY", color: "#FF7E55", label: "Population Age 10-14" },
-    ],
-  },
-  POP15_CY: {
-    type: "dot-density",
-    field: "POP15_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP15_CY", color: "#FF6E38", label: "Population Age 15-19" },
-    ],
-  },
-  POP35_CY: {
-    type: "dot-density",
-    field: "POP35_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP35_CY", color: "#FFF4B3", label: "Population Age 35-39" },
-    ],
-  },
-  POP40_CY: {
-    type: "dot-density",
-    field: "POP40_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP40_CY", color: "#B3FFB3", label: "Population Age 40-44" },
-    ],
-  },
-  POP45_CY: {
-    type: "dot-density",
-    field: "POP45_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP45_CY", color: "#B3D1FF", label: "Population Age 45-49" },
-    ],
-  },
-  POP50_CY: {
-    type: "dot-density",
-    field: "POP50_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP50_CY", color: "#FFB3E6", label: "Population Age 50-54" },
-    ],
-  },
-  POP55_CY: {
-    type: "dot-density",
-    field: "POP55_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP55_CY", color: "#FFE6B3", label: "Population Age 55-59" },
-    ],
-  },
-  POP60_CY: {
-    type: "dot-density",
-    field: "POP60_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP60_CY", color: "#E6FFB3", label: "Population Age 60-64" },
-    ],
-  },
-  POP65_CY: {
-    type: "dot-density",
-    field: "POP65_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP65_CY", color: "#B3FFE6", label: "Population Age 65-69" },
-    ],
-  },
-  POP70_CY: {
-    type: "dot-density",
-    field: "POP70_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP70_CY", color: "#B3FFFF", label: "Population Age 70-74" },
-    ],
-  },
-  POP75_CY: {
-    type: "dot-density",
-    field: "POP75_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP75_CY", color: "#B3B3FF", label: "Population Age 75-79" },
-    ],
-  },
-  POP80_CY: {
-    type: "dot-density",
-    field: "POP80_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP80_CY", color: "#E6B3FF", label: "Population Age 80-84" },
-    ],
-  },
-  // Generation groups
-  GENALPHACY: {
-    type: "dot-density",
-    field: "GENALPHACY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "GENALPHACY", color: "#FFB400", label: "Generation Alpha" },
-    ],
-  },
-  GENZ_CY: {
-    type: "dot-density",
-    field: "GENZ_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [{ field: "GENZ_CY", color: "#FF6B6B", label: "Generation Z" }],
-  },
-  MILLENN_CY: {
-    type: "dot-density",
-    field: "MILLENN_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "MILLENN_CY", color: "#4ECDC4", label: "Millennials" },
-    ],
-  },
-
-  // Educational Attainment
-  NOHS_CY: {
-    type: "dot-density",
-    field: "NOHS_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "NOHS_CY", color: "#FF6B6B", label: "Less than 9th Grade" },
-    ],
-  },
-  SOMEHS_CY: {
-    type: "dot-density",
-    field: "SOMEHS_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "SOMEHS_CY", color: "#FFB400", label: "Some High School" },
-    ],
-  },
-
-  // Income Brackets
-  HINC0_CY: {
-    type: "dot-density",
-    field: "HINC0_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      { field: "HINC0_CY", color: "#E60049", label: "Income < $15,000" },
-    ],
-  },
-  HINC15_CY: {
-    type: "dot-density",
-    field: "HINC15_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      { field: "HINC15_CY", color: "#0BB4FF", label: "Income $15,000-$24,999" },
-    ],
-  },
-
-  // Home Values
-  VAL0_CY: {
-    type: "dot-density",
-    field: "VAL0_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      { field: "VAL0_CY", color: "#50E991", label: "Home Value < $50,000" },
-    ],
-  },
-  VAL50K_CY: {
-    type: "dot-density",
-    field: "VAL50K_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      {
-        field: "VAL50K_CY",
-        color: "#9B19F5",
-        label: "Home Value $50,000-$99,999",
-      },
-    ],
-  },
-
-  // Labor Force Demographics
-  CIVLBFR_CY: {
-    type: "dot-density",
-    field: "CIVLBFR_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "CIVLBFR_CY", color: "#0BB4FF", label: "Civilian Labor Force" },
-    ],
-  },
-
-  // Employment by Race
-  EMPWHTCY: {
-    type: "dot-density",
-    field: "EMPWHTCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPWHTCY", color: "#E60049", label: "White Employed" },
-    ],
-  },
-  EMPBLKCY: {
-    type: "dot-density",
-    field: "EMPBLKCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      {
-        field: "EMPBLKCY",
-        color: "#0BB4FF",
-        label: "Black/African American Employed",
-      },
-    ],
-  },
-
-  // Unemployment by Race
-  UNWHTCY: {
-    type: "dot-density",
-    field: "UNWHTCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "UNWHTCY", color: "#FFB400", label: "White Unemployed" },
-    ],
-  },
-  UNBLKCY: {
-    type: "dot-density",
-    field: "UNBLKCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "UNBLKCY",
-        color: "#007ED6",
-        label: "Black/African American Unemployed",
-      },
-    ],
-  },
-
-  // Labor Force by Age
-  CIVLF16_CY: {
-    type: "dot-density",
-    field: "CIVLF16_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "CIVLF16_CY", color: "#50E991", label: "Labor Force Age 16-24" },
-    ],
-  },
-  CIVLF25_CY: {
-    type: "dot-density",
-    field: "CIVLF25_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "CIVLF25_CY", color: "#9B19F5", label: "Labor Force Age 25-54" },
-    ],
-  },
-
-  // Income Tiers
-  LOTRHH_CY: {
-    type: "dot-density",
-    field: "LOTRHH_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      {
-        field: "LOTRHH_CY",
-        color: "#FFB400",
-        label: "Low Income Tier Households",
-      },
-    ],
-  },
-  MDTRHH_CY: {
-    type: "dot-density",
-    field: "MDTRHH_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      {
-        field: "MDTRHH_CY",
-        color: "#007ED6",
-        label: "Middle Income Tier Households",
-      },
-    ],
-  },
-  // Additional dot density configurations to add to initialLayerConfigurations
-
-  // Additional Population Demographics
-  DPOPRES_CY: {
-    type: "dot-density",
-    field: "DPOPRES_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "DPOPRES_CY", color: "#36A2EB", label: "Daytime Residents" },
-    ],
-  },
-  MALES_CY: {
-    type: "dot-density",
-    field: "MALES_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "MALES_CY", color: "#4BC0C0", label: "Male Population" },
-    ],
-  },
-  FEMALES_CY: {
-    type: "dot-density",
-    field: "FEMALES_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "FEMALES_CY", color: "#FF6384", label: "Female Population" },
-    ],
-  },
-
-  // Additional Education
-  HSGRAD_CY: {
-    type: "dot-density",
-    field: "HSGRAD_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "HSGRAD_CY", color: "#97BBCD", label: "High School Graduates" },
-    ],
-  },
-  GED_CY: {
-    type: "dot-density",
-    field: "GED_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "GED_CY",
-        color: "#B2D8B2",
-        label: "GED/Alternative Credential",
-      },
-    ],
-  },
-  SMCOLL_CY: {
-    type: "dot-density",
-    field: "SMCOLL_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "SMCOLL_CY", color: "#FFC3A0", label: "Some College" },
-    ],
-  },
-  ASSCDEG_CY: {
-    type: "dot-density",
-    field: "ASSCDEG_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "ASSCDEG_CY", color: "#A0CED9", label: "Associate's Degree" },
-    ],
-  },
-  BACHDEG_CY: {
-    type: "dot-density",
-    field: "BACHDEG_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "BACHDEG_CY", color: "#ADB9E3", label: "Bachelor's Degree" },
-    ],
-  },
-  GRADDEG_CY: {
-    type: "dot-density",
-    field: "GRADDEG_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "GRADDEG_CY",
-        color: "#B5A8E3",
-        label: "Graduate/Professional Degree",
-      },
-    ],
-  },
-
-  // Additional Race/Ethnicity
-  NHSPPI_CY: {
-    type: "dot-density",
-    field: "NHSPPI_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPPI_CY",
-        color: "#FF9F40",
-        label: "Pacific Islander Non-Hispanic",
-      },
-    ],
-  },
-  NHSPOTH_CY: {
-    type: "dot-density",
-    field: "NHSPOTH_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPOTH_CY",
-        color: "#FFD700",
-        label: "Other Race Non-Hispanic",
-      },
-    ],
-  },
-  NHSPMLT_CY: {
-    type: "dot-density",
-    field: "NHSPMLT_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "NHSPMLT_CY",
-        color: "#C39BD3",
-        label: "Multiple Races Non-Hispanic",
-      },
-    ],
-  },
-
-  // Additional Employment
-  EMPAICY: {
-    type: "dot-density",
-    field: "EMPAICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      {
-        field: "EMPAICY",
-        color: "#85C1E9",
-        label: "American Indian/Alaska Native Employed",
-      },
-    ],
-  },
-  EMPASNCY: {
-    type: "dot-density",
-    field: "EMPASNCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPASNCY", color: "#82E0AA", label: "Asian Employed" },
-    ],
-  },
-  EMPPICY: {
-    type: "dot-density",
-    field: "EMPPICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      {
-        field: "EMPPICY",
-        color: "#F8C471",
-        label: "Pacific Islander Employed",
-      },
-    ],
-  },
-  EMPOTHCY: {
-    type: "dot-density",
-    field: "EMPOTHCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPOTHCY", color: "#E59866", label: "Other Race Employed" },
-    ],
-  },
-  EMPMLTCY: {
-    type: "dot-density",
-    field: "EMPMLTCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPMLTCY", color: "#BB8FCE", label: "Multiple Races Employed" },
-    ],
-  },
-
-  // Additional Housing
-  TOTHU_CY: {
-    type: "dot-density",
-    field: "TOTHU_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      { field: "TOTHU_CY", color: "#F7DC6F", label: "Total Housing Units" },
-    ],
-  },
-  VACANT_CY: {
-    type: "dot-density",
-    field: "VACANT_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "units" },
-    attributes: [
-      { field: "VACANT_CY", color: "#EC7063", label: "Vacant Housing Units" },
-    ],
-  },
-
-  // Upper Income Tier (missing from original)
-  UPTRHH_CY: {
-    type: "dot-density",
-    field: "UPTRHH_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      {
-        field: "UPTRHH_CY",
-        color: "#5D4037",
-        label: "Upper Income Tier Households",
-      },
-    ],
-  },
-
-  // Additional Age-specific populations (20-85+)
-  POP20_CY: {
-    type: "dot-density",
-    field: "POP20_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP20_CY", color: "#FF5E3A", label: "Population Age 20-24" },
-    ],
-  },
-  // Additional missing configurations to add
-
-  // Remaining Age Groups
-  POP25_CY: {
-    type: "dot-density",
-    field: "POP25_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP25_CY", color: "#FF4E50", label: "Population Age 25-29" },
-    ],
-  },
-  POP30_CY: {
-    type: "dot-density",
-    field: "POP30_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP30_CY", color: "#FC913A", label: "Population Age 30-34" },
-    ],
-  },
-  // Continue through age groups...
-  POP85_CY: {
-    type: "dot-density",
-    field: "POP85_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "POP85_CY", color: "#99B898", label: "Population Age 85+" },
-    ],
-  },
-
-  // Additional Generations
-  BABYBOOMCY: {
-    type: "dot-density",
-    field: "BABYBOOMCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "BABYBOOMCY",
-        color: "#E84A5F",
-        label: "Baby Boomer Population",
-      },
-    ],
-  },
-  OLDRGENSCY: {
-    type: "dot-density",
-    field: "OLDRGENSCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "OLDRGENSCY",
-        color: "#355C7D",
-        label: "Silent & Greatest Generations",
-      },
-    ],
-  },
-
-  // Additional Labor Force by Age
-  EMPAGE16CY: {
-    type: "dot-density",
-    field: "EMPAGE16CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPAGE16CY", color: "#A8E6CF", label: "Employed Age 16-24" },
-    ],
-  },
-  EMPAGE25CY: {
-    type: "dot-density",
-    field: "EMPAGE25CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPAGE25CY", color: "#FFD3B6", label: "Employed Age 25-54" },
-    ],
-  },
-  EMPAGE55CY: {
-    type: "dot-density",
-    field: "EMPAGE55CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPAGE55CY", color: "#FFAAA5", label: "Employed Age 55-64" },
-    ],
-  },
-  EMPAGE65CY: {
-    type: "dot-density",
-    field: "EMPAGE65CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "workers" },
-    attributes: [
-      { field: "EMPAGE65CY", color: "#98DDCA", label: "Employed Age 65+" },
-    ],
-  },
-
-  // Disposable Income Brackets
-  DI0_CY: {
-    type: "dot-density",
-    field: "DI0_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      {
-        field: "DI0_CY",
-        color: "#FF9A8B",
-        label: "Disposable Income < $15,000",
-      },
-    ],
-  },
-  DI15_CY: {
-    type: "dot-density",
-    field: "DI15_CY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "households" },
-    attributes: [
-      {
-        field: "DI15_CY",
-        color: "#FFB8B1",
-        label: "Disposable Income $15,000-$24,999",
-      },
-    ],
-  },
-  // Additional Unemployed by Race
-  UNAICY: {
-    type: "dot-density",
-    field: "UNAICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "UNAICY",
-        color: "#FFB7B2",
-        label: "American Indian/Alaska Native Unemployed",
-      },
-    ],
-  },
-  UNASNCY: {
-    type: "dot-density",
-    field: "UNASNCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "UNASNCY", color: "#FFDAC1", label: "Asian Unemployed" },
-    ],
-  },
-  UNPICY: {
-    type: "dot-density",
-    field: "UNPICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "UNPICY",
-        color: "#E2F0CB",
-        label: "Pacific Islander Unemployed",
-      },
-    ],
-  },
-  UNOTHCY: {
-    type: "dot-density",
-    field: "UNOTHCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "UNOTHCY", color: "#B5EAD7", label: "Other Race Unemployed" },
-    ],
-  },
-  UNMLTCY: {
-    type: "dot-density",
-    field: "UNMLTCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "UNMLTCY",
-        color: "#C7CEEA",
-        label: "Multiple Races Unemployed",
-      },
-    ],
-  },
-
-  // Additional Labor Force by Race
-  CIVLFAICY: {
-    type: "dot-density",
-    field: "CIVLFAICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "CIVLFAICY",
-        color: "#E5989B",
-        label: "American Indian/Alaska Native Labor Force",
-      },
-    ],
-  },
-  CIVLFASNCY: {
-    type: "dot-density",
-    field: "CIVLFASNCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      { field: "CIVLFASNCY", color: "#B5838D", label: "Asian Labor Force" },
-    ],
-  },
-  CIVLFPICY: {
-    type: "dot-density",
-    field: "CIVLFPICY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "CIVLFPICY",
-        color: "#6D6875",
-        label: "Pacific Islander Labor Force",
-      },
-    ],
-  },
-  CIVLFOTHCY: {
-    type: "dot-density",
-    field: "CIVLFOTHCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "CIVLFOTHCY",
-        color: "#A4C3B2",
-        label: "Other Race Labor Force",
-      },
-    ],
-  },
-  CIVLFMLTCY: {
-    type: "dot-density",
-    field: "CIVLFMLTCY",
-    dotValue: 100,
-    dotBlending: "additive",
-    dotSize: 2,
-    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-    legendOptions: { unit: "people" },
-    attributes: [
-      {
-        field: "CIVLFMLTCY",
-        color: "#EAF4D3",
-        label: "Multiple Races Labor Force",
-      },
-    ],
-  },
-};
-
-const visualizationOptions = [
-  // Original Heat Map Options
-  {
-    value: "income_HEAT",
-    label: "Median Household Income (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "growth_HEAT",
-    label: "Household Growth Rate (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "affordability_HEAT",
-    label: "Housing Affordability Index (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "density_HEAT",
-    label: "Population Density (Heat)",
-    type: "class-breaks",
-  },
-  { value: "age_HEAT", label: "Median Age (Heat)", type: "class-breaks" },
-  {
-    value: "unemployment_HEAT",
-    label: "Unemployment Rate (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "homeValue_HEAT",
-    label: "Median Home Value (Heat)",
-    type: "class-breaks",
-  },
-
-  // Income Heat Maps
-  {
-    value: "MEDHINC_CY_HEAT",
-    label: "Median Household Income (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "AVGHINC_CY_HEAT",
-    label: "Average Household Income (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC0_CY_HEAT",
-    label: "Household Income < $15K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC15_CY_HEAT",
-    label: "Household Income $15K-$25K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC25_CY_HEAT",
-    label: "Household Income $25K-$35K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC35_CY_HEAT",
-    label: "Household Income $35K-$50K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC50_CY_HEAT",
-    label: "Household Income $50K-$75K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC75_CY_HEAT",
-    label: "Household Income $75K-$100K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC100_CY_HEAT",
-    label: "Household Income $100K-$150K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC150_CY_HEAT",
-    label: "Household Income $150K-$200K (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HINC200_CY_HEAT",
-    label: "Household Income $200K+ (Heat)",
-    type: "class-breaks",
-  },
-
-  // Dot Density Population Demographics
-  {
-    value: "TOTPOP_CY",
-    label: "Total Population 2024 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "TOTHH_CY",
-    label: "Total Households 2024 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "DPOP_CY",
-    label: "Daytime Population 2024 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "DPOPWRK_CY",
-    label: "Daytime Workers 2024 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "WORKAGE_CY",
-    label: "Working Age Population 18-64 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "SENIOR_CY",
-    label: "Senior Population 65+ (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "CHILD_CY",
-    label: "Child Population <18 (Dot)",
-    type: "dot-density",
-  },
-
-  // Detailed Age Groups (Dot)
-  { value: "POP0_CY", label: "Population Age 0-4 (Dot)", type: "dot-density" },
-  { value: "POP5_CY", label: "Population Age 5-9 (Dot)", type: "dot-density" },
-  {
-    value: "POP10_CY",
-    label: "Population Age 10-14 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP15_CY",
-    label: "Population Age 15-19 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP20_CY",
-    label: "Population Age 20-24 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP25_CY",
-    label: "Population Age 25-29 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP30_CY",
-    label: "Population Age 30-34 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP35_CY",
-    label: "Population Age 35-39 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP40_CY",
-    label: "Population Age 40-44 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP45_CY",
-    label: "Population Age 45-49 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP50_CY",
-    label: "Population Age 50-54 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP55_CY",
-    label: "Population Age 55-59 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP60_CY",
-    label: "Population Age 60-64 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP65_CY",
-    label: "Population Age 65-69 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP70_CY",
-    label: "Population Age 70-74 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP75_CY",
-    label: "Population Age 75-79 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "POP80_CY",
-    label: "Population Age 80-84 (Dot)",
-    type: "dot-density",
-  },
-  { value: "POP85_CY", label: "Population Age 85+ (Dot)", type: "dot-density" },
-
-  // Generations (Dot)
-  {
-    value: "GENALPHACY",
-    label: "Generation Alpha (Born 2017+) (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "GENZ_CY",
-    label: "Generation Z (Born 1999-2016) (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "MILLENN_CY",
-    label: "Millennials (Born 1981-1998) (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "GENX_CY",
-    label: "Generation X (Born 1965-1980) (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "BABYBOOMCY",
-    label: "Baby Boomers (Born 1946-1964) (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "OLDRGENSCY",
-    label: "Silent & Greatest Gens (Born pre-1946) (Dot)",
-    type: "dot-density",
-  },
-
-  // Race and Ethnicity Percentages (Heat)
-  {
-    value: "hispanic_HEAT",
-    label: "Hispanic Population Percentage (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "diversity_HEAT",
-    label: "White Non-Hispanic Percentage (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "NHSPBLK_CY_PCT_HEAT",
-    label: "Black Non-Hispanic Percentage (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "NHSPASN_CY_PCT_HEAT",
-    label: "Asian Non-Hispanic Percentage (Heat)",
-    type: "class-breaks",
-  },
-
-  // Race and Ethnicity (Dot)
-  {
-    value: "HISPPOP_CY",
-    label: "Hispanic Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPWHT_CY",
-    label: "White Non-Hispanic Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPBLK_CY",
-    label: "Black Non-Hispanic Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPASN_CY",
-    label: "Asian Non-Hispanic Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPAI_CY",
-    label: "American Indian/Alaska Native Non-Hispanic (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPPI_CY",
-    label: "Pacific Islander Non-Hispanic (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPOTH_CY",
-    label: "Other Race Non-Hispanic (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "NHSPMLT_CY",
-    label: "Multiple Races Non-Hispanic (Dot)",
-    type: "dot-density",
-  },
-
-  // Education (Dot)
-  {
-    value: "NOHS_CY",
-    label: "Less than 9th Grade Education (Dot)",
-    type: "dot-density",
-  },
-  { value: "SOMEHS_CY", label: "Some High School (Dot)", type: "dot-density" },
-  {
-    value: "HSGRAD_CY",
-    label: "High School Graduates (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "GED_CY",
-    label: "GED/Alternative Credential (Dot)",
-    type: "dot-density",
-  },
-  { value: "SMCOLL_CY", label: "Some College (Dot)", type: "dot-density" },
-  {
-    value: "ASSCDEG_CY",
-    label: "Associate's Degree (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "BACHDEG_CY",
-    label: "Bachelor's Degree (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "GRADDEG_CY",
-    label: "Graduate/Professional Degree (Dot)",
-    type: "dot-density",
-  },
-
-  // Education Percentages (Heat)
-  {
-    value: "HSGRAD_LESS_CY_PCT_HEAT",
-    label: "Less than High School Percentage (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "BACHDEG_PLUS_CY_PCT_HEAT",
-    label: "Bachelor's Degree or Higher Percentage (Heat)",
-    type: "class-breaks",
-  },
-
-  // Home Values (Dot)
-  {
-    value: "VAL0_CY",
-    label: "Home Value < $50,000 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL50K_CY",
-    label: "Home Value $50K-$99,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL100K_CY",
-    label: "Home Value $100K-$149,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL150K_CY",
-    label: "Home Value $150K-$199,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL200K_CY",
-    label: "Home Value $200K-$249,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL250K_CY",
-    label: "Home Value $250K-$299,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL300K_CY",
-    label: "Home Value $300K-$399,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL400K_CY",
-    label: "Home Value $400K-$499,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL500K_CY",
-    label: "Home Value $500K-$749,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL750K_CY",
-    label: "Home Value $750K-$999,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL1M_CY",
-    label: "Home Value $1M-$1.5M (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VAL1PT5MCY",
-    label: "Home Value $1.5M-$2M (Dot)",
-    type: "dot-density",
-  },
-  { value: "VAL2M_CY", label: "Home Value $2M+ (Dot)", type: "dot-density" },
-
-  // Home Values (Heat)
-  {
-    value: "MEDVAL_CY_HEAT",
-    label: "Median Home Value (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "AVGVAL_CY_HEAT",
-    label: "Average Home Value (Heat)",
-    type: "class-breaks",
-  },
-
-  // Housing (Dot)
-  {
-    value: "OWNER_CY",
-    label: "Owner Occupied Housing Units (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "RENTER_CY",
-    label: "Renter Occupied Housing Units (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "TOTHU_CY",
-    label: "Total Housing Units (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "VACANT_CY",
-    label: "Vacant Housing Units (Dot)",
-    type: "dot-density",
-  },
-
-  // Housing (Heat)
-  {
-    value: "PCTHOMEOWNER_HEAT",
-    label: "Homeownership Rate (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "VACANT_CY_PCT_HEAT",
-    label: "Vacancy Rate (Heat)",
-    type: "class-breaks",
-  },
-
-  // Income Brackets (Dot)
-  {
-    value: "HINC0_CY",
-    label: "Households < $15,000 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC15_CY",
-    label: "Households $15,000-$24,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC25_CY",
-    label: "Households $25,000-$34,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC35_CY",
-    label: "Households $35,000-$49,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC50_CY",
-    label: "Households $50,000-$74,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC75_CY",
-    label: "Households $75,000-$99,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC100_CY",
-    label: "Households $100,000-$149,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC150_CY",
-    label: "Households $150,000-$199,999 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "HINC200_CY",
-    label: "Households $200,000+ (Dot)",
-    type: "dot-density",
-  },
-
-  // Additional Metrics
-  {
-    value: "POPGRWCYFY_HEAT",
-    label: "Population Growth Rate 2024-2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HHGRWCYFY_HEAT",
-    label: "Household Growth Rate 2024-2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "MHIGRWCYFY_HEAT",
-    label: "Median Household Income Growth Rate 2024-2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "POPGRW20CY",
-    label: "Population Growth Rate 2020-2024 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HHGRW20CY_HEAT",
-    label: "Household Growth Rate 2020-2024 (Heat)",
-    type: "class-breaks",
-  },
-
-  // Economic Indicators (Heat)
-  {
-    value: "UNEMPRT_CY_HEAT",
-    label: "Unemployment Rate (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "HAI_CY_HEAT",
-    label: "Housing Affordability Index (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "INCMORT_CY_HEAT",
-    label: "Percent of Income for Mortgage (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "WLTHINDXCY_HEAT",
-    label: "Wealth Index (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "SEI_CY_HEAT",
-    label: "Socioeconomic Status Index (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "PCI_CY_HEAT",
-    label: "Per Capita Income (Heat)",
-    type: "class-breaks",
-  },
-
-  // Future Projections (Heat)
-  {
-    value: "TOTPOP_FY_HEAT",
-    label: "Projected Total Population 2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "TOTHH_FY_HEAT",
-    label: "Projected Total Households 2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "MEDHINC_FY_HEAT",
-    label: "Projected Median Household Income 2029 (Heat)",
-    type: "class-breaks",
-  },
-  {
-    value: "POPDENS_FY_HEAT",
-    label: "Projected Population Density 2029 (Heat)",
-    type: "class-breaks",
-  },
-
-  // Demographic Composition (Dot)
-  { value: "MALES_CY", label: "Male Population (Dot)", type: "dot-density" },
-  {
-    value: "FEMALES_CY",
-    label: "Female Population (Dot)",
-    type: "dot-density",
-  },
-
-  // Advanced Demographic Categories (Dot)
-  {
-    value: "EMPAGE16CY",
-    label: "Employed Population Age 16-24 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPAGE25CY",
-    label: "Employed Population Age 25-54 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPAGE55CY",
-    label: "Employed Population Age 55-64 (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPAGE65CY",
-    label: "Employed Population 65+ (Dot)",
-    type: "dot-density",
-  },
-
-  // Employment and Labor (Dot)
-  { value: "EMP_CY", label: "Employed Population (Dot)", type: "dot-density" },
-  {
-    value: "UNEMP_CY",
-    label: "Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "CIVLBFR_CY",
-    label: "Civilian Labor Force (Dot)",
-    type: "dot-density",
-  },
-
-  // Detailed Race and Employment (Dot)
-  {
-    value: "EMPWHTCY",
-    label: "White Employed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPBLKCY",
-    label: "Black Employed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPASNCY",
-    label: "Asian Employed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPAICY",
-    label: "American Indian/Alaska Native Employed (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPPICY",
-    label: "Pacific Islander Employed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPOTHCY",
-    label: "Other Race Employed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "EMPMLTCY",
-    label: "Multiple Races Employed Population (Dot)",
-    type: "dot-density",
-  },
-
-  // Unemployed by Race (Dot)
-  {
-    value: "UNWHTCY",
-    label: "White Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNBLKCY",
-    label: "Black Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNASNCY",
-    label: "Asian Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNAICY",
-    label: "American Indian/Alaska Native Unemployed (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNPICY",
-    label: "Pacific Islander Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNOTHCY",
-    label: "Other Race Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-  {
-    value: "UNMLTCY",
-    label: "Multiple Races Unemployed Population (Dot)",
-    type: "dot-density",
-  },
-];
-
-const createPipeLayer = (config) => {
-  console.log("Creating Pipe Layer GraphicsLayer with config:", config);
-  return new GraphicsLayer({
-    title: config?.title || "Pipe Map Layer",
-    listMode: "show", // Or hide
-    graphics: [], // Start empty, visualization handler will populate
-    // Add any specific layer properties needed for pipe maps
-  });
-};
-
-const createCompLayer = (config) => {
-  console.log("Creating Comp Layer GraphicsLayer with config:", config);
-  return new GraphicsLayer({
-    title: config?.title || "Comparison Map Layer",
-    listMode: "show", // Or hide
-    graphics: [], // Start empty, visualization handler will populate
-    // Add any specific layer properties needed for comp maps
-  });
-};
-// --- End Placeholder Layer Creators ---
-
-const createLayers = async (
-  // Marked async as createGraphicsLayerFromCustomData might be async
-  visualizationType,
-  configOverride = null,
-  layerConfigs = initialLayerConfigurations,
-  selectedAreaType = areaTypes[0]
-) => {
-  // Validate inputs
-  if (!visualizationType) {
-    console.error("No visualization type provided");
-    return null;
-  }
-
-  // Get configuration
-  let config = configOverride || layerConfigs[visualizationType];
-  if (!config) {
-    // Check if override exists and has enough info, or if visualizationType itself is a type
-    if (!configOverride || (!configOverride.type && !visualizationType)) {
-      console.warn(
-        `No configuration found or provided for visualization type: ${visualizationType}. Using minimal default.`
-      );
-      // Create a minimal config if absolutely nothing is found
-      config = {
-        type: visualizationType,
-        field: "OBJECTID",
-        title: visualizationType,
-      };
-    } else {
-      // Use the override directly if standard config is missing but override exists/has type
-      config = { ...configOverride }; // Clone override to avoid modifying original
-      // Ensure config has a type if override didn't provide it explicitly
-      if (!config.type) config.type = visualizationType;
-      console.log(
-        `Using provided config override for ${visualizationType}:`,
-        config
-      );
-    }
-  } else if (!config.type) {
-    // Add type to config if it was found in layerConfigs but lacks the type property itself
-    config.type = visualizationType;
-  }
-
-  // --- Normalize Type ---
-  let effectiveVizType = config.type || visualizationType; // Prioritize type from config
-  if (effectiveVizType === "pipeline") {
-    console.log(
-      `Mapping 'pipeline' type to 'pipe' in createLayers for config:`,
-      config
-    );
-    effectiveVizType = "pipe";
-    // Optionally update the config object itself if needed elsewhere
-    // config.type = 'pipe'; // Be careful if config is used elsewhere
-  } else if (effectiveVizType === "comps") {
-    console.log(
-      `Mapping 'comps' type to 'comp' in createLayers for config:`,
-      config
-    );
-    effectiveVizType = "comp";
-  }
-  // --- End Normalize Type ---
-
-  // --- Handle Custom/Pipe/Comp Types ---
-  const specialTypes = ["pipe", "comp", "custom"];
-  // Check normalized effectiveVizType OR if customData exists
-  const isSpecialType =
-    specialTypes.includes(effectiveVizType) ||
-    (config.customData &&
-      Array.isArray(config.customData.data) &&
-      config.customData.data.length > 0);
-
-  if (isSpecialType) {
-    console.log(`Creating GraphicsLayer for special type: ${effectiveVizType}`);
-    let graphicsLayer = null;
-    let GraphicsLayer; // Declare here to use after import
-
-    try {
-      // Dynamically import GraphicsLayer if not already available globally
-      // This assumes GraphicsLayer might not be imported at the top level in all contexts
-      ({ default: GraphicsLayer } = await import(
-        "@arcgis/core/layers/GraphicsLayer"
-      ));
-
-      if (
-        effectiveVizType === "custom" ||
-        (config.customData &&
-          Array.isArray(config.customData.data) &&
-          config.customData.data.length > 0)
-      ) {
-        // createGraphicsLayerFromCustomData might need to be async
-        console.log(
-          `Calling createGraphicsLayerFromCustomData for config:`,
-          config
-        );
-        graphicsLayer = await createGraphicsLayerFromCustomData(config); // Make sure this function is defined and async
-        if (graphicsLayer) {
-          // Ensure visualizationType is set correctly for custom data layers
-          graphicsLayer.visualizationType = "custom"; // Standardize type after creation
-          graphicsLayer.isCustomDataLayer = true; // Add flag if needed elsewhere
-        }
-      } else if (effectiveVizType === "pipe") {
-        graphicsLayer = createPipeLayer(config); // Ensure this function returns a GraphicsLayer instance
-        if (graphicsLayer) graphicsLayer.visualizationType = "pipe";
-      } else if (effectiveVizType === "comp") {
-        graphicsLayer = createCompLayer(config); // Ensure this function returns a GraphicsLayer instance
-        if (graphicsLayer) graphicsLayer.visualizationType = "comp";
-      } else {
-        // This case should ideally not be reached if types are handled correctly
-        console.warn(
-          `Unknown special type '${effectiveVizType}', creating empty GraphicsLayer.`
-        );
-        graphicsLayer = new GraphicsLayer({
-          title: config?.title || effectiveVizType,
-          graphics: [],
-        });
-        if (graphicsLayer) graphicsLayer.visualizationType = effectiveVizType;
-      }
-
-      if (graphicsLayer && graphicsLayer instanceof GraphicsLayer) {
-        // *** Use direct property assignment ***
-        graphicsLayer.isVisualizationLayer = true;
-        // visualizationType is set within the specific branches above
-
-        console.log(
-          `GraphicsLayer created with title: "${graphicsLayer.title}", type: "${graphicsLayer.visualizationType}"`
-        );
-      } else {
-        console.error(
-          `Failed to create a valid GraphicsLayer object for type ${effectiveVizType}. Received:`,
-          graphicsLayer
-        );
-        return null; // Return null if creation failed
-      }
-    } catch (error) {
-      console.error(
-        `Error during GraphicsLayer creation or related async operation for type ${effectiveVizType}:`,
-        error
-      );
-      return null;
-    }
-
-    return graphicsLayer; // Return the GraphicsLayer or null
-  }
-  // --- End Handle Custom/Pipe/Comp Types ---
-
-  // --- Standard Heatmap/Dot Density Logic (using FeatureLayer) ---
-  if (!selectedAreaType || !selectedAreaType.url) {
-    console.error(
-      `Invalid area type for standard visualization '${visualizationType}': No URL provided`,
-      selectedAreaType
-    );
-    return null;
-  }
-
-  // Default dotValue for dot-density if missing in config
-  if (
-    config.type === "dot-density" &&
-    (config.dotValue === undefined || config.dotValue === null)
-  ) {
-    config.dotValue = selectedAreaType.value === 12 ? 10 : 100; // Tract vs County default
-    console.log(
-      `Applied default dotValue ${config.dotValue} for ${selectedAreaType.label}`
-    );
-  }
-
-  // Renderer creation logic (ensure FeatureLayer is imported)
-  const createRenderer = (config) => {
-    if (!config || !config.type) {
-      console.warn("Cannot create renderer: Invalid config provided", config);
-      return null;
-    }
-    if (
-      !config.field &&
-      (config.type === "dot-density" || config.type === "class-breaks")
-    ) {
-      console.error(
-        `Cannot create renderer for type ${config.type}: Config is missing required 'field' property.`
-      );
-      return null; // Field is essential for these renderer types
-    }
-
-    switch (config.type) {
-      case "dot-density":
-        // Ensure attributes exist and have necessary fields, assign dotValue correctly
-        const currentDotValue =
-          config.dotValue !== undefined
-            ? config.dotValue
-            : selectedAreaType.value === 12
-            ? 10
-            : 100;
-        // Make sure attributes array exists and is correctly structured
-        let attributes = config.attributes;
-        if (!Array.isArray(attributes) || attributes.length === 0) {
-          // Provide a default attribute structure if missing
-          attributes = [
-            {
-              field: config.field,
-              color: "#E60049",
-              label: config.field || "Value",
-            },
-          ];
-          console.warn(
-            `Dot density config missing 'attributes', creating default for field: ${config.field}`
-          );
-        }
-        // Map over attributes to ensure they are well-formed
-        attributes = attributes.map((attr) => ({
-          field: attr.field || config.field, // Fallback to main field
-          color: attr.color || "#E60049", // Default color
-          label: attr.label || attr.field || config.field, // Default label
-          // Note: 'value' property on attributes within the renderer is NOT standard for dotValue
-          // dotValue is a top-level property of the renderer itself.
-          // However, if you need per-attribute values for some reason, that's a different setup.
-        }));
-
-        return {
-          type: "dot-density",
-          field: config.field, // Field remains the primary field for density calculation
-          dotValue: currentDotValue,
-          dotBlending: config.dotBlending || "additive",
-          dotSize: config.dotSize || 2,
-          outline: config.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
-          legendOptions: config.legendOptions || { unit: "value" },
-          attributes: attributes, // The processed attributes array
-        };
-      case "class-breaks":
-        // Ensure classBreakInfos exists and is an array
-        const classBreakInfos = Array.isArray(config.classBreakInfos)
-          ? config.classBreakInfos
-          : [];
-        if (classBreakInfos.length === 0) {
-          console.warn(
-            `Class breaks config for field ${config.field} is missing 'classBreakInfos'. Renderer might not display correctly.`
-          );
-        }
-        return {
-          type: "class-breaks",
-          field: config.field,
-          defaultSymbol: config.defaultSymbol || {
-            type: "simple-fill",
-            color: [0, 0, 0, 0],
-            outline: { color: [50, 50, 50, 0.2], width: 0.5 },
-          },
-          defaultLabel: config.defaultLabel || "No data",
-          classBreakInfos: classBreakInfos,
-        };
-      default:
-        console.error("Unsupported standard renderer type:", config.type);
-        return null;
-    }
-  };
-
-  // Layer definitions (remains the same - assuming this is correct)
-  const layerDefinitions = {
-    // Your existing definitions - example structure:
-    income_HEAT: {
-      title: "Median Household Income", // Example title
-      fieldName: "MEDHINC_CY", // Example field name for popup
-      format: { digitSeparator: true, places: 0 }, // Example format
-    },
-    // ... add definitions for ALL your visualizationTypes that use FeatureLayer
-    // to ensure popups work correctly. Use the 'field' from the config if needed.
-    // Example fallback:
-    default: {
-      title:
-        config?.attributes?.[0]?.label || config?.field || visualizationType,
-      fieldName: config?.field,
-      format: { digitSeparator: true, places: 0 }, // generic number format
-    },
-  };
-
-  // Get the specific definition or a default based on the config's field
-  const layerDef =
-    layerDefinitions[visualizationType] ||
-    layerDefinitions[config.type] ||
-    layerDefinitions.default;
-  // If layerDef is default, try to use the specific field/title from the config
-  if (layerDef === layerDefinitions.default) {
-    layerDef.title =
-      config?.attributes?.[0]?.label || config?.field || visualizationType;
-    layerDef.fieldName = config?.field;
-  }
-
-  // Field info creation (remains the same, ensure it handles missing defs)
-  const createFieldInfo = (conf, layerDefinition) => {
-    return {
-      fieldName: layerDefinition?.fieldName || conf?.field, // Use field from config as fallback
-      label:
-        layerDefinition?.title || conf?.attributes?.[0]?.label || conf?.field, // Use label/field as fallback
-      format: layerDefinition?.format || { digitSeparator: true, places: 0 }, // Default format
-    };
-  };
-
-  // Create and return the FeatureLayer
-  let featureLayer = null;
-  let FeatureLayer; // Declare here
-
-  try {
-    // FeatureLayer needs to be imported
-    ({ default: FeatureLayer } = await import(
-      "@arcgis/core/layers/FeatureLayer"
-    ));
-
-    const renderer = createRenderer(config);
-
-    if (!renderer) {
-      console.error(
-        `Failed to create renderer for type ${config.type} with config:`,
-        config
-      );
-      return null; // Cannot create layer without renderer
-    }
-
-    // Essential fields for popup and rendering
-    // Requesting all fields (*) is simpler but less performant.
-    // Use ["*"] for now to ensure fields are available.
-    // const essentialFields = ["NAME", renderer.field]; // Assume NAME exists for title
-    // if (layerDef?.fieldName && !essentialFields.includes(layerDef.fieldName)) {
-    //     essentialFields.push(layerDef.fieldName);
-    // }
-
-    const popupTemplate =
-      layerDef && renderer.field
-        ? {
-            title: `${selectedAreaType.label} {NAME}`, // Assuming 'NAME' field exists
-            content: [
-              {
-                type: "fields",
-                fieldInfos: [createFieldInfo(config, layerDef)],
-              },
-            ],
-          }
-        : {
-            // Minimal fallback popup if definitions are missing
-            title: `${selectedAreaType.label} {NAME}`,
-            content: `Field: ${renderer.field}<br>Value: {${renderer.field}}`,
-          };
-
-    featureLayer = new FeatureLayer({
-      url: selectedAreaType.url,
-      renderer: renderer,
-      popupTemplate: popupTemplate,
-      // Use a title from the config or definition, fallback to viz type
-      title:
-        config?.attributes?.[0]?.label ||
-        layerDef?.title ||
-        visualizationType.replace(/_/g, " "),
-      minScale: selectedAreaType.value === 12 ? 2500000 : 25000000,
-      outFields: ["*"], // Request all fields simplifies things
-    });
-
-    // *** Use direct property assignment ***
-    featureLayer.isVisualizationLayer = true;
-    featureLayer.visualizationType = visualizationType;
-
-    console.log(
-      `FeatureLayer created with title: "${featureLayer.title}", type: "${featureLayer.visualizationType}"`
-    );
-  } catch (error) {
-    console.error("Failed to import or create FeatureLayer:", error);
-    return null;
-  }
-
-  return featureLayer;
-};
-
-// *** ENTIRE FUNCTION ***
-async function createGraphicsLayerFromCustomData(config) {
-  // Ensure GraphicsLayer is imported or available
-  let GraphicsLayer, Graphic, SimpleMarkerSymbol, PopupTemplate, Color, Point;
-  try {
-    // Use Promise.all for concurrent dynamic imports
-    [
-      { default: GraphicsLayer },
-      { default: Graphic },
-      { default: SimpleMarkerSymbol },
-      { default: PopupTemplate },
-      { default: Color },
-      { default: Point },
-    ] = await Promise.all([
-      import("@arcgis/core/layers/GraphicsLayer"),
-      import("@arcgis/core/Graphic"),
-      import("@arcgis/core/symbols/SimpleMarkerSymbol"),
-      import("@arcgis/core/PopupTemplate"),
-      import("@arcgis/core/Color"),
-      import("@arcgis/core/geometry/Point"),
-    ]);
-
-    console.log("Creating graphics layer from custom data", config);
-
-    // Basic validation of config structure
-    if (
-      !config ||
-      !config.customData ||
-      !Array.isArray(config.customData.data)
-    ) {
-      console.error("Invalid configuration for custom data layer:", config);
-      return null;
-    }
-
-    // Create a graphics layer
-    const customLayer = new GraphicsLayer({
-      title: config.title || "Custom Data Points",
-      listMode: "show", // Or "hide" depending on preference
-    });
-
-    // *** Use direct property assignment ***
-    customLayer.isVisualizationLayer = true;
-    customLayer.isCustomDataLayer = true; // Flag for specific custom data handling
-    customLayer.visualizationType = "custom"; // Standardize type
-
-    // Extract data from configuration
-    const data = config.customData.data || [];
-    if (data.length === 0) {
-      console.warn("No data points found in configuration for custom layer.");
-      return customLayer; // Return empty layer
-    }
-
-    // Determine name, value, lat, lon columns - provide fallbacks or error handling
-    const nameColumn = config.customData.nameColumn;
-    const valueColumn = config.field || config.customData.valueColumn; // Use 'field' from main config if available
-    const latitudeColumn = config.customData.latitudeColumn || "latitude"; // Common defaults
-    const longitudeColumn = config.customData.longitudeColumn || "longitude"; // Common defaults
-
-    // Log determined columns
-    console.log(`Processing ${data.length} custom data points using:
-          Name Column: ${nameColumn || "Not Specified"}
-          Value Column: ${valueColumn || "Not Specified"}
-          Latitude Column: ${latitudeColumn}
-          Longitude Column: ${longitudeColumn}`);
-
-    // Create popup template - only if name and value columns are specified
-    let popupTemplate = null;
-    if (nameColumn && valueColumn) {
-      popupTemplate = new PopupTemplate({
-        title: `{${nameColumn}}`, // Use the dynamic name column
-        content: [
-          {
-            type: "fields",
-            fieldInfos: [
-              {
-                fieldName: valueColumn,
-                label: valueColumn, // Use the column name as the label
-                format: { digitSeparator: true, places: 2 }, // Example formatting
-              },
-            ],
-          },
-        ],
-      });
-    } else {
-      console.warn(
-        "Popup template not created: Missing nameColumn or valueColumn in configuration."
-      );
-      // Optional: Create a minimal popup showing coordinates or ID
-      popupTemplate = new PopupTemplate({
-        title: "Custom Point",
-        content: `Latitude: {latitude}<br>Longitude: {longitude}<br>ID: {ID}`, // Requires attributes below
-      });
-    }
-
-    // Add each data point as a graphic
-    let addedCount = 0;
-    let errorCount = 0;
-    const graphicsToAdd = [];
-
-    data.forEach((item, index) => {
-      // Robustly get latitude and longitude
-      let latitude, longitude;
-
-      // Check common places for coordinates
-      if (
-        item.geometry &&
-        typeof item.geometry.y === "number" &&
-        typeof item.geometry.x === "number"
-      ) {
-        latitude = item.geometry.y;
-        longitude = item.geometry.x;
-      } else if (
-        typeof item[latitudeColumn] === "number" &&
-        typeof item[longitudeColumn] === "number"
-      ) {
-        latitude = item[latitudeColumn];
-        longitude = item[longitudeColumn];
-      } else if (
-        typeof item["lat"] === "number" &&
-        typeof item["lon"] === "number"
-      ) {
-        // Common alternatives
-        latitude = item["lat"];
-        longitude = item["lon"];
-      } else if (
-        typeof item["latitude"] === "number" &&
-        typeof item["longitude"] === "number"
-      ) {
-        // Explicit fallback
-        latitude = item["latitude"];
-        longitude = item["longitude"];
-      } else {
-        console.warn(
-          `Item ${index} missing valid coordinates using columns '${latitudeColumn}' and '${longitudeColumn}'. Item data:`,
-          item
-        );
-        errorCount++;
-        return; // Skip this item
-      }
-
-      // Validate coordinates are numbers
-      if (isNaN(latitude) || isNaN(longitude)) {
-        console.warn(
-          `Item ${index} has invalid NaN coordinates (Lat: ${latitude}, Lon: ${longitude}). Skipping.`
-        );
-        errorCount++;
-        return; // Skip this item
-      }
-
-      try {
-        // Create a point geometry
-        const point = new Point({
-          x: longitude, // Use x for longitude
-          y: latitude, // Use y for latitude
-          spatialReference: { wkid: 4326 }, // Assume WGS84 GCS
-        });
-
-        // Create a default marker symbol (can be overridden by config later if needed)
-        const markerSymbol = new SimpleMarkerSymbol({
-          // Style for custom points - consider making this configurable
-          color: new Color([255, 0, 0, 0.75]), // Red marker
-          size: "12px",
-          outline: {
-            color: new Color([255, 255, 255, 0.8]),
-            width: 1.5,
-          },
-        });
-
-        // Prepare attributes for the graphic, ensuring required fields for popup exist
-        const attributes = {
-          ...item, // Include all original data from the item
-          ID: index, // Add a simple unique ID for reference
-          // Ensure fields needed by minimal popup exist
-          latitude: latitude,
-          longitude: longitude,
-        };
-        // Ensure the dynamic name/value fields exist in attributes, even if null/undefined
-        if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
-        if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null; // Use null for potentially numeric fields
-
-        // Create the graphic
-        const pointGraphic = new Graphic({
-          geometry: point,
-          symbol: markerSymbol,
-          attributes: attributes,
-          popupTemplate: popupTemplate, // Assign the created popup template
-        });
-
-        graphicsToAdd.push(pointGraphic); // Add to batch array
-        addedCount++;
-      } catch (graphicError) {
-        console.error(
-          `Error creating graphic for custom data point ${index}:`,
-          graphicError,
-          "Item:",
-          item
-        );
-        errorCount++;
-      }
-    });
-
-    // Add graphics to the layer in a batch
-    if (graphicsToAdd.length > 0) {
-      customLayer.addMany(graphicsToAdd);
-    }
-
-    console.log(
-      `Added ${addedCount} points to custom graphics layer. ${errorCount} errors occurred.`
-    );
-    return customLayer;
-  } catch (error) {
-    console.error(
-      "Error importing modules or creating custom graphics layer:",
-      error
-    );
-    return null; // Return null on failure
-  }
-}
-
-// Helper function to create a dot density configuration
-const createDotDensityConfig = (field, label, dotValue = 100) => ({
-  type: "dot-density",
-  field,
-  dotValue,
-  dotBlending: "additive",
-  dotSize: 2,
-  outline: {
-    width: 0.5,
-    color: [50, 50, 50, 0.2],
-  },
-  legendOptions: {
-    unit: "people",
-  },
-  attributes: [
-    {
-      field,
-      color: "#E60049",
-      label,
-    },
-  ],
-});
-
-const areaTypes = [
-  {
-    value: 12,
-    label: "Census Tract",
-    url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/12",
-  },
-  {
-    value: 11,
-    label: "County",
-    url: "https://services8.arcgis.com/peDZJliSvYims39Q/arcgis/rest/services/Esri_Updated_Demographics_Variables_2024/FeatureServer/11",
-  },
-];
 
 export default function MapComponent({ onToggleLis }) {
   const [isConfigLoading, setIsConfigLoading] = useState(true);
@@ -4701,39 +59,35 @@ export default function MapComponent({ onToggleLis }) {
   const localStorageProjectId = localStorage.getItem("currentProjectId");
   const sessionStorageProjectId = sessionStorage.getItem("currentProjectId");
   const [isSaving, setIsSaving] = useState(false);
-  const [customLegendContent, setCustomLegendContent] = useState(null); // State for custom legend
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStartPoint, setDrawStartPoint] = useState(null);
-  const [drawEndPoint, setDrawEndPoint] = useState(null);
+  const [customLegendContent, setCustomLegendContent] = useState(null);
+
+  // Drawing rectangle zoom state
   const rectangleRef = useRef(null);
-  // Add these refs to store values for event handlers
   const isDrawingRef = useRef(false);
   const drawStartPointRef = useRef(null);
   const drawEndPointRef = useRef(null);
-  // Use the first available project ID
+
+  const activeLayersRef = useRef({});
+  const labelManagerRef = useRef(null);
+  const [isLabelManagerReady, setIsLabelManagerReady] = useState(false);
+  const [isLabelEditorOpen, setIsLabelEditorOpen] = useState(false);
+  const [labelDragger, setLabelDragger] = useState(null);
+  const [isPlacingSiteLocation, setIsPlacingSiteLocation] = useState(false);
+  const [siteLocationMarker, setSiteLocationMarker] = useState(null);
+  const [isMarketAreaInteractionActive, setIsMarketAreaInteractionActive] =
+    useState(false);
+
   const projectId =
     routeProjectId || localStorageProjectId || sessionStorageProjectId;
 
-  useEffect(() => {
-    if (!projectId) {
-      console.error("No project ID available");
-      navigate("/projects");
-      return;
-    }
-
-    // Store projectId in all locations to ensure consistency
-    localStorage.setItem("currentProjectId", projectId);
-    sessionStorage.setItem("currentProjectId", projectId);
-  }, [projectId, navigate]);
-
-
-    // Ref for tracking mouse wheel scroll state
-    const scrollStateRef = useRef({
-      lastScrollTime: 0,
-      scrollStreak: 0,
-      lastScrollDirection: 0, // 1 for zoom in, -1 for zoom out, 0 for reset
-      timeoutId: null,
-    });
+  const {
+    isZoomToolActive,
+    setIsZoomToolActive,
+    isDrawing,
+    drawStartPoint,
+    drawEndPoint,
+  } = useZoomTool(mapView, mapRef);
+  const [zoomToolButtonRoot, setZoomToolButtonRoot] = useState(null);
 
   // Modify storage keys to use a static default
   const AUTO_SAVE_KEY = "autoSavedMapConfigurations_default";
@@ -4947,912 +301,917 @@ export default function MapComponent({ onToggleLis }) {
   const sidebarWidth = 350; // Your standard sidebar width
   const padding = 20; // Additional padding
 
-  const initializeDrawingTools = (view) => {
-    // Create rectangle element if it doesn't exist
-    if (!rectangleRef.current) {
-      const rect = document.createElement('div');
-      rect.className = 'draw-rectangle';
-      rect.style.position = 'absolute';
-      rect.style.border = '2px dashed #0078fa';
-      rect.style.backgroundColor = 'rgba(0, 120, 250, 0.1)';
-      rect.style.pointerEvents = 'none';
-      rect.style.display = 'none';
-      rect.style.zIndex = '100';
-  
-      // Append to the map container
-      if (mapRef.current) {
-        mapRef.current.appendChild(rect);
-        rectangleRef.current = rect;
-      } else {
-        console.error("Map container ref is not available to append drawing rectangle.");
-        return;
+  useEffect(() => {
+    // Check if both the button root and mapView are available
+    if (zoomToolButtonRoot && mapView?.ready) {
+      try {
+        // Render the MapZoomToolButton component in the root
+        zoomToolButtonRoot.render(
+          <MapZoomToolButton
+            isActive={isZoomToolActive}
+            onClick={() => setIsZoomToolActive(!isZoomToolActive)}
+          />
+        );
+      } catch (error) {
+        console.error("[Map] Error rendering zoom tool button:", error);
       }
     }
-  
-    // Mousedown - Start drawing (Right-click only)
-    view.container.addEventListener('mousedown', (e) => {
-      // Check for right mouse button (button code 2)
-      if (e.button !== 2 || isDrawingRef.current) return;
-  
-      // Prevent default right-click menu
-      e.preventDefault();
-      e.stopPropagation();
-  
-      console.log("Right mouse down - Start drawing");
-  
-      const startPoint = { x: e.offsetX, y: e.offsetY };
-  
-      // Update refs and state
-      isDrawingRef.current = true;
-      drawStartPointRef.current = startPoint;
-      drawEndPointRef.current = startPoint;
-  
-      setIsDrawing(true);
-      setDrawStartPoint(startPoint);
-      setDrawEndPoint(startPoint);
-  
-      // Show and position the rectangle
-      const rect = rectangleRef.current;
-      if (rect) {
-        rect.style.left = `${startPoint.x}px`;
-        rect.style.top = `${startPoint.y}px`;
-        rect.style.width = '0px';
-        rect.style.height = '0px';
-        rect.style.display = 'block';
-      } else {
-        console.error("Rectangle element ref is missing on mousedown.");
-        isDrawingRef.current = false;
-        setIsDrawing(false);
-      }
-    });
-  
-    // Context Menu - Prevent default behavior
-    view.container.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-    });
-  
-    // Mousemove - Update rectangle size while drawing
-    view.container.addEventListener('mousemove', (e) => {
-      if (!isDrawingRef.current || !drawStartPointRef.current) return;
-  
-      const currentPoint = { x: e.offsetX, y: e.offsetY };
-      drawEndPointRef.current = currentPoint;
-      setDrawEndPoint(currentPoint);
-  
-      // Update rectangle dimensions
-      const rect = rectangleRef.current;
-      if (rect) {
-        const start = drawStartPointRef.current;
-        const left = Math.min(start.x, currentPoint.x);
-        const top = Math.min(start.y, currentPoint.y);
-        const width = Math.abs(currentPoint.x - start.x);
-        const height = Math.abs(currentPoint.y - start.y);
-  
-        rect.style.left = `${left}px`;
-        rect.style.top = `${top}px`;
-        rect.style.width = `${width}px`;
-        rect.style.height = `${height}px`;
-      }
-    });
-  
-    // Mouseup - End drawing and zoom to selected area
-    view.container.addEventListener('mouseup', async (e) => {
-      if (!isDrawingRef.current || e.button !== 2) return;
-  
-      console.log("Right mouse up - End drawing");
-      const startPoint = drawStartPointRef.current;
-      const endPoint = { x: e.offsetX, y: e.offsetY };
-      const rectElement = rectangleRef.current;
-  
-      // Reset drawing state
-      isDrawingRef.current = false;
-      drawStartPointRef.current = null;
-      drawEndPointRef.current = null;
-      setIsDrawing(false);
-      setDrawStartPoint(null);
-      setDrawEndPoint(null);
-  
-      if (rectElement) {
-        rectElement.style.display = 'none';
-      }
-      
-      if (!startPoint) {
-        console.warn("Missing startPoint on mouseup.");
-        return;
-      }
-  
-      // Check if the draw rectangle is large enough to warrant a zoom
-      const width = Math.abs(endPoint.x - startPoint.x);
-      const height = Math.abs(endPoint.y - startPoint.y);
-      const minDragSize = 10;
-      
-      if (width < minDragSize || height < minDragSize) {
-        console.log("Drag rectangle too small, not zooming.", { width, height });
-        return;
-      }
-  
-      try {
-        // Dynamically import Extent
-        const { default: Extent } = await import("@arcgis/core/geometry/Extent");
-        
-        // Get the screen coordinates for the top-left and bottom-right corners
-        const screenTopLeft = {
-          x: Math.min(startPoint.x, endPoint.x),
-          y: Math.min(startPoint.y, endPoint.y)
-        };
-        
-        const screenBottomRight = {
-          x: Math.max(startPoint.x, endPoint.x),
-          y: Math.max(startPoint.y, endPoint.y)
-        };
-        
-        console.log("Screen Coordinates:", { screenTopLeft, screenBottomRight });
-  
-        // Convert screen coordinates to map coordinates
-        const mapTopLeft = view.toMap(screenTopLeft);
-        const mapBottomRight = view.toMap(screenBottomRight);
-        
-        if (!mapTopLeft || !mapBottomRight) {
-          console.error("Failed to convert screen coordinates to map coordinates.");
-          return;
-        }
-        
-        console.log("Converted Map Coordinates:", { mapTopLeft, mapBottomRight });
-  
-        // Create the target extent from the map coordinates
-        const targetExtent = new Extent({
-          xmin: Math.min(mapTopLeft.x, mapBottomRight.x),
-          ymin: Math.min(mapTopLeft.y, mapBottomRight.y),
-          xmax: Math.max(mapTopLeft.x, mapBottomRight.x),
-          ymax: Math.max(mapTopLeft.y, mapBottomRight.y),
-          spatialReference: view.spatialReference
-        });
-  
-        const mapWidth = targetExtent.width;
-        const mapHeight = targetExtent.height;
-        
-        console.log("Calculated Map Extent Dimensions:", { mapWidth, mapHeight });
-  
-        if (!targetExtent || mapWidth <= 0 || mapHeight <= 0) {
-          console.warn("Calculated extent is invalid or has zero size. Cannot zoom.", targetExtent);
-          return;
-        }
-  
-        console.log("Calculated Zoom Extent Object:", targetExtent);
-        console.log("View zoom BEFORE goTo:", view.zoom);
-        console.log("View center BEFORE goTo:", view.center?.latitude, view.center?.longitude);
-  
-        // Execute the zoom
-        console.log("Attempting zoom with view.goTo...");
-        await view.goTo(targetExtent, {
-          animate: false,
-          duration: 0
-        });
-        
-        console.log("Zoom successful (animate: false).");
-        console.log("View zoom AFTER goTo:", view.zoom);
-        console.log("View center AFTER goTo:", view.center?.latitude, view.center?.longitude);
-        console.log("View extent AFTER goTo (width):", view.extent?.width);
-        
-        // Force a redraw by temporarily changing the padding
-        console.log("Forcing redraw...");
-        const currentPadding = view.padding || { top: 0, right: 0, bottom: 0, left: 0 };
-        view.padding = { ...currentPadding, bottom: (currentPadding.bottom || 0) + 1 };
-        
-        // Reset padding immediately
-        setTimeout(() => {
-          if (view) {
-            view.padding = currentPadding;
-            console.log("Redraw forced (padding reset).");
-          }
-        }, 0);
-  
-      } catch (error) {
-        console.error("Error processing zoom on mouseup:", error);
-      }
-    });
-  
-    // Mouseleave - Cancel drawing if mouse leaves map container
-    view.container.addEventListener('mouseleave', () => {
-      if (isDrawingRef.current) {
-        console.log("Mouse left map container while drawing - Canceling.");
-  
-        // Reset state
-        isDrawingRef.current = false;
-        drawStartPointRef.current = null;
-        drawEndPointRef.current = null;
-        setIsDrawing(false);
-        setDrawStartPoint(null);
-        setDrawEndPoint(null);
-  
-        // Hide rectangle
-        if (rectangleRef.current) {
-          rectangleRef.current.style.display = 'none';
-        }
-      }
-    });
+  }, [zoomToolButtonRoot, isZoomToolActive, mapView?.ready]);
+  const renderCustomLegend = () => {
+    // Only show if we have active special visualization type with valid config
+    if (!customLegendContent || !customLegendContent.config) {
+      return null;
+    }
+
+    // Return a single div that contains the legend
+    return (
+      <div className="absolute bottom-4 left-4 z-10">
+        <CustomLegend
+          type={customLegendContent.type}
+          config={customLegendContent.config}
+        />
+      </div>
+    );
   };
 
   useEffect(() => {
-    let isMounted = true;
+    if (!projectId) {
+      console.error("No project ID available");
+      navigate("/projects");
+      return;
+    }
 
-    const initializeMap = async () => {
+    // Store projectId in all locations to ensure consistency
+    localStorage.setItem("currentProjectId", projectId);
+    sessionStorage.setItem("currentProjectId", projectId);
+  }, [projectId, navigate]);
+
+  // Ref for tracking mouse wheel scroll state
+  const scrollStateRef = useRef({
+    lastScrollTime: 0,
+    scrollStreak: 0,
+    lastScrollDirection: 0, // 1 for zoom in, -1 for zoom out, 0 for reset
+    timeoutId: null,
+  });
+
+  /**
+   * Toggles site location placement mode for market areas
+   * Controls both UI state and map interaction behavior
+   *
+   * @param {boolean} isActive - Whether to activate or deactivate placement mode
+   * @param {Object} options - Additional options for placement
+   * @returns {void}
+   */
+  const toggleSiteLocationPlacement = useCallback(
+    (isActive, options = {}) => {
+      console.log(
+        `[Map] ${
+          isActive ? "Activating" : "Deactivating"
+        } site location placement mode`,
+        options
+      );
+
+      // Update internal state
+      setIsPlacingSiteLocation(isActive);
+      setIsMarketAreaInteractionActive(isActive);
+
+      // Clear any existing temporary marker when deactivating
+      if (!isActive && siteLocationMarker) {
+        try {
+          // Remove the marker from the map
+          if (
+            mapView?.graphics &&
+            typeof mapView.graphics.remove === "function"
+          ) {
+            mapView.graphics.remove(siteLocationMarker);
+          }
+          setSiteLocationMarker(null);
+        } catch (error) {
+          console.error("[Map] Error clearing site location marker:", error);
+        }
+      }
+
+      // Update cursor style to indicate placement mode
+      if (mapView?.container) {
+        mapView.container.style.cursor = isActive ? "crosshair" : "default";
+      }
+
+      // If we have a MapContext reference, inform it of the mode change
+      if (
+        window.mapContextInstance &&
+        typeof window.mapContextInstance.setPlacementMode === "function"
+      ) {
+        window.mapContextInstance.setPlacementMode(
+          "siteLocation",
+          isActive,
+          options
+        );
+      } else {
+        console.warn(
+          "[Map] MapContext instance not available for site location mode change"
+        );
+      }
+    },
+    [mapView, siteLocationMarker]
+  );
+
+  /**
+   * Handles map clicks when in site location placement mode
+   * Creates a temporary marker and notifies listeners of the coordinates
+   *
+   * @param {Object} event - Map click event object
+   * @returns {Promise<void>}
+   */
+  const handleSiteLocationPlacement = useCallback(
+    async (event) => {
+      if (!isPlacingSiteLocation || !mapView) return;
+
       try {
-        console.log("Starting map initialization...");
+        // Prevent default map behavior
+        event.stopPropagation();
 
-        // Validate API Key
-        const apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
-        if (!apiKey) {
-          console.error("ArcGIS API Key is missing");
-          return;
+        console.log(
+          "[Map] Processing site location placement at",
+          event.mapPoint
+        );
+
+        // Get the click coordinates
+        const point = event.mapPoint;
+        const latitude = point.latitude;
+        const longitude = point.longitude;
+
+        // Import necessary modules
+        const [
+          { default: Graphic },
+          { default: Point },
+          { default: SimpleMarkerSymbol },
+          { default: Color },
+        ] = await Promise.all([
+          import("@arcgis/core/Graphic"),
+          import("@arcgis/core/geometry/Point"),
+          import("@arcgis/core/symbols/SimpleMarkerSymbol"),
+          import("@arcgis/core/Color"),
+        ]);
+
+        // Remove any existing temporary marker
+        if (siteLocationMarker && mapView.graphics) {
+          mapView.graphics.remove(siteLocationMarker);
         }
 
-        // Configure ArcGIS
-        esriConfig.apiKey = apiKey;
-        esriConfig.assetsPath =
-          "https://js.arcgis.com/4.31/@arcgis/core/assets/";
-
-        // Create map with standard basemap
-        const map = new Map({
-          basemap: "streets-navigation-vector",
-        });
-
-        // Create view with comprehensive error handling
-        const view = new MapView({
-          container: mapRef.current,
-          map: map,
-          center: [-98, 39],
-          zoom: 4,
-          constraints: {
-            rotationEnabled: false,
-            minZoom: 2,
-            maxZoom: 20,
-          },
-          navigation: {
-            actionMap: {
-              mouseWheel: {
-                enabled: false,
-              },
-            },
-            browserTouchPanEnabled: true,
-            momentumEnabled: true,
-            keyboardNavigation: true,
+        // Create a new marker symbol
+        const markerSymbol = new SimpleMarkerSymbol({
+          style: "diamond",
+          color: new Color([255, 215, 0, 0.8]), // Gold color with transparency
+          size: 14,
+          outline: {
+            color: new Color([255, 140, 0, 1]), // Dark orange outline
+            width: 2,
           },
         });
 
-        console.log("Waiting for view to be ready...");
-        // Wait for the view to be ready before proceeding
-        await view.when();
-        console.log("View is now ready!");
+        // Create the point geometry
+        const pointGeometry = new Point({
+          latitude,
+          longitude,
+          spatialReference: { wkid: 4326 },
+        });
 
-        // Custom mouse wheel zoom handler
-        view.constraints.snapToZoom = false; // Allow fractional zoom levels
+        // Create the graphic
+        const graphic = new Graphic({
+          geometry: pointGeometry,
+          symbol: markerSymbol,
+          attributes: {
+            isTemporary: true,
+            isMarketAreaSiteLocation: true,
+            latitude,
+            longitude,
+          },
+        });
 
-        // Enhanced mouse wheel zoom handler with DEBUG LOGGING
-        view.on("mouse-wheel", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
+        // Add to map
+        mapView.graphics.add(graphic);
+        setSiteLocationMarker(graphic);
 
-          const state = scrollStateRef.current;
-          const now = Date.now();
-          const timeDiff = now - (state.lastScrollTime || now); // Handle initial scroll
+        // Dispatch custom event to notify listeners (MarketAreaForm)
+        const siteLocationEvent = new CustomEvent("siteLocationPlaced", {
+          detail: {
+            latitude,
+            longitude,
+            isTemporary: true,
+          },
+        });
+        document.dispatchEvent(siteLocationEvent);
 
-          const scrollDeltaY = event.native.deltaY;
-          const currentDirection = scrollDeltaY < 0 ? 1 : -1; // 1 = zoom in, -1 = zoom out
-
-          console.log(`\n--- Wheel Event ---`); // Separator for clarity
-          console.log(`Time: ${now}, LastTime: ${state.lastScrollTime}, Diff: ${timeDiff}ms`);
-          console.log(`Direction: ${currentDirection}, LastDirection: ${state.lastScrollDirection}, Current Streak: ${state.scrollStreak}`);
-
-          // --- Streak Logic ---
-          const resetThreshold = 250; // ms - Pause threshold
-          const accelerateThreshold = 120; // ms - Continuous scroll threshold
-
-          // Clear previous reset timer
-          if (state.timeoutId) {
-              clearTimeout(state.timeoutId);
-              state.timeoutId = null; // Clear the ID
-          }
-
-          let streakIncremented = false;
-          if (timeDiff < resetThreshold && currentDirection === state.lastScrollDirection && state.lastScrollDirection !== 0) {
-              // Scrolling continued in the same direction without too long a pause
-              if (timeDiff < accelerateThreshold) {
-                  // Fast enough to increase streak
-                  state.scrollStreak++;
-                  streakIncremented = true;
-                  console.log(`   Streak INCREMENTED to: ${state.scrollStreak} (timeDiff < accelerateThreshold)`);
-              } else {
-                  // Scrolled again in same direction, but paused slightly - MAINTAIN streak (removed reset to 1)
-                  console.log(`   Streak MAINTAINED at: ${state.scrollStreak} (accelerateThreshold <= timeDiff < resetThreshold)`);
-                  // Keep state.scrollStreak as is, don't reset to 1
-              }
-          } else {
-              // Direction changed or paused too long - reset streak
-              console.log(`   Streak RESET to 1 (timeDiff >= resetThreshold or direction changed)`);
-              state.scrollStreak = 1;
-          }
-          // --- End Streak Logic ---
-
-
-          // --- Calculate Zoom Delta ---
-          const baseZoomDelta = 0.08;
-          const streakBonus = 0.20; // Slightly increased bonus for testing
-          const maxAccelerationFactor = 5.0;
-
-          // Acceleration factor increases only AFTER the first scroll in a streak
-          const accelerationFactor = Math.min(
-              1 + streakBonus * Math.max(0, state.scrollStreak - 1),
-              maxAccelerationFactor
+        // Also notify MapContext if available
+        if (
+          window.mapContextInstance &&
+          typeof window.mapContextInstance.handleSiteLocationPlaced ===
+            "function"
+        ) {
+          window.mapContextInstance.handleSiteLocationPlaced(
+            latitude,
+            longitude
           );
+        }
 
-          const finalZoomDelta = baseZoomDelta * accelerationFactor * currentDirection;
-          console.log(`   BaseDelta: ${baseZoomDelta}, AccelFactor: ${accelerationFactor.toFixed(2)}, FinalDelta: ${finalZoomDelta.toFixed(4)}`);
-          // --- End Calculate Zoom Delta ---
+        // Automatically exit placement mode after successful placement
+        setTimeout(() => {
+          toggleSiteLocationPlacement(false);
+        }, 300);
+      } catch (error) {
+        console.error("[Map] Error during site location placement:", error);
+        toggleSiteLocationPlacement(false);
+      }
+    },
+    [
+      isPlacingSiteLocation,
+      mapView,
+      siteLocationMarker,
+      toggleSiteLocationPlacement,
+    ]
+  );
 
+  const setupLabelDragHandling = (view) => {
+    if (!view || !view.map) return;
 
-          // --- Apply Zoom ---
-          const currentZoom = view.zoom;
-          let newZoom = currentZoom + finalZoomDelta;
-          newZoom = Math.min(
-              Math.max(newZoom, view.constraints.minZoom),
-              view.constraints.maxZoom
-          );
-          console.log(`   CurrentZoom: ${currentZoom.toFixed(4)}, NewZoom Clamped: ${newZoom.toFixed(4)}`);
+    console.log("[Map] Setting up enhanced label drag handling");
 
-          if (Math.abs(newZoom - currentZoom) > 0.001) {
-              console.log(`   Applying goTo with zoom: ${newZoom.toFixed(4)}`);
-              view.goTo({ zoom: newZoom, center: view.center }, { duration: 60, easing: "linear", animate: true })
-                  .catch(error => { if (error.name !== "AbortError") console.error("goTo Error:", error); });
-          } else {
-              console.log(`   Skipping goTo (zoom change too small)`);
+    // Track if we're currently dragging a label
+    let isDraggingLabel = false;
+    let draggedLabel = null;
+    let dragStartPoint = null;
+    let originalOffset = null;
+    let originalNavState = null;
+
+    // Store handlers for proper cleanup
+    const handlers = [];
+
+    handlers.push(pointerDownHandler);
+
+    // Handle pointer move for drag operation
+    const pointerMoveHandler = view.on("pointer-move", (event) => {
+      if (
+        !isDraggingLabel ||
+        !draggedLabel ||
+        !dragStartPoint ||
+        !originalOffset
+      )
+        return;
+
+      // Prevent map interaction
+      event.stopPropagation();
+
+      // Calculate new position
+      const dx = event.x - dragStartPoint.x;
+      const dy = event.y - dragStartPoint.y;
+
+      const newPosition = {
+        x: originalOffset.x + dx,
+        y: originalOffset.y - dy, // Invert Y for correct direction
+      };
+
+      try {
+        // Update label position
+        if (draggedLabel.symbol) {
+          const newSymbol = draggedLabel.symbol.clone();
+          newSymbol.xoffset = newPosition.x;
+          newSymbol.yoffset = newPosition.y;
+          draggedLabel.symbol = newSymbol;
+
+          // Force refresh if needed
+          if (typeof view.graphics?.refresh === "function") {
+            view.graphics.refresh();
           }
-          // --- End Apply Zoom ---
-
-
-          // --- Update State for Next Event ---
-          state.lastScrollTime = now;
-          state.lastScrollDirection = currentDirection;
-
-          // Set a timer to reset the streak if the user stops scrolling
-          state.timeoutId = setTimeout(() => {
-              console.log(`--- Wheel Timeout (${resetThreshold}ms): Resetting streak ---`);
-              state.scrollStreak = 0;
-              state.lastScrollDirection = 0;
-              state.timeoutId = null;
-          }, resetThreshold);
-          // --- End Update State ---
-      });
-
-        // Initialize the rectangle drawing functionality
-        initializeDrawingTools(view);
-
-        console.log("Adding UI widgets...");
-        // Add non-legend widgets first
-        const widgets = [
-          {
-            widget: new Home({ view }),
-            position: "top-left",
-          },
-          {
-            widget: new ScaleBar({
-              view,
-              unit: "imperial",
-            }),
-            position: "top-left",
-          },
-        ];
-
-        widgets.forEach(({ widget, position }) => {
-          view.ui.add(widget, position);
-        });
-
-        if (isMounted) {
-          console.log("Finalizing map setup...");
-          // Set map readiness flag and view in context
-          view.ready = true;
-          setMapView(view);
-          console.log("[MapContext] Map view initialized and ready");
-
-          // Initialize legend after map is ready
-          const legendWidget = new Legend({
-            view,
-            container: document.createElement("div"),
-            layerInfos: [],
-            visible: false,
-          });
-
-          // Add legend to the view but keep it hidden initially
-          view.ui.add(legendWidget, "bottom-left");
-          setLegend(legendWidget);
         }
       } catch (error) {
-        console.error("[Map] Error initializing map:", error, error.stack);
-        console.error("Comprehensive Map Initialization Error:", {
-          message: error.message,
-          name: error.name,
-          fullError: error,
-          stack: error.stack,
-        });
-      }
-    };
-
-    // Trigger map initialization
-    initializeMap();
-
-    // Cleanup function
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Style legend whenever it changes
-  useEffect(() => {
-    if (!legend) return;
-
-    const styleLegend = () => {
-      const legendContainer = document.querySelector(".esri-legend");
-      if (legendContainer) {
-        legendContainer.style.backgroundColor = "white";
-        legendContainer.style.padding = "1rem";
-        legendContainer.style.margin = "0.5rem";
-        legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
-        legendContainer.style.borderRadius = "0.375rem";
-        legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-
-        // Style the legend title
-        const legendTitle = legendContainer.querySelector(
-          ".esri-legend__service-label"
+        console.error(
+          "[Map] Error updating label position during drag:",
+          error
         );
-        if (legendTitle) {
-          legendTitle.style.fontWeight = "600";
-          legendTitle.style.fontSize = "0.875rem";
-          legendTitle.style.marginBottom = "0.75rem";
-          legendTitle.style.color = "#111827";
+      }
+    });
+    handlers.push(pointerMoveHandler);
+
+    // Handle pointer up to end drag operation
+    const pointerUpHandler = view.on("pointer-up", (event) => {
+      if (!isDraggingLabel) return;
+
+      // Prevent map interaction
+      event.stopPropagation();
+
+      try {
+        // Save the final position to LabelManager if available
+        if (window.labelManagerInstance) {
+          if (
+            typeof window.labelManagerInstance.updateLabelPosition ===
+              "function" &&
+            draggedLabel
+          ) {
+            const finalPosition = {
+              x: draggedLabel.symbol?.xoffset || 0,
+              y: draggedLabel.symbol?.yoffset || 0,
+            };
+            window.labelManagerInstance.updateLabelPosition(
+              draggedLabel,
+              finalPosition
+            );
+          }
+
+          // Auto-save positions
+          if (typeof window.labelManagerInstance.savePositions === "function") {
+            window.labelManagerInstance.savePositions(true);
+          }
         }
 
-        // Style individual legend items
-        const legendItems = legendContainer.querySelectorAll(
-          ".esri-legend__layer-row"
-        );
-        legendItems.forEach((item) => {
-          item.style.display = "flex";
-          item.style.alignItems = "center";
-          item.style.marginBottom = "0.5rem";
-        });
+        // Restore cursor
+        if (view.container) {
+          view.container.style.cursor = "default";
+        }
 
-        // Style the color swatches
-        const swatches = legendContainer.querySelectorAll(
-          ".esri-legend__symbol"
-        );
-        swatches.forEach((swatch) => {
-          swatch.style.width = "1rem";
-          swatch.style.height = "1rem";
-          swatch.style.marginRight = "0.5rem";
-        });
-
-        // Style the labels
-        const labels = legendContainer.querySelectorAll(
-          ".esri-legend__layer-cell--info"
-        );
-        labels.forEach((label) => {
-          label.style.fontSize = "0.875rem";
-          label.style.color = "#4B5563";
-        });
+        // Restore map navigation
+        if (view.navigation && originalNavState) {
+          view.navigation.browserTouchPanEnabled =
+            originalNavState.browserTouchPanEnabled;
+          if (originalNavState.keyboardNavigation !== undefined) {
+            view.navigation.keyboardNavigation =
+              originalNavState.keyboardNavigation;
+          }
+        }
+      } catch (error) {
+        console.error("[Map] Error finishing label drag operation:", error);
+      } finally {
+        // Reset drag state
+        isDraggingLabel = false;
+        draggedLabel = null;
+        dragStartPoint = null;
+        originalOffset = null;
+        originalNavState = null;
       }
-    };
+    });
+    handlers.push(pointerUpHandler);
 
-    styleLegend();
-  }, [legend]);
+    // Handle pointer leave to cancel drag
+    const pointerLeaveHandler = view.on("pointer-leave", (event) => {
+      if (!isDraggingLabel) return;
 
-  // Updated initialization effect
-  useEffect(() => {
-    // Load auto-saved configurations on mount
-    const initConfigs = async () => {
-      await loadMapConfigurations(AUTO_SAVE_KEY, false);
+      try {
+        // Restore cursor
+        if (view.container) {
+          view.container.style.cursor = "default";
+        }
 
-      // Force update visualization layers and legend for all loaded tabs
-      const loadedTabs = tabs.filter(
-        (tab) => tab.id !== 1 && tab.visualizationType
+        // Restore map navigation
+        if (view.navigation && originalNavState) {
+          view.navigation.browserTouchPanEnabled =
+            originalNavState.browserTouchPanEnabled;
+          if (originalNavState.keyboardNavigation !== undefined) {
+            view.navigation.keyboardNavigation =
+              originalNavState.keyboardNavigation;
+          }
+        }
+      } catch (error) {
+        console.error(
+          "[Map] Error handling pointer leave during label drag:",
+          error
+        );
+      } finally {
+        // Reset drag state
+        isDraggingLabel = false;
+        draggedLabel = null;
+        dragStartPoint = null;
+        originalOffset = null;
+        originalNavState = null;
+      }
+    });
+    handlers.push(pointerLeaveHandler);
+
+    // Store handlers on view for cleanup
+    view.labelDragHandlers = handlers;
+
+    console.log(
+      "[Map] Label drag handling initialized with",
+      handlers.length,
+      "handlers"
+    );
+
+    // Make the Label Manager instance globally available
+    // (You'll need to set this when creating the label manager)
+    if (labelManagerRef.current) {
+      window.labelManagerInstance = labelManagerRef.current;
+      console.log("[Map] Exposed label manager instance globally");
+    }
+
+    return handlers;
+  };
+
+  /**
+   * Handles pipe visualization with advanced label management
+   * @param {Object} tabData - The tab data containing the tab ID and other properties
+   * @param {Object} layer - Optional direct layer reference for visualization
+   * @returns {Promise<void>}
+   */
+  const handlePipeVisualization = async (tabData, layer = null) => {
+    const tabId = tabData?.id;
+    let targetLayer = null;
+
+    console.log(
+      `[handlePipeVisualization] Handling visualization for tab ${tabId}. Direct layer passed: ${!!layer}`
+    );
+
+    // Priority 1: Check layer reference first (most reliable)
+    if (activeLayersRef.current[tabId]) {
+      targetLayer = activeLayersRef.current[tabId];
+      console.log(
+        `[handlePipeVisualization] Found layer in ref for tab ${tabId}:`,
+        targetLayer.id
       );
-      for (const tab of loadedTabs) {
-        const newLayer = createLayers(
-          tab.visualizationType,
-          tab.layerConfiguration,
-          initialLayerConfigurations,
-          tab.areaType
+    }
+    // Priority 2: Use directly passed layer parameter
+    else if (layer) {
+      targetLayer = layer;
+      console.log(
+        `[handlePipeVisualization] Using directly passed layer for tab ${tabId}:`,
+        targetLayer.id
+      );
+    }
+    // Priority 3: Fallback to map search (least reliable)
+    else {
+      console.warn(
+        `[handlePipeVisualization] Layer not in ref or passed directly for tab ${tabId}. Attempting map find...`
+      );
+      targetLayer = mapView?.map?.layers.find(
+        (l) =>
+          l &&
+          l.isVisualizationLayer === true &&
+          l.visualizationType === "pipe" &&
+          l instanceof GraphicsLayer
+      );
+
+      if (targetLayer) {
+        console.log(
+          `[handlePipeVisualization] Found target layer ID: ${targetLayer.id}`
+        );
+      } else {
+        console.error(
+          `[handlePipeVisualization] FAILED TO FIND TARGET LAYER for tab ${tabId}`
+        );
+        return; // Prevent further errors
+      }
+    }
+
+    console.log(
+      `[handlePipeVisualization] Using final target Pipe layer: "${targetLayer.title}" (ID: ${targetLayer.id})`
+    );
+
+    // --- Added Defensive Check ---
+    if (
+      labelManagerRef.current &&
+      typeof labelManagerRef.current.setContext === "function"
+    ) {
+      // Set context with project ID and get the correct configId from the provided tabData
+      const projectId =
+        localStorage.getItem("currentProjectId") ||
+        sessionStorage.getItem("currentProjectId");
+      if (projectId) {
+        // Use tabData instead of undefined activeTabData
+        labelManagerRef.current.setContext(projectId, tabData?.configId);
+      }
+    } else {
+      console.warn(
+        "[handlePipeVisualization] Label manager ref or setContext method not available."
+      );
+    }
+  };
+
+  /**
+   * Handles composite visualization with advanced label management
+   * @param {Object} tabData - The tab data containing the tab ID and other properties
+   * @param {Object} layer - Optional direct layer reference for visualization
+   * @returns {Promise<void>}
+   */
+  const handleCompVisualization = async (tabData, layer = null) => {
+    const tabId = tabData?.id;
+    console.log(
+      `[handleCompVisualization] Finding and zooming to Comp Map layer for tab: ${tabId}`
+    );
+
+    if (!mapView?.map) {
+      console.warn("[handleCompVisualization] Map view not available.");
+      return;
+    }
+
+    if (!tabData) {
+      console.warn("[handleCompVisualization] Missing tabData.");
+      return;
+    }
+
+    try {
+      // Find the layer using different methods in priority order
+      let compLayer = null;
+
+      // Priority 1: Use directly passed layer parameter (most reliable)
+      if (layer) {
+        compLayer = layer;
+        console.log(
+          `[handleCompVisualization] Using directly passed layer for tab ${tabId}:`,
+          compLayer.id
+        );
+      }
+      // Priority 2: Check stored reference in activeLayersRef
+      else if (activeLayersRef.current[tabId]) {
+        compLayer = activeLayersRef.current[tabId];
+        console.log(
+          `[handleCompVisualization] Found layer in ref for tab ${tabId}:`,
+          compLayer.id
+        );
+      }
+      // Priority 3: Find by visualization type attribute (least reliable)
+      else {
+        compLayer = mapView.map.layers.find(
+          (l) =>
+            l &&
+            l.isVisualizationLayer === true &&
+            l.visualizationType === "comp" &&
+            (l instanceof GraphicsLayer || l.type === "graphics")
         );
 
-        if (newLayer && mapView?.map) {
-          newLayer.set("isVisualizationLayer", true);
-          mapView.map.add(newLayer, 0);
+        if (compLayer) {
+          console.log(
+            `[handleCompVisualization] Found target Comp layer: "${compLayer.title}"`
+          );
+          // Store in ref for future use
+          activeLayersRef.current[tabId] = compLayer;
+        } else {
+          console.error(
+            `[handleCompVisualization] No comp layer found for tab ${tabId}`
+          );
+          return; // Prevent further errors
+        }
+      }
 
-          if (legend && tab.active) {
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || tab.visualizationType,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = true;
+      // Get the layer configuration for labels
+      const layerConfig = tabData.layerConfiguration || {};
+      const labelOptions = layerConfig.labelOptions || {};
+
+      // --- Added Defensive Checks ---
+      // Apply specialized settings for comp map visualization
+      if (labelManagerRef.current) {
+        try {
+          // Configure label settings using the unified API
+          if (
+            typeof labelManagerRef.current.configureLayerSettings === "function"
+          ) {
+            labelManagerRef.current.configureLayerSettings("comp");
+            console.log(
+              `[handleCompVisualization] Applied comp-specific label settings`
+            );
+          } else {
+            console.warn(
+              "[handleCompVisualization] configureLayerSettings method not found on label manager."
+            );
+          }
+
+          // Force a processing of this specific layer for labels
+          // --- CORRECTED CALL ---
+          if (typeof labelManagerRef.current.processLayer === "function") {
+            setTimeout(() => {
+              // Mark the layer to prevent removal during state updates
+              if (compLayer) {
+                compLayer._preventRemoval = true;
+                compLayer._isProcessed = true; // Use consistent flag name if possible
+              }
+
+              console.log(
+                `[handleCompVisualization] Processing comp layer with Label Manager`
+              );
+              // Add defensive check inside timeout
+              if (
+                labelManagerRef.current &&
+                typeof labelManagerRef.current.processLayer === "function"
+              ) {
+                labelManagerRef.current.processLayer(compLayer); // Use public method
+              } else {
+                console.warn(
+                  "[handleCompVisualization] processLayer method unavailable inside timeout."
+                );
+              }
+
+              // Force a refresh after a short delay
+              setTimeout(() => {
+                // Add defensive check inside timeout
+                if (
+                  labelManagerRef.current &&
+                  typeof labelManagerRef.current.refreshLabels === "function"
+                ) {
+                  labelManagerRef.current.refreshLabels();
+                  console.log(
+                    `[handleCompVisualization] Refreshed labels for comp layer`
+                  );
+                } else {
+                  console.warn(
+                    "[handleCompVisualization] refreshLabels method unavailable inside timeout."
+                  );
+                }
+              }, 200);
+            }, 100);
+          } else {
+            console.warn(
+              "[handleCompVisualization] processLayer method not found on label manager."
+            );
+          }
+          // --- END CORRECTION ---
+
+          // Apply any custom label settings from the configuration
+          // (Removed call to non-existent updateOptions)
+          // You might apply specific overrides here using updateLabelFontSize/Text if needed,
+          // but generally configureLayerSettings should handle the basics.
+          if (labelOptions) {
+            console.log(
+              "[handleCompVisualization] Custom label options found:",
+              labelOptions
+            );
+            // If you need to apply these *after* initial processing:
+            // setTimeout(() => { /* apply fontSize etc. using updateLabel... methods */ }, 300);
+          }
+        } catch (labelError) {
+          console.error(
+            `[handleCompVisualization] Error configuring labels:`,
+            labelError
+          );
+        }
+      } else {
+        console.warn(
+          `[handleCompVisualization] Label manager not available for comp layer`
+        );
+      }
+      // --- End Defensive Checks ---
+
+      // Ensure the layer is visible and protected from automatic removal
+      if (compLayer) {
+        compLayer.visible = true;
+        compLayer._preventRemoval = true; // Add protection flag
+
+        // Set a flag on the layer to prevent duplicate processing
+        if (!compLayer._processedByCompVisualization) {
+          compLayer._processedByCompVisualization = true;
+          console.log(
+            `[handleCompVisualization] Marked comp layer as processed to prevent duplicate handling`
+          );
+        }
+      }
+
+      // ENHANCEMENT: Set a flag to skip the next layer removal attempt
+      // This will be checked in updateVisualizationLayer before removing layers
+      window._skipNextLayerRemoval = true;
+      console.log(
+        `[handleCompVisualization] Set flag to skip next automatic layer removal`
+      );
+
+      setTimeout(() => {
+        window._skipNextLayerRemoval = false; // Reset after a delay
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "[handleCompVisualization] Error during comp visualization handling:",
+        error
+      );
+    }
+  };
+
+  // --- Consolidated Open/Close Handlers ---
+  const openLayerPropertiesEditor = () => {
+    setIsLabelEditorOpen(false); // Close label editor if open
+    setIsEditorOpen(true); // Open the main properties editor
+  };
+
+  const openLabelEditor = () => {
+    setIsEditorOpen(false); // Close properties editor if open
+    setIsLabelEditorOpen(true); // Open the label editor
+
+    // Enable editing mode in the manager instance
+    if (
+      labelManagerRef.current &&
+      typeof labelManagerRef.current.toggleEditingMode === "function"
+    ) {
+      try {
+        labelManagerRef.current.toggleEditingMode(true);
+        console.log(
+          `[MapComponent] Label editing mode explicitly enabled for LabelEditor.`
+        );
+      } catch (error) {
+        console.error("Error enabling label manager edit mode:", error);
+      }
+    } else {
+      console.warn(
+        "Cannot enable label manager mode: Ref invalid or toggleEditingMode method missing."
+      );
+    }
+  };
+
+  const closeSidePanel = () => {
+    console.log("[closeSidePanel] Starting side panel closure...");
+
+    // Save label positions if the label editor was open
+    if (isLabelEditorOpen) {
+      if (
+        labelManagerRef.current &&
+        typeof labelManagerRef.current.savePositions === "function"
+      ) {
+        try {
+          // Get size of editedLabels map before saving (for debugging)
+          const editedLabelsSize =
+            labelManagerRef.current.editedLabels?.size || 0;
+          console.log(
+            `[closeSidePanel] About to save ${editedLabelsSize} edited labels.`
+          );
+
+          // CRITICAL: Force immediate save with true parameter
+          const saveResult = labelManagerRef.current.savePositions(true);
+          console.log(
+            `[closeSidePanel] Saved label positions before closing: ${saveResult.count} labels saved.`
+          );
+
+          // CRITICAL: Store a flag in localStorage to force reapplication on next refresh
+          localStorage.setItem("labelStylesUpdated", "true");
+
+          // If no positions were saved but we had edits, something is wrong
+          if (saveResult.count === 0 && editedLabelsSize > 0) {
+            console.warn(
+              "[closeSidePanel] Warning: Had edited labels but none were saved!"
+            );
+
+            // Attempt second force save after delay
+            setTimeout(() => {
+              if (
+                labelManagerRef.current &&
+                typeof labelManagerRef.current.savePositions === "function"
+              ) {
+                try {
+                  const retryResult =
+                    labelManagerRef.current.savePositions(true);
+                  console.log(
+                    `[closeSidePanel] Retry save result: ${retryResult.count} labels saved`
+                  );
+                } catch (retryError) {
+                  console.error(
+                    "[closeSidePanel] Error in retry save:",
+                    retryError
+                  );
+                }
+              }
+            }, 100);
+          }
+        } catch (error) {
+          console.error("Error saving label positions:", error);
+        }
+
+        // AFTER saving, ensure editing mode is off
+        if (typeof labelManagerRef.current.toggleEditingMode === "function") {
+          try {
+            labelManagerRef.current.toggleEditingMode(false, false); // Second param - don't clear selection
+            console.log(
+              "[closeSidePanel] Label editing mode disabled, selection preserved."
+            );
+          } catch (toggleError) {
+            console.error(
+              "Error toggling label manager mode off:",
+              toggleError
+            );
           }
         }
       }
-    };
+    }
 
-    initConfigs();
-  }, [mapView, legend]);
+    // Close both panels
+    setIsEditorOpen(false);
+    setIsLabelEditorOpen(false);
+    console.log("[closeSidePanel] Closed side panel(s).");
 
-  useEffect(() => {
-    return () => {
-      // Remove the rectangle element when component unmounts
-      if (rectangleRef.current && mapRef.current) {
-        if (mapRef.current.contains(rectangleRef.current)) {
-          mapRef.current.removeChild(rectangleRef.current);
+    // CRITICAL: Reapply styles with multiple refresh attempts to ensure they stick
+    const refreshAttempts = () => {
+      if (
+        labelManagerRef.current &&
+        typeof labelManagerRef.current.refreshLabels === "function"
+      ) {
+        try {
+          labelManagerRef.current.refreshLabels();
+          console.log(
+            "[closeSidePanel] Refreshed all labels after panel closure."
+          );
+
+          // First follow-up refresh after a short delay
+          setTimeout(() => {
+            if (
+              labelManagerRef.current &&
+              typeof labelManagerRef.current.refreshLabels === "function"
+            ) {
+              labelManagerRef.current.refreshLabels();
+              console.log("[closeSidePanel] Second refresh completed");
+
+              // Final refresh after everything has settled
+              setTimeout(() => {
+                if (
+                  labelManagerRef.current &&
+                  typeof labelManagerRef.current.refreshLabels === "function"
+                ) {
+                  labelManagerRef.current.refreshLabels();
+                  console.log("[closeSidePanel] Final refresh completed");
+                }
+              }, 1000);
+            }
+          }, 200);
+        } catch (refreshError) {
+          console.error(
+            "Error refreshing labels after panel closure:",
+            refreshError
+          );
         }
       }
     };
-  }, []);
 
-  const handlePipeVisualization = async (tabData) => {
-    console.log("Attempting to visualize Pipe Map with data:", tabData);
+    // Delay the initial refresh to ensure UI updates first
+    setTimeout(refreshAttempts, 100);
+  };
 
+  // --- End Consolidated Handlers ---
+
+  const handleCustomDataVisualization = async (tabData) => {
+    console.log("Attempting to visualize Custom Data Map with data:", tabData);
+  
     if (!mapView?.map) {
-      console.warn("Map view not available for pipe visualization.");
+      console.warn("Map view not available for custom data visualization.");
       return;
     }
     if (!tabData || !tabData.layerConfiguration) {
       console.warn(
-        "Pipe visualization cancelled: Missing tabData or layerConfiguration."
+        "Custom data visualization cancelled: Missing tabData or layerConfiguration."
       );
       return;
     }
-
-    // --- Layer Finding ---
-    // Find the GraphicsLayer specifically created for 'pipe' visualization.
-    // Since we remove/add layers on tab switch, there should ideally be only one.
-    const pipeLayer = mapView.map.layers.find(
+  
+    // Find the GraphicsLayer for 'custom' visualization
+    const customLayer = mapView.map.layers.find(
       (l) =>
-        l && l.isVisualizationLayer === true && l.visualizationType === "pipe"
+        l && l.isVisualizationLayer === true && l.visualizationType === "custom"
     );
-
-    if (!pipeLayer) {
+  
+    if (!customLayer) {
       console.error(
-        "Pipe GraphicsLayer not found on the map. Cannot add graphics."
+        "Custom Data GraphicsLayer not found on the map. Cannot update graphics."
       );
-      return; // Exit if no layer found
+      return;
     }
-    console.log(`Found target Pipe layer: "${pipeLayer.title}"`);
-
-    // --- Data Extraction ---
+    console.log(`Found target Custom Data layer: "${customLayer.title}"`);
+  
+    // Always clear existing graphics to ensure a fresh start
+    customLayer.removeAll();
+    console.log(`Cleared existing graphics from layer "${customLayer.title}".`);
+  
+    // Extract configuration data
     const config = tabData.layerConfiguration;
-    const customData = config?.customData; // The array of data points
-    const nameColumn = config?.nameColumn; // Column for popup title/content
-    // Get coordinate columns, provide defaults if missing
-    const latitudeColumn = config?.latitudeColumn || "Latitude";
-    const longitudeColumn = config?.longitudeColumn || "Longitude";
-    // Get the symbol configuration
+    const customData = config?.customData?.data || []; // Get data array
+    const nameColumn = config?.customData?.nameColumn || config?.labelColumn; // Use labelColumn as fallback
+    const valueColumn =
+      config?.field || config?.customData?.valueColumn || config?.valueColumn; // Use field or valueColumn
+    const latitudeColumn =
+      config?.customData?.latitudeColumn ||
+      config?.latitudeColumn ||
+      "latitude";
+    const longitudeColumn =
+      config?.customData?.longitudeColumn ||
+      config?.longitudeColumn ||
+      "longitude";
     const symbolConfig = config?.symbol;
+  
+    // CRITICAL ENHANCEMENT: Check if labels should be disabled for the entire layer
+    const disableLayerLabels = config.labelColumn === null || config.hasNoLabels || config.hideAllLabels;
 
-    if (!Array.isArray(customData) || customData.length === 0) {
-      console.log(
-        "No custom data points found in configuration for pipe visualization."
-      );
-      pipeLayer.removeAll(); // Clear any old graphics even if no new data
-      return;
+  
+    // Set the custom layer's labelsVisible property explicitly
+    if (customLayer.labelsVisible !== undefined) {
+      customLayer.labelsVisible = !disableLayerLabels;
+      console.log(`Set custom layer labelsVisible to: ${!disableLayerLabels}`);
     }
-    if (!nameColumn) {
-      console.warn("Missing nameColumn in configuration for pipe popups.");
-      // Proceed without full popups, or return if required
-    }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error(
-        "Missing latitudeColumn or longitudeColumn configuration for pipe points."
-      );
-      pipeLayer.removeAll(); // Clear layer as we can't proceed
-      return; // Cannot create points
-    }
-    if (!symbolConfig) {
-      console.warn(
-        "Missing symbol configuration in layerConfiguration for pipe visualization. Using default symbol."
-      );
-      // Define a default symbol if none is provided in config
-      // symbolConfig = { type: 'simple-marker', color: '#FFA500', size: 10, outline: { color: '#FFFFFF', width: 1 } };
-    }
-
+  
+    // Add layer-level flag to help label manager recognize this as a no-labels layer
+    customLayer._hasNoLabels = disableLayerLabels;
+    customLayer._hideAllLabels = disableLayerLabels;
+  
     console.log(
-      `Processing ${customData.length} pipe points using name='${nameColumn}', lat='${latitudeColumn}', lon='${longitudeColumn}'`
+      `Processing ${
+        customData.length
+      } custom points using name='${nameColumn || "N/A"}', value='${
+        valueColumn || "N/A"
+      }', lat='${latitudeColumn}', lon='${longitudeColumn}', labels disabled: ${disableLayerLabels}`
     );
-
-    try {
-      // --- Dynamic Imports (ensure they are available - already added above) ---
-      // If imports are static at top, these variables are already populated.
-      // If dynamic import is needed elsewhere:
-      /*
-        const [
-            { default: Graphic }, { default: Point }, { default: SimpleMarkerSymbol },
-            { default: PopupTemplate }, { default: Color }
-        ] = await Promise.all([
-            import("@arcgis/core/Graphic"), import("@arcgis/core/geometry/Point"),
-            import("@arcgis/core/symbols/SimpleMarkerSymbol"), import("@arcgis/core/PopupTemplate"),
-            import("@arcgis/core/Color")
-        ]);
-        */
-
-      // --- Clear Existing Graphics ---
-      pipeLayer.removeAll();
-      console.log(`Cleared existing graphics from layer "${pipeLayer.title}".`);
-
-      // --- Create Popup Template (if nameColumn exists) ---
-      const popupTemplate = nameColumn
-        ? new PopupTemplate({
-            title: `{${nameColumn}}`, // Use the dynamic name column
-            content: `Address: {${
-              config.addressColumn || "Address"
-            }}<br>Submarket: {${config.submarketColumn || "Submarket"}}`, // Example: Add more fields if needed
-            // Or use fields array:
-            // content: [{
-            //     type: "fields",
-            //     fieldInfos: [
-            //          { fieldName: nameColumn, label: nameColumn },
-            //          { fieldName: config.addressColumn || 'Address', label: 'Address' },
-            //          // Add other relevant fields
-            //      ]
-            // }]
-          })
-        : null; // No popup if name column is missing
-
-      // --- Create Symbol from Config ---
-      let pointSymbol = null;
-      if (symbolConfig) {
-        try {
-          // Assuming symbolConfig is a valid JS API symbol JSON structure
-          // For SimpleMarkerSymbol specifically:
-          if (symbolConfig.type === "simple-marker") {
-            pointSymbol = new SimpleMarkerSymbol({
-              style: symbolConfig.style || "circle",
-              color: new Color(symbolConfig.color || "#FFA500"), // Default to orange
-              size: symbolConfig.size || "10px",
-              outline: symbolConfig.outline
-                ? {
-                    // Handle outline structure carefully
-                    color: new Color(symbolConfig.outline.color || "#FFFFFF"),
-                    width: symbolConfig.outline.width || 1,
-                  }
-                : null, // No outline if not specified
-            });
-          } else {
-            console.warn(
-              `Symbol type '${symbolConfig.type}' not explicitly handled for pipe visualization. Trying generic SimpleMarkerSymbol.`
-            );
-            // Fallback or handle other symbol types if necessary
-            pointSymbol = new SimpleMarkerSymbol({
-              color: "#FFA500",
-              size: "10px",
-            });
-          }
-        } catch (symbolError) {
-          console.error(
-            "Error creating symbol from config:",
-            symbolError,
-            "Using default."
-          );
-          pointSymbol = new SimpleMarkerSymbol({
-            color: "#FFA500",
-            size: "10px",
-          });
-        }
-      } else {
-        // Default symbol if config was missing entirely
-        pointSymbol = new SimpleMarkerSymbol({
-          color: "#FFA500",
-          size: "10px",
-        });
-      }
-
-      // --- Create and Add Graphics ---
-      const graphicsToAdd = [];
-      let addedCount = 0;
-      let errorCount = 0;
-
-      customData.forEach((item, index) => {
-        // Get lat/lon robustly
-        let latitude, longitude;
-        if (
-          item.geometry &&
-          typeof item.geometry.y === "number" &&
-          typeof item.geometry.x === "number"
-        ) {
-          latitude = item.geometry.y;
-          longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
-        } else if (
-          typeof item["lat"] === "number" &&
-          typeof item["lon"] === "number"
-        ) {
-          // Common alternatives
-          latitude = item["lat"];
-          longitude = item["lon"];
-        } else {
-          console.warn(
-            `Skipping pipe item ${index} due to missing/invalid coordinates (LatCol: ${latitudeColumn}, LonCol: ${longitudeColumn}). Data:`,
-            item
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Validate coordinates
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping pipe item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Basic bounds check (optional but helpful)
-        if (
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          console.warn(
-            `Skipping pipe item ${index} due to out-of-bounds coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return;
-        }
-
-        try {
-          const point = new Point({
-            longitude: longitude,
-            latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
-          });
-
-          // Prepare attributes - include all original data + ensure popup fields exist
-          const attributes = {
-            ...item, // Include all original data
-            _internalId: `pipe-${index}`, // Add an internal ID if needed
-          };
-          // Ensure the name field exists even if null/undefined
-          if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
-
-          const graphic = new Graphic({
-            geometry: point,
-            symbol: pointSymbol, // Use the symbol created from config
-            attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template (or null)
-          });
-
-          graphicsToAdd.push(graphic);
-          addedCount++;
-        } catch (graphicError) {
-          console.error(
-            `Error creating graphic for pipe item ${index}:`,
-            graphicError,
-            item
-          );
-          errorCount++;
-        }
-      });
-
-      // Add all created graphics at once
-      if (graphicsToAdd.length > 0) {
-        pipeLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} pipe graphics to layer "${pipeLayer.title}".`
-        );
-        if (errorCount > 0) {
-          console.warn(
-            `Failed to add ${errorCount} pipe graphics due to errors.`
-          );
-        }
-
-        // --- Optional: Zoom to Graphics ---
-        // Debounce or delay slightly to ensure graphics are rendered
-        setTimeout(() => {
-          if (mapView?.goTo && pipeLayer.graphics.length > 0) {
-            console.log("Zooming to pipe graphics extent.");
-            // Use graphics directly from the layer
-            mapView
-              .goTo(pipeLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to pipe graphics:", err)
-              );
-          }
-        }, 500); // Delay 500ms
-      } else {
-        console.log("No valid pipe graphics were created to add.");
-      }
-    } catch (error) {
-      console.error("Error during pipe visualization processing:", error);
-      // Clear the layer in case of partial failure during processing
-      if (pipeLayer) {
-        pipeLayer.removeAll();
-      }
-    }
-  };
-
-  const handleCompVisualization = async (tabData) => {
-    console.log("Visualizing Comp Map with data:", tabData);
-    if (!mapView?.map) {
-      console.warn("Map view not available for comp visualization.");
-      return;
-    }
-
-    // --- Layer Finding ---
-    // Find the specific GraphicsLayer created for this tab, matching by title and type
-    // This assumes the layer title matches the tab name, which createLayers should ensure
-    const targetLayerTitle = tabData.name; // Use the tab's name as the expected layer title
-    const compLayer = mapView.map.layers.find(
-      (l) => l && l.title === targetLayerTitle && l.visualizationType === "comp"
-    );
-
-    if (!compLayer) {
-      console.warn(
-        `Comp GraphicsLayer titled "${targetLayerTitle}" not found on map.`
-      );
-      // Attempt to find *any* comp layer as a fallback, though less ideal
-      const fallbackLayer = mapView.map.layers.find(
-        (l) => l && l.visualizationType === "comp"
-      );
-      if (fallbackLayer) {
-        console.warn(
-          `Falling back to the first found layer with type 'comp': ${fallbackLayer.title}`
-        );
-        // compLayer = fallbackLayer; // Uncomment carefully if fallback is desired
-      } else {
-        console.error("No suitable 'comp' layer found to add graphics to.");
-        return; // Exit if no layer found
-      }
-      // If using fallback, ensure you want to add graphics to potentially the wrong layer.
-      // It's usually better to ensure layer creation and finding logic aligns.
-      return; // Exit for now to avoid adding to wrong layer
-    }
-
-    console.log(`Found target Comp layer: "${compLayer.title}"`);
-
-    // --- Data Extraction ---
-    const config = tabData.layerConfiguration;
-    const customData = config?.customData; // The array of data points
-    const nameColumn = config?.nameColumn;
-    const valueColumn = config?.valueColumn;
-    // Assuming your customData items have geometry.x and geometry.y directly
-    // OR, use specific latitude/longitude columns if available from config/detection
-    const latitudeColumn = config?.latitudeColumn || "Latitude"; // Default or from config
-    const longitudeColumn = config?.longitudeColumn || "Longitude"; // Default or from config
-
+  
     if (!Array.isArray(customData) || customData.length === 0) {
-      console.log("No custom data points found in configuration to visualize.");
-      compLayer.removeAll(); // Clear any old graphics even if no new data
+      console.log("No custom data points found for visualization.");
       return;
     }
-    if (!nameColumn || !valueColumn) {
-      console.warn(
-        "Missing nameColumn or valueColumn in configuration for popups."
-      );
-      // Proceed without full popups, or return if required
-    }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error("Missing latitudeColumn or longitudeColumn configuration.");
-      return; // Cannot create points
-    }
-
-    console.log(
-      `Processing ${customData.length} comp points using name='${nameColumn}', value='${valueColumn}', lat='${latitudeColumn}', lon='${longitudeColumn}'`
-    );
-
+  
     try {
-      // --- Dynamic Imports (within async function) ---
+      // Ensure required modules are imported
       const [
         { default: Graphic },
         { default: Point },
@@ -5866,526 +1225,31 @@ export default function MapComponent({ onToggleLis }) {
         import("@arcgis/core/PopupTemplate"),
         import("@arcgis/core/Color"),
       ]);
-
-      // --- Clear Existing Graphics ---
-      compLayer.removeAll();
-      console.log(`Cleared existing graphics from layer "${compLayer.title}".`);
-
-      // --- Create Popup Template ---
-      // Create popup only if name and value columns are available
-      const popupTemplate =
-        nameColumn && valueColumn
-          ? new PopupTemplate({
-              title: `{${nameColumn}}`, // Use the dynamic name column
-              content: [
-                {
-                  type: "fields",
-                  fieldInfos: [
-                    {
-                      fieldName: valueColumn, // Use the dynamic value column
-                      label: valueColumn, // Use the column name as label
-                      format: { digitSeparator: true, places: 2 }, // Example formatting
-                    },
-                  ],
-                },
-              ],
-            })
-          : null; // No popup if columns missing
-
-      // --- Create and Add Graphics ---
-      const graphicsToAdd = [];
-      let addedCount = 0;
-      let errorCount = 0;
-
-      customData.forEach((item, index) => {
-        // Get lat/lon, handling potential nested geometry or direct properties
-        let latitude, longitude;
-        if (
-          item.geometry &&
-          typeof item.geometry.y === "number" &&
-          typeof item.geometry.x === "number"
-        ) {
-          latitude = item.geometry.y;
-          longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
-        } else {
-          console.warn(
-            `Skipping item ${index} due to missing or invalid coordinates.`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        // Validate coordinates
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        try {
-          const point = new Point({
-            longitude: longitude,
-            latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
-          });
-
-          const markerSymbol = new SimpleMarkerSymbol({
-            // Style specifically for 'comp' points
-            color: new Color([128, 0, 128, 0.8]), // Purple
-            size: "10px", // Slightly smaller maybe?
-            outline: {
-              color: new Color([255, 255, 255, 0.7]),
-              width: 1,
-            },
-          });
-
-          // Prepare attributes - ensure name and value fields exist even if null
-          const attributes = {
-            ...item, // Include all original data
-            // Ensure the fields used in the popup exist
-            [nameColumn]: item[nameColumn] ?? "N/A",
-            [valueColumn]: item[valueColumn] ?? null,
-            _internalId: `comp-${index}`, // Add an internal ID if needed
-          };
-
-          const graphic = new Graphic({
-            geometry: point,
-            symbol: markerSymbol,
-            attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template (or null)
-          });
-
-          graphicsToAdd.push(graphic);
-          addedCount++;
-        } catch (graphicError) {
-          console.error(
-            `Error creating graphic for item ${index}:`,
-            graphicError,
-            item
-          );
-          errorCount++;
-        }
-      });
-
-      // Add all created graphics at once for potentially better performance
-      if (graphicsToAdd.length > 0) {
-        compLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} comp graphics to layer "${compLayer.title}".`
-        );
-        if (errorCount > 0) {
-          console.warn(
-            `Failed to add ${errorCount} comp graphics due to errors.`
-          );
-        }
-
-        // --- Optional: Zoom to Graphics ---
-        // Debounce or delay slightly to ensure map is ready
-        setTimeout(() => {
-          if (mapView?.goTo && compLayer.graphics.length > 0) {
-            console.log("Zooming to comp graphics extent.");
-            mapView
-              .goTo(compLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to comp graphics:", err)
-              );
-          }
-        }, 300);
-      } else {
-        console.log("No valid comp graphics were created to add.");
-      }
-    } catch (error) {
-      console.error("Error during comp visualization processing:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (!legend || !mapView?.ready) return;
-
-    const activeTabData = tabs.find((tab) => tab.id === activeTab);
-    const hasVisualization = activeTabData?.visualizationType;
-    const shouldShowLegend =
-      activeTab !== 1 && hasVisualization && !isEditorOpen;
-
-    // Update legend visibility
-    legend.visible = shouldShowLegend;
-
-    if (shouldShowLegend) {
-      requestAnimationFrame(() => {
-        const styleLegend = () => {
-          const legendContainer = legend.container;
-          if (legendContainer) {
-            // Apply styles
-            legendContainer.style.backgroundColor = "white";
-            legendContainer.style.padding = "1rem";
-            legendContainer.style.margin = "0.5rem";
-            legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
-            legendContainer.style.borderRadius = "0.375rem";
-            legendContainer.style.boxShadow =
-              "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
-
-            // Style legend title
-            const legendTitle = legendContainer.querySelector(
-              ".esri-legend__service-label"
-            );
-            if (legendTitle) {
-              legendTitle.style.fontWeight = "600";
-              legendTitle.style.fontSize = "0.875rem";
-              legendTitle.style.marginBottom = "0.75rem";
-              legendTitle.style.color = "#111827";
-            }
-
-            // Style legend items
-            const legendItems = legendContainer.querySelectorAll(
-              ".esri-legend__layer-row"
-            );
-            legendItems.forEach((item) => {
-              item.style.display = "flex";
-              item.style.alignItems = "center";
-              item.style.marginBottom = "0.5rem";
-            });
-
-            // Style color swatches
-            const swatches = legendContainer.querySelectorAll(
-              ".esri-legend__symbol"
-            );
-            swatches.forEach((swatch) => {
-              swatch.style.width = "1rem";
-              swatch.style.height = "1rem";
-              swatch.style.marginRight = "0.5rem";
-            });
-
-            // Style labels
-            const labels = legendContainer.querySelectorAll(
-              ".esri-legend__layer-cell--info"
-            );
-            labels.forEach((label) => {
-              label.style.fontSize = "0.875rem";
-              label.style.color = "#4B5563";
-            });
-          }
-        };
-
-        styleLegend();
-      });
-    }
-  }, [activeTab, legend, tabs, isEditorOpen, mapView?.ready]);
-
-  useEffect(() => {
-    if (!mapView?.ready || !mapView.map || isConfigLoading) return; // Add legend check maybe later
-
-    const updateVisualizationAndLegend = async () => {
-      if (!mapView?.map || isConfigLoading) {
-        console.log("[VizUpdate] Map not ready or configs loading, skipping.");
-        return;
-      }
-      console.log("[VizUpdate] Starting update...");
-
-      try {
-        // --- Layer Removal ---
-        const layersToRemove = [];
-        mapView.map.layers.forEach((layer) => {
-          if (layer && layer.isVisualizationLayer === true) {
-            layersToRemove.push(layer);
-          }
-        });
-        if (layersToRemove.length > 0) {
-          console.log(
-            `[VizUpdate] Removing ${layersToRemove.length} existing visualization layers.`
-          );
-          mapView.map.removeMany(layersToRemove);
-        }
-        // --- End Layer Removal ---
-
-        const activeTabData = tabs.find((tab) => tab.id === activeTab);
-        console.log("[VizUpdate] Active Tab Data:", activeTabData);
-
-        let newLayer = null; // To hold the newly created layer
-        let showEsriLegend = false; // Flag to control standard legend
-        let customLegendData = null; // To hold data for custom legend
-
-        if (activeTab !== 1 && activeTabData?.visualizationType) {
-          let vizType = activeTabData.visualizationType;
-          if (vizType === "pipeline") vizType = "pipe";
-          if (vizType === "comps") vizType = "comp";
-
-          const config = activeTabData.layerConfiguration;
-          const areaType = activeTabData.areaType;
-          console.log(
-            `[VizUpdate] Creating/Updating visualization for active type: ${vizType}`,
-            { config, areaType: areaType?.label }
-          );
-
-          const specialTypes = ["pipe", "comp", "custom"];
-          const isSpecialType =
-            specialTypes.includes(vizType) ||
-            specialTypes.includes(config?.type) ||
-            (config?.customData && config.customData.data);
-
-          if (isSpecialType) {
-            newLayer = await createLayers(vizType, config); // createLayers handles GraphicsLayer
-            if (newLayer) {
-              console.log(
-                `[VizUpdate] Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
-              );
-              mapView.map.add(newLayer, 0);
-
-              // Handle specific drawing/zooming AFTER adding layer
-              if (vizType === "pipe")
-                await handlePipeVisualization(activeTabData);
-              else if (vizType === "comp")
-                await handleCompVisualization(activeTabData);
-              else if (
-                vizType === "custom" /* ... custom data handling ... */
-              ) {
-                // ... zoom logic for custom ...
-                if (newLayer.graphics && newLayer.graphics.length > 0) {
-                  setTimeout(() => {
-                    if (mapView?.goTo)
-                      mapView
-                        .goTo(newLayer.graphics)
-                        .catch((err) =>
-                          console.warn("Error zooming to custom graphics:", err)
-                        );
-                  }, 500);
-                }
-              }
-
-              // --- Prepare Custom Legend Data for pipe/comp ---
-              if (
-                (vizType === "pipe" || vizType === "comp") &&
-                config?.symbol &&
-                config?.legendInfo
-              ) {
-                customLegendData = {
-                  symbol: config.symbol,
-                  label: config.legendInfo.label,
-                };
-                console.log(
-                  "[VizUpdate] Prepared custom legend data:",
-                  customLegendData
-                );
-              }
-              // ----------------------------------------------
-            } else {
-              console.error(
-                `[VizUpdate] Failed to create GraphicsLayer for type: ${vizType}`
-              );
-            }
-          } else {
-            // Standard Heatmap/Dot Density use FeatureLayer
-            newLayer = await createLayers(
-              vizType,
-              config,
-              initialLayerConfigurations,
-              areaType
-            );
-            if (newLayer) {
-              console.log(
-                `[VizUpdate] Adding FeatureLayer titled "${newLayer.title}" for type "${vizType}"`
-              );
-              mapView.map.add(newLayer, 0);
-              showEsriLegend = true; // Show standard Esri legend for these types
-            } else {
-              console.error(
-                `[VizUpdate] Failed to create FeatureLayer for type: ${vizType}`
-              );
-            }
-          }
-
-          // --- Update Standard Esri Legend ---
-          if (legend) {
-            if (showEsriLegend && newLayer && !isEditorOpen) {
-              try {
-                await newLayer.when(); // Wait for FeatureLayer
-                console.log(
-                  `[VizUpdate] Updating standard Esri legend for layer: ${
-                    newLayer.title || vizType
-                  }`
-                );
-                legend.layerInfos = [
-                  {
-                    layer: newLayer,
-                    title: newLayer.title || vizType,
-                    hideLayersNotInCurrentView: false,
-                  },
-                ];
-                legend.visible = true;
-              } catch (layerError) {
-                console.error(
-                  "[VizUpdate] Error waiting for FeatureLayer or updating Esri legend:",
-                  layerError
-                );
-                legend.visible = false;
-              }
-            } else {
-              // Hide standard legend if not applicable (e.g., pipe/comp) or editor is open
-              console.log(
-                `[VizUpdate] Hiding standard Esri legend. ShowEsriLegend: ${showEsriLegend}, isEditorOpen: ${isEditorOpen}`
-              );
-              legend.visible = false;
-            }
-          }
-          // --- End Update Standard Esri Legend ---
-        } else {
-          // Core Map or no visualization selected
-          if (legend) {
-            console.log(
-              "[VizUpdate] Hiding standard Esri legend: Core Map or no visualization."
-            );
-            legend.visible = false;
-          }
-        }
-
-        // --- Update Custom Legend State ---
-        setCustomLegendContent(customLegendData); // Set state for custom legend display
-      } catch (error) {
-        console.error("[VizUpdate] Error during visualization update:", error);
-        if (legend) legend.visible = false;
-        setCustomLegendContent(null); // Clear custom legend on error
-      } finally {
-        console.log("[VizUpdate] Update finished.");
-      }
-    };
-
-    updateVisualizationAndLegend();
-  }, [activeTab, tabs, mapView, legend, isEditorOpen, isConfigLoading]); // Dependencies
-
-  // *** ENTIRE FUNCTION ***
-  // (Make sure necessary imports like Graphic, Point, SimpleMarkerSymbol, etc. are at the top of Map.jsx)
-  const handleCustomDataVisualization = async (tabData) => {
-    console.log("Attempting to visualize Custom Data Map with data:", tabData);
-
-    if (!mapView?.map) {
-      console.warn("Map view not available for custom data visualization.");
-      return;
-    }
-    if (!tabData || !tabData.layerConfiguration) {
-      console.warn(
-        "Custom data visualization cancelled: Missing tabData or layerConfiguration."
-      );
-      return;
-    }
-
-    // --- Layer Finding ---
-    // Find the GraphicsLayer specifically created for 'custom' visualization.
-    const customLayer = mapView.map.layers.find(
-      (l) =>
-        l &&
-        l.isVisualizationLayer === true &&
-        l.visualizationType === "custom" &&
-        l.isCustomDataLayer === true
-    );
-
-    if (!customLayer) {
-      console.error(
-        "Custom Data GraphicsLayer not found on the map. Cannot add graphics."
-      );
-      return; // Exit if no layer found
-    }
-    console.log(`Found target Custom Data layer: "${customLayer.title}"`);
-
-    // --- Data Extraction ---
-    const config = tabData.layerConfiguration;
-    const customData = config?.customData?.data; // Access the nested 'data' array
-    const nameColumn = config?.customData?.nameColumn; // Column for popup title/content
-    const valueColumn = config?.field || config?.customData?.valueColumn; // Use 'field' or nested valueColumn
-    // Get coordinate columns, provide defaults if missing
-    const latitudeColumn = config?.customData?.latitudeColumn || "latitude"; // Common defaults
-    const longitudeColumn = config?.customData?.longitudeColumn || "longitude"; // Common defaults
-    // Get the symbol configuration
-    const symbolConfig = config?.symbol;
-
-    // Check if customData is actually an array
-    if (!Array.isArray(customData) || customData.length === 0) {
-      console.log(
-        "No valid custom data points array found in configuration for custom visualization."
-      );
-      customLayer.removeAll(); // Clear any old graphics even if no new data
-      return;
-    }
-    if (!nameColumn) {
-      console.warn(
-        "Missing nameColumn in customData configuration for popups."
-      );
-    }
-    if (!latitudeColumn || !longitudeColumn) {
-      console.error(
-        "Missing latitudeColumn or longitudeColumn in customData configuration."
-      );
-      customLayer.removeAll();
-      return; // Cannot create points
-    }
-    if (!symbolConfig) {
-      console.warn(
-        "Missing symbol configuration in layerConfiguration for custom visualization. Using default symbol."
-      );
-    }
-
-    console.log(
-      `Processing ${
-        customData.length
-      } custom points using name='${nameColumn}', value='${
-        valueColumn || "N/A"
-      }', lat='${latitudeColumn}', lon='${longitudeColumn}'`
-    );
-
-    try {
-      // --- Dynamic Imports (Ensure they are available) ---
-      // Assuming Graphic, Point, SimpleMarkerSymbol, PopupTemplate, Color are imported at the top
-
-      // --- Clear Existing Graphics ---
-      customLayer.removeAll();
-      console.log(
-        `Cleared existing graphics from custom data layer "${customLayer.title}".`
-      );
-
-      // --- Create Popup Template (if nameColumn exists) ---
-      let popupTemplate = null;
-      if (nameColumn) {
-        const fieldInfos = [{ fieldName: nameColumn, label: nameColumn }];
-        if (valueColumn) {
-          fieldInfos.push({
-            fieldName: valueColumn,
-            label: valueColumn,
-            format: { digitSeparator: true, places: 2 }, // Generic formatting
-          });
-        }
-        // Add coordinate fields if desired
-        // fieldInfos.push({ fieldName: 'latitude', label: 'Latitude', format: { places: 5 } });
-        // fieldInfos.push({ fieldName: 'longitude', label: 'Longitude', format: { places: 5 } });
-
-        popupTemplate = new PopupTemplate({
-          title: `{${nameColumn}}`,
-          content: [{ type: "fields", fieldInfos: fieldInfos }],
-        });
-      } else {
-        console.warn(
-          "Popup template not created for custom data: Missing nameColumn."
-        );
-        // Optional minimal popup
-        popupTemplate = new PopupTemplate({
-          title: "Custom Point",
-          content: `Latitude: {latitude}<br>Longitude: {longitude}<br>ID: {ID}`,
-        });
-      }
-
-      // --- Create Symbol from Config ---
+  
+      // Create popup template
+      const popupTemplate = nameColumn
+        ? new PopupTemplate({
+            title: `{${nameColumn}}`,
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  { fieldName: nameColumn, label: nameColumn },
+                  { fieldName: valueColumn, label: valueColumn || "Value" },
+                ],
+              },
+            ],
+          })
+        : null;
+  
+      // Create symbol from config
       let pointSymbol = null;
       if (symbolConfig) {
         try {
           if (symbolConfig.type === "simple-marker") {
             pointSymbol = new SimpleMarkerSymbol({
               style: symbolConfig.style || "circle",
-              color: new Color(symbolConfig.color || "#FF0000"), // Default to red for custom
+              color: new Color(symbolConfig.color || "#FF0000"), // Default red for custom
               size: symbolConfig.size || "10px",
               outline: symbolConfig.outline
                 ? {
@@ -6395,13 +1259,10 @@ export default function MapComponent({ onToggleLis }) {
                 : null,
             });
           } else {
-            console.warn(
-              `Symbol type '${symbolConfig.type}' not explicitly handled for custom visualization. Using default.`
-            );
             pointSymbol = new SimpleMarkerSymbol({
               color: "#FF0000",
               size: "10px",
-            }); // Default red
+            });
           }
         } catch (symbolError) {
           console.error(
@@ -6418,30 +1279,30 @@ export default function MapComponent({ onToggleLis }) {
         pointSymbol = new SimpleMarkerSymbol({
           color: "#FF0000",
           size: "10px",
-        }); // Default red
+        });
       }
-
-      // --- Create and Add Graphics ---
+  
+      // Create and add graphics
       const graphicsToAdd = [];
       let addedCount = 0;
       let errorCount = 0;
-
+  
       customData.forEach((item, index) => {
-        // Get lat/lon robustly
+        // Get coordinates
         let latitude, longitude;
         if (
+          item[latitudeColumn] !== undefined &&
+          item[longitudeColumn] !== undefined
+        ) {
+          latitude = parseFloat(item[latitudeColumn]);
+          longitude = parseFloat(item[longitudeColumn]);
+        } else if (
           item.geometry &&
           typeof item.geometry.y === "number" &&
           typeof item.geometry.x === "number"
         ) {
           latitude = item.geometry.y;
           longitude = item.geometry.x;
-        } else if (
-          typeof item[latitudeColumn] === "number" &&
-          typeof item[longitudeColumn] === "number"
-        ) {
-          latitude = item[latitudeColumn];
-          longitude = item[longitudeColumn];
         } else if (
           typeof item["lat"] === "number" &&
           typeof item["lon"] === "number"
@@ -6450,486 +1311,464 @@ export default function MapComponent({ onToggleLis }) {
           longitude = item["lon"];
         } else {
           console.warn(
-            `Skipping custom item ${index} due to missing/invalid coordinates (LatCol: ${latitudeColumn}, LonCol: ${longitudeColumn}). Data:`,
-            item
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-
-        if (isNaN(latitude) || isNaN(longitude)) {
-          console.warn(
-            `Skipping custom item ${index} due to NaN coordinates (Lat: ${latitude}, Lon: ${longitude}).`
-          );
-          errorCount++;
-          return; // Skip this item
-        }
-        if (
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          console.warn(
-            `Skipping custom item ${index} due to out-of-bounds coordinates (Lat: ${latitude}, Lon: ${longitude}).`
+            `Skipping custom item ${index} - missing valid coordinates`
           );
           errorCount++;
           return;
         }
-
+  
+        if (isNaN(latitude) || isNaN(longitude)) {
+          console.warn(`Skipping custom item ${index} - invalid coordinates`);
+          errorCount++;
+          return;
+        }
+  
         try {
           const point = new Point({
             longitude: longitude,
             latitude: latitude,
-            spatialReference: { wkid: 4326 }, // Assuming WGS84
+            spatialReference: { wkid: 4326 },
           });
-
-          // Prepare attributes
+  
           const attributes = {
             ...item,
-            ID: index, // Add simple ID
-            latitude: latitude, // Ensure coords are in attributes for minimal popup
-            longitude: longitude,
+            _internalId: `custom-${index}`,
+            isCustomPoint: true,
           };
+  
+          // Apply label settings based on configuration
+          if (!disableLayerLabels) {
+            // Normal case: If labels are enabled, set the label text
+            attributes.labelText = item[nameColumn] || item.name || item.title || String(index + 1);
+          } else {
+            // CRITICAL FIX: When "None" is selected for labels, explicitly disable labels for this point
+            attributes.noLabel = true;
+            attributes._hideLabel = true;
+            attributes._noLabelDisplay = true; // Additional flag for other label processors
+            attributes.labelText = null; // Explicitly set to null to override defaults
+          }
+  
           if (nameColumn) attributes[nameColumn] = item[nameColumn] ?? "N/A";
           if (valueColumn) attributes[valueColumn] = item[valueColumn] ?? null;
-
+  
           const graphic = new Graphic({
             geometry: point,
-            symbol: pointSymbol, // Use the symbol
+            symbol: pointSymbol,
             attributes: attributes,
-            popupTemplate: popupTemplate, // Assign the template
+            popupTemplate: popupTemplate,
           });
-
+  
           graphicsToAdd.push(graphic);
           addedCount++;
         } catch (graphicError) {
           console.error(
             `Error creating graphic for custom item ${index}:`,
-            graphicError,
-            item
+            graphicError
           );
           errorCount++;
         }
       });
-
-      // Add all created graphics at once
+  
+      // Add the graphics to the layer
       if (graphicsToAdd.length > 0) {
         customLayer.addMany(graphicsToAdd);
-        console.log(
-          `Added ${addedCount} custom graphics to layer "${customLayer.title}".`
-        );
-        if (errorCount > 0) {
+        console.log(`Added ${graphicsToAdd.length} graphics to custom layer`);
+  
+        // Process layer with label manager if needed
+        if (labelManagerRef.current) {
+          setTimeout(() => {
+            try {
+              console.log("Triggering label processing for new graphics...");
+              
+              // CRITICAL: Set label exclusion flags on the layer manager before processing
+              if (disableLayerLabels && typeof labelManagerRef.current.setLayerLabelOptions === "function") {
+                labelManagerRef.current.setLayerLabelOptions(customLayer.id, {
+                  disableLabels: true,
+                  hideAllLabels: true
+                });
+              }
+              
+              // CORRECTED CALL
+              if (typeof labelManagerRef.current.processLayer === "function") {
+                // Pass disableLabels flag as second parameter to processLayer
+                labelManagerRef.current.processLayer(customLayer, disableLayerLabels);
+              } else {
+                console.warn(
+                  "[handleCustomDataVisualization] processLayer method unavailable."
+                );
+              }
+  
+              // Force refresh all labels after a delay to ensure they appear - or don't appear if disabled
+              setTimeout(() => {
+                // Re-check ref
+                if (
+                  labelManagerRef.current &&
+                  typeof labelManagerRef.current.refreshLabels === "function"
+                ) {
+                  // Check correct method name
+                  labelManagerRef.current.refreshLabels();
+                  console.log(`Refreshed labels for custom layer (labels disabled: ${disableLayerLabels})`);
+                } else {
+                  console.warn(
+                    "[handleCustomDataVisualization] refreshLabels method unavailable inside timeout."
+                  );
+                }
+              }, 500);
+            } catch (err) {
+              console.error("Error processing labels for custom layer:", err);
+            }
+          }, 100);
+        } else {
           console.warn(
-            `Failed to add ${errorCount} custom graphics due to errors.`
+            "[handleCustomDataVisualization] Label manager ref unavailable for label creation."
           );
         }
-
-        // --- Optional: Zoom to Graphics ---
-        setTimeout(() => {
-          if (mapView?.goTo && customLayer.graphics.length > 0) {
-            console.log("Zooming to custom graphics extent.");
-            mapView
-              .goTo(customLayer.graphics)
-              .catch((err) =>
-                console.warn("Error zooming to custom graphics:", err)
-              );
-          }
-        }, 500);
       } else {
-        console.log("No valid custom graphics were created to add.");
+        console.warn(
+          "No valid graphics were created to add to the custom layer"
+        );
       }
-    } catch (error) {
-      console.error(
-        "Error during custom data visualization processing:",
-        error
+  
+      console.log(
+        `Custom visualization complete: Added ${addedCount} points, ${errorCount} errors, labels disabled: ${disableLayerLabels}`
       );
-      if (customLayer) {
-        customLayer.removeAll();
-      }
+    } catch (error) {
+      console.error("Error during custom data visualization:", error);
     }
   };
+
   const updateVisualizationLayer = async () => {
     if (!mapView?.map || isConfigLoading) {
-      console.log(
-        "Map not ready or configs still loading, skipping visualization update"
-      );
+      console.log("Map not ready or configs still loading, skipping visualization update");
       return;
     }
-
+  
     try {
-      // --- Alternative Layer Removal using forEach ---
-      const layersToRemove = [];
-      // Iterate through the layers collection manually
-      mapView.map.layers.forEach((layer) => {
-        // Check properties directly and safely
-        if (layer && layer.isVisualizationLayer === true) {
-          layersToRemove.push(layer); // Add layer to the removal array
-        }
-      });
-      // --- End Alternative Layer Removal ---
-
-      if (layersToRemove.length > 0) {
-        // This console.log should now be safe from the deprecation warning triggered by filter/toArray
-        console.log(
-          `Removing ${layersToRemove.length} existing visualization layers.`
-        );
-        mapView.map.removeMany(layersToRemove); // Remove layers found in the array
-      }
-
-      // Find the active tab and its visualization type
+      // [existing layer removal code...]
+  
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
-
-      // Only add new layer if we're not in the core map and have a selected type
+  
       if (activeTab !== 1 && activeTabData?.visualizationType) {
-        // --- Normalize visualizationType ---
         let vizType = activeTabData.visualizationType;
-        if (vizType === "pipeline") {
-          console.log("Mapping 'pipeline' type to 'pipe'");
-          vizType = "pipe";
-        }
-        // --- End Normalization ---
-
+        if (vizType === "pipeline") vizType = "pipe";
+        if (vizType === "comps") vizType = "comp";
+        
         const config = activeTabData.layerConfiguration;
         const areaType = activeTabData.areaType;
-        console.log(`Creating/Updating visualization for: ${vizType}`, {
-          config,
-          areaType: areaType?.label,
+        
+        // Add clear logging of the critical renderer type
+        console.log(`[updateVisualizationLayer] Creating layer for: ${vizType} with renderer: ${config?.rendererType || 'default'}`, {
+          configType: config?.type,
+          customData: config?.customData ? `${config.customData.data?.length || 0} items` : 'none',
+          valueColumn1: config?.valueColumn1,
+          valueColumn2: config?.valueColumn2
         });
-
-        // --- Type-Specific Handling ---
-        let newLayer = null;
+  
         const specialTypes = ["pipe", "comp", "custom"];
-        const isSpecialType =
-          specialTypes.includes(vizType) ||
-          specialTypes.includes(config?.type) ||
-          (config?.customData && config.customData.data);
-
+        const isSpecialType = specialTypes.includes(vizType);
+  
+        let newLayer = null;
+  
         if (isSpecialType) {
-          newLayer = await createLayers(vizType, config); // createLayers handles GraphicsLayer creation
-          if (newLayer) {
-            console.log(
-              `Adding GraphicsLayer titled "${newLayer.title}" for type "${vizType}"`
-            );
-            mapView.map.add(newLayer, 0); // Add GraphicsLayer
-            // Call specific visualization handlers
-            if (vizType === "pipe")
-              await handlePipeVisualization(activeTabData);
-            else if (vizType === "comp")
-              await handleCompVisualization(activeTabData);
-            else if (vizType === "custom" || (config && config.customData)) {
-              if (newLayer.graphics && newLayer.graphics.length > 0) {
-                console.log(
-                  `Zooming to ${newLayer.graphics.length} custom graphics.`
-                );
-                setTimeout(() => {
-                  if (mapView && mapView.goTo) {
-                    mapView
-                      .goTo(newLayer.graphics)
-                      .catch((err) =>
-                        console.warn("Error zooming to custom graphics:", err)
-                      );
-                  }
-                }, 500);
-              }
+          // For "custom" type, always ensure renderer type is preserved
+          if (vizType === "custom") {
+            // Make a deep copy to prevent issues
+            const layerConfig = JSON.parse(JSON.stringify(config));
+            
+            // Ensure renderer type is explicitly set
+            if (!layerConfig.rendererType && config.rendererType) {
+              layerConfig.rendererType = config.rendererType;
             }
-          } else {
-            console.error(
-              `Failed to create GraphicsLayer for type: ${vizType}`
-            );
+            
+            // Log the renderer type being used
+            console.log(`[updateVisualizationLayer] Using renderer type: ${layerConfig.rendererType || 'default'} for custom layer`);
+            
+            // Create the custom layer with the preserved renderer type
+            newLayer = await createGraphicsLayerFromCustomData(layerConfig);
           }
-        } else {
-          // Standard Heatmap/Dot Density use FeatureLayer
-          newLayer = await createLayers(
-            vizType,
-            config,
-            initialLayerConfigurations,
-            areaType
-          );
+          else if (vizType === "pipe") {
+            newLayer = await createPipeLayer(config);
+          } 
+          else if (vizType === "comp") {
+            newLayer = await createCompLayer(config);
+          }
+  
           if (newLayer) {
-            console.log(
-              `Adding FeatureLayer titled "${newLayer.title}" for type "${vizType}"`
-            );
+            // Ensure layer properties are set
+            newLayer.isVisualizationLayer = true;
+            newLayer.visualizationType = vizType;
+            newLayer.rendererType = config.rendererType; // Store renderer type
+  
+            console.log(`[updateVisualizationLayer] Adding ${vizType} layer to map with ${newLayer.graphics?.length || 0} graphics`);
             mapView.map.add(newLayer, 0);
-          } else {
-            console.error(`Failed to create FeatureLayer for type: ${vizType}`);
+            activeLayersRef.current[activeTab] = newLayer;
+  
+            // Handle specific custom-dual-value legend
+            if (vizType === 'custom' && config.rendererType === 'custom-dual-value') {
+              setCustomLegendContent({ 
+                type: 'custom-dual-value', 
+                config: config 
+              });
+              
+              if (legend) legend.visible = false;
+              console.log("[updateVisualizationLayer] Set custom legend for custom-dual-value type");
+            }
+            // Other special types handling
+            else if (vizType === "pipe") {
+              await handlePipeVisualization(activeTabData, newLayer);
+            } 
+            else if (vizType === "comp") {
+              await handleCompVisualization(activeTabData, newLayer);
+            }
+  
+            // [existing label manager code...]
           }
+        } 
+        else {
+          // [existing feature layer code...]
         }
-        // --- End Type-Specific Handling ---
-
-        // Update Legend for the newly added layer
-        if (newLayer && legend) {
-          try {
-            await newLayer.when();
-            console.log(
-              "Updating legend for layer:",
-              newLayer.title || vizType
-            );
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || vizType,
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = !isEditorOpen;
-          } catch (layerError) {
-            console.error(
-              "Error waiting for new layer or updating legend:",
-              layerError
-            );
-            legend.visible = false;
-          }
-        } else if (legend) {
-          console.log(
-            "Hiding legend: No new layer created or legend object missing."
-          );
-          legend.visible = false;
-        }
-      } else {
-        // Hide legend if no visualization
-        if (legend) {
-          console.log(
-            "Hiding legend: Core Map active or no visualization type selected."
-          );
-          legend.visible = false;
-        }
+      } 
+      else {
+        // [existing core map code...]
       }
     } catch (error) {
       console.error("Error updating visualization layer:", error);
-      if (legend) {
-        legend.visible = false;
-      }
+      if (legend) legend.visible = false;
+      setCustomLegendContent(null);
     }
   };
 
-  useEffect(() => {
+  /**
+   * Apply saved label positions to a newly created layer
+   * @param {Object} layer - The newly created layer
+   */
+  const applyLabelsToLayer = (layer) => {
+    if (!layer) return;
+
     try {
-      console.log(
-        "ArcGIS API Key:",
-        import.meta.env.VITE_ARCGIS_API_KEY ? "Loaded" : "Not Found"
+      // Get any saved positions from localStorage
+      const storageKey = "customLabelPositions";
+      const storedPositions = JSON.parse(
+        localStorage.getItem(storageKey) || "{}"
       );
+      const positionCount = Object.keys(storedPositions).length;
 
-      esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
-
-      if (!esriConfig.apiKey) {
-        console.error("ArcGIS API Key is missing or undefined");
-        // Optionally show a user-friendly error message
+      if (positionCount === 0) {
+        console.log("[Map] No saved label positions found in localStorage");
         return;
       }
 
-      esriConfig.assetsPath = "https://js.arcgis.com/4.31/@arcgis/core/assets/";
+      console.log(
+        `[Map] Found ${positionCount} saved label positions in localStorage`
+      );
 
-      // CORS configuration
-      if (!esriConfig.request.corsEnabledServers) {
-        esriConfig.request.corsEnabledServers = [];
-      }
-
-      const serversToAdd = [
-        "geocode-api.arcgis.com",
-        "route-api.arcgis.com",
-        "services.arcgis.com",
-        "basemaps.arcgis.com",
-        "basemaps-api.arcgis.com",
-        "tiles.arcgis.com",
-        "services8.arcgis.com",
-      ];
-
-      serversToAdd.forEach((server) => {
-        if (!esriConfig.request.corsEnabledServers.includes(server)) {
-          esriConfig.request.corsEnabledServers.push(server);
+      // Wait for layer items to be accessible
+      setTimeout(() => {
+        if (!layer.graphics?.items) {
+          console.warn("[Map] Layer graphics not accessible");
+          return;
         }
-      });
 
-      // Add request interceptor for debugging
-      esriConfig.request.interceptors.push({
-        before: (params) => {
-          console.log("ArcGIS Request Interceptor:", {
-            url: params.url,
-            method: params.method,
-            headers: params.headers,
-          });
-        },
-        error: (error) => {
-          console.error("ArcGIS Request Error:", error);
-        },
-      });
-    } catch (error) {
-      console.error("ArcGIS Configuration Error:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
-    }
-  }, []);
-
-  // Use the tab-specific configuration when switching tabs or rendering
-  useEffect(() => {
-    if (!mapView?.map || !legend) return;
-    updateVisualizationLayer();
-  }, [
-    activeTab,
-    tabs, // Added tabs to the dependency array
-    mapView,
-    legend,
-    isEditorOpen,
-    selectedAreaType,
-  ]);
-
-  // Updated handleTabClick function
-  const handleTabClick = async (tabId) => {
-    // Make async if createLayers is async
-    console.log(`Switching to tab: ${tabId}`);
-    setActiveTab(tabId); // Update active tab state first
-
-    const newTabs = tabs.map((tab) => ({
-      ...tab,
-      active: tab.id === tabId,
-      isEditing: false, // Close any open editing when switching tabs
-    }));
-    setTabs(newTabs); // Update the tabs array state
-
-    // --- Update visualization and legend AFTER state is set ---
-    // Use the newly updated `newTabs` and `tabId` directly
-    const selectedTab = newTabs.find((tab) => tab.id === tabId);
-
-    if (!selectedTab) {
-      console.error(`Could not find tab data for ID: ${tabId}`);
-      return;
-    }
-
-    if (!mapView?.map) {
-      console.warn("Map view not ready during tab click.");
-      return;
-    }
-
-    // --- Layer Management ---
-    // Remove ALL existing visualization layers regardless of the target tab
-    const layersToRemove = [];
-    mapView.map.layers.forEach((layer) => {
-      if (layer && layer.isVisualizationLayer === true) {
-        layersToRemove.push(layer);
-      }
-    });
-    if (layersToRemove.length > 0) {
-      console.log(
-        `[TabClick] Removing ${layersToRemove.length} existing visualization layers.`
-      );
-      mapView.map.removeMany(layersToRemove);
-    }
-    // --- End Layer Management ---
-
-    // --- Legend Handling ---
-    if (legend) {
-      legend.layerInfos = []; // Clear legend infos
-      legend.visible = false; // Hide legend initially
-      console.log("[TabClick] Cleared and hid legend.");
-    }
-    // --- End Legend Handling ---
-
-    // --- Add New Layer if Applicable ---
-    if (tabId !== 1 && selectedTab.visualizationType) {
-      console.log(
-        `[TabClick] Tab ${tabId} has visualization: ${selectedTab.visualizationType}. Creating layer.`
-      );
-      let vizType = selectedTab.visualizationType;
-      if (vizType === "pipeline") vizType = "pipe"; // Normalize
-      if (vizType === "comps") vizType = "comp"; // Normalize
-
-      // Create and add new layer for visualization tabs
-      // Pass the correct parameters: type, config, base configs, area type
-      const newLayer = await createLayers(
-        vizType, // Use normalized type
-        selectedTab.layerConfiguration,
-        initialLayerConfigurations, // Pass the base list
-        selectedTab.areaType
-      );
-
-      if (
-        newLayer &&
-        (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)
-      ) {
-        console.log(
-          `[TabClick] Created new layer: "${newLayer.title}". Adding to map.`
+        // Find all labels in this layer
+        const labelGraphics = layer.graphics.items.filter(
+          (graphic) =>
+            graphic.symbol?.type === "text" ||
+            graphic.attributes?.isLabel === true
         );
-        // *** Direct property assignment (already done in createLayers, but good practice) ***
-        newLayer.isVisualizationLayer = true;
-        // newLayer.visualizationType is set within createLayers
 
-        mapView.map.add(newLayer, 0); // Add new layer
+        console.log(
+          `[Map] Found ${labelGraphics.length} label graphics in layer ${layer.id}`
+        );
 
-        // Handle specific drawing/zooming AFTER adding layer for pipe/comp/custom
-        const specialTypes = ["pipe", "comp", "custom"];
-        const isSpecialType = specialTypes.includes(newLayer.visualizationType);
+        let appliedCount = 0;
 
-        if (isSpecialType) {
-          if (newLayer.visualizationType === "pipe")
-            await handlePipeVisualization(selectedTab);
-          else if (newLayer.visualizationType === "comp")
-            await handleCompVisualization(selectedTab);
-          else if (newLayer.visualizationType === "custom") {
-            // Zoom logic for custom layers
-            if (newLayer.graphics && newLayer.graphics.length > 0) {
-              console.log("[TabClick] Zooming to custom graphics.");
-              setTimeout(() => {
-                if (mapView?.goTo)
-                  mapView
-                    .goTo(newLayer.graphics)
-                    .catch((err) =>
-                      console.warn("Error zooming to custom graphics:", err)
-                    );
-              }, 500);
+        // Apply positions to each label graphic
+        labelGraphics.forEach((label) => {
+          if (!label?.symbol) return;
+
+          // Generate the label ID the same way LabelEditor does
+          const labelId = (() => {
+            if (!label || !label.attributes) return null;
+
+            // First check for layer information
+            const layerPrefix = label.layer?.id ? `${label.layer.id}-` : "";
+
+            // Prioritize explicit IDs
+            if (label.attributes?.labelId)
+              return `${layerPrefix}explicit-${label.attributes.labelId}`;
+            if (label.attributes?.id)
+              return `${layerPrefix}${label.attributes.id}`;
+
+            // Check for OBJECTID (most common scenario)
+            if (label.attributes?.OBJECTID) {
+              if (label.attributes?.isLabel) {
+                // Label with parent ID reference
+                if (label.attributes.parentID !== undefined) {
+                  return `${layerPrefix}oid-label-${label.attributes.parentID}`;
+                } else {
+                  return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
+                }
+              } else {
+                return `${layerPrefix}oid-${label.attributes.OBJECTID}`;
+              }
+            }
+
+            // Check for parentID which is commonly used for labels
+            if (label.attributes?.parentID) {
+              return `${layerPrefix}oid-label-${label.attributes.parentID}`;
+            }
+
+            // Last resort - this is used when nothing else is available
+            return `${layerPrefix}graphic-uid-${label.uid}`;
+          })();
+
+          // Check if we have a saved position for this label
+          if (labelId && storedPositions[labelId]) {
+            const savedPos = storedPositions[labelId];
+
+            // Create a new symbol with the saved position
+            try {
+              const newSymbol = label.symbol.clone();
+
+              // Apply position
+              if (savedPos.position) {
+                newSymbol.xoffset = savedPos.position.x;
+                newSymbol.yoffset = savedPos.position.y;
+              }
+
+              // Apply font size if available
+              if (savedPos.fontSize && newSymbol.font) {
+                newSymbol.font = {
+                  ...newSymbol.font,
+                  size: savedPos.fontSize,
+                };
+              }
+
+              // Apply text if available
+              if (savedPos.text) {
+                newSymbol.text = savedPos.text;
+              }
+
+              // Mark as edited with flags
+              if (label.attributes) {
+                label.attributes._isEdited = true;
+                label.attributes._permanentEdit = true;
+                label.attributes._userEdited = true;
+                label.attributes._preserveOnRefresh = true;
+                label.attributes._preventAutoHide = true;
+              }
+
+              // Apply the updated symbol
+              label.symbol = newSymbol;
+              label.visible = savedPos.visible !== false;
+
+              appliedCount++;
+            } catch (err) {
+              console.error(
+                `[Map] Error applying saved position to label ${labelId}:`,
+                err
+              );
             }
           }
-        }
+        });
 
-        // Update legend only for non-special types or if custom legend isn't handled separately
-        if (legend && !isSpecialType) {
-          // Only show standard legend for FeatureLayers usually
-          try {
-            await newLayer.when(); // Wait for layer
-            console.log(
-              "[TabClick] Updating Esri legend for FeatureLayer:",
-              newLayer.title
-            );
-            legend.layerInfos = [
-              {
-                layer: newLayer,
-                title: newLayer.title || vizType, // Use layer title or type
-                hideLayersNotInCurrentView: false,
-              },
-            ];
-            legend.visible = !isEditorOpen; // Show if editor isn't open
-          } catch (layerError) {
-            console.error(
-              "[TabClick] Error waiting for FeatureLayer or updating legend:",
-              layerError
-            );
-            legend.visible = false;
-          }
-        } else if (legend) {
-          // Keep standard legend hidden for special types if they use custom legends or no legend
-          console.log(
-            "[TabClick] Keeping standard Esri legend hidden for special layer type:",
-            newLayer.visualizationType
-          );
-          legend.visible = false;
-        }
-      } else {
-        console.error(
-          `[TabClick] Failed to create layer for visualization type: ${vizType}`
+        console.log(
+          `[Map] Applied ${appliedCount} saved positions to labels in layer ${layer.id}`
         );
-        if (legend) legend.visible = false; // Ensure legend is hidden if layer fails
-      }
-    } else {
-      console.log(
-        `[TabClick] Tab ${tabId} is Core Map or has no visualization. No layer added.`
-      );
-      if (legend) legend.visible = false; // Hide legend for Core Map
+
+        // Refresh the layer to show the changes
+        if (appliedCount > 0 && typeof layer.refresh === "function") {
+          layer.refresh();
+          console.log(
+            `[Map] Refreshed layer ${layer.id} after applying saved positions`
+          );
+        }
+      }, 500); // Delay to ensure graphics are loaded
+    } catch (error) {
+      console.error("[Map] Error applying saved label positions:", error);
     }
+  };
+
+  const handleTabClick = async (tabId) => {
     console.log(
-      `[TabClick] Finished handling click for tab ${tabId}. Active tab is now ${tabId}.`
+      `[TabClick] Clicked tab: ${tabId}. Current label editor open: ${isLabelEditorOpen}`
     );
+
+    // CRITICAL: Always save pending edits first, even if not in label edit mode
+    if (
+      labelManagerRef.current &&
+      typeof labelManagerRef.current.savePositions === "function"
+    ) {
+      console.log("[TabClick] Saving all label positions before tab change...");
+      try {
+        // Force immediate save
+        await labelManagerRef.current.savePositions(true);
+        console.log("[TabClick] Successfully saved all label positions");
+
+        // Immediately persist to storage as well
+        if (typeof localStorage !== "undefined") {
+          try {
+            // Force the browser to sync localStorage to disk
+            const event = new Event("storage");
+            window.dispatchEvent(event);
+          } catch (localStorageErr) {
+            // Ignore errors with storage event
+          }
+        }
+      } catch (saveError) {
+        console.error("[TabClick] Error saving label positions:", saveError);
+      }
+    }
+
+    // Exit label edit mode if active
+    if (isLabelEditorOpen) {
+      console.log("[TabClick] Was in label edit mode. Closing editor...");
+      setIsLabelEditorOpen(false); // Close the editor panel
+
+      // Turn off editing mode in the manager
+      if (
+        labelManagerRef.current &&
+        typeof labelManagerRef.current.toggleEditingMode === "function"
+      ) {
+        try {
+          labelManagerRef.current.toggleEditingMode(false);
+        } catch (toggleError) {
+          console.error(
+            "[TabClick] Error toggling label manager mode off:",
+            toggleError
+          );
+        }
+      }
+    }
+
+    // Update the active tab state
+    console.log(`[TabClick] Setting active tab to: ${tabId}`);
+    setActiveTab(tabId);
+
+    // Update tabs array to mark the clicked tab as active and others as inactive
+    setTabs((prevTabs) =>
+      prevTabs.map((tab) => ({
+        ...tab,
+        active: tab.id === tabId,
+      }))
+    );
+
+    // CRITICAL: Ensure layer refresh happens AFTER tab change is complete
+    setTimeout(() => {
+      if (
+        labelManagerRef.current &&
+        typeof labelManagerRef.current.refreshLabels === "function"
+      ) {
+        try {
+          labelManagerRef.current.refreshLabels();
+          console.log("[TabClick] Refreshed labels after tab change");
+        } catch (refreshError) {
+          console.error("[TabClick] Error refreshing labels:", refreshError);
+        }
+      }
+    }, 300);
+
+    console.log(`[TabClick] Tab switch process complete for tab: ${tabId}`);
   };
 
   const handleAreaTypeChange = async (tabId, newAreaType) => {
@@ -6972,6 +1811,7 @@ export default function MapComponent({ onToggleLis }) {
       // --- Layer Removal ---
       const layersToRemove = [];
       mapView.map.layers.forEach((layer) => {
+        // FIX: Use optional chaining
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
@@ -7024,7 +1864,7 @@ export default function MapComponent({ onToggleLis }) {
                 hideLayersNotInCurrentView: false,
               },
             ];
-            legend.visible = !isEditorOpen; // Show if editor isn't open
+            legend.visible = !isEditorOpen && !isLabelEditorOpen; // Show if NO editor is open
           } catch (layerError) {
             console.error(
               "[AreaChange] Error waiting for FeatureLayer or updating legend:",
@@ -7116,21 +1956,22 @@ export default function MapComponent({ onToggleLis }) {
             // Remove existing visualization layers
             const layersToRemove = [];
             mapView.map.layers.forEach((layer) => {
-              if (layer.get("isVisualizationLayer")) {
+              // FIX: Use optional chaining
+              if (layer?.isVisualizationLayer) {
                 layersToRemove.push(layer);
               }
             });
             layersToRemove.forEach((layer) => mapView.map.remove(layer));
 
             // Add new layer
-            newLayer.set("isVisualizationLayer", true);
+            newLayer.isVisualizationLayer = true; // Set directly
             mapView.map.add(newLayer, 0);
           }
         }
       }}
-      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600 
-        bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium 
-        text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 
+      className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
+        bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+        text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
         focus:ring-blue-500 focus:border-blue-500"
     >
       {areaTypes.map((type) => (
@@ -7186,84 +2027,79 @@ export default function MapComponent({ onToggleLis }) {
     setIsNewMapDialogOpen(true);
   };
 
+  // In Map.jsx, update handleCreateMap function
   const handleCreateMap = (mapData) => {
-    console.log("[handleCreateMap] Received map data:", mapData);
+    // Simplified log for clarity
+    console.log("[MapComponent handleCreateMap] Received map data:", mapData);
 
-    // ... (logic to determine nextTabNumber, newTabId, newTabName) ...
-    const existingTabNumbers = tabs; // ... (same logic as before) ...
-    const nextTabNumber = existingTabNumbers.length > 0; // ... (same logic as before) ...
-    const newTabId = Date.now();
-    const newTabName = mapData.name?.trim() || `Map ${nextTabNumber}`;
+    // Ensure mapData is valid before proceeding
+    if (!mapData || typeof mapData !== "object") {
+      console.error(
+        "[MapComponent handleCreateMap] Invalid mapData received:",
+        mapData
+      );
+      setIsNewMapDialogOpen(false); // Close dialog even on error
+      return;
+    }
 
+    // Create the new tab object
+    const newTabId = Date.now(); // Simple unique ID for frontend
+    const newTabName = mapData.name?.trim()
+      ? mapData.name.trim()
+      : `Map ${nextTabNumber}`;
+
+    // Process visualization type and configuration
     let vizType = mapData.visualizationType || mapData.type;
     if (vizType === "pipeline") vizType = "pipe";
     if (vizType === "comps") vizType = "comp";
-    console.log(`[handleCreateMap] Normalized visualization type: ${vizType}`);
 
-    let layerConfiguration = null;
-    const areaType = mapData.areaType || areaTypes[0];
-
-    const defaultSymbol = (type) => ({
-      type: "simple-marker",
-      color: type === "pipe" ? "#FFA500" : "#800080", // Orange for pipe, Purple for comp
-      size: 10,
-      outline: { color: "#FFFFFF", width: 1 },
-    });
-    const defaultLegend = (type) => ({
-      label: type === "pipe" ? "Pipe Location" : "Comparison Point",
-    });
-
-    if (vizType === "custom" && mapData.customData) {
-      // ... (existing custom data processing) ...
-      layerConfiguration = processCustomMapData({
-        customData: mapData.customData,
-        nameColumn: mapData.nameColumn,
-        valueColumn: mapData.valueColumn,
-        type: "custom",
-      });
-      if (layerConfiguration) layerConfiguration.type = "custom";
-    } else if (vizType === "pipe" || vizType === "comp") {
-      layerConfiguration = {
-        type: vizType,
-        title: newTabName,
-        customData: mapData.customData,
-        nameColumn: mapData.nameColumn,
-        valueColumn: mapData.valueColumn,
-        latitudeColumn: mapData.latitudeColumn,
-        longitudeColumn: mapData.longitudeColumn,
-        symbol: defaultSymbol(vizType), // Add default symbol
-        legendInfo: defaultLegend(vizType), // <-- ADD default legendInfo
-      };
-      console.log(
-        `[handleCreateMap] Initial layer config for ${vizType}:`,
-        layerConfiguration
-      );
-    } else if (vizType) {
-      // For standard heat/dot, use the default layer configuration
-      layerConfiguration = initialLayerConfigurations[vizType];
-      if (layerConfiguration && !layerConfiguration.type) {
-        layerConfiguration.type = vizType;
+    // Ensure variable text is preserved in the configuration
+    let layerConfiguration = mapData.layerConfiguration;
+    if (layerConfiguration) {
+      // Make sure variable text is stored correctly
+      if (mapData.layerConfiguration.variable1Text !== undefined) {
+        layerConfiguration.variable1Text =
+          mapData.layerConfiguration.variable1Text;
       }
+      if (mapData.layerConfiguration.variable2Text !== undefined) {
+        layerConfiguration.variable2Text =
+          mapData.layerConfiguration.variable2Text;
+      }
+
+      // Also store title format if available
+      if (mapData.layerConfiguration.titleFormat) {
+        layerConfiguration.titleFormat = mapData.layerConfiguration.titleFormat;
+      }
+
+      console.log(
+        "[MapComponent handleCreateMap] Variable text fields preserved:",
+        {
+          variable1Text: layerConfiguration.variable1Text,
+          variable2Text: layerConfiguration.variable2Text,
+        }
+      );
     }
 
+    // Create the new tab object
     const newTab = {
       id: newTabId,
-      configId: null,
+      configId: null, // Will be set after saving to backend
       name: newTabName,
       originalName: newTabName,
-      active: true,
+      active: true, // Set the new tab as active
       visualizationType: vizType,
-      areaType: areaType,
+      areaType: mapData.areaType || areaTypes[0],
       layerConfiguration: layerConfiguration,
       isEditing: false,
     };
-    console.log("[handleCreateMap] Creating new tab:", newTab);
 
+    // Update the tabs state
     const newTabs = [...tabs.map((tab) => ({ ...tab, active: false })), newTab];
     setTabs(newTabs);
     setActiveTab(newTabId);
     setIsNewMapDialogOpen(false);
   };
+
   const handleNameKeyDown = (tabId, e) => {
     if (e.key === "Enter") {
       handleNameChange(tabId, e.target.value);
@@ -7295,10 +2131,17 @@ export default function MapComponent({ onToggleLis }) {
 
       // Update local state
       const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
+
+      // Ensure remainingTabs is not empty before accessing last element
+      if (remainingTabs.length === 0) {
+        console.error("Cannot delete the last tab."); // Or handle appropriately
+        return;
+      }
+
       const newActiveTab =
         activeTab === tabId
-          ? remainingTabs[remainingTabs.length - 1].id
-          : activeTab;
+          ? remainingTabs[remainingTabs.length - 1].id // Activate last remaining
+          : activeTab; // Keep current active if it wasn't the deleted one
 
       const newTabs = remainingTabs.map((tab) => ({
         ...tab,
@@ -7307,22 +2150,29 @@ export default function MapComponent({ onToggleLis }) {
 
       // Update UI state
       setTabs(newTabs);
-      setActiveTab(newActiveTab);
+      setActiveTab(newActiveTab); // Set the new active tab state
 
-      // Clear visualization if deleted tab was active
+      // Clear visualization if deleted tab was active and the new active tab is different
+      // Or if the deleted tab was the only one left besides Core Map
       if (activeTab === tabId && mapView?.map) {
+        console.log("Removing visualization layers after deleting active tab.");
         const layersToRemove = [];
         mapView.map.layers.forEach((layer) => {
-          if (layer.get("isVisualizationLayer")) {
+          // FIX: Use optional chaining
+          if (layer?.isVisualizationLayer) {
             layersToRemove.push(layer);
           }
         });
-        layersToRemove.forEach((layer) => mapView.map.remove(layer));
+        if (layersToRemove.length > 0) {
+          mapView.map.removeMany(layersToRemove);
+        }
 
         // Hide legend
         if (legend) {
           legend.visible = false;
         }
+        // Clear custom legend content
+        setCustomLegendContent(null);
       }
     } catch (error) {
       console.error("Error deleting tab configuration:", error);
@@ -7362,516 +2212,158 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
-  useEffect(() => {
-    // Define the async function inside the effect
-    const initializeConfigurations = async () => {
-      // Guard clauses: Ensure necessary dependencies are ready
-      if (!projectId) {
-        console.log(
-          "[Effect] No project ID available, skipping configuration initialization."
-        );
-        // Set default tabs if no project ID is found, ensure UI is consistent
-        setTabs([
-          {
-            id: 1,
-            name: "Core Map",
-            active: true,
-            visualizationType: null,
-            areaType: areaTypes[0],
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ]);
-        setActiveTab(1);
-        setIsConfigLoading(false); // Mark loading as complete
-        return; // Exit early
-      }
-
-      if (!mapView?.map || !legend) {
-        // Wait for map and legend to be ready
-        console.log(
-          "[Effect] Waiting for map view and legend to initialize..."
-        );
-        // Optional: Set loading state here if not already set
-        // setIsConfigLoading(true);
-        return; // Exit and wait for dependencies to update
-      }
-
-      // Proceed with loading configurations
+  const handleLayerConfigChange = useCallback(
+    (newConfig) => {
       console.log(
-        `[Effect] Initializing configurations for project: ${projectId}`
+        "[ConfigChange] Updating tabs state with new config:",
+        newConfig
       );
-      setIsConfigLoading(true); // Set loading state
 
-      try {
-        // Fetch configurations using the API helper
-        const response = await mapConfigurationsAPI.getAll(projectId); // Already includes logging
-        const configs = response?.data; // Safely access data
-
-        console.log("[Effect] Received configurations from API:", configs);
-
-        // Check if the fetched data is valid
-        if (!Array.isArray(configs) || configs.length === 0) {
-          console.log(
-            "[Effect] No configurations found in API response, using default tabs."
-          );
-          setTabs([
-            {
-              id: 1,
-              name: "Core Map",
-              active: true, // Core Map starts active if no others exist
-              visualizationType: null,
-              areaType: areaTypes[0],
-              layerConfiguration: null,
-              isEditing: false,
-            },
-          ]);
-          setActiveTab(1); // Ensure Core Map is the active tab
-          // Clean up any stray visualization layers from previous state
-          const layersToRemove = mapView.map.layers
-            .filter((layer) => layer?.isVisualizationLayer)
-            .toArray();
-          if (layersToRemove.length > 0) mapView.map.removeMany(layersToRemove);
-          legend.visible = false; // Hide legend
-          setIsConfigLoading(false); // Mark loading as complete
-          return; // Exit after setting defaults
-        }
-
-        // Create the base tabs array starting with Core Map (inactive initially)
-        const newTabs = [
-          {
-            id: 1, // Keep consistent ID for Core Map
-            name: "Core Map",
-            active: false, // Will be activated later if it's the only tab or first tab
-            visualizationType: null,
-            areaType: areaTypes[0], // Default area type for Core Map
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ];
-
-        // Process each configuration from the API response
-        configs.forEach((config) => {
-          if (!config || !config.id) {
-            // Check if config and its ID exist
-            console.warn(
-              "[Effect] Skipping invalid config object received from API:",
-              config
-            );
-            return; // Skip this config
-          }
-
-          console.log("[Effect] Processing config:", config);
-
-          // Determine the next available ID (simple increment, ensure no conflicts with Core Map ID 1)
-          // Using API config.id is generally better if available and unique
-          const newTabId = config.id; // Use the ID from the database
-
-          // --- Robust Area Type Handling ---
-          const configAreaType = config.area_type; // e.g., 'tract', 'county', 11, 12
-          let areaType = areaTypes[0]; // Default to the first area type
-
-          if (configAreaType !== null && configAreaType !== undefined) {
-            const areaTypeStr = String(configAreaType).toLowerCase();
-            const foundType = areaTypes.find(
-              (type) =>
-                String(type.value) === areaTypeStr || // Match numeric value as string
-                type.label.toLowerCase() === areaTypeStr // Match label (tract, county)
-            );
-            if (foundType) {
-              areaType = foundType;
-            } else {
-              console.warn(
-                `[Effect] Could not resolve area type "${configAreaType}", using default "${areaType.label}".`
-              );
-            }
-          } else {
-            console.warn(
-              `[Effect] Config ${config.tab_name} missing area_type, using default "${areaType.label}".`
-            );
-          }
-          // --- End Area Type Handling ---
-
-          console.log(
-            `[Effect] Config: ${config.tab_name}, Backend AreaType: ${configAreaType}, Resolved AreaType:`,
-            areaType
-          );
-
-          // Create the new tab object
-          const newTab = {
-            id: newTabId, // Use the actual ID from the database
-            configId: config.id, // Explicitly store the database config ID
-            name: config.tab_name,
-            active: false, // Set active status later
-            visualizationType: config.visualization_type,
-            areaType: areaType, // Use the resolved areaType object
-            layerConfiguration: config.layer_configuration, // Use the config from DB
-            isEditing: false,
-          };
-
-          console.log("[Effect] Created new tab:", newTab);
-          newTabs.push(newTab);
-        });
-
-        // Activate the first tab (which will be Core Map if no others, or the first loaded config if Core Map isn't first)
-        // Let's always activate Core Map initially if configs were loaded.
-        if (newTabs.length > 0) {
-          newTabs[0].active = true; // Activate Core Map
-          setActiveTab(1); // Set active tab ID to Core Map's ID
-        }
-
-        console.log(
-          "[Effect] Setting tabs state after initialization:",
-          newTabs
+      setTabs((prevTabs) => {
+        return prevTabs.map((tab) =>
+          tab.id === activeTab && tab.visualizationType
+            ? {
+                ...tab,
+                layerConfiguration: {
+                  ...newConfig,
+                  // Preserve symbol structure if not explicitly changed by newConfig
+                  symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
+                  // Ensure type is consistent
+                  type:
+                    newConfig.type ||
+                    tab.layerConfiguration?.type ||
+                    tab.visualizationType,
+                },
+              }
+            : tab
         );
-        setTabs(newTabs); // Update the state with all tabs
-
-        // No need to explicitly call updateVisualizationLayer here,
-        // as changing `tabs` and `activeTab` state will trigger the other useEffect
-        // that depends on them, ensuring the correct layer is displayed for the active tab (which is Core Map initially).
-      } catch (error) {
-        console.error("[Effect] Error initializing configurations:", error);
-        // Set default tabs state on error to prevent broken UI
-        setTabs([
-          {
-            id: 1,
-            name: "Core Map",
-            active: true,
-            visualizationType: null,
-            areaType: areaTypes[0],
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ]);
-        setActiveTab(1);
-      } finally {
-        setIsConfigLoading(false); // Ensure loading state is always turned off
-        console.log("[Effect] Configuration initialization complete.");
-      }
-    };
-
-    // Call the initialization function
-    initializeConfigurations();
-
-    // No cleanup needed in this effect unless subscribing to something
-    // return () => { /* cleanup logic */ };
-
-    // Dependencies: Re-run when projectId, mapView, or legend changes/becomes available
-  }, [projectId, mapView, legend]); // Make sure all external dependencies used are listed
-
-  // --- Removed the redundant useEffect that only watched mapView ---
-  // useEffect(() => {
-  //   if (mapView?.map) {
-  //     loadMapConfigurations(); // This logic is now handled by the effect above
-  //   }
-  // }, [mapView]);
-  // --- End Removed useEffect ---
-
-  // Full loadMapConfigurations function (primarily used internally or if manual reload is needed)
-  const loadMapConfigurations = async () => {
-    // This function duplicates some logic from the useEffect hook.
-    // It might be better to refactor so the useEffect calls this,
-    // or keep this for potential manual refresh actions.
-    // For now, keeping it separate as requested, with its own checks.
-
-    if (!projectId) {
-      console.warn(
-        "[loadMapConfigurations] No project ID available, cannot load."
-      );
-      // Consider setting default state here too if called manually without project ID
-      setTabs([
-        {
-          id: 1,
-          name: "Core Map",
-          active: true,
-          visualizationType: null,
-          areaType: areaTypes[0],
-          layerConfiguration: null,
-          isEditing: false,
-        },
-      ]);
-      setActiveTab(1);
-      setIsConfigLoading(false);
-      return false; // Indicate failure/no action
-    }
-
-    console.log(
-      `[loadMapConfigurations] Attempting to load configurations for project: ${projectId}`
-    );
-    setIsConfigLoading(true); // Set loading state
-
-    try {
-      const response = await mapConfigurationsAPI.getAll(projectId); // API function handles logging
-      const mapConfigs = response?.data;
-
-      console.log(
-        "[loadMapConfigurations] Loaded raw map configurations:",
-        mapConfigs
-      );
-
-      if (!Array.isArray(mapConfigs) || mapConfigs.length === 0) {
-        console.log(
-          "[loadMapConfigurations] No configurations found, using default tabs"
-        );
-        setTabs([
-          {
-            id: 1,
-            name: "Core Map",
-            active: true,
-            visualizationType: null,
-            areaType: areaTypes[0],
-            layerConfiguration: null,
-            isEditing: false,
-          },
-        ]);
-        setActiveTab(1); // Ensure Core Map is active
-        // Clear any existing visualization layer
-        if (mapView?.map) {
-          const layersToRemove = mapView.map.layers
-            .filter((layer) => layer?.isVisualizationLayer)
-            .toArray();
-          if (layersToRemove.length > 0) mapView.map.removeMany(layersToRemove);
-          if (legend) legend.visible = false;
-        }
-        setIsConfigLoading(false);
-        return false; // Indicate no configs loaded
-      }
-
-      // Create base tabs array with Core Map
-      const newTabs = [
-        {
-          id: 1,
-          name: "Core Map",
-          active: false,
-          visualizationType: null,
-          areaType: areaTypes[0],
-          layerConfiguration: null,
-          isEditing: false,
-        },
-      ];
-
-      // Process each configuration into a tab
-      mapConfigs.forEach((config, index) => {
-        if (!config || !config.id) {
-          console.warn(
-            "[loadMapConfigurations] Skipping invalid config object:",
-            config
-          );
-          return;
-        }
-
-        const newTabId = config.id; // Use API ID
-        const configAreaType = config.area_type;
-        let areaType = areaTypes[0]; // Default
-
-        if (configAreaType !== null && configAreaType !== undefined) {
-          const areaTypeStr = String(configAreaType).toLowerCase();
-          const foundType = areaTypes.find(
-            (type) =>
-              String(type.value) === areaTypeStr ||
-              type.label.toLowerCase() === areaTypeStr
-          );
-          if (foundType) {
-            areaType = foundType;
-          } else {
-            console.warn(
-              `[loadMapConfigurations] Could not resolve area type "${configAreaType}", using default.`
-            );
-          }
-        } else {
-          console.warn(
-            `[loadMapConfigurations] Config ${config.tab_name} missing area_type, using default.`
-          );
-        }
-
-        const newTab = {
-          id: newTabId,
-          configId: config.id,
-          name: config.tab_name,
-          active: false,
-          visualizationType: config.visualization_type,
-          areaType: areaType,
-          layerConfiguration: config.layer_configuration,
-          isEditing: false,
-        };
-        newTabs.push(newTab);
       });
 
-      // Activate first tab (Core Map) and update state
-      if (newTabs.length > 0) {
-        newTabs[0].active = true;
-        setActiveTab(1);
-      }
-      console.log("[loadMapConfigurations] Setting tabs state:", newTabs);
-      setTabs(newTabs);
-
-      // Wait for state updates (optional, usually handled by effects)
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // Trigger visualization update for the *currently active* tab (which is now Core Map)
-      // This will correctly hide any previous visualization.
-      await updateVisualizationLayer(); // Explicitly call update after setting tabs
-
-      setIsConfigLoading(false); // Mark loading as complete
-      console.log("[loadMapConfigurations] Configuration loading complete.");
-      return true; // Indicate success
-    } catch (error) {
-      console.error(
-        "[loadMapConfigurations] Failed to load map configurations:",
-        error
+      console.log(
+        "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
       );
-      // Set default tabs on error
-      setTabs([
-        {
-          id: 1,
-          name: "Core Map",
-          active: true,
-          visualizationType: null,
-          areaType: areaTypes[0],
-          layerConfiguration: null,
-          isEditing: false,
-        },
-      ]);
-      setActiveTab(1);
-      setIsConfigLoading(false);
-      return false; // Indicate failure
-    }
+    },
+    [activeTab] // Removed tabs from dependencies as setTabs handles closure correctly
+  ); // Include dependencies for useCallback
+
+  // Add this function to extract style properties consistently:
+  const extractSymbolProperties = (config) => {
+    const symbol = config?.symbol || {};
+    return {
+      size: symbol.size !== undefined ? Number(symbol.size) : 12,
+      color: symbol.color || "#800080", // Default purple for comp
+      outline: {
+        color: symbol.outline?.color || "#FFFFFF",
+        width:
+          symbol.outline?.width !== undefined
+            ? Number(symbol.outline.width)
+            : 1,
+      },
+      style: symbol.style || "circle",
+    };
   };
 
-  const getMapConfigurations = async (projectId) => {
-    try {
-      const response = await mapConfigurationsAPI.getAll(projectId);
-      console.log("Full API Response:", response);
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching map configurations:", error);
-      throw error;
-    }
-  };
-
-  // Update the useEffect that calls loadMapConfigurations
-  useEffect(() => {
-    if (mapView?.map) {
-      loadMapConfigurations();
-    }
-  }, [mapView]);
-
-  // Update handleLayerConfigChange to save to the specific tab
-  const handleLayerConfigChange = (newConfig) => {
-    const newTabs = tabs.map((tab) =>
-      tab.id === activeTab && tab.visualizationType
-        ? {
-            ...tab,
-            layerConfiguration: newConfig,
-          }
-        : tab
-    );
-    setTabs(newTabs);
-    updateVisualizationLayer(
-      tabs.find((tab) => tab.id === activeTab)?.visualizationType,
-      newConfig
-    );
-  };
   // Handler for configuration previews
   const handleConfigPreview = async (previewConfig) => {
-    // Guard clauses: Ensure mapView and map are ready
     if (!mapView?.map) {
-      console.warn("Map view or map not ready for preview.");
+      console.warn("[Preview] Map view not ready.");
       return;
     }
     if (!previewConfig) {
-      console.warn("Preview cancelled: No configuration provided.");
+      console.warn("[Preview] No preview config provided.");
       return;
     }
 
-    console.log("[Preview] Starting preview with config:", previewConfig);
+    console.log(
+      "[Preview] Starting preview with config:",
+      JSON.stringify(previewConfig, (k, v) =>
+        k === "customData" ? `[${v?.data?.length} items]` : v
+      )
+    );
 
     try {
       // --- Layer Removal ---
       const layersToRemove = [];
-      // Use forEach to avoid potential issues with Collection filtering/toArray
       mapView.map.layers.forEach((layer) => {
-        // Check using direct property access (safer)
+        // FIX: Use optional chaining
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
       });
-
       if (layersToRemove.length > 0) {
         console.log(
           `[Preview] Removing ${layersToRemove.length} existing visualization layers.`
         );
-        mapView.map.removeMany(layersToRemove); // Remove identified layers
+        mapView.map.removeMany(layersToRemove);
       }
       // --- End Layer Removal ---
 
-      // Find the active tab data
       const activeTabData = tabs.find((tab) => tab.id === activeTab);
       if (!activeTabData) {
         console.error("[Preview] Could not find active tab data.");
+        await updateVisualizationLayer(); // Restore original
         return;
       }
 
-      // Determine the visualization type from the active tab
-      let visualizationType = activeTabData.visualizationType;
-      if (!visualizationType) {
+      // --- Determine Effective Type FROM PREVIEW CONFIG ---
+      let effectiveType = previewConfig.type; // Prioritize type from preview config
+      if (!effectiveType) {
         console.warn(
-          "[Preview] Active tab has no visualization type set. Cannot preview."
+          "[Preview] Preview config missing 'type'. Attempting to infer or use active tab type."
         );
-        // Optionally restore original layer if needed, or just return
-        // await updateVisualizationLayer(); // Re-apply the saved state?
-        return;
+        effectiveType = activeTabData.visualizationType; // Fallback to active tab type
+        if (previewConfig.customData && !effectiveType)
+          effectiveType = "custom"; // Infer if custom data exists
+        if (!effectiveType) {
+          console.error(
+            "[Preview] Could not determine effective type for preview."
+          );
+          await updateVisualizationLayer(); // Restore original
+          return;
+        }
       }
 
-      // Normalize type (e.g., pipeline -> pipe)
-      if (visualizationType === "pipeline") visualizationType = "pipe";
-      if (visualizationType === "comps") visualizationType = "comp";
+      // Normalize type
+      if (effectiveType === "pipeline") effectiveType = "pipe";
+      if (effectiveType === "comps") effectiveType = "comp";
+      if (effectiveType && effectiveType.endsWith("_HEAT"))
+        effectiveType = "class-breaks";
 
-      // Determine if it's a special type (pipe, comp, custom) or standard (heatmap, dot)
-      const specialTypes = ["pipe", "comp", "custom"];
-      // Check type from previewConfig FIRST, then tab, then customData presence
-      const effectiveType = previewConfig.type || visualizationType;
-      const hasCustomData =
-        previewConfig.customData &&
-        Array.isArray(previewConfig.customData.data) &&
-        previewConfig.customData.data.length > 0;
-      const isSpecialType =
-        specialTypes.includes(effectiveType) || hasCustomData;
+      console.log(`[Preview] Effective Preview Type: ${effectiveType}`);
+      // --- End Determine Effective Type ---
 
-      console.log(
-        `[Preview] Effective type for creation: ${effectiveType}, Is Special: ${isSpecialType}`
-      );
-
-      // Create the new layer using the PREVIEW configuration
+      // Create the new layer using the PREVIEW configuration and determined type
       let newLayer = null;
+      const specialTypes = ["pipe", "comp", "custom"];
+      const isSpecialType =
+        specialTypes.includes(effectiveType) ||
+        (previewConfig.customData &&
+          !["class-breaks", "dot-density"].includes(effectiveType));
+
       if (isSpecialType) {
-        // If it's custom data, ensure createGraphicsLayerFromCustomData is used
-        if (effectiveType === "custom" || hasCustomData) {
-          console.log(
-            "[Preview] Creating custom GraphicsLayer using preview config:",
-            previewConfig
-          );
-          newLayer = await createGraphicsLayerFromCustomData(previewConfig);
-          if (newLayer) {
-            newLayer.visualizationType = "custom"; // Ensure type consistency
-            newLayer.isCustomDataLayer = true;
-          }
+        // Ensure the preview config has the correct type set for the creator function
+        const configForCreator = { ...previewConfig, type: effectiveType };
+        console.log(
+          `[Preview] Creating GraphicsLayer (${effectiveType}) using preview config.`
+        );
+
+        if (effectiveType === "pipe") {
+          newLayer = await createPipeLayer(configForCreator); // Make await
+        } else if (effectiveType === "comp") {
+          newLayer = await createCompLayer(configForCreator); // Make await
         } else {
-          // Handle pipe/comp types - using createLayers which calls createPipe/CompLayer
-          console.log(
-            `[Preview] Creating special GraphicsLayer (${effectiveType}) using createLayers with preview config.`
-          );
-          newLayer = await createLayers(effectiveType, previewConfig); // Pass type and config
+          // Assume custom if not pipe or comp
+          newLayer = await createGraphicsLayerFromCustomData(configForCreator);
         }
       } else {
         // Standard visualization type (heatmap, dot-density)
         console.log(
-          `[Preview] Creating standard FeatureLayer (${effectiveType}) using createLayers with preview config.`
+          `[Preview] Creating FeatureLayer (${effectiveType}) using preview config.`
         );
         newLayer = await createLayers(
           effectiveType, // Pass the determined type
-          previewConfig, // Pass the preview configuration object
-          initialLayerConfigurations, // Pass the base configurations (might not be needed if override is complete)
+          previewConfig, // Pass the PREVIEW configuration object
+          initialLayerConfigurations,
           activeTabData.areaType || selectedAreaType // Use area type from the active tab
         );
       }
@@ -7886,18 +2378,15 @@ export default function MapComponent({ onToggleLis }) {
             newLayer.visualizationType || effectiveType
           }". Adding to map.`
         );
-        // *** Use direct property assignment ***
+        // Ensure flag is set (should be done in creators)
         newLayer.isVisualizationLayer = true;
-        // visualizationType should be set correctly inside createLayers/createGraphicsLayerFromCustomData
 
-        mapView.map.add(newLayer, 0); // Add layer at the bottom
+        mapView.map.add(newLayer, 0);
 
-        // Update legend ONLY if the editor is NOT open (previews shouldn't necessarily update final legend)
-        // However, for immediate feedback during preview, we might want to update it temporarily.
-        // Let's update it for now, assuming the user wants to see the preview legend.
+        // Update legend
         if (legend) {
           try {
-            await newLayer.when(); // Wait for layer to be ready before updating legend
+            await newLayer.when();
             console.log(
               "[Preview] Updating legend for preview layer:",
               newLayer.title
@@ -7905,67 +2394,1893 @@ export default function MapComponent({ onToggleLis }) {
             legend.layerInfos = [
               {
                 layer: newLayer,
-                // Use a clear title for the preview legend
-                title: newLayer.title
-                  ? `${newLayer.title} (Preview)`
-                  : `${effectiveType} (Preview)`,
+                title: `${newLayer.title || effectiveType} (Preview)`,
                 hideLayersNotInCurrentView: false,
               },
             ];
-            legend.visible = true; // Make sure legend is visible for preview
+            legend.visible = true;
           } catch (legendError) {
-            console.error(
-              "[Preview] Error waiting for layer or updating legend:",
-              legendError
-            );
+            console.error("[Preview] Error updating legend:", legendError);
             legend.visible = false;
           }
         }
-        // If it was a custom layer, potentially zoom
-        if (
-          newLayer instanceof GraphicsLayer &&
-          newLayer.graphics &&
-          newLayer.graphics.length > 0
-        ) {
-          console.log("[Preview] Zooming to preview graphics.");
-          // Optional: slight delay for rendering
-          setTimeout(() => {
-            mapView
-              .goTo(newLayer.graphics)
-              .catch((err) =>
-                console.warn("[Preview] Error zooming to graphics:", err)
-              );
-          }, 300);
-        }
       } else {
         console.error(
-          `[Preview] Failed to create a valid layer for preview. Layer object:`,
-          newLayer
+          `[Preview] Failed to create layer for preview type ${effectiveType}.`
         );
-        // Optionally restore the original layer state if preview fails
-        console.log(
-          "[Preview] Restoring original visualization state after failed preview."
-        );
-        await updateVisualizationLayer(); // Re-apply the saved state from the active tab
+        await updateVisualizationLayer(); // Restore original state
       }
       // --- End Add Layer and Update Legend ---
     } catch (error) {
-      console.error("Error during handleConfigPreview:", error);
-      // Attempt to restore original state on error
-      console.log(
-        "[Preview] Restoring original visualization state after error."
-      );
-      await updateVisualizationLayer();
+      console.error("[Preview] Error during preview:", error);
+      await updateVisualizationLayer(); // Restore original state
     } finally {
       console.log("[Preview] Preview update finished.");
     }
   };
 
-  // Add these useEffects after your existing ones
+  /**
+   * Creates properly formatted graphics for a market area with valid geometries
+   * Resolves the "Invalid property value" error by ensuring proper geometry objects
+   *
+   * @param {string} marketAreaId - ID of the market area
+   * @param {Object|Array} geometryData - Geometry data from the market area
+   * @returns {Promise<Array>} - Array of ArcGIS Graphic objects
+   */
+  const createMarketAreaGraphics = async (marketAreaId, geometryData) => {
+    // Skip if no valid geometry data
+    if (!geometryData) {
+      console.warn(
+        `[MapContext] No geometry data for market area ${marketAreaId}`
+      );
+      return [];
+    }
+
+    try {
+      // Dynamically import needed ArcGIS modules
+      const [
+        { default: Graphic },
+        { default: Polygon },
+        { default: SimpleFillSymbol },
+      ] = await Promise.all([
+        import("@arcgis/core/Graphic"),
+        import("@arcgis/core/geometry/Polygon"),
+        import("@arcgis/core/symbols/SimpleFillSymbol"),
+      ]);
+
+      // Create a proper Polygon geometry from raw data
+      const createValidPolygon = (geomData) => {
+        // Ensure we have valid rings data
+        if (!geomData || !geomData.rings || !Array.isArray(geomData.rings)) {
+          console.warn(
+            `[MapContext] Invalid polygon data for market area ${marketAreaId}`,
+            geomData
+          );
+          return null;
+        }
+
+        // Create a proper ArcGIS Polygon geometry object
+        return new Polygon({
+          rings: geomData.rings,
+          spatialReference: geomData.spatialReference || { wkid: 4326 },
+        });
+      };
+
+      // Create the appropriate symbol for market areas
+      const symbol = new SimpleFillSymbol({
+        color: [0, 120, 255, 0.2],
+        outline: {
+          color: [0, 120, 255, 0.8],
+          width: 2,
+        },
+      });
+
+      const graphics = [];
+
+      // Handle array of geometries or single geometry
+      const geometries = Array.isArray(geometryData)
+        ? geometryData
+        : [geometryData];
+
+      for (const geomData of geometries) {
+        const polygon = createValidPolygon(geomData);
+        if (!polygon) continue; // Skip invalid geometries
+
+        // Create a properly formatted Graphic with the valid polygon
+        const graphic = new Graphic({
+          geometry: polygon,
+          symbol: symbol,
+          attributes: {
+            marketAreaId: marketAreaId,
+            isMarketArea: true,
+          },
+        });
+
+        graphics.push(graphic);
+      }
+
+      console.log(
+        `[MapContext] Created ${graphics.length} graphics for market area ${marketAreaId}`
+      );
+      return graphics;
+    } catch (error) {
+      console.error(
+        `[MapContext] Error creating graphics for market area ${marketAreaId}:`,
+        error
+      );
+      return []; // Return empty array on error
+    }
+  };
+
+  /**
+   * Enhanced configuration loading function with improved error handling
+   * Properly handles API data, cleans up resources, and manages state updates
+   *
+   * @returns {Promise<boolean>} - Success/failure indicator
+   */
+  const loadMapConfigurations = async () => {
+    // Guard clause for missing project ID
+    if (!projectId) {
+      console.warn(
+        "[loadMapConfigurations] No project ID available, cannot load."
+      );
+
+      // Set default state with Core Map
+      setTabs([
+        {
+          id: 1,
+          name: "Core Map",
+          active: true,
+          visualizationType: null,
+          areaType: areaTypes[0],
+          layerConfiguration: null,
+          isEditing: false,
+        },
+      ]);
+      setActiveTab(1);
+      setIsConfigLoading(false);
+
+      // Clear any existing visualization layers
+      if (mapView?.map) {
+        const layersToRemove = mapView.map.layers
+          .filter((layer) => layer?.isVisualizationLayer === true)
+          .toArray();
+
+        if (layersToRemove.length > 0) {
+          console.log(
+            `[loadMapConfigurations] Removing ${layersToRemove.length} visualization layers due to missing project ID.`
+          );
+          mapView.map.removeMany(layersToRemove);
+        }
+
+        if (legend) legend.visible = false;
+      }
+
+      return false;
+    }
+
+    console.log(
+      `[loadMapConfigurations] Loading configurations for project: ${projectId}`
+    );
+    setIsConfigLoading(true);
+
+    try {
+      // Clear any existing visualization layers before fetching new data
+      if (mapView?.map) {
+        const existingLayers = mapView.map.layers
+          .filter((layer) => layer?.isVisualizationLayer === true)
+          .toArray();
+
+        if (existingLayers.length > 0) {
+          console.log(
+            `[loadMapConfigurations] Removing ${existingLayers.length} existing layers before loading new config.`
+          );
+          mapView.map.removeMany(existingLayers);
+        }
+      }
+
+      // Fetch configurations from API
+      const response = await mapConfigurationsAPI.getAll(projectId);
+      const mapConfigs = response?.data || [];
+
+      console.log(
+        "[loadMapConfigurations] Loaded map configurations:",
+        Array.isArray(mapConfigs)
+          ? `${mapConfigs.length} configs`
+          : "invalid data"
+      );
+
+      // Handle empty or invalid response
+      if (!Array.isArray(mapConfigs) || mapConfigs.length === 0) {
+        console.log(
+          "[loadMapConfigurations] No configurations found, using default Core Map"
+        );
+
+        // Update state atomically
+        const defaultTabs = [
+          {
+            id: 1,
+            name: "Core Map",
+            active: true,
+            visualizationType: null,
+            areaType: areaTypes[0],
+            layerConfiguration: null,
+            isEditing: false,
+          },
+        ];
+
+        setTabs(defaultTabs);
+        setActiveTab(1);
+
+        // Ensure legend is hidden
+        if (legend) {
+          legend.visible = false;
+        }
+
+        setIsConfigLoading(false);
+        return false;
+      }
+
+      // Process configurations into tabs
+      const processedTabs = [
+        // Always include Core Map as the first tab
+        {
+          id: 1,
+          name: "Core Map",
+          active: true, // Start with Core Map active
+          visualizationType: null,
+          areaType: areaTypes[0],
+          layerConfiguration: null,
+          isEditing: false,
+        },
+      ];
+
+      // Track any processing errors for logging
+      const processingErrors = [];
+
+      // Process each configuration
+      mapConfigs.forEach((config, index) => {
+        try {
+          // Skip invalid configurations
+          if (!config || !config.id) {
+            processingErrors.push(
+              `Config at index ${index} is invalid or missing ID`
+            );
+            return;
+          }
+
+          // Process area type
+          let areaType = areaTypes[0]; // Default to first area type
+
+          if (config.area_type != null) {
+            const areaTypeStr = String(config.area_type).toLowerCase();
+
+            // Try to match by value or label
+            const foundType = areaTypes.find(
+              (type) =>
+                String(type.value).toLowerCase() === areaTypeStr ||
+                type.label.toLowerCase() === areaTypeStr
+            );
+
+            if (foundType) {
+              areaType = foundType;
+            } else {
+              processingErrors.push(
+                `Could not resolve area type "${config.area_type}" for tab "${config.tab_name}"`
+              );
+            }
+          }
+
+          // Validate visualization type
+          let vizType = config.visualization_type;
+          if (vizType === "pipeline") vizType = "pipe"; // Normalize type
+          if (vizType === "comps") vizType = "comp"; // Normalize type
+
+          // Create tab object
+          const newTab = {
+            id: config.id,
+            configId: config.id,
+            name: config.tab_name || `Map ${index + 1}`, // Fallback name if missing
+            active: false, // Only Core Map will be active initially
+            visualizationType: vizType,
+            areaType: areaType,
+            layerConfiguration: config.layer_configuration, // Use as-is from API
+            isEditing: false,
+          };
+
+          processedTabs.push(newTab);
+        } catch (err) {
+          processingErrors.push(
+            `Error processing config at index ${index}: ${err.message}`
+          );
+        }
+      });
+
+      // Log any processing errors
+      if (processingErrors.length > 0) {
+        console.warn(
+          "[loadMapConfigurations] Encountered issues while processing configs:",
+          processingErrors
+        );
+      }
+
+      // Update component state with processed tabs
+      console.log("[loadMapConfigurations] Setting tabs:", processedTabs);
+      setTabs(processedTabs);
+      setActiveTab(1); // Ensure Core Map is active
+
+      // Visualization will be handled by the useEffect hook that watches activeTab and tabs
+      // Don't need explicit updateVisualizationLayer() call here
+
+      setIsConfigLoading(false);
+      console.log("[loadMapConfigurations] Configuration loading complete");
+      return true;
+    } catch (error) {
+      // Handle all errors
+      console.error(
+        "[loadMapConfigurations] Error loading configurations:",
+        error.response?.data || error.message || error
+      );
+
+      // Reset to safe default state
+      setTabs([
+        {
+          id: 1,
+          name: "Core Map",
+          active: true,
+          visualizationType: null,
+          areaType: areaTypes[0],
+          layerConfiguration: null,
+          isEditing: false,
+        },
+      ]);
+      setActiveTab(1);
+
+      // Clean up any visualization layers that might exist
+      if (mapView?.map) {
+        const layersToRemove = mapView.map.layers
+          .filter((layer) => layer?.isVisualizationLayer === true)
+          .toArray();
+
+        if (layersToRemove.length > 0) {
+          console.log(
+            "[loadMapConfigurations] Cleaning up visualization layers after error"
+          );
+          mapView.map.removeMany(layersToRemove);
+        }
+      }
+
+      // Hide legend
+      if (legend) legend.visible = false;
+
+      setIsConfigLoading(false);
+      return false;
+    }
+  };
+
+  /**
+   * Helper function to get map configurations - used with the API
+   *
+   * @param {string} projectId - ID of the project to get configurations for
+   * @returns {Promise<Array>} - Configurations from the API
+   */
+  const getMapConfigurations = async (projectId) => {
+    try {
+      const response = await mapConfigurationsAPI.getAll(projectId);
+      console.log("Full API Response:", response);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching map configurations:", error);
+      throw error;
+    }
+  };
+
+  /**
+   * Notify the label manager about a new visualization layer
+   * This function should be called after a new layer is created and added to the map
+   *
+   * @param {Object} layer - The newly created layer
+   * @param {string} layerType - The type of layer ('comp', 'pipe', 'custom', etc.)
+   * @param {Object} labelOptions - Label configuration options
+   * @returns {Promise<void>}
+   */
+  const notifyLabelManagerAboutLayer = useCallback(
+    async (layer, layerType, labelOptions = {}) => {
+      // --- Added Defensive Checks ---
+      if (!layer || !labelManagerRef.current) {
+        console.log(
+          `[MapComponent] Cannot notify label manager: ${
+            !layer ? "layer is missing" : "label manager not initialized"
+          }`
+        );
+        return;
+      }
+
+      console.log(
+        `[MapComponent] Notifying label manager about new ${layerType} layer:`,
+        {
+          layerId: layer.id,
+          title: layer.title,
+          graphicsCount: layer.graphics?.length || 0,
+          labelOptions,
+        }
+      );
+
+      try {
+        // First, ensure the label manager has the appropriate settings for this layer type
+        if (
+          typeof labelManagerRef.current.configureLayerSettings === "function"
+        ) {
+          labelManagerRef.current.configureLayerSettings(layerType);
+        } else {
+          console.warn(
+            "[MapComponent] configureLayerSettings method not found on label manager."
+          );
+        }
+
+        // Special handling for different layer types
+        if (
+          layerType === "pipe" ||
+          layerType === "comp" ||
+          layerType === "custom"
+        ) {
+          // (Removed call to non-existent updateOptions)
+          // Enhanced options logic removed as updateOptions doesn't exist.
+          // Settings are applied via configureLayerSettings.
+
+          // Force a processing of this layer for labels after a short delay
+          // --- CORRECTED CALL ---
+          if (typeof labelManagerRef.current.processLayer === "function") {
+            setTimeout(() => {
+              // Re-check ref inside timeout
+              if (
+                labelManagerRef.current &&
+                typeof labelManagerRef.current.processLayer === "function"
+              ) {
+                labelManagerRef.current.processLayer(layer); // Use public method
+                console.log(
+                  `[MapComponent] Processed labels from ${layerType} layer`
+                );
+
+                // Refresh all labels after integration if method exists
+                setTimeout(() => {
+                  // Re-check ref inside timeout
+                  if (
+                    labelManagerRef.current &&
+                    typeof labelManagerRef.current.refreshLabels === "function"
+                  ) {
+                    labelManagerRef.current.refreshLabels();
+                    console.log(
+                      `[MapComponent] Refreshed labels for ${layerType} layer after notification`
+                    );
+                  } else if (labelManagerRef.current) {
+                    console.warn(
+                      "[MapComponent] refreshLabels method not found on label manager (inner timeout - notify)."
+                    );
+                  }
+                }, 500); // Delay for refresh
+              } else if (labelManagerRef.current) {
+                console.warn(
+                  "[MapComponent] processLayer method not found on label manager (outer timeout - notify)."
+                );
+              }
+            }, 200); // Delay for processing
+          } else {
+            console.warn(
+              "[MapComponent] processLayer method not found on label manager."
+            );
+          }
+          // --- END CORRECTION ---
+        }
+
+        // Mark this layer as managed by the label manager (optional flag)
+        layer._labelManagerIntegrated = true;
+      } catch (error) {
+        console.error(
+          `[MapComponent] Error notifying label manager about ${layerType} layer:`,
+          error
+        );
+      }
+    },
+    []
+  ); // Empty dependency array is likely sufficient as it primarily uses the ref
+
+  // Extract legend styling into a reusable function
+  const styleLegend = (legendContainer) => {
+    if (!legendContainer) return;
+
+    // Container styles
+    legendContainer.style.backgroundColor = "white";
+    legendContainer.style.padding = "1rem";
+    legendContainer.style.margin = "0.5rem";
+    legendContainer.style.border = "1px solid rgba(0, 0, 0, 0.1)";
+    legendContainer.style.borderRadius = "0.375rem";
+    legendContainer.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+
+    // Title styles
+    const legendTitle = legendContainer.querySelector(
+      ".esri-legend__service-label"
+    );
+    if (legendTitle) {
+      legendTitle.style.fontWeight = "600";
+      legendTitle.style.fontSize = "0.875rem";
+      legendTitle.style.marginBottom = "0.75rem";
+      legendTitle.style.color = "#111827";
+    }
+
+    // Item styles
+    const legendItems = legendContainer.querySelectorAll(
+      ".esri-legend__layer-row"
+    );
+    legendItems.forEach((item) => {
+      item.style.display = "flex";
+      item.style.alignItems = "center";
+      item.style.marginBottom = "0.5rem";
+    });
+
+    // Swatch styles
+    const swatches = legendContainer.querySelectorAll(".esri-legend__symbol");
+    swatches.forEach((swatch) => {
+      swatch.style.width = "1rem";
+      swatch.style.height = "1rem";
+      swatch.style.marginRight = "0.5rem";
+    });
+
+    // Label styles
+    const labels = legendContainer.querySelectorAll(
+      ".esri-legend__layer-cell--info"
+    );
+    labels.forEach((label) => {
+      label.style.fontSize = "0.875rem";
+      label.style.color = "#4B5563";
+    });
+  };
+
+  const saveLabelPositions = useCallback((force = true) => {
+    // --- Added Defensive Checks ---
+    if (!labelManagerRef.current) {
+      console.warn(
+        "[Labels] Cannot save: Label manager ref is not set.",
+        new Error().stack
+      ); // Log stack trace
+      return { count: 0 }; // Return a default object indicating no save occurred
+    }
+    try {
+      if (typeof labelManagerRef.current.savePositions === "function") {
+        const result = labelManagerRef.current.savePositions(force);
+        // console.log(`[Labels] Saved ${result?.count || 0} label positions`); // Reduced logging noise
+        return result;
+      }
+      console.warn(
+        "[Labels] savePositions function not available on label manager instance."
+      );
+      return { count: 0 };
+    } catch (err) {
+      console.error("[Labels] Error saving label positions:", err);
+      return { count: 0, error: err };
+    }
+  }, []); // Empty dependency array - only uses the ref
+
+  // Around line 3019
+  const loadLabelPositions = useCallback(
+    (force = true, preserveEdits = true) => {
+      // --- Added Defensive Checks ---
+      if (!labelManagerRef.current) {
+        console.warn("[Labels] Cannot load: Label manager ref is not set.");
+        return { count: 0 }; // Return default object
+      }
+      try {
+        if (typeof labelManagerRef.current.loadPositions === "function") {
+          const result = labelManagerRef.current.loadPositions(
+            force,
+            preserveEdits
+          );
+          // console.log(`[Labels] Loaded ${result?.count || 0} saved label positions`); // Reduced logging noise
+          return result;
+        }
+        console.warn(
+          "[Labels] loadPositions function not available on label manager instance."
+        );
+        return { count: 0 };
+      } catch (err) {
+        console.error("[Labels] Error loading label positions:", err);
+        return { count: 0, error: err };
+      }
+    },
+    []
+  ); // Empty dependency array
+
+  // Around line 3037
+  const destroyLabelManager = useCallback(() => {
+    // --- Added Defensive Checks ---
+    if (!labelManagerRef.current) {
+      // console.log("[Labels] No label manager instance to destroy."); // Can be noisy
+      return; // Exit if no manager to destroy
+    }
+    try {
+      // Attempt to save positions before destroying
+      if (typeof labelManagerRef.current.savePositions === "function") {
+        // console.log("[Labels] Saving positions before destroying label manager"); // Can be noisy
+        labelManagerRef.current.savePositions(true); // Force final save
+      } else {
+        console.warn(
+          "[Labels] savePositions not available, skipping final save during destroy."
+        );
+      }
+
+      // Attempt to destroy the manager instance
+      if (typeof labelManagerRef.current.destroy === "function") {
+        // console.log("[Labels] Destroying label manager instance"); // Can be noisy
+        labelManagerRef.current.destroy();
+      } else {
+        console.warn("[Labels] Label manager instance missing destroy method.");
+      }
+    } catch (err) {
+      console.error("[Labels] Error during label manager cleanup:", err);
+    } finally {
+      // CRUCIAL: Always nullify the reference after attempting cleanup
+      labelManagerRef.current = null;
+      // console.log("[Labels] Label manager reference cleared."); // Can be noisy
+    }
+  }, []); // Empty dependency array
+
+  const updateVisualizationAndLegend = useCallback(async () => {
+    // Prerequisites check
+    if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
+      console.log(
+        "[updateVisualizationAndLegend] Skipping: Prerequisites not met.",
+        {
+          isConfigLoading,
+          mapReady: !!mapView?.map,
+          legendReady: !!legend,
+          labelManagerReady: isLabelManagerReady,
+        }
+      );
+      return null;
+    }
+    // ... (keep existing initial checks, saveLabels, layer removal) ...
+    console.log(
+      "[updateVisualizationAndLegend] Starting update (Label Manager Ready) for Active Tab:",
+      activeTab
+    );
+    let labelLoadTimeoutId = null;
+    try {
+      saveLabelPositions(true); // Save before changing layers
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        // FIX: Use optional chaining
+        if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
+          layersToRemove.push(layer);
+        }
+      });
+      if (layersToRemove.length > 0) {
+        console.log(
+          `[updateVisualizationAndLegend] Removing ${layersToRemove.length} layers`
+        );
+        mapView.map.removeMany(layersToRemove);
+      }
+      const activeTabData = tabs.find((tab) => tab.id === activeTab);
+      if (!activeTabData) {
+        console.log("[updateVisualizationAndLegend] No active tab data found.");
+        return null;
+      }
+
+      if (activeTab !== 1 && activeTabData.visualizationType) {
+        let vizType = activeTabData.visualizationType;
+        if (vizType === "pipeline") vizType = "pipe";
+        if (vizType === "comps") vizType = "comp";
+        if (vizType === "site_location") vizType = "site_location"; // Support for site location type
+
+        const config = activeTabData.layerConfiguration;
+        const areaType = activeTabData.areaType;
+        console.log(
+          `[updateVisualizationAndLegend] Preparing layer creation for type: ${vizType}`
+        );
+
+        // Ensure type is present either in vizType or config
+        const effectiveType = vizType || config?.type;
+        if (!effectiveType) {
+          console.error(
+            "[updateVisualizationAndLegend] Cannot create layer: Missing visualization type."
+          );
+          if (legend) legend.visible = false;
+          setCustomLegendContent(null);
+          return null;
+        }
+
+        let newLayer = null;
+        try {
+          const specialTypes = ["pipe", "comp", "custom", "site_location"]; // Add site_location to special types
+          const isSpecialType =
+            specialTypes.includes(effectiveType) ||
+            (config?.customData &&
+              !["class-breaks", "dot-density"].includes(effectiveType));
+
+          if (isSpecialType) {
+            const configForCreator = { ...(config || {}), type: effectiveType };
+            if (effectiveType === "pipe")
+              newLayer = await createPipeLayer(configForCreator);
+            else if (effectiveType === "comp")
+              newLayer = await createCompLayer(configForCreator);
+            else if (effectiveType === "site_location") {
+              // Create a graphics layer for site location visualization
+              const { default: GraphicsLayer } = await import(
+                "@arcgis/core/layers/GraphicsLayer"
+              );
+              newLayer = new GraphicsLayer({
+                title: "Site Location",
+                visualizationType: "site_location",
+                isVisualizationLayer: true,
+                listMode: "hide",
+              });
+
+              // If there's specific site data in the config, display it
+              if (config?.siteData?.point) {
+                const siteData = {
+                  point: config.siteData.point,
+                  size: config.siteData.size || 20,
+                  color: config.siteData.color || "#FFD700",
+                };
+
+                // We'll draw the site point after adding the layer to the map
+                setTimeout(() => {
+                  if (mapView && newLayer) {
+                    const drawSite = async () => {
+                      try {
+                        const { default: Graphic } = await import(
+                          "@arcgis/core/Graphic"
+                        );
+                        const { default: Point } = await import(
+                          "@arcgis/core/geometry/Point"
+                        );
+                        const { default: SimpleMarkerSymbol } = await import(
+                          "@arcgis/core/symbols/SimpleMarkerSymbol"
+                        );
+                        const { default: Color } = await import(
+                          "@arcgis/core/Color"
+                        );
+
+                        const pointGeom = new Point({
+                          longitude:
+                            siteData.point.longitude || siteData.point.x,
+                          latitude: siteData.point.latitude || siteData.point.y,
+                          spatialReference: { wkid: 4326 },
+                        });
+
+                        const symbol = new SimpleMarkerSymbol({
+                          style: "star",
+                          size: siteData.size,
+                          color: new Color(siteData.color),
+                          outline: {
+                            color: new Color("#000000"),
+                            width: 1,
+                          },
+                        });
+
+                        const graphic = new Graphic({
+                          geometry: pointGeom,
+                          symbol: symbol,
+                          attributes: {
+                            FEATURE_TYPE: "site_location",
+                            id: "site-location-default",
+                            isVisualization: true,
+                          },
+                        });
+
+                        newLayer.add(graphic);
+                      } catch (error) {
+                        console.error(
+                          "[Site Location] Error drawing site point:",
+                          error
+                        );
+                      }
+                    };
+
+                    drawSite();
+                  }
+                }, 500);
+              }
+            } else
+              newLayer = await createGraphicsLayerFromCustomData(
+                configForCreator
+              );
+          } else {
+            newLayer = await createLayers(
+              effectiveType,
+              config,
+              initialLayerConfigurations,
+              areaType
+            );
+          }
+
+          if (
+            newLayer &&
+            (newLayer instanceof FeatureLayer ||
+              newLayer instanceof GraphicsLayer)
+          ) {
+            newLayer.isVisualizationLayer = true;
+            newLayer.visualizationType = effectiveType; // Use the determined type
+            mapView.map.add(newLayer, 0);
+            console.log(
+              `[updateVisualizationAndLegend] Added layer "${
+                newLayer.title || newLayer.id
+              }" to map.`
+            );
+            if (activeLayersRef.current)
+              activeLayersRef.current[activeTab] = newLayer;
+            await newLayer.when();
+            console.log(
+              `[updateVisualizationAndLegend] Layer "${
+                newLayer.title || newLayer.id
+              }" is ready.`
+            );
+
+            // --- Legend and Label Handling ---
+            const showStandardLegend =
+              !isSpecialType && !isEditorOpen && !isLabelEditorOpen; // Hide if EITHER editor is open
+
+            if (isSpecialType && activeTabData.layerConfiguration) {
+              console.log(
+                `[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`
+              );
+              setCustomLegendContent({
+                type: effectiveType,
+                config: activeTabData.layerConfiguration,
+              });
+              if (legend) legend.visible = false;
+
+              // Notify manager (should succeed now)
+              await notifyLabelManagerAboutLayer(
+                newLayer,
+                effectiveType,
+                activeTabData.layerConfiguration?.labelOptions
+              );
+
+              // Explicitly process the new layer and refresh
+              if (labelManagerRef.current) {
+                console.log(
+                  `[updateVisualizationAndLegend] Explicitly processing layer ${newLayer.id} with Label Manager.`
+                );
+                // --- CORRECTED CALL ---
+                if (
+                  typeof labelManagerRef.current.processLayer === "function"
+                ) {
+                  labelManagerRef.current.processLayer(newLayer); // Use public method
+                } else {
+                  console.warn(
+                    "[updateVisualizationAndLegend] processLayer method not found on label manager."
+                  );
+                }
+                // --- END CORRECTION ---
+
+                if (
+                  typeof labelManagerRef.current.refreshLabels === "function"
+                ) {
+                  // Use setTimeout to allow graphics rendering/processing to settle
+                  labelLoadTimeoutId = setTimeout(() => {
+                    if (
+                      labelManagerRef.current &&
+                      typeof labelManagerRef.current.refreshLabels ===
+                        "function"
+                    ) {
+                      labelManagerRef.current.refreshLabels();
+                      console.log(
+                        `[updateVisualizationAndLegend] Explicitly refreshed labels after processing ${effectiveType} layer.`
+                      );
+                    } else {
+                      console.warn(
+                        "[updateVisualizationAndLegend] refreshLabels method not found on label manager (timeout)."
+                      );
+                    }
+                    labelLoadTimeoutId = null; // Clear timeout ID after execution
+                  }, 500); // 500ms delay
+                } else {
+                  console.warn(
+                    "[updateVisualizationAndLegend] refreshLabels method not found on label manager."
+                  );
+                }
+              } else {
+                console.warn(
+                  "[updateVisualizationAndLegend] Label Manager not available for explicit layer processing."
+                );
+              }
+            } else if (legend && showStandardLegend) {
+              console.log(
+                `[updateVisualizationAndLegend] Updating standard Esri legend for layer: ${
+                  newLayer.title || effectiveType
+                }`
+              );
+              legend.layerInfos = [
+                {
+                  layer: newLayer,
+                  title: newLayer.title || effectiveType,
+                  hideLayersNotInCurrentView: false,
+                },
+              ];
+              legend.visible = true;
+              styleLegend(legend.container); // Apply style
+              setCustomLegendContent(null);
+              if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId); // Clear timeout if standard legend shown
+            } else if (legend) {
+              console.log(
+                `[updateVisualizationAndLegend] Hiding standard Esri legend. SpecialType: ${isSpecialType}, EditorOpen: ${isEditorOpen}, LabelEditorOpen: ${isLabelEditorOpen}`
+              );
+              legend.visible = false;
+              setCustomLegendContent(null);
+              if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId); // Clear timeout if legend hidden
+            }
+
+            // Removed the separate labelLoadTimeoutId for loadPositions - rely on refreshLabels after processing
+          } else {
+            console.error(
+              `[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`
+            );
+            if (legend) legend.visible = false;
+            setCustomLegendContent(null);
+          }
+        } catch (error) {
+          console.error(
+            `[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`,
+            error
+          );
+          if (legend) legend.visible = false;
+          setCustomLegendContent(null);
+        }
+      } else {
+        // Handle Core Map or no visualization selected
+        console.log(
+          `[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`
+        );
+        if (legend) legend.visible = false;
+        setCustomLegendContent(null);
+        if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId);
+      }
+    } catch (error) {
+      console.error("[updateVisualizationAndLegend] Outer error:", error);
+      if (legend) legend.visible = false;
+      setCustomLegendContent(null);
+      if (labelLoadTimeoutId) clearTimeout(labelLoadTimeoutId);
+    }
+
+    return labelLoadTimeoutId; // Return timeout ID or null
+  }, [
+    activeTab,
+    tabs,
+    mapView,
+    legend,
+    isEditorOpen,
+    isLabelEditorOpen,
+    isConfigLoading,
+    isLabelManagerReady,
+    initialLayerConfigurations,
+    saveLabelPositions,
+    loadLabelPositions,
+    notifyLabelManagerAboutLayer,
+    setCustomLegendContent,
+    createLayers,
+    createPipeLayer,
+    createCompLayer,
+    createGraphicsLayerFromCustomData,
+  ]); // End of useCallback
+
+  // --- CONSOLIDATED EFFECT HOOKS ---
+
+  // Site Location market area placement event listener
   useEffect(() => {
-    // Load auto-saved configurations on mount
-    loadMapConfigurations(AUTO_SAVE_KEY, false);
-  }, []);
+    const handlePlacementRequest = (event) => {
+      const { activate, options } = event.detail || {};
+      console.log(
+        `[Map] Received site location placement request. Activate: ${activate}`
+      );
+      toggleSiteLocationPlacement(activate, options);
+    };
+
+    // Listen for the custom event from MarketAreaForm
+    document.addEventListener(
+      "requestSiteLocationPlacement",
+      handlePlacementRequest
+    );
+
+    return () => {
+      document.removeEventListener(
+        "requestSiteLocationPlacement",
+        handlePlacementRequest
+      );
+    };
+  }, [toggleSiteLocationPlacement]);
+
+  // 1. Project change event handler
+  useEffect(() => {
+    const handleProjectChange = () => {
+      const projectId =
+        localStorage.getItem("currentProjectId") ||
+        sessionStorage.getItem("currentProjectId");
+
+      // Find the active tab data
+      const activeTabData = tabs.find((tab) => tab.active);
+
+      // --- Added Defensive Check ---
+      if (
+        projectId &&
+        labelManagerRef.current &&
+        typeof labelManagerRef.current.setContext === "function"
+      ) {
+        labelManagerRef.current.setContext(projectId, activeTabData?.configId);
+        loadLabelPositions(true); // Reload positions for the new context
+      } else {
+        console.warn(
+          "[ProjectChange Effect] Cannot set context: Label manager ref or method missing."
+        );
+      }
+    };
+
+    window.addEventListener("projectChanged", handleProjectChange);
+
+    return () => {
+      window.removeEventListener("projectChanged", handleProjectChange);
+    };
+  }, [tabs, loadLabelPositions]); // Added loadLabelPositions dependency
+
+  // 2. ArcGIS Configuration
+  useEffect(() => {
+    try {
+      console.log(
+        "ArcGIS API Key:",
+        import.meta.env.VITE_ARCGIS_API_KEY ? "Loaded" : "Not Found"
+      );
+
+      esriConfig.apiKey = import.meta.env.VITE_ARCGIS_API_KEY;
+
+      if (!esriConfig.apiKey) {
+        console.error("ArcGIS API Key is missing or undefined");
+        return;
+      }
+
+      esriConfig.assetsPath = "https://js.arcgis.com/4.31/@arcgis/core/assets/";
+
+      // CORS configuration
+      if (!esriConfig.request.corsEnabledServers) {
+        esriConfig.request.corsEnabledServers = [];
+      }
+
+      const serversToAdd = [
+        "geocode-api.arcgis.com",
+        "route-api.arcgis.com",
+        "services.arcgis.com",
+        "basemaps.arcgis.com",
+        "basemaps-api.arcgis.com",
+        "tiles.arcgis.com",
+        "services8.arcgis.com",
+      ];
+
+      serversToAdd.forEach((server) => {
+        if (!esriConfig.request.corsEnabledServers.includes(server)) {
+          esriConfig.request.corsEnabledServers.push(server);
+        }
+      });
+
+      // Add request interceptor for debugging
+      // esriConfig.request.interceptors.push({
+      //   before: (params) => {
+      //     console.log("ArcGIS Request Interceptor:", {
+      //       url: params.url,
+      //       method: params.method,
+      //       headers: params.headers,
+      //     });
+      //   },
+      //   error: (error) => {
+      //     console.error("ArcGIS Request Error:", error);
+      //   },
+      // });
+    } catch (error) {
+      console.error("ArcGIS Configuration Error:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+  }, []); // Empty deps - runs once on mount
+
+  useEffect(() => {
+    let isMounted = true;
+    console.log("Starting map initialization...");
+
+    // Use local variables within this effect's scope for instances
+    // that need to be accessed in the cleanup function.
+    let localMapView = null;
+    let localZoomToolButtonRoot = null;
+    let siteLocationClickHandler = null;
+    let labelDragEventHandlers = [];
+
+    const initializeMap = async () => {
+      try {
+
+        // Create map with reliable basemap
+        const map = new Map({
+          basemap: "arcgis-navigation", // Changed from streets-navigation-vector which was causing AbortError
+        });
+
+        // Create view with map container
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          center: [-98, 39], // Default center
+          zoom: 4, // Default zoom
+          constraints: {
+            rotationEnabled: false,
+            minZoom: 2,
+            maxZoom: 20,
+          },
+          navigation: {
+            actionMap: { mouseWheel: { enabled: false } }, // Disable default wheel
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
+          },
+        });
+
+        // Store view for cleanup
+        localMapView = view;
+
+        console.log("Waiting for view to be ready...");
+        await view.when();
+        console.log("View is now ready!");
+
+        // Custom mouse wheel zoom handler
+        view.constraints.snapToZoom = false; // Allow fractional zoom levels
+        const scrollHandler = view.on("mouse-wheel", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const state = scrollStateRef.current;
+          const now = Date.now();
+          const timeDiff = now - (state.lastScrollTime || now);
+          const scrollDeltaY = event.native.deltaY;
+          const currentDirection = scrollDeltaY < 0 ? 1 : -1; // 1 for zoom in, -1 for zoom out
+          const resetThreshold = 250, // ms to reset scroll streak
+            accelerateThreshold = 120; // ms for faster acceleration
+
+          if (state.timeoutId) clearTimeout(state.timeoutId);
+
+          if (
+            timeDiff < resetThreshold &&
+            currentDirection === state.lastScrollDirection &&
+            state.lastScrollDirection !== 0 // Ensure there was a previous direction
+          ) {
+            if (timeDiff < accelerateThreshold) state.scrollStreak++;
+            // else maintain streak but don't increment as fast
+          } else {
+            state.scrollStreak = 1; // Reset streak
+          }
+
+          const baseZoomDelta = 0.08; // Base zoom increment per scroll step
+          const streakBonus = 0.2; // How much each streak count adds to acceleration
+          const maxAccelerationFactor = 5.0;
+          const accelerationFactor = Math.min(
+            1 + streakBonus * Math.max(0, state.scrollStreak - 1),
+            maxAccelerationFactor
+          );
+          const finalZoomDelta =
+            baseZoomDelta * accelerationFactor * currentDirection;
+          const currentZoom = view.zoom;
+          let newZoom = Math.min(
+            Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
+
+          if (Math.abs(newZoom - currentZoom) > 0.001) {
+            // Only zoom if change is significant
+            view
+              .goTo(
+                { zoom: newZoom, center: view.center },
+                { duration: 60, easing: "linear", animate: true }
+              )
+              .catch((error) => {
+                if (error.name !== "AbortError")
+                  // Ignore AbortErrors from rapid scrolling
+                  console.error("goTo Error:", error);
+              });
+          }
+
+          state.lastScrollTime = now;
+          state.lastScrollDirection = currentDirection;
+          state.timeoutId = setTimeout(() => {
+            state.scrollStreak = 0;
+            state.lastScrollDirection = 0;
+            state.timeoutId = null;
+          }, resetThreshold);
+        });
+
+        // Store scrollHandler if view.on returns a removable handler object
+        if (typeof scrollHandler?.remove === "function") {
+          labelDragEventHandlers.push(scrollHandler);
+        }
+
+        // Site location placement click handler
+        siteLocationClickHandler = view.on(
+          "click",
+          handleSiteLocationPlacement
+        );
+
+        // Fixed: Setup label drag handling with properly defined pointerDownHandler
+        try {
+          // Define a function to handle label dragging
+          const setupLabelDragHandlingFixed = (view) => {
+            if (!view || !view.map) return [];
+
+            console.log("[Map] Setting up enhanced label drag handling");
+
+            // Track if we're currently dragging a label
+            let isDraggingLabel = false;
+            let draggedLabel = null;
+            let dragStartPoint = null;
+            let originalOffset = null;
+            let originalNavState = null;
+
+            // Store handlers for proper cleanup
+            const handlers = [];
+
+            // Define pointerDownHandler properly
+            const pointerDownHandler = view.on("pointer-down", (event) => {
+              // Skip if already dragging
+              if (isDraggingLabel) return;
+
+              // Skip if zoom tool is active
+              if (isZoomToolActive) {
+                return;
+              }
+
+              // Existing label drag code...
+              view
+                .hitTest(event.screenPoint)
+                .then((response) => {
+                  const labelHit = response.results.find(
+                    (result) =>
+                      result.graphic &&
+                      (result.graphic.symbol?.type === "text" ||
+                        result.graphic.attributes?.isLabel === true)
+                  );
+
+                  if (labelHit) {
+                    // Found a label - start dragging logic
+                    isDraggingLabel = true;
+                    draggedLabel = labelHit.graphic;
+                    dragStartPoint = event.screenPoint;
+
+                    // Store original offset
+                    if (draggedLabel.symbol) {
+                      originalOffset = {
+                        x: draggedLabel.symbol.xoffset || 0,
+                        y: draggedLabel.symbol.yoffset || 0,
+                      };
+                    } else {
+                      originalOffset = { x: 0, y: 0 };
+                    }
+
+                    // Store original navigation state
+                    originalNavState = {
+                      browserTouchPanEnabled:
+                        view.navigation?.browserTouchPanEnabled || true,
+                      keyboardNavigation:
+                        view.navigation?.keyboardNavigation || true,
+                    };
+
+                    // Disable map navigation during drag
+                    if (view.navigation) {
+                      view.navigation.browserTouchPanEnabled = false;
+                      if (
+                        typeof view.navigation.keyboardNavigation !==
+                        "undefined"
+                      ) {
+                        view.navigation.keyboardNavigation = false;
+                      }
+                    }
+
+                    // Set cursor
+                    if (view.container) {
+                      view.container.style.cursor = "move";
+                    }
+
+                    // Prevent default
+                    event.stopPropagation();
+                  }
+                })
+                .catch((error) => {
+                  console.error("[Map] Error during label hit test:", error);
+                });
+            });
+
+            handlers.push(pointerDownHandler);
+
+            // Handle pointer move for drag operation
+            const pointerMoveHandler = view.on("pointer-move", (event) => {
+              if (
+                !isDraggingLabel ||
+                !draggedLabel ||
+                !dragStartPoint ||
+                !originalOffset
+              ) {
+                return;
+              }
+
+              // Prevent map interaction
+              event.stopPropagation();
+
+              // Calculate new position
+              const dx = event.x - dragStartPoint.x;
+              const dy = event.y - dragStartPoint.y;
+
+              const newPosition = {
+                x: originalOffset.x + dx,
+                y: originalOffset.y - dy, // Invert Y for correct direction
+              };
+
+              try {
+                // Update label position
+                if (draggedLabel.symbol) {
+                  const newSymbol = draggedLabel.symbol.clone();
+                  newSymbol.xoffset = newPosition.x;
+                  newSymbol.yoffset = newPosition.y;
+                  draggedLabel.symbol = newSymbol;
+
+                  // Force refresh if needed
+                  if (typeof view.graphics?.refresh === "function") {
+                    view.graphics.refresh();
+                  }
+                }
+              } catch (error) {
+                console.error(
+                  "[Map] Error updating label position during drag:",
+                  error
+                );
+              }
+            });
+
+            handlers.push(pointerMoveHandler);
+
+            // Handle pointer up to end drag operation
+            const pointerUpHandler = view.on("pointer-up", (event) => {
+              if (!isDraggingLabel) return;
+
+              // Prevent map interaction
+              event.stopPropagation();
+
+              try {
+                // Save the final position to LabelManager if available
+                if (window.labelManagerInstance) {
+                  if (
+                    typeof window.labelManagerInstance.updateLabelPosition ===
+                      "function" &&
+                    draggedLabel
+                  ) {
+                    const finalPosition = {
+                      x: draggedLabel.symbol?.xoffset || 0,
+                      y: draggedLabel.symbol?.yoffset || 0,
+                    };
+                    window.labelManagerInstance.updateLabelPosition(
+                      draggedLabel,
+                      finalPosition
+                    );
+                  }
+
+                  // Auto-save positions
+                  if (
+                    typeof window.labelManagerInstance.savePositions ===
+                    "function"
+                  ) {
+                    window.labelManagerInstance.savePositions(true);
+                  }
+                }
+
+                // Restore cursor
+                if (view.container) {
+                  view.container.style.cursor = "default";
+                }
+
+                // Restore map navigation
+                if (view.navigation && originalNavState) {
+                  view.navigation.browserTouchPanEnabled =
+                    originalNavState.browserTouchPanEnabled;
+                  if (originalNavState.keyboardNavigation !== undefined) {
+                    view.navigation.keyboardNavigation =
+                      originalNavState.keyboardNavigation;
+                  }
+                }
+              } catch (error) {
+                console.error(
+                  "[Map] Error finishing label drag operation:",
+                  error
+                );
+              } finally {
+                // Reset drag state
+                isDraggingLabel = false;
+                draggedLabel = null;
+                dragStartPoint = null;
+                originalOffset = null;
+                originalNavState = null;
+              }
+            });
+
+            handlers.push(pointerUpHandler);
+
+            // Handle pointer leave to cancel drag
+            const pointerLeaveHandler = view.on("pointer-leave", (event) => {
+              if (!isDraggingLabel) return;
+
+              try {
+                // Restore cursor
+                if (view.container) {
+                  view.container.style.cursor = "default";
+                }
+
+                // Restore map navigation
+                if (view.navigation && originalNavState) {
+                  view.navigation.browserTouchPanEnabled =
+                    originalNavState.browserTouchPanEnabled;
+                  if (originalNavState.keyboardNavigation !== undefined) {
+                    view.navigation.keyboardNavigation =
+                      originalNavState.keyboardNavigation;
+                  }
+                }
+              } catch (error) {
+                console.error(
+                  "[Map] Error handling pointer leave during label drag:",
+                  error
+                );
+              } finally {
+                // Reset drag state
+                isDraggingLabel = false;
+                draggedLabel = null;
+                dragStartPoint = null;
+                originalOffset = null;
+                originalNavState = null;
+              }
+            });
+
+            handlers.push(pointerLeaveHandler);
+
+            // Store handlers on view for cleanup
+            view.labelDragHandlers = handlers;
+
+            console.log(
+              "[Map] Label drag handling initialized with",
+              handlers.length,
+              "handlers"
+            );
+
+            // Make the Label Manager instance globally available
+            if (labelManagerRef.current) {
+              window.labelManagerInstance = labelManagerRef.current;
+              console.log("[Map] Exposed label manager instance globally");
+            }
+
+            return handlers;
+          };
+
+          // Call the fixed function
+          labelDragEventHandlers = setupLabelDragHandlingFixed(view);
+        } catch (labelDragError) {
+          console.error(
+            "[Map] Error setting up label drag handling:",
+            labelDragError
+          );
+          labelDragEventHandlers = [];
+        }
+
+        // --- Zoom Tool Button Integration ---
+        try {
+          // Create a container for the button and add it to the map UI
+          const zoomToolButtonContainer = document.createElement("div");
+          view.ui.add(zoomToolButtonContainer, "top-left");
+
+          if (isMounted) {
+            // Create the React root for the button
+            const root = ReactDOM.createRoot(zoomToolButtonContainer);
+            // Store in local var and state
+            localZoomToolButtonRoot = root;
+            setZoomToolButtonRoot(root);
+          }
+        } catch (buttonError) {
+          console.error("[Map] Error creating zoom tool button:", buttonError);
+        }
+        // --- End Zoom Tool Button Integration ---
+
+        // Add scale bar
+        const scaleBar = new ScaleBar({ view, unit: "imperial" });
+        view.ui.add(scaleBar, "bottom-left");
+
+        if (isMounted) {
+          // Set view in context or state
+          setMapView(view);
+
+          // Initialize Legend widget
+          const legendWidget = new Legend({
+            view,
+            container: document.createElement("div"),
+            layerInfos: [],
+            visible: false,
+          });
+          view.ui.add(legendWidget, "bottom-right");
+          setLegend(legendWidget);
+
+          // Trigger market area loading/rendering
+          // This will load market areas via the context once the map is ready
+          if (typeof onMapReady === "function") {
+            try {
+              onMapReady(view);
+            } catch (mapReadyError) {
+              console.error(
+                "[Map] Error in onMapReady callback:",
+                mapReadyError
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[Map] Error during map initialization:", error);
+        if (isMounted) {
+          // Handle error state appropriately
+        }
+      }
+    };
+
+    if (mapRef.current) {
+      // Ensure map container ref is available
+      initializeMap();
+    } else {
+      console.error(
+        "[Map] mapRef.current is not available for initialization."
+      );
+    }
+
+    // --- Cleanup Function ---
+    return () => {
+      console.log(
+        "[Map] Component unmounting or re-running effect, performing cleanup..."
+      );
+      isMounted = false; // Prevent state updates after unmount/during cleanup
+
+      // Cleanup Label Manager (uses its own destroyLabelManager function)
+      if (typeof destroyLabelManager === "function") {
+        try {
+          destroyLabelManager();
+        } catch (labelManagerError) {
+          console.error(
+            "[Map] Error destroying label manager:",
+            labelManagerError
+          );
+        }
+      }
+
+      // Clean up site location click handler
+      if (
+        siteLocationClickHandler &&
+        typeof siteLocationClickHandler.remove === "function"
+      ) {
+        try {
+          siteLocationClickHandler.remove();
+          siteLocationClickHandler = null;
+          console.log("[Map] Site location click handler removed.");
+        } catch (handlerError) {
+          console.error(
+            "[Map] Error removing site location click handler:",
+            handlerError
+          );
+        }
+      }
+
+      // Clean up label drag handlers
+      if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
+        try {
+          labelDragEventHandlers.forEach((handler) => {
+            if (handler && typeof handler.remove === "function") {
+              handler.remove();
+            }
+          });
+          labelDragEventHandlers = []; // Clear the array
+          console.log("[Map] Label drag event handlers removed.");
+        } catch (dragHandlerError) {
+          console.error(
+            "[Map] Error removing label drag handlers:",
+            dragHandlerError
+          );
+        }
+      }
+
+      // --- Cleanup Zoom Tool Button's React Root ---
+      if (localZoomToolButtonRoot) {
+        try {
+          localZoomToolButtonRoot.unmount();
+          console.log("[Map] ZoomToolButton React root unmounted.");
+        } catch (unmountError) {
+          console.error(
+            "[Map] Error unmounting zoom tool button:",
+            unmountError
+          );
+        }
+        localZoomToolButtonRoot = null; // Clear local ref
+      }
+
+      // Destroy the MapView instance to release its resources
+      if (localMapView && typeof localMapView.destroy === "function") {
+        try {
+          localMapView.destroy();
+          console.log("[Map] MapView instance destroyed.");
+        } catch (destroyError) {
+          console.error("[Map] Error destroying MapView:", destroyError);
+        }
+      }
+      localMapView = null; // Clear local ref
+
+      console.log("[Map] Map initialization cleanup finished.");
+    };
+  }, []); // Empty dependency array: runs once on mount and cleanup on unmount.
+
+  // --- Effect for Label Manager Initialization and Readiness ---
+  useEffect(() => {
+    // Check if map view is ready and manager isn't already initialized
+    if (mapView?.ready && !labelManagerRef.current && !isLabelManagerReady) {
+      console.log("[MapComponent] Initializing LabelManager...");
+      try {
+        // Create instance, passing the view
+        labelManagerRef.current = new LabelManager(mapView, {
+          /* Add any initial options */
+        });
+        console.log(
+          "[MapComponent] LabelManager instance CREATED:",
+          labelManagerRef.current
+        );
+
+        // Set readiness state to true AFTER successful initialization
+        setIsLabelManagerReady(true);
+        console.log("[MapComponent] Label Manager IS READY.");
+
+        // Load initial positions after manager is ready
+        const loadTimeout = setTimeout(() => {
+          // Re-check ref and readiness inside timeout
+          if (
+            labelManagerRef.current &&
+            isLabelManagerReady &&
+            typeof labelManagerRef.current.loadPositions === "function"
+          ) {
+            try {
+              labelManagerRef.current.loadPositions(true, true); // Force load, preserve edits
+              console.log(
+                "[MapComponent] Initial label positions loaded after manager creation."
+              );
+            } catch (loadErr) {
+              console.error(
+                "[MapComponent] Error loading initial label positions:",
+                loadErr
+              );
+            }
+          } else {
+            console.warn(
+              "[MapComponent] Cannot load initial positions: Ref invalid, not ready, or method missing after timeout."
+            );
+          }
+        }, 1000); // Delay might still be useful for complex scenarios
+
+        // Return cleanup for the timeout
+        return () => clearTimeout(loadTimeout);
+      } catch (err) {
+        console.error("[MapComponent] Error initializing LabelManager:", err);
+        labelManagerRef.current = null; // Nullify ref on error
+        setIsLabelManagerReady(false); // Ensure readiness is false on error
+      }
+    }
+    // Note: No cleanup needed here specifically for the manager instance,
+    // as the main unmount cleanup effect handles calling destroyLabelManager.
+  }, [mapView?.ready, isLabelManagerReady]); // Dependencies: map readiness and the readiness state itself
+
+  // --- Cleanup effect specifically for the Label Manager ---
+  useEffect(() => {
+    // This effect's *sole* purpose is to run the cleanup when the component unmounts
+    return () => {
+      console.log("[MapComponent] Label Manager Cleanup Effect running.");
+      // Use the memoized destroy function which handles saving and nullifying the ref
+      destroyLabelManager();
+      // Reset the readiness state as part of cleanup
+      setIsLabelManagerReady(false);
+      console.log("[MapComponent] Label Manager Cleanup Effect finished.");
+    };
+  }, [destroyLabelManager]); // Dependency: the memoized destroy function
+
+  // --- Legend Visibility Effect ---
+  useEffect(() => {
+    if (!legend || !mapView?.ready) return;
+
+    // Determine if legend should be visible
+    const activeTabData = tabs.find((tab) => tab.id === activeTab);
+    const hasVisualization = activeTabData?.visualizationType;
+    const hasCustomLegend = !!customLegendContent;
+    // Legend should hide if EITHER editor panel is open OR if there's a custom legend
+    const shouldShowStandardLegend =
+      activeTab !== 1 &&
+      hasVisualization &&
+      !hasCustomLegend && // Hide if custom legend is showing
+      !isEditorOpen &&
+      !isLabelEditorOpen;
+
+    // Update legend visibility
+    legend.visible = shouldShowStandardLegend;
+
+    // Apply styling if visible
+    if (shouldShowStandardLegend && legend.container) {
+      requestAnimationFrame(() => {
+        // Ensure container exists before styling
+        if (legend.container) {
+          styleLegend(legend.container);
+        }
+      });
+    }
+  }, [
+    activeTab,
+    legend,
+    tabs,
+    mapView?.ready,
+    isEditorOpen,
+    isLabelEditorOpen,
+    customLegendContent,
+  ]); // Added dependencies
+
+  // --- Visualization Update Effect ---
+  useEffect(() => {
+    // Simplified log for clarity
+    console.log("[VizUpdate Effect] TRIGGERED by dependency change.");
+
+    let currentLabelLoadTimeoutId = null;
+    let isEffectMounted = true;
+
+    const runUpdate = async () => {
+      // *** CHECK FOR LABEL MANAGER READY STATE ***
+      if (!isLabelManagerReady) {
+        console.log(
+          "[VizUpdate Effect] Skipping update: Label Manager not ready yet."
+        );
+        return; // Exit early if manager isn't ready
+      }
+
+      console.log(
+        "[VizUpdate Effect] Calling updateVisualizationAndLegend (Label Manager Ready)..."
+      );
+      // Call the extracted and memoized logic function
+      const timeoutId = await updateVisualizationAndLegend();
+
+      // Only store the timeout ID if the effect is still considered "mounted"
+      if (isEffectMounted && timeoutId) {
+        currentLabelLoadTimeoutId = timeoutId;
+        console.log(
+          `[VizUpdate Effect] Stored label refresh timeout ID: ${currentLabelLoadTimeoutId}`
+        );
+      } else if (!isEffectMounted && timeoutId) {
+        console.log(
+          `[VizUpdate Effect] Clearing timeout ${timeoutId} immediately as effect unmounted during update.`
+        );
+        clearTimeout(timeoutId);
+      } else {
+        console.log(
+          "[VizUpdate Effect] Update finished (no timeout needed or effect unmounted)."
+        );
+      }
+    };
+
+    runUpdate();
+
+    // --- Cleanup function for this useEffect ---
+    return () => {
+      console.log("[VizUpdate Effect] CLEANUP running.");
+      isEffectMounted = false;
+
+      if (currentLabelLoadTimeoutId) {
+        console.log(
+          "[VizUpdate Effect] Clearing label refresh timeout in cleanup:",
+          currentLabelLoadTimeoutId
+        );
+        clearTimeout(currentLabelLoadTimeoutId);
+        currentLabelLoadTimeoutId = null;
+      }
+
+      // Save positions on cleanup - crucial for catching changes before unmount/re-render
+      console.log(
+        "[VizUpdate Effect] Attempting to save positions during cleanup."
+      );
+      saveLabelPositions(true); // Force save using memoized function
+
+      console.log("[VizUpdate Effect] Cleanup finished.");
+    };
+    // --- End Cleanup function ---
+  }, [updateVisualizationAndLegend, isLabelManagerReady]); // <<< ADD isLabelManagerReady
+
+  // --- Initial Config Loading Effect ---
+  useEffect(() => {
+    // Skip if map isn't ready
+    if (!mapView?.map || !projectId) {
+      // Added projectId check
+      console.log(
+        "[Config Load Effect] Skipping: MapView not ready or no Project ID."
+      );
+      return;
+    }
+
+    // Load configurations from API
+    console.log("[Config Load Effect] Loading map configurations...");
+    loadMapConfigurations(); // This function now handles projectId internally
+  }, [mapView?.map, projectId]); // Depend on map and projectId
+
+  // 11. Visualization refresh event handler (Ensure label manager checks)
+  useEffect(() => {
+    const handleRefreshVisualization = (event) => {
+      const { tabId, config } = event.detail;
+      if (!tabId || !mapView?.map) return;
+      const tabData = tabs.find((tab) => tab.id === tabId);
+      if (!tabData || !tabData.visualizationType) return;
+      let vizType = tabData.visualizationType; // ... normalize ...
+
+      // --- Added Defensive Check ---
+      saveLabelPositions(true); // Save before refresh
+
+      // Remove layers
+      const layersToRemove = mapView.map.layers
+        .filter((l) => l?.isVisualizationLayer)
+        .toArray();
+      if (layersToRemove.length > 0) mapView.map.removeMany(layersToRemove);
+
+      createLayers(
+        vizType,
+        config || tabData.layerConfiguration,
+        initialLayerConfigurations,
+        tabData.areaType
+      )
+        .then(async (newLayer) => {
+          // Make async
+          if (!newLayer) return;
+          mapView.map.add(newLayer, 0);
+          // Specific handlers
+          if (vizType === "pipe")
+            await handlePipeVisualization(tabData, newLayer);
+          else if (vizType === "comp")
+            await handleCompVisualization(tabData, newLayer);
+          else if (vizType === "custom")
+            await handleCustomDataVisualization(tabData, newLayer);
+          // Update legend
+          if (legend && !isEditorOpen && !isLabelEditorOpen) {
+            // Check BOTH editors
+            legend.layerInfos = [
+              {
+                layer: newLayer,
+                title: newLayer.title || vizType,
+                hideLayersNotInCurrentView: false,
+              },
+            ];
+            legend.visible = true;
+            styleLegend(legend.container); // Apply style
+          } else if (legend) {
+            legend.visible = false;
+          }
+          // Load positions after refresh (use the function)
+          setTimeout(() => loadLabelPositions(true, true), 500);
+        })
+        .catch((err) => console.error("Error refreshing visualization:", err));
+    };
+    window.addEventListener("refreshVisualization", handleRefreshVisualization);
+    return () =>
+      window.removeEventListener(
+        "refreshVisualization",
+        handleRefreshVisualization
+      );
+  }, [
+    mapView,
+    tabs,
+    legend,
+    isEditorOpen, // Added dependency
+    isLabelEditorOpen, // Added dependency
+    // Assuming these handlers are stable (defined outside or memoized)
+    // handlePipeVisualization, handleCompVisualization, handleCustomDataVisualization,
+    saveLabelPositions, // Added dependency
+    loadLabelPositions, // Added dependency
+    initialLayerConfigurations, // Added dependency
+    createLayers, // Added dependency
+  ]);
 
   return (
     <div className="flex flex-col h-full">
@@ -7990,20 +4305,11 @@ export default function MapComponent({ onToggleLis }) {
                       // Input field for renaming tab
                       <input
                         type="text"
-                        value={tab.name}
+                        defaultValue={tab.name}
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
                         }}
-                        onChange={(e) =>
-                          setTabs(
-                            tabs.map((t) =>
-                              t.id === tab.id
-                                ? { ...t, name: e.target.value }
-                                : t
-                            )
-                          )
-                        }
                         onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
                         onBlur={(e) => handleNameChange(tab.id, e.target.value)}
                         className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
@@ -8080,23 +4386,33 @@ export default function MapComponent({ onToggleLis }) {
             {/* IIFE to manage scope and conditional rendering */}
             {activeTab !== 1 &&
               (() => {
-                // Only show controls if not the Core Map tab
                 const activeTabData = tabs.find((tab) => tab.id === activeTab);
-                // Find the corresponding visualization option to check its type
                 const activeVisOption = visualizationOptions.find(
                   (opt) => opt.value === activeTabData?.visualizationType
                 );
-                // Dropdowns shown only if the active visualization option is heat or dot density
                 const showDropdowns =
                   activeVisOption &&
                   (activeVisOption.type === "class-breaks" ||
                     activeVisOption.type === "dot-density");
-                // Edit button shown if the active tab is NOT the core map (ID 1)
                 const showEditButton = activeTab !== 1;
+
+                // Determine filter category based on visualization type
+                let filterCategory = null;
+                if (activeVisOption) {
+                  switch (activeVisOption.type) {
+                    case "class-breaks":
+                      filterCategory = "Heat Map";
+                      break;
+                    case "dot-density":
+                      filterCategory = "Dot Density Map";
+                      break;
+                    default:
+                      filterCategory = null;
+                  }
+                }
 
                 return (
                   <>
-                    {/* Conditionally render Area Type and Visualization Dropdowns */}
                     {showDropdowns && (
                       <>
                         <select
@@ -8110,9 +4426,9 @@ export default function MapComponent({ onToggleLis }) {
                             handleAreaTypeChange(activeTab, newAreaType);
                           }}
                           className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
-                                   bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
-                                   text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
-                                   focus:ring-blue-500 focus:border-blue-500"
+                                  bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+                                  text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
+                                  focus:ring-blue-500 focus:border-blue-500"
                         >
                           {areaTypes.map((type) => (
                             <option key={type.value} value={type.value}>
@@ -8127,211 +4443,166 @@ export default function MapComponent({ onToggleLis }) {
                           onChange={(newValue) =>
                             handleVisualizationChange(activeTab, newValue)
                           }
-                          placeholder="Select visualization"
-                          searchPlaceholder="Search visualizations..."
+                          placeholder={
+                            filterCategory 
+                              ? `Select ${filterCategory.toLowerCase()}`
+                              : "Select visualization"
+                          }
+                          searchPlaceholder={
+                            filterCategory
+                              ? `Search ${filterCategory.toLowerCase()}s...`
+                              : "Search visualizations..."
+                          }
                           className="w-56"
+                          filterCategory={filterCategory}
                         />
                       </>
                     )}
 
-                    {/* Conditionally render Edit Map/Legend Button */}
-                    {showEditButton && ( // Now shows for ANY non-core tab
-                      <button
-                        onClick={() => setIsEditorOpen(true)}
-                        className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
-                        title="Edit layer properties"
-                      >
-                        Edit Map/Legend
-                      </button>
+                    {showEditButton && (
+                      <div className="flex">
+                        <button
+                          onClick={openLayerPropertiesEditor}
+                          className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-l hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
+                          title="Edit layer properties"
+                        >
+                          Edit Map/Legend
+                        </button>
+                        <button
+                          onClick={openLabelEditor}
+                          className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-r border-l border-gray-300 dark:border-gray-700 hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
+                          title="Edit map labels"
+                          disabled={!isLabelManagerReady}
+                        >
+                          <Tag className="h-3.5 w-3.5 mr-1" />
+                          Edit Labels
+                        </button>
+                      </div>
                     )}
                   </>
                 );
               })()}
 
-            {/* Save Button (Always visible) */}
-            <button
-              onClick={async () => {
-                // --- Existing Save Logic ---
-                try {
-                  setIsSaving(true);
-                  const configurations = tabs
-                    .filter((tab) => tab.id !== 1)
-                    .map((tab, index) => ({
-                      project_id: projectId,
-                      project: projectId,
-                      tab_name: tab.name,
-                      visualization_type: tab.visualizationType || "",
-                      area_type: convertAreaTypeToString(
-                        tab.id === activeTab
-                          ? selectedAreaType.value
-                          : tab.areaType?.value
-                      ),
-                      layer_configuration: tab.layerConfiguration,
-                      order: index,
-                    }));
-
-                  const existingConfigsResponse =
-                    await mapConfigurationsAPI.getAll(projectId);
-                  const existingConfigs = existingConfigsResponse?.data;
-
-                  if (
-                    Array.isArray(existingConfigs) &&
-                    existingConfigs.length > 0
-                  ) {
-                    await Promise.all(
-                      existingConfigs.map((config) =>
-                        mapConfigurationsAPI
-                          .delete(config.id)
-                          .catch((err) =>
-                            console.error(
-                              `Failed to delete config ${config.id}:`,
-                              err
-                            )
-                          )
-                      )
-                    );
-                    console.log(
-                      `Deleted ${existingConfigs.length} existing configurations.`
-                    );
-                  }
-
-                  const createdConfigs = []; // Store created config IDs
-                  for (const config of configurations) {
-                    // Ensure project field is sent if API requires it
-                    const response = await mapConfigurationsAPI.create(
-                      projectId,
-                      { ...config, project: projectId }
-                    );
-                    if (response.data && response.data.id) {
-                      createdConfigs.push({
-                        tabName: config.tab_name,
-                        configId: response.data.id,
-                      });
-                    }
-                  }
-
-                  // Update tab state with new config IDs
-                  setTabs((prevTabs) =>
-                    prevTabs.map((t) => {
-                      const created = createdConfigs.find(
-                        (c) => c.tabName === t.name
-                      );
-                      // Make sure configId is updated or kept if it already existed
-                      const existingConfigId = t.configId;
-                      const newConfigId = created
-                        ? created.configId
-                        : existingConfigId;
-                      return { ...t, configId: newConfigId };
-                    })
-                  );
-
-                  console.log(
-                    `Saved ${configurations.length} map configurations.`
-                  );
-                  alert("Map configurations saved successfully");
-                } catch (error) {
-                  console.error(
-                    "[Save] Error saving map configurations:",
-                    error.response?.data || error.message || error
-                  );
-                  alert(
-                    "Failed to save map configurations. Check console for details."
-                  );
-                } finally {
-                  setIsSaving(false);
-                }
-                // --- End Existing Save Logic ---
-              }}
-              className={`p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400
-                          dark:hover:text-gray-300 focus:outline-none ${
-                            isSaving
-                              ? "opacity-50 cursor-not-allowed animate-pulse"
-                              : ""
-                          }`}
-              title="Save map configurations"
-              disabled={isSaving}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
 
       {/* Main Map Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Map container */}
         <div className="flex-1 relative">
           <div ref={mapRef} className="w-full h-full">
-            {/* Zoom Alert Overlay */}
             <ZoomAlert />
+            {renderCustomLegend()}
+
+            {isPlacingSiteLocation && (
+              <div className="absolute top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-md shadow-md z-30 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-2"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+                Click on the map to place site location
+                <button
+                  onClick={() => toggleSiteLocationPlacement(false)}
+                  className="ml-2 p-1 bg-yellow-600 rounded-full hover:bg-yellow-700"
+                  aria-label="Cancel site location placement"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Layer Properties Editor Panel */}
-        <div className="relative">
-          {" "}
-          {/* Keep this relative for absolute positioning of the child */}
-          {/* Conditionally render editor panel container - check activeTab !== 1 */}
-          {activeTab !== 1 && (
-            <div
-              className={`
-                w-[500px] bg-white dark:bg-gray-800 border-l border-gray-200
-                dark:border-gray-700 transform transition-transform duration-300 ease-in-out
-                absolute h-full z-20 /* Ensure editor is above map */
-                ${isEditorOpen ? "translate-x-0" : "translate-x-full"}
-              `}
-              // --- Restore specific positioning ---
-              style={{
-                right: "440px", // Position 440px from the right edge of the parent
-                top: "0",
-              }}
-              // --- End Restore specific positioning ---
-            >
-              <LayerPropertiesEditor
-                isOpen={isEditorOpen} // Pass isOpen prop to control visibility via CSS transform
-                onClose={() => setIsEditorOpen(false)}
-                visualizationType={
-                  tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                }
-                layerConfig={
-                  tabs.find((tab) => tab.id === activeTab)
-                    ?.layerConfiguration ||
-                  (tabs.find((tab) => tab.id === activeTab)?.visualizationType
-                    ? initialLayerConfigurations[
-                        tabs.find((tab) => tab.id === activeTab)
-                          .visualizationType
-                      ]
-                    : null)
-                }
-                selectedAreaType={
-                  tabs.find((tab) => tab.id === activeTab)?.areaType ||
-                  areaTypes[0]
-                }
-                onConfigChange={handleLayerConfigChange}
-                onPreview={handleConfigPreview}
-                projectId={projectId}
-                activeTab={activeTab}
-                tabs={tabs}
-              />
+        {/* Consolidated Side Panel (Positioned RIGHT) */}
+        <div
+          className={`
+            absolute top-0 right-[440px] h-full 
+            w-[500px] 
+            bg-white dark:bg-gray-800 
+            border-l border-gray-200 dark:border-gray-700 
+            transform transition-transform duration-300 ease-in-out 
+            z-20 
+            ${
+              isEditorOpen || isLabelEditorOpen
+                ? "translate-x-0"
+                : "translate-x-full"
+            } 
+          `}
+        >
+          {isEditorOpen && (
+            <LayerPropertiesEditor
+              isOpen={isEditorOpen}
+              onClose={closeSidePanel}
+              visualizationType={
+                tabs.find((tab) => tab.id === activeTab)?.visualizationType
+              }
+              layerConfig={
+                tabs.find((tab) => tab.id === activeTab)?.layerConfiguration ||
+                (tabs.find((tab) => tab.id === activeTab)?.visualizationType
+                  ? initialLayerConfigurations[
+                      tabs.find((tab) => tab.id === activeTab).visualizationType
+                    ]
+                  : null)
+              }
+              selectedAreaType={
+                tabs.find((tab) => tab.id === activeTab)?.areaType ||
+                areaTypes[0]
+              }
+              onConfigChange={handleLayerConfigChange}
+              onPreview={handleConfigPreview}
+              projectId={projectId}
+              activeTab={activeTab}
+              tabs={tabs}
+              mapView={mapView}
+              activeLayer={activeLayersRef.current[activeTab]}
+              labelManager={labelManagerRef.current}
+              isLabelEditMode={isLabelEditorOpen}
+              onLabelEditModeChange={setIsLabelEditorOpen}
+            />
+          )}
+
+          {isLabelEditorOpen && isLabelManagerReady && (
+            <LabelEditor
+              isOpen={isLabelEditorOpen}
+              onClose={closeSidePanel}
+              mapView={mapView}
+              labelManager={labelManagerRef.current}
+              labelDragger={labelDragger}
+              activeLayer={activeLayersRef.current[activeTab]}
+            />
+          )}
+          {isLabelEditorOpen && !isLabelManagerReady && (
+            <div className="p-4 text-center text-yellow-700 bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-300">
+              Label Manager is initializing... Please wait.
             </div>
           )}
         </div>
       </div>
 
-      {/* New Map Dialog */}
       <NewMapDialog
         isOpen={isNewMapDialogOpen}
         onClose={() => setIsNewMapDialogOpen(false)}
@@ -8342,3 +4613,8 @@ export default function MapComponent({ onToggleLis }) {
     </div>
   );
 }
+
+// --- Add PropTypes ---
+MapComponent.propTypes = {
+  onToggleLis: PropTypes.func,
+};

@@ -1,9 +1,25 @@
 // DotDensityEditor.jsx
 'use client'; // Add if using Next.js App Router or similar framework features
 
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => {
+  // --- Refs for debouncing ---
+  const timeoutRefs = useRef({});
+  
+  // --- Local state for immediate UI updates ---
+  const [localDotSize, setLocalDotSize] = useState(null);
+  const [localDotValue, setLocalDotValue] = useState(null);
+
+  // --- Cleanup timeouts on unmount ---
+  useEffect(() => {
+    return () => {
+      Object.values(timeoutRefs.current).forEach(timeout => {
+        if (timeout) clearTimeout(timeout);
+      });
+    };
+  }, []);
+
   // --- Guard Clause ---
   if (!config) {
     console.warn("DotDensityEditor received null config.");
@@ -59,50 +75,100 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       value: index === 0 ? actualValue : (attr.value !== undefined ? attr.value : actualValue) // Sync first attribute, keep others if they exist
     }))
   };
+
+  // Sync local state with config when config changes
+  useEffect(() => {
+    if (localDotSize === null) {
+      setLocalDotSize(safeConfig.dotSize);
+    }
+    if (localDotValue === null) {
+      setLocalDotValue(safeConfig.dotValue);
+    }
+  }, [safeConfig.dotSize, safeConfig.dotValue, localDotSize, localDotValue]);
+
   // --- End State Synchronization ---
 
-
   // --- Event Handlers ---
-  const handleValueChange = (key, value, parser = parseFloat, min = 0, max = Infinity) => {
+  const handleValueChange = (key, value, parser = parseFloat, min = 0, max = Infinity, immediate = false) => {
     let parsedValue = parser(value);
 
     // Handle potential NaN from parsing empty strings or invalid input in number fields
     if (isNaN(parsedValue)) {
         // Allow empty input during typing, but don't propagate NaN config
         if (value === '' || value === '-' || value === '.') {
-             // We could potentially store the intermediate string value in local state
-             // but for now, we just prevent updating the main config with NaN
+             // Update local state immediately for UI responsiveness
+             if (key === 'dotSize') {
+               setLocalDotSize(value);
+             } else if (key === 'dotValue') {
+               setLocalDotValue(value);
+             }
+             
+             // Clear existing timeout
+             if (timeoutRefs.current[key]) {
+               clearTimeout(timeoutRefs.current[key]);
+             }
+             
+             // Set debounced update to handle partial input
+             timeoutRefs.current[key] = setTimeout(() => {
+               const finalParsedValue = parser(value);
+               if (!isNaN(finalParsedValue)) {
+                 handleValueChange(key, value, parser, min, max, true);
+               }
+             }, immediate ? 0 : 1000);
+             
              return;
         }
         // If not a valid intermediate state, revert to minimum or previous valid value
         parsedValue = min; // Or consider using safeConfig[key] if needed
     }
 
-
     // Clamp the value within bounds
     const clampedValue = Math.max(min, Math.min(max, parsedValue));
 
-    // Create a deep clone for the update
-    const updatedConfig = JSON.parse(JSON.stringify(safeConfig));
-
-    // Update the specific key
-    updatedConfig[key] = clampedValue;
-
-    // Special handling for dotValue - needs to sync with attributes
-    if (key === 'dotValue') {
-      updatedConfig.attributes = updatedConfig.attributes.map((attr, index) => ({
-        ...attr,
-        value: index === 0 ? clampedValue : (attr.value !== undefined ? attr.value : clampedValue) // Sync first attribute's value
-      }));
+    // Update local state immediately for UI responsiveness
+    if (key === 'dotSize') {
+      setLocalDotSize(clampedValue);
+    } else if (key === 'dotValue') {
+      setLocalDotValue(clampedValue);
     }
 
-    console.log(`DotDensityEditor: Updated ${key} to`, clampedValue, "Updating config:", updatedConfig);
+    // Clear existing timeout for this field
+    if (timeoutRefs.current[key]) {
+      clearTimeout(timeoutRefs.current[key]);
+    }
 
-    // Propagate changes up
-    onChange(updatedConfig);
-    if (onPreview) {
-      // Debounce preview slightly
-      setTimeout(() => onPreview(updatedConfig), 150); // Slightly longer delay for number inputs
+    // Function to process the update
+    const processUpdate = () => {
+      // Create a deep clone for the update
+      const updatedConfig = JSON.parse(JSON.stringify(safeConfig));
+
+      // Update the specific key
+      updatedConfig[key] = clampedValue;
+
+      // Special handling for dotValue - needs to sync with attributes
+      if (key === 'dotValue') {
+        updatedConfig.attributes = updatedConfig.attributes.map((attr, index) => ({
+          ...attr,
+          value: index === 0 ? clampedValue : (attr.value !== undefined ? attr.value : clampedValue) // Sync first attribute's value
+        }));
+      }
+
+      console.log(`DotDensityEditor: Updated ${key} to`, clampedValue, "Updating config:", updatedConfig);
+
+      // Propagate changes up
+      onChange(updatedConfig);
+      if (onPreview) {
+        // Debounce preview slightly
+        setTimeout(() => onPreview(updatedConfig), 150); // Slightly longer delay for number inputs
+      }
+    };
+
+    // Execute immediately or with delay
+    if (immediate) {
+      processUpdate();
+    } else {
+      // Set debounced update
+      timeoutRefs.current[key] = setTimeout(processUpdate, 1000);
     }
   };
 
@@ -117,7 +183,6 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
         updatedConfig.attributes = [{ ...(safeConfig.attributes[0] || {}), color: value }];
     }
 
-
     console.log("DotDensityEditor: Updated color to", value, "Updating config:", updatedConfig);
 
     onChange(updatedConfig);
@@ -127,10 +192,13 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   };
   // --- End Event Handlers ---
 
-
   // --- Recommended Value Display ---
   const recommendedValue = getDefaultDotValue();
   // --- End Recommended Value Display ---
+
+  // Get display values (local state if available, otherwise from config)
+  const displayDotSize = localDotSize !== null ? localDotSize : safeConfig.dotSize;
+  const displayDotValue = localDotValue !== null ? localDotValue : safeConfig.dotValue;
 
   return (
     <div className="space-y-4">
@@ -146,7 +214,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
         <input
           id="dot-size"
           type="number"
-          value={safeConfig.dotSize}
+          value={displayDotSize}
           onChange={(e) => handleValueChange('dotSize', e.target.value, parseFloat, 0.5, 10)}
           min="0.5"
           max="10"
@@ -165,7 +233,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
         <input
           id="dot-value"
           type="number"
-          value={safeConfig.dotValue} // Render the synchronized value
+          value={displayDotValue}
           onChange={(e) => handleValueChange('dotValue', e.target.value, parseInt, 1, Infinity)}
           min="1" // Minimum value per dot must be 1
           step="1" // Usually whole numbers make sense here

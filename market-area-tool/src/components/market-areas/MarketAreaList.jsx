@@ -41,13 +41,15 @@ const SortableItem = ({
     transition,
   };
 
-  // Updated to include drivetime type
+  // Updated to include site_location type
   const count =
     marketArea.ma_type === "radius"
       ? marketArea.radius_points?.length || 0
       : marketArea.ma_type === "drivetime"
         ? marketArea.drive_time_points?.length || 0
-        : marketArea.locations?.length || 0;
+        : marketArea.ma_type === "site_location"
+          ? 1 // Site location typically has just one point
+          : marketArea.locations?.length || 0;
 
   return (
     <div
@@ -121,11 +123,13 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   const {
     drawRadius,
-    drawDriveTimePolygon, // Add this from MapContext
+    drawDriveTimePolygon,
+    drawSiteLocation, // Add the drawSiteLocation function from MapContext
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers,
     clearMarketAreaGraphics,
+    extractSiteLocationInfo, // Add this to extract site location data
   } = useMap();
 
   // Add ref to track editing state
@@ -164,7 +168,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     }
   }, []);
 
-  // New transformer for drive time points
+  // Transformer for drive time points
   const transformDriveTimePoint = useMemo(() => (point, marketAreaId) => {
     try {
       if (!point.center) {
@@ -267,6 +271,18 @@ export default function MarketAreaList({ onClose, onEdit }) {
               }
             }
           }
+          // Handle site location market areas
+          else if (marketArea.ma_type === "site_location") {
+            const siteData = extractSiteLocationInfo(marketArea);
+            if (siteData) {
+              await drawSiteLocation(
+                siteData,
+                marketArea.style_settings,
+                marketArea.id,
+                marketArea.order
+              );
+            }
+          }
           else if (marketArea.locations) {
             // Add the validation check like in your other functions
             const validFeatures = marketArea.locations
@@ -282,7 +298,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
           
             if (validFeatures.length > 0) {
               await updateFeatureStyles(
-                validFeatures, // Now correctly using the defined variable
+                validFeatures,
                 {
                   fill: marketArea.style_settings?.fillColor || "#0078D4",
                   fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.35),
@@ -316,6 +332,8 @@ export default function MarketAreaList({ onClose, onEdit }) {
     transformDriveTimePoint,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     updateFeatureStyles
   ]);
 
@@ -458,6 +476,27 @@ export default function MarketAreaList({ onClose, onEdit }) {
             }
           }
         }
+        // Handle site location market areas when toggling visibility
+        else if (marketArea.ma_type === "site_location") {
+          // Extract site location info from market area
+          const siteData = extractSiteLocationInfo(marketArea);
+          
+          if (siteData) {
+            await drawSiteLocation(
+              siteData,
+              {
+                fillColor: marketArea.style_settings?.fillColor || "#FFC000",
+                fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.8),
+                borderColor: marketArea.style_settings?.borderColor || "#000000",
+                borderWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 1)
+              },
+              marketArea.id,
+              marketArea.order || 0
+            );
+          } else {
+            console.warn(`[MarketAreaList] Site location market area ${id} has no valid site data`);
+          }
+        }
         else if (marketArea.locations && marketArea.locations.length > 0) {
           // Only include locations with valid geometry to avoid the Accessor errors
           const validLocations = marketArea.locations.filter(loc =>
@@ -501,8 +540,11 @@ export default function MarketAreaList({ onClose, onEdit }) {
     transformDriveTimePoint,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     updateFeatureStyles,
   ]);
+  
   const handleEdit = useCallback((marketArea) => {
     if (!marketArea) return;
 
@@ -721,6 +763,36 @@ export default function MarketAreaList({ onClose, onEdit }) {
               }
             }
           }
+          // Handle site location market areas
+          else if (marketArea.ma_type === "site_location") {
+            console.log("[MarketAreaList] Processing site location market area:", marketArea.id);
+            
+            // Extract site location information
+            const siteData = extractSiteLocationInfo(marketArea);
+            
+            if (siteData && siteData.point) {
+              console.log("[MarketAreaList] Drawing site location:", {
+                id: marketArea.id,
+                point: siteData.point,
+                size: siteData.size,
+                color: siteData.color
+              });
+              
+              await drawSiteLocation(
+                siteData,
+                {
+                  fillColor: marketArea.style_settings?.fillColor || siteData.color || "#FFC000",
+                  fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.8),
+                  borderColor: marketArea.style_settings?.borderColor || "#000000",
+                  borderWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 1)
+                },
+                marketArea.id,
+                marketArea.order || 0
+              );
+            } else {
+              console.warn(`[MarketAreaList] Site location market area ${marketArea.id} has no valid site data`);
+            }
+          }
           else if (marketArea.locations && marketArea.locations.length > 0) {
             // Double-check geometry validity to fix the Accessor errors
             const validFeatures = marketArea.locations
@@ -761,14 +833,16 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return () => clearTimeout(timeoutId);
   }, [
     marketAreas,
-    visibleMarketAreaIds, // This dependency is crucial
+    visibleMarketAreaIds,
     hideAllFeatureLayers,
     clearMarketAreaGraphics,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
     updateFeatureStyles,
     transformRadiusPoint,
     transformDriveTimePoint,
+    extractSiteLocationInfo,
   ]);
 
   useEffect(() => {

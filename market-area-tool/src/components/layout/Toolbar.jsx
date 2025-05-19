@@ -193,9 +193,11 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   };
 
   const handleExportJPEG = async () => {
+    // Initial validation
     if (!mapView) {
-      console.log("No mapView available");
-      toast.error("Map not ready for export");
+      console.error("Export Aborted: MapView is not available.");
+      toast.error("Map is not ready or unavailable for export.");
+      setIsExporting(false);
       return;
     }
   
@@ -203,11 +205,18 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting map as JPEG...");
   
+      // Dynamically import html2canvas
       const html2canvas = (await import('html2canvas')).default;
   
+      // Export configuration
+      const rightCropPx = 450; // Amount to crop from right side
       const targetWidth = 3160;
       const targetHeight = 2048;
+      const captureWidth = targetWidth + rightCropPx;
+      
+      console.log(`[ExportJPEG] Dimensions: Capturing ${captureWidth}x${targetHeight}, cropping to ${targetWidth}x${targetHeight}`);
   
+      // --- LEGEND CAPTURE LOGIC ---
       const legendElement = document.querySelector(".esri-legend");
       let legendImage = null;
       let originalStyles = null;
@@ -221,49 +230,51 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           legendElement.style.position = 'relative';
           legendElement.style.backgroundColor = 'white';
           legendElement.style.padding = '10px';
+          legendElement.style.boxShadow = 'none';
+          legendElement.style.border = 'none';
           legendElement.style.width = 'auto';
           legendElement.style.display = 'inline-block';
-          
-          // Set consistent font size for all text elements
+  
           const standardFontSize = '14px';
           legendElement.style.fontSize = standardFontSize;
-          
-          // Style all text elements in the legend to ensure consistency
+  
+          // Style text elements
           const textElements = legendElement.querySelectorAll('.esri-legend__layer-cell--info, .esri-legend__service-label, .esri-legend__layer-label');
           textElements.forEach(element => {
             element.style.fontSize = standardFontSize;
-            element.style.padding = '2px 6px';  // Reduced padding
+            element.style.padding = '2px 4px';
             element.style.display = 'inline-block';
             element.style.verticalAlign = 'middle';
-            element.style.lineHeight = '1.1';  // Tighter line height
+            element.style.lineHeight = '1.2';
+            element.style.whiteSpace = 'nowrap';
           });
-          
-          // Style symbols consistently
+  
+          // Style symbols
           const symbols = legendElement.querySelectorAll('.esri-legend__symbol');
           symbols.forEach(symbol => {
-            symbol.style.width = '24px';
-            symbol.style.height = '24px';
-            symbol.style.marginRight = '4px';  // Reduced margin
+            symbol.style.width = '20px';
+            symbol.style.height = '20px';
+            symbol.style.marginRight = '5px';
             symbol.style.display = 'inline-block';
             symbol.style.verticalAlign = 'middle';
           });
   
-          // Optimize layout for compactness
+          // Adjust row layout
           const rows = legendElement.querySelectorAll('.esri-legend__layer-row');
           rows.forEach(row => {
-            row.style.marginBottom = '2px';  // Reduced margin
+            row.style.marginBottom = '3px';
             row.style.display = 'flex';
             row.style.alignItems = 'center';
-            row.style.minHeight = '24px';  // Ensure consistent height
-          });
-          
-          // Reduce spacing between legend sections
-          const layers = legendElement.querySelectorAll('.esri-legend__layer');
-          layers.forEach(layer => {
-            layer.style.marginBottom = '4px';  // Reduced margin between layers
+            row.style.minHeight = '22px';
           });
   
-          // Capture the legend with higher resolution
+          // Adjust layer spacing
+          const layers = legendElement.querySelectorAll('.esri-legend__layer');
+          layers.forEach(layer => {
+            layer.style.marginBottom = '5px';
+          });
+  
+          // Capture the legend
           legendImage = await html2canvas(legendElement, {
             backgroundColor: 'white',
             scale: 2,
@@ -271,113 +282,238 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             useCORS: true
           });
   
-          // Restore original styles
-          legendElement.style.cssText = originalStyles;
-          symbols.forEach(symbol => symbol.removeAttribute('style'));
-          textElements.forEach(element => element.removeAttribute('style'));
-          rows.forEach(row => row.removeAttribute('style'));
         } catch (error) {
-          console.warn("Failed to capture legend:", error);
-          if (originalStyles) {
+          console.warn("[ExportJPEG] Failed to capture legend:", error);
+          legendImage = null;
+        } finally {
+          // Restore original styles
+          if (legendElement && originalStyles !== null) {
             legendElement.style.cssText = originalStyles;
+            const childrenWithStyle = legendElement.querySelectorAll('[style]');
+            childrenWithStyle.forEach(el => {
+              if(el !== legendElement) el.removeAttribute('style');
+            });
           }
         }
       }
   
+      // --- CAPTURE SCREENSHOT ---
+      if (!mapView || mapView.destroyed) {
+        console.error("[ExportJPEG] MapView became unavailable before taking screenshot.");
+        toast.error("Map became unavailable during export.");
+        setIsExporting(false);
+        return;
+      }
+      
+      // Capture the screenshot with extra width for cropping
+      console.log("[ExportJPEG] Taking screenshot...");
       const screenshot = await mapView.takeScreenshot({
         format: "png",
         quality: 100,
-        width: targetWidth,
+        width: captureWidth,
         height: targetHeight
       });
+      console.log("[ExportJPEG] Screenshot captured successfully");
   
+      // --- PROCESS SCREENSHOT ---
       const finalCanvas = document.createElement("canvas");
       const mainImage = new Image();
+      
+      // Store current extent and scale for later use in scale bar
+      const currentExtent = mapView.extent;
+      const currentScale = mapView.scale;
+      console.log(`[ExportJPEG] Current scale: ${currentScale}, Extent width (degrees): ${currentExtent.width}`);
   
-      await new Promise((resolve) => {
+      await new Promise((resolve, reject) => {
         mainImage.onload = async () => {
           finalCanvas.width = targetWidth;
           finalCanvas.height = targetHeight;
           const finalCtx = finalCanvas.getContext("2d");
-          
+  
           // Draw white background
           finalCtx.fillStyle = "#FFFFFF";
           finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-          
-          // Draw main map image
-          finalCtx.drawImage(mainImage, 0, 0);
   
-          // Draw the legend if we captured it
-          if (legendImage) {
-            console.log("Drawing legend", legendImage.width, legendImage.height);
-            const maxWidth = targetWidth * 0.20; // Maximum 20% of map width
-            const legendWidth = Math.min(legendImage.width, maxWidth);
-            const aspectRatio = legendImage.height / legendImage.width;
-            const legendHeight = legendWidth * aspectRatio;
-  
-            finalCtx.drawImage(
-              legendImage,
-              40, // x position
-              targetHeight - legendHeight - 40, // y position from bottom
-              legendWidth,
-              legendHeight
-            );
-          }
-  
-          // Draw scale bar with 50% transparent background
-          const padding = 60;
-          const barWidth = 240;
-          const barHeight = 50;
-          const lineThickness = 4;
-          const xPos = finalCanvas.width - barWidth - padding;
-          const yPos = targetHeight - padding;
-  
-          // Calculate scale
-          const pixelSizeInMeters = mapView.resolution;
-          const scaleBarGroundDistance = pixelSizeInMeters * barWidth;
-          const correctionFactor = 0.75;
-          const scaleBarMiles = (scaleBarGroundDistance * 0.000621371) * correctionFactor;
-  
-          // Determine scale text
-          let scaleText;
-          if (scaleBarMiles < 1) {
-            const scaleBarFeet = scaleBarGroundDistance * 3.28084;
-            const scaleBarFeetRounded = Math.round(scaleBarFeet / 1000) * 1000;
-            scaleText = `${scaleBarFeetRounded} ft`;
-          } else {
-            const scaleBarMilesRounded = Math.round(scaleBarMiles);
-            scaleText = `${scaleBarMilesRounded} mi`;
-          }
-  
-          // Draw scale bar background with 50% transparency
-          finalCtx.fillStyle = "rgba(255, 255, 255, 0.5)";
-          finalCtx.fillRect(
-            xPos - 2,
-            yPos - barHeight - 2,
-            barWidth + 4,
-            barHeight + 4
+          // Draw main map image with cropping - only draw the left portion
+          finalCtx.drawImage(
+            mainImage,
+            0, 0,
+            targetWidth, targetHeight,
+            0, 0,
+            targetWidth, targetHeight
           );
   
-          // Draw scale bar
-          finalCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-          finalCtx.fillRect(xPos, yPos - barHeight, barWidth, lineThickness);
-          finalCtx.fillRect(xPos, yPos - barHeight, lineThickness, barHeight);
-          finalCtx.fillRect(xPos + barWidth - lineThickness, yPos - barHeight, lineThickness, barHeight);
+          // --- DRAW LEGEND ---
+          if (legendImage) {
+            try {
+              // Calculate legend position and size
+              const legendPadding = 40;
+              const maxWidth = targetWidth * 0.25;
+              const legendTargetWidth = Math.min(legendImage.width / 2, maxWidth);
+              const aspectRatio = (legendImage.height / 2) / (legendImage.width / 2);
+              const legendTargetHeight = legendTargetWidth * aspectRatio;
+              const legendX = legendPadding;
+              const legendY = targetHeight - legendTargetHeight - legendPadding;
   
-          // Draw scale text
-          finalCtx.font = "bold 24px Arial";
-          finalCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-          finalCtx.textAlign = "left";
-          finalCtx.textBaseline = "middle";
-          finalCtx.fillText(scaleText, xPos + lineThickness + 4, yPos - barHeight / 2.5);
+              // Draw legend with background
+              finalCtx.fillStyle = "rgba(255, 255, 255, 0.85)";
+              finalCtx.fillRect(legendX - 5, legendY - 5, legendTargetWidth + 10, legendTargetHeight + 10);
+              finalCtx.drawImage(legendImage, legendX, legendY, legendTargetWidth, legendTargetHeight);
+              console.log("[ExportJPEG] Legend drawn successfully");
+            } catch (drawError) {
+              console.error("[ExportJPEG] Error drawing legend:", drawError);
+            }
+          }
+  
+          // --- DRAW SCALE BAR ---
+          try {
+            const padding = 60;
+            const maxBarWidthPixels = 240; // Maximum width on the canvas
+            const minBarWidthPixels = 100; // Minimum width to ensure visibility
+            const barHeight = 50;
+            const lineThickness = 4;
+            const yPos = targetHeight - padding;
+            
+            // Correction factor: 500ft should be 1.25 miles (6600ft), so multiply by 13.2
+            const correctionFactor = 28; // 6600/500
+            
+            // Calculate scale based on the VIEW's state at the time of screenshot
+            const viewState = screenshot.camera?.viewpoint || mapView.viewpoint;
+            const scale = viewState.scale || currentScale;
+            
+            // Get map units per pixel (e.g. meters per pixel at this scale)
+            const mapUnitsPerPixel = scale / (mapView.width * 96);
+            
+            // Apply correction factor to make calculations accurate
+            const correctedMapUnitsPerPixel = mapUnitsPerPixel * correctionFactor;
+            
+            // Calculate what ground distance in map units would be represented by the max bar width
+            const maxGroundDistanceMapUnits = maxBarWidthPixels * correctedMapUnitsPerPixel;
+            const minGroundDistanceMapUnits = minBarWidthPixels * correctedMapUnitsPerPixel;
+            
+            // Convert to feet (assuming map units are meters)
+            const maxGroundDistanceFeet = maxGroundDistanceMapUnits * 3.28084;
+            const minGroundDistanceFeet = minGroundDistanceMapUnits * 3.28084;
+            
+            // Log for debugging
+            console.log(`[ExportJPEG] Scale calculation: Max distance = ${(maxGroundDistanceFeet / 5280).toFixed(2)} miles, Min distance = ${(minGroundDistanceFeet / 5280).toFixed(2)} miles`);
+            
+            // Determine whether to use feet or miles based on the maximum bar distance
+            let unit, standardIncrements, barWidthPixels, displayDistance;
+            
+            if (maxGroundDistanceFeet < 5000) {
+              // Use feet with 500ft increments
+              unit = "ft";
+              standardIncrements = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+            } else {
+              // Use miles with 0.5mi increments
+              unit = "mi";
+              standardIncrements = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 7.5, 10, 15, 20, 25, 50, 100];
+            }
+            
+            // Find the best standard increment
+            if (unit === "ft") {
+              // Find the largest standard increment that fits within max bar width
+              for (let i = standardIncrements.length - 1; i >= 0; i--) {
+                const incrementFeet = standardIncrements[i];
+                
+                // Calculate what width this increment would need (accounting for correction)
+                const incrementMapUnits = incrementFeet / 3.28084;
+                const incrementPixels = incrementMapUnits / correctedMapUnitsPerPixel;
+                
+                // If this increment fits within our max width and is not too small, use it
+                if (incrementPixels <= maxBarWidthPixels && incrementPixels >= minBarWidthPixels) {
+                  displayDistance = incrementFeet;
+                  barWidthPixels = incrementPixels;
+                  break;
+                }
+              }
+              
+              // If no suitable increment was found, use the smallest standard increment
+              if (!displayDistance) {
+                displayDistance = standardIncrements[0];
+                const incrementMapUnits = displayDistance / 3.28084;
+                barWidthPixels = incrementMapUnits / correctedMapUnitsPerPixel;
+                
+                // Cap at max bar width if necessary
+                if (barWidthPixels > maxBarWidthPixels) {
+                  barWidthPixels = maxBarWidthPixels;
+                }
+              }
+            } else {
+              // Find the largest standard mile increment that fits within max bar width
+              for (let i = standardIncrements.length - 1; i >= 0; i--) {
+                const incrementMiles = standardIncrements[i];
+                
+                // Calculate what width this increment would need (accounting for correction)
+                const incrementFeet = incrementMiles * 5280;
+                const incrementMapUnits = incrementFeet / 3.28084;
+                const incrementPixels = incrementMapUnits / correctedMapUnitsPerPixel;
+                
+                // If this increment fits within our max width and is not too small, use it
+                if (incrementPixels <= maxBarWidthPixels && incrementPixels >= minBarWidthPixels) {
+                  displayDistance = incrementMiles;
+                  barWidthPixels = incrementPixels;
+                  break;
+                }
+              }
+              
+              // If no suitable increment was found, use the smallest standard increment
+              if (!displayDistance) {
+                displayDistance = standardIncrements[0];
+                const incrementFeet = displayDistance * 5280;
+                const incrementMapUnits = incrementFeet / 3.28084;
+                barWidthPixels = incrementMapUnits / correctedMapUnitsPerPixel;
+                
+                // Cap at max bar width if necessary
+                if (barWidthPixels > maxBarWidthPixels) {
+                  barWidthPixels = maxBarWidthPixels;
+                }
+              }
+            }
+            
+            // Calculate xPos based on the calculated barWidthPixels
+            const xPos = finalCanvas.width - barWidthPixels - padding;
+            
+            // Format scale text
+            const scaleText = `${displayDistance} ${unit}`;
+            
+            // Draw scale bar background
+            finalCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            finalCtx.fillRect(xPos - 5, yPos - barHeight - 5, barWidthPixels + 10, barHeight + 10);
+            
+            // Draw scale bar lines
+            finalCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
+            finalCtx.fillRect(xPos, yPos - lineThickness, barWidthPixels, lineThickness); // Bottom line
+            finalCtx.fillRect(xPos, yPos - barHeight, lineThickness, barHeight); // Left line
+            finalCtx.fillRect(xPos + barWidthPixels - lineThickness, yPos - barHeight, lineThickness, barHeight); // Right line
+            
+            // Draw scale text
+            finalCtx.font = "bold 22px Arial";
+            finalCtx.fillStyle = "rgba(0, 0, 0, 0.9)";
+            finalCtx.textAlign = "center";
+            finalCtx.textBaseline = "middle";
+            finalCtx.fillText(scaleText, xPos + barWidthPixels / 2, yPos - barHeight / 2 - 2); // Center text
+            
+            console.log(`[ExportJPEG] Scale bar drawn successfully: ${displayDistance} ${unit} (${barWidthPixels.toFixed(1)}px)`);
+            console.log(`[ExportJPEG] Using correction factor of ${correctionFactor}x to adjust scale measurements`);
+          } catch (scaleBarError) {
+            console.error("Error drawing scale bar:", scaleBarError);
+            // Continue without scale bar if it fails
+          }
   
           resolve();
         };
+        
+        mainImage.onerror = (err) => {
+          console.error("[ExportJPEG] Error loading screenshot image:", err);
+          reject(new Error("Failed to load screenshot image"));
+        }
         mainImage.src = screenshot.dataUrl;
       });
   
-      // Export final image
-      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 1.0);
+      // --- EXPORT IMAGE ---
+      const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.95);
       const response = await fetch(finalDataUrl);
       const blob = await response.blob();
   
@@ -385,11 +521,15 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       const filename = `market_areas_map_${date}.jpg`;
       saveAs(blob, filename);
   
+      console.log("[ExportJPEG] Export completed successfully");
       toast.dismiss(loadingToast);
-      toast.success("Map exported successfully with legend and scale bar");
+      toast.success("Map exported successfully");
+  
     } catch (error) {
-      console.error("JPEG export failed:", error);
-      toast.error("Failed to export map: " + error.message);
+      console.error("[ExportJPEG] Export failed:", error);
+      toast.error(`Failed to export map: ${error.message}`);
+      const loadingToastId = toast.latest;
+      if (loadingToastId) toast.dismiss(loadingToastId);
     } finally {
       setIsExporting(false);
     }
