@@ -55,6 +55,7 @@ const LabelEditor = ({
   const [apiAvailable, setApiAvailable] = useState(true); // Always true for localStorage
   const [allLabelsCount, setAllLabelsCount] = useState(0); // Track total label count
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.85); // Default opacity for backgrounds
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // Track unsaved changes
   const [labelOptions, setLabelOptions] = useState({
     includeVariables: true,      // Whether to include variables in labels
     avoidCollisions: true,       // Whether to avoid label collisions
@@ -76,7 +77,19 @@ const LabelEditor = ({
   const [extraHandlers, setExtraHandlers] = useState([]);
   const [originalNavState, setOriginalNavState] = useState(null); // Used by Position Adjustment Mode
   
-
+  // Store original state for potential cancellation
+  const [originalConfig] = useState({
+    selectedLabel: null,
+    fontSize: 10,
+    position: { x: 0, y: 0 },
+    labelText: "",
+    selectAllMode: false,
+    labelOptions: {
+      bold: false,
+      whiteBackground: false
+    },
+    backgroundOpacity: 0.85
+  });
 
   const toggleAllLabelsVisibility = () => {
     if (!labelManager || typeof labelManager.getAllLabelGraphics !== 'function') {
@@ -94,6 +107,7 @@ const LabelEditor = ({
       // Toggle the visibility state
       const newVisibleState = !allLabelsVisible;
       setAllLabelsVisible(newVisibleState);
+      setHasUnsavedChanges(true); // Mark as changed
       
       let updateCount = 0;
       
@@ -144,6 +158,7 @@ const LabelEditor = ({
       });
     }
   };
+
   useEffect(() => {
     // Only try to initialize if the editor is open and prerequisites are available
     if (!isOpen || !mapView || !labelManager) return;
@@ -171,6 +186,7 @@ const LabelEditor = ({
         labelManager: labelManager,
         onDragStart: (label) => {
           console.log("[LabelDragger] Started dragging label:", labelManager.getLabelId(label));
+          setHasUnsavedChanges(true); // Mark as changed
         },
         onDrag: (label, dx, dy) => {
           // Update is handled internally by the dragger
@@ -178,6 +194,7 @@ const LabelEditor = ({
         },
         onDragEnd: (label) => {
           console.log("[LabelDragger] Finished dragging label:", labelManager.getLabelId(label));
+          setHasUnsavedChanges(true); // Mark as changed
           // Consider saving after drag ends
           if (labelManager && typeof labelManager.savePositions === 'function') {
             const result = labelManager.savePositions(false);
@@ -369,81 +386,83 @@ const LabelEditor = ({
     };
   }, [isMultiDragMode, extraHandlers, originalNavState, mapView, localLabelDragger]);
 
-// UPDATED: Enhanced updateFontSize function that ensures fontSize is saved properly
-const updateFontSize = (newSize) => {
-  setFontSize(newSize); // Update local state immediately
+  // UPDATED: Enhanced updateFontSize function that ensures fontSize is saved properly
+  const updateFontSize = (newSize) => {
+    setFontSize(newSize); // Update local state immediately
+    setHasUnsavedChanges(true); // Mark as changed
 
-  if (!labelManager || typeof labelManager.updateLabelFontSize !== 'function') {
-      console.warn("Cannot update font size: Manager or method missing.");
-      return;
-  }
+    if (!labelManager || typeof labelManager.updateLabelFontSize !== 'function') {
+        console.warn("Cannot update font size: Manager or method missing.");
+        return;
+    }
 
-  try {
-      if (selectAllMode) {
-          if (typeof labelManager.getAllLabelGraphics === 'function') {
-              const allLabels = labelManager.getAllLabelGraphics();
-              let updateCount = 0;
-              allLabels.forEach(label => {
-                  if (label && label.symbol) {
-                      // Update the actual graphic
-                      labelManager.updateLabelFontSize(label, newSize);
-                      
-                      // CRITICAL: Also update in the editedLabels map with explicit fontSize property
-                      const labelId = labelManager.getLabelId(label);
-                      if (labelId && labelManager.editedLabels) {
-                          const existingData = labelManager.editedLabels.get(labelId) || {};
-                          labelManager.editedLabels.set(labelId, {
-                              ...existingData,
-                              fontSize: newSize, // Store fontSize DIRECTLY in the data object
-                              graphic: label
-                          });
-                      }
-                      
-                      updateCount++;
-                  }
-              });
-              console.log(`[LabelEditor] Updated font size to ${newSize} for ALL labels (${updateCount} updates)`);
-              setStatusMessage({ type: 'success', text: `Updated font size to ${newSize}px for ${updateCount} labels`, timeout: 3000 });
-              
-              // CRITICAL: Save immediately after updating all labels to ensure persistence
-              if (typeof labelManager.savePositions === 'function') {
-                  labelManager.savePositions(true); // Force immediate save
-              }
-          } else {
-              console.warn("[LabelEditor] Cannot get all labels: getAllLabelGraphics method missing");
-              setStatusMessage({ type: 'warning', text: `Cannot update all labels: method missing`, timeout: 3000 });
-          }
-      } else if (selectedLabel) {
-          // Update the actual graphic
-          labelManager.updateLabelFontSize(selectedLabel, newSize);
-          
-          // CRITICAL: Also update in the editedLabels map with explicit fontSize property
-          const labelId = labelManager.getLabelId(selectedLabel);
-          if (labelId && labelManager.editedLabels) {
-              const existingData = labelManager.editedLabels.get(labelId) || {};
-              labelManager.editedLabels.set(labelId, {
-                  ...existingData,
-                  fontSize: newSize, // Store fontSize DIRECTLY in the data object
-                  graphic: selectedLabel
-              });
-          }
-          
-          console.log(`[LabelEditor] Updated font size to ${newSize} for selected label`);
-          
-          // CRITICAL: Save immediately to ensure persistence
-          if (typeof labelManager.savePositions === 'function') {
-              labelManager.savePositions(true); // Force immediate save
-          }
-      }
-  } catch (error) {
-      console.error('[LabelEditor] Error updating font size:', error);
-      setStatusMessage({ type: 'error', text: `Font size update error: ${error.message}`, timeout: 5000 });
-  }
-};
+    try {
+        if (selectAllMode) {
+            if (typeof labelManager.getAllLabelGraphics === 'function') {
+                const allLabels = labelManager.getAllLabelGraphics();
+                let updateCount = 0;
+                allLabels.forEach(label => {
+                    if (label && label.symbol) {
+                        // Update the actual graphic
+                        labelManager.updateLabelFontSize(label, newSize);
+                        
+                        // CRITICAL: Also update in the editedLabels map with explicit fontSize property
+                        const labelId = labelManager.getLabelId(label);
+                        if (labelId && labelManager.editedLabels) {
+                            const existingData = labelManager.editedLabels.get(labelId) || {};
+                            labelManager.editedLabels.set(labelId, {
+                                ...existingData,
+                                fontSize: newSize, // Store fontSize DIRECTLY in the data object
+                                graphic: label
+                            });
+                        }
+                        
+                        updateCount++;
+                    }
+                });
+                console.log(`[LabelEditor] Updated font size to ${newSize} for ALL labels (${updateCount} updates)`);
+                setStatusMessage({ type: 'success', text: `Updated font size to ${newSize}px for ${updateCount} labels`, timeout: 3000 });
+                
+                // CRITICAL: Save immediately after updating all labels to ensure persistence
+                if (typeof labelManager.savePositions === 'function') {
+                    labelManager.savePositions(true); // Force immediate save
+                }
+            } else {
+                console.warn("[LabelEditor] Cannot get all labels: getAllLabelGraphics method missing");
+                setStatusMessage({ type: 'warning', text: `Cannot update all labels: method missing`, timeout: 3000 });
+            }
+        } else if (selectedLabel) {
+            // Update the actual graphic
+            labelManager.updateLabelFontSize(selectedLabel, newSize);
+            
+            // CRITICAL: Also update in the editedLabels map with explicit fontSize property
+            const labelId = labelManager.getLabelId(selectedLabel);
+            if (labelId && labelManager.editedLabels) {
+                const existingData = labelManager.editedLabels.get(labelId) || {};
+                labelManager.editedLabels.set(labelId, {
+                    ...existingData,
+                    fontSize: newSize, // Store fontSize DIRECTLY in the data object
+                    graphic: selectedLabel
+                });
+            }
+            
+            console.log(`[LabelEditor] Updated font size to ${newSize} for selected label`);
+            
+            // CRITICAL: Save immediately to ensure persistence
+            if (typeof labelManager.savePositions === 'function') {
+                labelManager.savePositions(true); // Force immediate save
+            }
+        }
+    } catch (error) {
+        console.error('[LabelEditor] Error updating font size:', error);
+        setStatusMessage({ type: 'error', text: `Font size update error: ${error.message}`, timeout: 5000 });
+    }
+  };
 
   // --- Update Background Opacity for Selected Label ---
   const updateBackgroundOpacity = (opacity) => {
     setBackgroundOpacity(opacity);
+    setHasUnsavedChanges(true); // Mark as changed
     
     if (!labelManager || !selectedLabel || !selectedLabel.symbol) {
       console.warn("[LabelEditor] Cannot update background opacity: Missing required references");
@@ -505,6 +524,7 @@ const updateFontSize = (newSize) => {
   // --- Update Background Opacity for All Labels ---
   const updateGlobalBackgroundOpacity = (opacity) => {
     setBackgroundOpacity(opacity); // Update state
+    setHasUnsavedChanges(true); // Mark as changed
     
     if (!labelManager || typeof labelManager.getAllLabelGraphics !== 'function') {
       console.warn("[LabelEditor] Cannot update global background opacity: Missing required methods");
@@ -630,12 +650,14 @@ const updateFontSize = (newSize) => {
             labelManager: labelManager,
             onDragStart: (label) => {
               console.log("[LabelDragger] Started dragging label:", labelManager.getLabelId(label));
+              setHasUnsavedChanges(true); // Mark as changed
             },
             onDrag: (label, dx, dy) => {
               console.log("[LabelDragger] Dragging label:", labelManager.getLabelId(label), `delta: (${dx}, ${dy})`);
             },
             onDragEnd: (label) => {
               console.log("[LabelDragger] Finished dragging label:", labelManager.getLabelId(label));
+              setHasUnsavedChanges(true); // Mark as changed
               // Save after drag ends
               if (labelManager && typeof labelManager.savePositions === 'function') {
                 labelManager.savePositions(true).catch(err => {
@@ -763,6 +785,7 @@ const updateFontSize = (newSize) => {
   const updateLabelText = (newText) => {
     const cleanText = newText.trim();
     setLabelText(cleanText); // Update local state for input field
+    setHasUnsavedChanges(true); // Mark as changed
 
     if (!labelManager || typeof labelManager.updateLabelText !== 'function' || !selectedLabel) {
         console.warn("Cannot update label text: Manager, method, or selected label missing.");
@@ -797,6 +820,7 @@ const updateFontSize = (newSize) => {
   const updateLabelOption = (option, value) => {
     console.log(`[LabelEditor] Updating ${option} to ${value}`);
     setLabelOptions(prev => ({ ...prev, [option]: value })); // Update general UI state
+    setHasUnsavedChanges(true); // Mark as changed
 
     if (!labelManager || !labelManager.getLabelId) {
         console.warn("[LabelEditor] No label manager or required methods available to apply changes");
@@ -905,6 +929,7 @@ const updateFontSize = (newSize) => {
   const toggleSelectAllMode = () => {
     const nextMode = !selectAllMode;
     setSelectAllMode(nextMode);
+    setHasUnsavedChanges(true); // Mark as changed
 
     if (nextMode) {
         if (selectedLabel) { // Deselect single label if activating Select All
@@ -950,187 +975,250 @@ const updateFontSize = (newSize) => {
     console.log(`[LabelEditor] Toggled 'Select All' mode to: ${nextMode}`);
   };
 
-  // --- New Function: Fix Overlapping Labels ---
-  const handleFixOverlappingLabels = async () => {
-    if (!mapView || !labelManager || isFixingOverlaps) return;
-    
+  // UPDATED: Enhanced finalizeLabels function with more robust saving (now private)
+  const finalizeLabels = async (silent = false) => {
+    if (isSaving || !labelManager || typeof labelManager.savePositions !== 'function') {
+        console.log(`[LabelEditor] Save skipped: ${isSaving ? 'Already saving' : 'Manager/method missing'}`);
+        return false;
+    }
+    setIsSaving(true);
+
     try {
-      setIsFixingOverlaps(true);
-      setOverlapFixResults(null);
-      setStatusMessage({ 
-        type: 'info', 
-        text: 'Analyzing labels for overlaps...', 
-        timeout: 5000 
-      });
-      
-      // Get all labels
-      const allLabels = labelManager.getAllLabelGraphics ? 
-        labelManager.getAllLabelGraphics() : [];
-        
-      if (!allLabels || allLabels.length < 2) {
-        setStatusMessage({ 
-          type: 'warning', 
-          text: 'Not enough labels to analyze for overlaps.', 
-          timeout: 3000 
-        });
-        setIsFixingOverlaps(false);
-        return;
-      }
-      
-      // Use visible labels only
-      const visibleLabels = allLabels.filter(label => label.visible !== false);
-      
-      console.log(`[LabelEditor] Fixing overlaps for ${visibleLabels.length} visible labels`);
-      
-      // Allow the status message to render first
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Run the overlap resolver
-      const result = resolveOverlappingLabels(visibleLabels, mapView, labelManager, 5, 3);
-      
-      if (result.success) {
-        // Update status message based on results
-        if (result.resolvedCount > 0) {
-          setStatusMessage({ 
-            type: 'success', 
-            text: `Fixed overlaps for ${result.resolvedCount} labels. ${result.remainingOverlaps} minor overlaps remain.`, 
-            timeout: 5000 
-          });
-          
-          // Save changes
-          if (typeof labelManager.savePositions === 'function') {
-            labelManager.savePositions(true);
-          }
-        } else if (result.remainingOverlaps === 0) {
-          setStatusMessage({ 
-            type: 'info', 
-            text: 'No significant label overlaps detected.', 
-            timeout: 3000 
-          });
-        } else {
-          setStatusMessage({ 
-            type: 'warning', 
-            text: `Couldn't resolve all overlaps. ${result.remainingOverlaps} overlaps remain.`, 
-            timeout: 5000 
-          });
+        // Commit pending UI changes first
+        if (isTextEditing && selectedLabel) {
+            const baseText = selectedLabel.attributes?.hasCustomFormat
+                ? labelText.replace(/\s*\(.*\)$/, '').trim()
+                : labelText;
+            updateLabelText(baseText);
+            setIsTextEditing(false);
+        }
+
+        // CRITICAL: Make sure we capture and save current UI state for fontSize 
+        // and other properties before finalizing
+        if (selectAllMode) {
+            // In select all mode, apply current fontSize to all labels
+            const allLabels = labelManager.getAllLabelGraphics ? labelManager.getAllLabelGraphics() : [];
+            if (allLabels && allLabels.length > 0) {
+                console.log(`[LabelEditor] Applying final fontSize ${fontSize} to all ${allLabels.length} labels`);
+                allLabels.forEach(label => {
+                    if (label && typeof labelManager.updateLabelFontSize === 'function') {
+                        // Force update fontSize in the graphic
+                        labelManager.updateLabelFontSize(label, fontSize);
+                        
+                        // Also ensure it's stored in editedLabels with all properties
+                        const labelId = labelManager.getLabelId(label);
+                        if (labelId && labelManager.editedLabels) {
+                            const existingData = labelManager.editedLabels.get(labelId) || {};
+                            labelManager.editedLabels.set(labelId, {
+                                ...existingData,
+                                fontSize: fontSize, // Store fontSize DIRECTLY in the data object
+                                fontWeight: labelOptions.bold ? 'bold' : 'normal',
+                                backgroundColor: labelOptions.whiteBackground ? [255, 255, 255, backgroundOpacity] : null
+                            });
+                        }
+                    }
+                });
+            }
+        } else if (selectedLabel) {
+            // For single label, ensure current UI state is applied
+            if (typeof labelManager.updateLabelFontSize === 'function') {
+                labelManager.updateLabelFontSize(selectedLabel, fontSize);
+            }
+            
+            // Force bold and background settings to be applied
+            const labelId = labelManager.getLabelId(selectedLabel);
+            if (labelId && labelManager.editedLabels) {
+                const existingData = labelManager.editedLabels.get(labelId) || {};
+                labelManager.editedLabels.set(labelId, {
+                    ...existingData,
+                    fontSize: fontSize, // Store fontSize DIRECTLY in the data object
+                    fontWeight: labelOptions.bold ? 'bold' : 'normal',
+                    backgroundColor: labelOptions.whiteBackground ? [255, 255, 255, backgroundOpacity] : null
+                });
+            }
+        }
+
+        // Force immediate save with true parameter
+        console.log("[LabelEditor] Performing final save with current font settings");
+        const result = await labelManager.savePositions(true); 
+        console.log('[LabelEditor] Save result:', result);
+
+        if (!silent) {
+            const count = (labelManager.editedLabels?.size !== undefined) ? labelManager.editedLabels.size : (result?.count || 0);
+            setStatusMessage({
+                type: 'success',
+                text: count > 0 ? `Applied ${count} label modifications.` : 'No modifications to apply.',
+                timeout: 3000
+            });
         }
         
-        // Store results for display
-        setOverlapFixResults(result);
-      } else {
-        // Error handling
-        setStatusMessage({ 
-          type: 'error', 
-          text: result.message || 'Error resolving label overlaps.', 
-          timeout: 5000 
-        });
-      }
+        // After saving, force a refresh of all labels to make sure changes are visible
+        if (typeof labelManager.refreshLabels === 'function') {
+            setTimeout(() => labelManager.refreshLabels(), 100);
+        }
+        
+        if (labelManager.editedLabels?.size) {
+            console.log(`[LabelEditor] Successfully saved ${labelManager.editedLabels.size} edited labels.`);
+        }
+        return true;
     } catch (error) {
-      console.error('[LabelEditor] Error fixing overlapping labels:', error);
-      setStatusMessage({ 
-        type: 'error', 
-        text: `Error: ${error.message}`, 
-        timeout: 5000 
-      });
+        console.error('[LabelEditor] Error saving labels:', error);
+        if (!silent) {
+            setStatusMessage({ type: 'error', text: `Save error: ${error.message}`, timeout: 5000 });
+        }
+        return false;
     } finally {
-      setIsFixingOverlaps(false);
+        setIsSaving(false);
     }
   };
 
-// UPDATED: Enhanced finalizeLabels function with more robust saving
-const finalizeLabels = async (silent = false) => {
-  if (isSaving || !labelManager || typeof labelManager.savePositions !== 'function') {
-      console.log(`[LabelEditor] Save skipped: ${isSaving ? 'Already saving' : 'Manager/method missing'}`);
-      return false;
-  }
-  setIsSaving(true);
+  /**
+   * Apply and save all changes with comprehensive error handling
+   * Provides detailed user feedback and manages UI state appropriately
+   */
+  const applyChanges = async () => {
+    try {
+      setIsSaving(true);
 
-  try {
-      // Commit pending UI changes first
-      if (isTextEditing && selectedLabel) {
-          const baseText = selectedLabel.attributes?.hasCustomFormat
-              ? labelText.replace(/\s*\(.*\)$/, '').trim()
-              : labelText;
-          updateLabelText(baseText);
-          setIsTextEditing(false);
+      // Apply changes using existing finalizeLabels logic
+      const success = await finalizeLabels(false); // Pass false to show messages
+      
+      if (success) {
+        // Reset change tracking
+        setHasUnsavedChanges(false);
+        
+        // Prepare success message
+        const count = (labelManager.editedLabels?.size !== undefined) 
+          ? labelManager.editedLabels.size 
+          : 0;
+        const message = count > 0 
+          ? `Applied ${count} label modifications successfully`
+          : 'No modifications to apply';
+        
+        // Show success message with shorter timeout since we're closing
+        setStatusMessage({
+          type: 'success',
+          text: message,
+          timeout: 2000
+        });
+        
+        // Close the editor after a brief delay to show the success message
+        setTimeout(() => {
+          if (onClose) {
+            console.log("[LabelEditor] Closing editor after successful save");
+            onClose();
+          }
+        }, 1500);
       }
-
-      // CRITICAL: Make sure we capture and save current UI state for fontSize 
-      // and other properties before finalizing
-      if (selectAllMode) {
-          // In select all mode, apply current fontSize to all labels
-          const allLabels = labelManager.getAllLabelGraphics ? labelManager.getAllLabelGraphics() : [];
-          if (allLabels && allLabels.length > 0) {
-              console.log(`[LabelEditor] Applying final fontSize ${fontSize} to all ${allLabels.length} labels`);
-              allLabels.forEach(label => {
-                  if (label && typeof labelManager.updateLabelFontSize === 'function') {
-                      // Force update fontSize in the graphic
-                      labelManager.updateLabelFontSize(label, fontSize);
-                      
-                      // Also ensure it's stored in editedLabels with all properties
-                      const labelId = labelManager.getLabelId(label);
-                      if (labelId && labelManager.editedLabels) {
-                          const existingData = labelManager.editedLabels.get(labelId) || {};
-                          labelManager.editedLabels.set(labelId, {
-                              ...existingData,
-                              fontSize: fontSize, // Store fontSize DIRECTLY in the data object
-                              fontWeight: labelOptions.bold ? 'bold' : 'normal',
-                              backgroundColor: labelOptions.whiteBackground ? [255, 255, 255, backgroundOpacity] : null
-                          });
-                      }
-                  }
-              });
-          }
-      } else if (selectedLabel) {
-          // For single label, ensure current UI state is applied
-          if (typeof labelManager.updateLabelFontSize === 'function') {
-              labelManager.updateLabelFontSize(selectedLabel, fontSize);
-          }
-          
-          // Force bold and background settings to be applied
-          const labelId = labelManager.getLabelId(selectedLabel);
-          if (labelId && labelManager.editedLabels) {
-              const existingData = labelManager.editedLabels.get(labelId) || {};
-              labelManager.editedLabels.set(labelId, {
-                  ...existingData,
-                  fontSize: fontSize, // Store fontSize DIRECTLY in the data object
-                  fontWeight: labelOptions.bold ? 'bold' : 'normal',
-                  backgroundColor: labelOptions.whiteBackground ? [255, 255, 255, backgroundOpacity] : null
-              });
-          }
-      }
-
-      // Force immediate save with true parameter
-      console.log("[LabelEditor] Performing final save with current font settings");
-      const result = await labelManager.savePositions(true); 
-      console.log('[LabelEditor] Save result:', result);
-
-      if (!silent) {
-          const count = (labelManager.editedLabels?.size !== undefined) ? labelManager.editedLabels.size : (result?.count || 0);
-          setStatusMessage({
-              type: 'success',
-              text: count > 0 ? `Applied ${count} label modifications.` : 'No modifications to apply.',
-              timeout: 3000
-          });
+    } catch (error) {
+      console.error("[LabelEditor] Failed to apply and save changes:", error);
+      
+      // Provide user-friendly error messages
+      let userMessage = "Failed to save label changes. ";
+      
+      if (error.message.includes('Manager')) {
+        userMessage += "Label manager is not available. Your changes have been applied locally.";
+      } else if (error.message.includes('localStorage')) {
+        userMessage += "Unable to save to storage. Please try again.";
+      } else {
+        userMessage += "An unexpected error occurred. Your changes were applied but may not be saved.";
       }
       
-      // After saving, force a refresh of all labels to make sure changes are visible
-      if (typeof labelManager.refreshLabels === 'function') {
-          setTimeout(() => labelManager.refreshLabels(), 100);
-      }
+      setStatusMessage({
+        type: 'error',
+        text: userMessage,
+        timeout: 5000
+      });
       
-      if (labelManager.editedLabels?.size) {
-          console.log(`[LabelEditor] Successfully saved ${labelManager.editedLabels.size} edited labels.`);
+      // Still attempt to close the editor even if save failed
+      if (onClose) {
+        onClose();
       }
-      return true;
-  } catch (error) {
-      console.error('[LabelEditor] Error saving labels:', error);
-      if (!silent) {
-          setStatusMessage({ type: 'error', text: `Save error: ${error.message}`, timeout: 5000 });
-      }
-      return false;
-  } finally {
+    } finally {
       setIsSaving(false);
+    }
+  };
+
+/**
+   * Cancel all changes and close the editor
+   * Reverts any pending changes and closes without saving
+   */
+const cancelChanges = async () => {
+  try {
+    setIsSaving(true);
+
+    // If there are pending changes, revert them using the same logic as resetChanges
+    if (labelManager && typeof labelManager.resetAllLabels === 'function' && 
+        labelManager.editedLabels && labelManager.editedLabels.size > 0) {
+      
+      console.log("[LabelEditor] Reverting pending changes before closing");
+      
+      // Use the same revert logic as resetChanges
+      const result = labelManager.resetAllLabels();
+      console.log('[LabelEditor] Revert result:', result);
+
+      // Clear the edited labels tracking
+      if (labelManager.editedLabels?.clear) {
+        labelManager.editedLabels.clear();
+      }
+    }
+
+    // Reset UI state
+    setSelectedLabel(null);
+    if (labelManager) {
+      labelManager.selectedLabel = null;
+    }
+    setLabelText("");
+    setFontSize(10);
+    setPosition({ x: 0, y: 0 });
+    setIsTextEditing(false);
+    setSelectAllMode(false);
+    if (isMultiDragMode) {
+      togglePositionAdjustmentMode(false);
+    }
+    setLabelOptions(prev => ({ 
+      ...prev, 
+      bold: false, 
+      whiteBackground: false 
+    }));
+    setBackgroundOpacity(0.85);
+
+    // Reset change tracking (same as applyChanges)
+    setHasUnsavedChanges(false);
+    
+    // Show cancellation message (similar to applyChanges success message)
+    setStatusMessage({
+      type: 'info',
+      text: 'Changes canceled - editor closing',
+      timeout: 2000
+    });
+    
+    // Close the editor after a brief delay (same pattern as applyChanges)
+    setTimeout(() => {
+      if (onClose) {
+        console.log("[LabelEditor] Closing editor after cancellation");
+        onClose();
+      }
+    }, 1500);
+
+  } catch (error) {
+    console.error("[LabelEditor] Failed to cancel changes:", error);
+    
+    // Still close even if there's an error (same as applyChanges error handling)
+    setStatusMessage({
+      type: 'warning',
+      text: 'Editor closing - some changes may not be fully reverted',
+      timeout: 2000
+    });
+    
+    // Reset change tracking and close
+    setHasUnsavedChanges(false);
+    
+    if (onClose) {
+      setTimeout(() => onClose(), 1000);
+    }
+  } finally {
+    setIsSaving(false);
   }
 };
 
@@ -1153,6 +1241,7 @@ const finalizeLabels = async (silent = false) => {
         if (isMultiDragMode) togglePositionAdjustmentMode(false);
         setLabelOptions(prev => ({ ...prev, bold: false, whiteBackground: false }));
         setBackgroundOpacity(0.85);
+        setHasUnsavedChanges(false); // Reset changes tracking
 
         setStatusMessage({ type: 'success', text: `Refreshed labels from source.`, timeout: 3000 });
     } catch (error) {
@@ -1177,6 +1266,7 @@ const finalizeLabels = async (silent = false) => {
         if (isMultiDragMode) togglePositionAdjustmentMode(false);
         setLabelOptions(prev => ({ ...prev, bold: false, whiteBackground: false }));
         setBackgroundOpacity(0.85);
+        setHasUnsavedChanges(false); // Reset changes tracking
 
         if (labelManager.editedLabels?.clear) {
              labelManager.editedLabels.clear();
@@ -1220,6 +1310,7 @@ const finalizeLabels = async (silent = false) => {
                 setIsTextEditing(false);
                 setBackgroundOpacity(getBackgroundOpacity(symbol));
             }
+            setHasUnsavedChanges(true); // Mark as changed
             setStatusMessage({ type: 'success', text: 'Label reset to default', timeout: 3000 });
         } else {
             setStatusMessage({ type: 'error', text: result.message || 'Could not reset label', timeout: 5000 });
@@ -1229,37 +1320,6 @@ const finalizeLabels = async (silent = false) => {
         setStatusMessage({ type: 'error', text: `Reset error: ${error.message}`, timeout: 5000 });
     }
   };
-
-  // --- Handle Editor Close ---
-  const handleClose = async () => {
-    // Always save changes on close
-    if (labelManager && typeof labelManager.savePositions === 'function') {
-        try {
-            console.log("[LabelEditor] Saving all label modifications before closing");
-            await finalizeLabels(true); // Save pending changes silently
-            
-            // Second force-save to ensure persistence
-            await labelManager.savePositions(true);
-            
-            // Force a final refresh
-            if (typeof labelManager.refreshLabels === 'function') {
-                labelManager.refreshLabels();
-            }
-        } catch (err) {
-            console.error("[LabelEditor] Error during final save:", err);
-        }
-    }
-    
-    // Ensure position adjustment mode is disabled
-    if (isMultiDragMode) {
-        togglePositionAdjustmentMode(false);
-    }
-
-    // Call parent's close handler after ensuring changes are saved
-    if (onClose) {
-        onClose();
-    }
-};
 
   // --- Render Status Message ---
   const renderStatusMessage = () => {
@@ -1336,27 +1396,27 @@ const finalizeLabels = async (silent = false) => {
         </div>
 
         <div className="flex items-center space-x-2">
-  {/* Existing buttons */}
-  <button
-    onClick={toggleAllLabelsVisibility}
-    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-    title={allLabelsVisible ? "Hide all labels" : "Show all labels"}
-  >
-    {allLabelsVisible ? (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off">
-        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-        <line x1="2" y1="2" x2="22" y2="22" />
-      </svg>
-    ) : (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye">
-        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    )}
-  </button>
-</div>
+          {/* Toggle All Labels Visibility Button */}
+          <button
+            onClick={toggleAllLabelsVisibility}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+            title={allLabelsVisible ? "Hide all labels" : "Show all labels"}
+          >
+            {allLabelsVisible ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                <line x1="2" y1="2" x2="22" y2="22" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mode Indicator Banners */}
@@ -1391,7 +1451,6 @@ const finalizeLabels = async (silent = false) => {
       {statusMessage && (
         <div className="px-4 pt-4">{renderStatusMessage()}</div>
       )}
-
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -1620,33 +1679,63 @@ const finalizeLabels = async (silent = false) => {
         )}
       </div>
 
-      {/* Footer Actions */}
-      <div className="flex-none p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {(labelManager && labelManager.editedLabels?.size !== undefined) ? `${labelManager.editedLabels.size} modification(s) pending` : '0 modifications pending'}
-          </span>
+      {/* Bottom padding to prevent content being hidden behind fixed footer */}
+      <div className="pb-20"></div>
+      
+      {/* Fixed Footer with Action Buttons */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-800 dark:bg-gray-900 py-3 px-4 border-t border-gray-700 shadow-lg z-10">
+        <div className="container mx-auto max-w-screen-lg flex items-center justify-between">
+          {/* Unsaved Changes Indicator */}
+          {hasUnsavedChanges && (
+            <div className="flex items-center text-sm text-amber-400">
+              <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+              </svg>
+              Unsaved changes
+            </div>
+          )}
+          
+          {/* Action Buttons */}
+          <div className="flex ml-auto space-x-3">
+            <button
+              onClick={cancelChanges}
+              className="px-4 py-2 text-sm bg-transparent hover:bg-gray-700 text-white rounded border border-gray-600"
+            >
+              Cancel
+            </button>
+            
+            <button
+              onClick={resetChanges}
+              className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded"
+              disabled={!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 || isSaving || isMultiDragMode}
+            >
+              Revert Pending
+            </button>
+            
+            <button
+              onClick={applyChanges}
+              className={`px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded flex items-center ${
+                isSaving ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+              disabled={!hasUnsavedChanges || isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-1" />
+                  Apply, Save & Close
+                </>
+              )}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-          <button
-            onClick={resetChanges}
-            disabled={!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 || isSaving || isMultiDragMode}
-            className="flex-1 py-2 px-4 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 dark:disabled:bg-gray-700/50 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
-          >
-            Revert Pending
-          </button>
-          <button
-            onClick={() => finalizeLabels()}
-             disabled={!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 || isSaving || isMultiDragMode}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center transition-colors ${(!labelManager || !labelManager.editedLabels || labelManager.editedLabels.size === 0 || isMultiDragMode) ? 'bg-blue-300 dark:bg-blue-800 text-white dark:text-gray-400 cursor-not-allowed' : isSaving ? 'bg-blue-500 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500'}`}
-          >
-            <Save className={`mr-2 h-4 w-4 ${isSaving ? 'animate-spin' : ''}`} /> {isSaving ? 'Applying...' : 'Apply Changes'}
-          </button>
-        </div>
-        <button onClick={handleClose} className="w-full mt-2 py-2 px-4 rounded-md text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-           disabled={isSaving}>
-          Close Editor
-        </button>
       </div>
     </div>
   );

@@ -161,6 +161,104 @@ const validateConfigurationData = (configData) => {
   return errors;
 };
 
+// Table-driven class break generation utility functions
+const determineBreakCountByAreas = (areaCount) => {
+  if (areaCount <= 10) return 3;
+  if (areaCount <= 50) return 4;
+  if (areaCount <= 100) return 5;
+  if (areaCount <= 500) return 6;
+  return 7;
+};
+
+const getBreakColor = (index, totalBreaks, areaCount) => {
+  // Enhanced color palettes based on break count and area density
+  const colorPalettes = {
+    3: ['#3182ce', '#be56b0', '#e53e3e'],
+    4: ['#3182ce', '#8371cc', '#e13b7d', '#e53e3e'],
+    5: ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'],
+    6: ['#2b6cb8', '#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'],
+    7: ['#2563eb', '#2b6cb8', '#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e']
+  };
+  
+  const palette = colorPalettes[totalBreaks] || colorPalettes[5];
+  return palette[index % palette.length];
+};
+
+const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbol = {}) => {
+  if (!data || data.length === 0 || !valueColumn) {
+    console.warn('[PointStyleEditor] Cannot generate table-driven breaks: missing data or value column');
+    return [];
+  }
+  
+  // Extract and validate numeric values
+  const values = data
+    .map(item => parseFloat(item[valueColumn]))
+    .filter(value => !isNaN(value) && isFinite(value))
+    .sort((a, b) => a - b);
+  
+  if (values.length === 0) {
+    console.warn('[PointStyleEditor] No valid numeric values found for table-driven generation');
+    return [];
+  }
+  
+  // Determine break count based on area/data point count
+  const breakCount = determineBreakCountByAreas(values.length);
+  
+  // Calculate statistical breaks using quantiles for better distribution
+  const breaks = [];
+  const step = values.length / breakCount;
+  
+  for (let i = 0; i < breakCount; i++) {
+    let minValue, maxValue;
+    
+    if (i === 0) {
+      minValue = values[0];
+    } else {
+      minValue = values[Math.floor(i * step)];
+    }
+    
+    if (i === breakCount - 1) {
+      maxValue = values[values.length - 1];
+    } else {
+      maxValue = values[Math.floor((i + 1) * step) - 1];
+    }
+    
+    // Apply smart rounding for cleaner break values
+    const roundedMin = smartRound(minValue);
+    const roundedMax = smartRound(maxValue);
+    
+    // Create break with enhanced symbol configuration
+    const breakSymbol = {
+      type: "simple-marker",
+      style: "circle",
+      color: getBreakColor(i, breakCount, values.length),
+      size: baseSymbol.size || 10,
+      outline: {
+        color: baseSymbol.outline?.color || '#FFFFFF',
+        width: baseSymbol.outline?.width || 1
+      }
+    };
+    
+    // Generate intelligent labels
+    let label;
+    if (i === breakCount - 1 && roundedMax === values[values.length - 1]) {
+      label = `${roundedMin} and above`;
+    } else {
+      label = `${roundedMin} - ${roundedMax}`;
+    }
+    
+    breaks.push({
+      minValue: roundedMin,
+      maxValue: i === breakCount - 1 ? Infinity : roundedMax,
+      label: label,
+      symbol: breakSymbol
+    });
+  }
+  
+  console.log(`[PointStyleEditor] Generated ${breaks.length} table-driven class breaks for ${values.length} data points`);
+  return breaks;
+};
+
 const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'comps' }) => {
   if (!config) {
     console.warn("PointStyleEditor received null config.");
@@ -215,6 +313,11 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
   const [isSaving, setIsSaving] = useState(false);
   const [originalConfig] = useState(JSON.parse(JSON.stringify(config)));
   
+  // New state variables for automatic break generation
+  const [layerData, setLayerData] = useState(null);
+  const [generatedClassBreaks, setGeneratedClassBreaks] = useState(null);
+  const [isGeneratingBreaks, setIsGeneratingBreaks] = useState(false);
+  
   // Working values derived from state
   const workingSymbol = workingConfig?.symbol ?? defaultSymbolProps;
   const workingLegendInfo = workingConfig?.legendInfo ?? defaultLegendProps;
@@ -230,9 +333,61 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     if (config?.customData?.data && config.customData.data.length > 0) {
       const firstItem = config.customData.data[0];
       const columns = Object.keys(firstItem);
-      setAvailableColumns(columns.filter(col => typeof firstItem[col] === 'number'));
+      const numericColumns = columns.filter(col => typeof firstItem[col] === 'number');
+      
+      setAvailableColumns(numericColumns);
+      setLayerData(config.customData.data);
+      
+      console.log('[PointStyleEditor] Extracted numeric columns:', numericColumns);
     }
   }, [config]);
+
+  // Automatic break generation when value column changes
+  useEffect(() => {
+    if (!useClassBreaks || !valueColumn || !layerData || layerData.length === 0) {
+      return;
+    }
+    
+    console.log('[PointStyleEditor] Auto-generating breaks for value column:', valueColumn);
+    setIsGeneratingBreaks(true);
+    
+    try {
+      // Prepare base symbol for break generation
+      const baseSymbol = {
+        size: workingSize,
+        outline: {
+          color: workingOutlineColor,
+          width: workingOutlineWidth
+        }
+      };
+      
+      // Generate table-driven class breaks
+      const newBreaks = generateTableDrivenClassBreaks(layerData, valueColumn, baseSymbol);
+      
+      if (newBreaks && newBreaks.length > 0) {
+        console.log('[PointStyleEditor] Auto-generated', newBreaks.length, 'class breaks');
+        setGeneratedClassBreaks(newBreaks);
+        setClassBreaks(newBreaks);
+        setHasUnsavedChanges(true);
+        
+        // Update working configuration
+        const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
+        updatedConfig.classBreakInfos = newBreaks;
+        updatedConfig.rendererType = 'classBreaks';
+        updatedConfig.valueColumn = valueColumn;
+        setWorkingConfig(updatedConfig);
+        
+        // Apply preview if available
+        if (onPreview) {
+          onPreview(updatedConfig);
+        }
+      }
+    } catch (error) {
+      console.error('[PointStyleEditor] Error auto-generating class breaks:', error);
+    } finally {
+      setIsGeneratingBreaks(false);
+    }
+  }, [valueColumn, useClassBreaks, layerData, workingSize, workingOutlineColor, workingOutlineWidth]);
 
   // Update local state when config changes
   useEffect(() => {
@@ -574,6 +729,19 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
 
     setHasUnsavedChanges(true);
     setWorkingConfig(updatedConfig);
+    
+    // If we're changing symbol size and we have class breaks, update all break symbols
+    if (propPath === 'symbol.size' && classBreaks.length > 0) {
+      const newBreaks = classBreaks.map(breakInfo => ({
+        ...breakInfo,
+        symbol: {
+          ...breakInfo.symbol,
+          size: value
+        }
+      }));
+      setClassBreaks(newBreaks);
+      updatedConfig.classBreakInfos = newBreaks;
+    }
   };
 
   /**
@@ -941,68 +1109,6 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     setHasUnsavedChanges(true);
     handleClassBreaksChange(newBreaks);
   };
-  
-  /**
-   * Auto-generates class breaks based on data distribution
-   * Creates evenly distributed breaks with smart rounding
-   */
-  const generateClassBreaksFromData = () => {
-    if (!workingConfig?.customData?.data || !valueColumn) {
-      console.warn("[PointStyleEditor] Cannot generate breaks: missing data or value column");
-      return;
-    }
-    
-    // Extract numeric values from the data
-    const values = workingConfig.customData.data
-      .map(item => parseFloat(item[valueColumn]))
-      .filter(value => !isNaN(value));
-    
-    if (values.length === 0) {
-      console.warn("[PointStyleEditor] No valid numeric values found for auto-generation");
-      return;
-    }
-    
-    // Calculate min and max values
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    
-    // Create 5 evenly distributed breaks
-    const breakCount = 5;
-    const range = max - min;
-    const interval = range / breakCount;
-    
-    const colors = ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'];
-    const newBreaks = [];
-    
-    for (let i = 0; i < breakCount; i++) {
-      const minValue = min + (i * interval);
-      const maxValue = i === breakCount - 1 ? max : min + ((i + 1) * interval);
-      
-      // Apply smart rounding
-      const roundedMin = smartRound(minValue);
-      const roundedMax = smartRound(maxValue);
-      
-      newBreaks.push({
-        minValue: roundedMin,
-        maxValue: roundedMax,
-        label: `${roundedMin} - ${roundedMax}`,
-        symbol: {
-          type: "simple-marker",
-          style: "circle",
-          color: colors[i],
-          size: workingSize,
-          outline: {
-            color: workingOutlineColor,
-            width: workingOutlineWidth
-          }
-        }
-      });
-    }
-    
-    console.log("[PointStyleEditor] Generated", newBreaks.length, "class breaks from data");
-    setHasUnsavedChanges(true);
-    handleClassBreaksChange(newBreaks);
-  };
 
   /**
    * Renders the simple legend preview component
@@ -1036,10 +1142,21 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
    */
   const renderClassBreaksLegendPreview = () => (
     <div className="mt-4 p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
-      <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Class Breaks Legend Preview</h4>
+      <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2 flex items-center">
+        Class Breaks Legend Preview
+        {isGeneratingBreaks && (
+          <span className="ml-2 text-xs text-blue-500 flex items-center">
+            <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Generating...
+          </span>
+        )}
+      </h4>
       {classBreaks.length === 0 ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          No class breaks defined yet. Add breaks below or use auto-generation.
+          Select a value column to automatically generate class breaks.
         </p>
       ) : (
         <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -1067,13 +1184,13 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
   );
   
   /**
-   * Renders the value column input and auto-generation controls
+   * Renders the value column input with automatic generation status
    * Only shown when class breaks mode is enabled
    */
   const renderValueColumnInput = () => (
     <div className="space-y-1">
       <label htmlFor="value-column" className="block text-xs font-medium text-gray-700 dark:text-gray-200">
-        Value Column <span className="text-gray-400">(Required for class breaks)</span>
+        Value Column <span className="text-gray-400">(Auto-generates breaks)</span>
       </label>
       
       <select
@@ -1086,31 +1203,31 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           handleClassBreaksChange(classBreaks, newValue);
         }}
         className="w-full p-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded"
-        disabled={availableColumns.length === 0}
+        disabled={availableColumns.length === 0 || isGeneratingBreaks}
       >
         {availableColumns.length === 0 ? (
           <option value="">No numeric columns available</option>
         ) : (
-          availableColumns.map(col => (
-            <option key={col} value={col}>{col}</option>
-          ))
+          <>
+            <option value="">Select column...</option>
+            {availableColumns.map(col => (
+              <option key={col} value={col}>{col}</option>
+            ))}
+          </>
         )}
       </select>
       
-      <div className="flex items-center justify-between mt-2">
+      <div className="mt-2">
         <p className="flex items-center text-xs text-gray-500 dark:text-gray-400">
           <HelpCircle size={12} className="mr-1 flex-shrink-0" />
-          <span>Select column with numeric values for classification</span>
+          <span>Class breaks are automatically generated when you change the value column</span>
         </p>
         
-        <button
-          onClick={generateClassBreaksFromData}
-          className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Generate class breaks based on data distribution"
-          disabled={!valueColumn || availableColumns.length === 0}
-        >
-          Auto-Generate Breaks
-        </button>
+        {generatedClassBreaks && generatedClassBreaks.length > 0 && (
+          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+            ✓ Generated {generatedClassBreaks.length} breaks from {layerData?.length || 0} data points
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1371,16 +1488,16 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           
           {/* Help Text */}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            Class breaks determine how properties are styled based on their values. 
-            Properties with values in a break's range will use that break's color.
+            Class breaks are automatically generated based on data distribution when you select a value column.
+            You can still manually add, remove, or modify breaks as needed.
           </p>
         </fieldset>
       )}
 
-      {/* Helpful Tips */}
+      {/* Enhanced Tips */}
       <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded">
         <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center">
-          <Info size={16} className="mr-1" /> Tips for {mapType === 'comps' ? 'Comps' : 'Property'} Map
+          <Info size={16} className="mr-1" /> Enhanced Features for {mapType === 'comps' ? 'Comps' : 'Property'} Map
         </h4>
         <ul className="mt-2 text-xs text-blue-600 dark:text-blue-400 space-y-1 list-disc pl-4">
           {mapType === 'comps' ? (
@@ -1394,10 +1511,12 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
               <li>Consider the data range when setting break values</li>
             </>
           )}
-          <li>Use "Auto-Generate Breaks" to create even class breaks based on your data</li>
-          <li>Set the last break's maximum value to blank for "and above" classification</li>
-          <li>Values are automatically rounded based on their magnitude for better readability</li>
-          <li>Changes are only saved when you click "Apply, Save & Close"</li>
+          <li><strong>New:</strong> Class breaks are automatically generated based on data distribution</li>
+          <li><strong>Smart:</strong> Break count adapts to your dataset size for optimal visualization</li>
+          <li><strong>Intelligent:</strong> Values are automatically rounded for better readability</li>
+          <li>Colors are automatically assigned using proven color palettes</li>
+          <li>Changes auto-apply when you change the value column</li>
+          <li>Manual fine-tuning is still available after auto-generation</li>
         </ul>
       </div>
 

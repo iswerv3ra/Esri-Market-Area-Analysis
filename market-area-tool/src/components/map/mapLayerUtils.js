@@ -1277,77 +1277,79 @@ export async function createLayers(
 /**
  * Create a renderer for feature layers based on configuration and area type
  * 
- * @param {Object} rendererConfig - Configuration for the renderer
- * @param {Object} areaType - Area type information
- * @returns {Object} The configured renderer
+ * @param {Object} rendererConfig - Configuration for the renderer.
+ *                                  `rendererConfig.type` should be 'class-breaks' or 'dot-density'.
+ *                                  `rendererConfig.field` is the data field to visualize.
+ * @param {Object} areaType - Area type information (used for dot-density defaults).
+ * @returns {Object|null} The configured ArcGIS renderer object or null if creation fails.
  */
 function createRenderer(rendererConfig, areaType) {
-    if (!rendererConfig || !rendererConfig.type) {
-        console.warn("[createRenderer] Invalid config provided", rendererConfig);
-        return null;
-    }
-    
-    if (!rendererConfig.field && 
-        (rendererConfig.type === "dot-density" || rendererConfig.type === "class-breaks")) {
-        console.error(`[createRenderer] Cannot create renderer for type ${rendererConfig.type}: Missing required 'field'`);
-        return null;
-    }
+  if (!rendererConfig || !rendererConfig.type) {
+      console.warn("[createRenderer] Invalid rendererConfig provided (missing or no type)", rendererConfig);
+      return null;
+  }
+  
+  const fieldToVisualize = rendererConfig.field || rendererConfig.visualizationType;
 
-    switch (rendererConfig.type) {
-        case "dot-density":
-            // Determine default dot value based on area type
-            const defaultDotVal = (areaType?.value === 12 || String(areaType?.value).toLowerCase() === 'tract') ? 10 : 100;
-            const currentDotValue = rendererConfig.dotValue !== undefined ? Number(rendererConfig.dotValue) : defaultDotVal;
+  if (!fieldToVisualize && 
+      (rendererConfig.type === "dot-density" || rendererConfig.type === "class-breaks")) {
+      console.error(`[createRenderer] Cannot create renderer for type ${rendererConfig.type}: Missing required 'field' or 'visualizationType' in config.`, rendererConfig);
+      return null;
+  }
 
-            // Ensure attributes exist and are correctly structured
-            let attributes = rendererConfig.attributes;
-            if (!Array.isArray(attributes) || attributes.length === 0) {
-                attributes = [{
-                    field: rendererConfig.field,
-                    color: "#E60049",
-                    label: rendererConfig.label || rendererConfig.field || "Value",
-                }];
-                console.warn(`[createRenderer] Dot density config missing 'attributes', created default for field: ${rendererConfig.field}`);
-            }
+  switch (rendererConfig.type) {
+      case "dot-density":
+          const defaultDotVal = (areaType?.value === 12 || String(areaType?.value).toLowerCase() === 'tract') ? 10 : 100;
+          const currentDotValue = rendererConfig.dotValue !== undefined ? Number(rendererConfig.dotValue) : defaultDotVal;
 
+          let attributes = rendererConfig.attributes;
+          if (!Array.isArray(attributes) || attributes.length === 0) {
+              attributes = [{
+                  field: fieldToVisualize, 
+                  color: rendererConfig.color || "#E60049", 
+                  label: rendererConfig.label || fieldToVisualize || "Value",
+              }];
+              console.warn(`[createRenderer] Dot density config missing 'attributes', created default for field: ${fieldToVisualize}`);
+          } else {
             attributes = attributes.map(attr => ({
-                field: attr.field || rendererConfig.field,
-                color: attr.color || "#E60049",
-                label: attr.label || attr.field || rendererConfig.field,
+                field: attr.field || fieldToVisualize,
+                color: attr.color || rendererConfig.color || "#E60049",
+                label: attr.label || attr.field || fieldToVisualize,
             }));
+          }
 
-            return {
-                type: "dot-density",
-                field: rendererConfig.field,
-                dotValue: currentDotValue,
-                dotBlending: rendererConfig.dotBlending || "additive",
-                dotSize: rendererConfig.dotSize !== undefined ? Number(rendererConfig.dotSize) : 2,
-                outline: rendererConfig.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
-                legendOptions: rendererConfig.legendOptions || { unit: "value" },
-                attributes: attributes,
-            };
+          return {
+              type: "dot-density",
+              field: fieldToVisualize, 
+              attributes: attributes, 
+              dotValue: currentDotValue,
+              dotBlending: rendererConfig.dotBlending || "additive",
+              dotSize: rendererConfig.dotSize !== undefined ? Number(rendererConfig.dotSize) : 2,
+              outline: rendererConfig.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
+              legendOptions: rendererConfig.legendOptions || { unit: "value" },
+          };
 
-        case "class-breaks":
-            const classBreakInfos = Array.isArray(rendererConfig.classBreakInfos) ? rendererConfig.classBreakInfos : [];
-            if (classBreakInfos.length === 0) {
-                console.warn(`[createRenderer] Class breaks config for field ${rendererConfig.field} is missing 'classBreakInfos'`);
-            }
-            return {
-                type: "class-breaks",
-                field: rendererConfig.field,
-                defaultSymbol: rendererConfig.defaultSymbol || {
-                    type: "simple-fill",
-                    color: [0, 0, 0, 0],
-                    outline: { color: [150, 150, 150, 0.5], width: 0.5 },
-                },
-                defaultLabel: rendererConfig.defaultLabel || "No data",
-                classBreakInfos: classBreakInfos,
-            };
-            
-        default:
-            console.error("[createRenderer] Unsupported renderer type:", rendererConfig.type);
-            return null;
-    }
+      case "class-breaks":
+          const classBreakInfos = Array.isArray(rendererConfig.classBreakInfos) ? rendererConfig.classBreakInfos : [];
+          if (classBreakInfos.length === 0) {
+              console.warn(`[createRenderer] Class breaks config for field '${fieldToVisualize}' is missing 'classBreakInfos'. A default symbol will be used for all features.`);
+          }
+          return {
+              type: "class-breaks",
+              field: fieldToVisualize, 
+              defaultSymbol: rendererConfig.defaultSymbol || {
+                  type: "simple-fill", 
+                  color: [224, 224, 224, 0.6], 
+                  outline: { color: [150, 150, 150, 0.7], width: 0.5 },
+              },
+              defaultLabel: rendererConfig.defaultLabel || "No data / Other", 
+              classBreakInfos: classBreakInfos, 
+          };
+          
+      default:
+          console.error("[createRenderer] Unsupported renderer type in config:", rendererConfig.type, "Expected 'class-breaks' or 'dot-density'. Config:", rendererConfig);
+          return null;
+  }
 }
 
 /**
