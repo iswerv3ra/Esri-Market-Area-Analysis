@@ -15,21 +15,184 @@ const getConfigProp = (config, path, defaultValue) => {
   return current !== undefined && current !== null ? current : defaultValue;
 };
 
-// Helper to smartly round numbers based on their magnitude
+/**
+ * TCG Color palette with precise RGB values
+ */
+const TCG_COLORS = {
+  'TCG Red Dark': [191, 0, 0],
+  'TCG Orange Dark': [255, 122, 13],
+  'TCG Yellow Dark': [248, 242, 0],
+  'TCG Green Dark': [0, 191, 44],
+  'TCG Cyan Dark': [0, 155, 155],
+  'TCG Blue Dark': [0, 51, 128],
+  'TCG Purple Dark': [92, 0, 184],
+  'Pink Dark': [214, 0, 158],
+  'Brown Dark': [148, 112, 60],
+  'Carbon Gray Light': [174, 170, 170]
+};
+
+/**
+ * Intelligently rounds numbers based on their magnitude
+ * for better display in visualizations.
+ * 
+ * @param {number} value - Value to round
+ * @return {number} - Rounded value
+ */
 const smartRound = (value) => {
   if (typeof value !== 'number' || isNaN(value) || value === Infinity) return value;
+  if (Math.abs(value) < 10) return Math.round(value);
+  if (Math.abs(value) < 100) return Math.round(value / 10) * 10;
+  if (Math.abs(value) < 1000) return Math.round(value / 100) * 100;
+  if (Math.abs(value) < 10000) return Math.round(value / 1000) * 1000;
+  return Math.round(value / 10000) * 10000;
+};
+
+/**
+ * Determines the optimal number of breaks based on total data point count
+ * using exact thresholds from specifications.
+ * 
+ * @param {number} dataCount - Total number of data points
+ * @return {number} - Optimal number of breaks (1-10)
+ */
+const determineBreakCountByAreas = (dataCount) => {
+  if (dataCount <= 1) return 1;
+  if (dataCount <= 5) return 2;
+  if (dataCount <= 9) return 3;
+  if (dataCount <= 16) return 4;
+  if (dataCount <= 25) return 5;
+  if (dataCount <= 30) return 6;
+  if (dataCount <= 42) return 7;
+  if (dataCount <= 56) return 8;
+  if (dataCount <= 81) return 9;
+  return 10; // For 82+ data points
+};
+
+/**
+ * Returns precise break ranges for all break levels (1-10)
+ * based on the specifications.
+ * 
+ * @param {number} totalBreaks - Total number of breaks (1-10)
+ * @return {Array} - Array of min/max range objects
+ */
+const getBreakRanges = (totalBreaks) => {
+  // Complete break ranges for all levels 1-10
+  const breakRanges = {
+    1: [
+      {min: 0, max: 1}
+    ],
+    2: [
+      {min: 0, max: 1},
+      {min: 2, max: 5}
+    ],
+    3: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9}
+    ],
+    4: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16}
+    ],
+    5: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25}
+    ],
+    6: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25},
+      {min: 26, max: 30}
+    ],
+    7: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25},
+      {min: 26, max: 30},
+      {min: 31, max: 42}
+    ],
+    8: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25},
+      {min: 26, max: 30},
+      {min: 31, max: 42},
+      {min: 43, max: 56}
+    ],
+    9: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25},
+      {min: 26, max: 30},
+      {min: 31, max: 42},
+      {min: 43, max: 56},
+      {min: 57, max: 81}
+    ],
+    10: [
+      {min: 0, max: 1},
+      {min: 2, max: 5},
+      {min: 6, max: 9},
+      {min: 10, max: 16},
+      {min: 17, max: 25},
+      {min: 26, max: 30},
+      {min: 31, max: 42},
+      {min: 43, max: 56},
+      {min: 57, max: 81},
+      {min: 82, max: 200}
+    ]
+  };
   
-  if (Math.abs(value) < 10) {
-    return Math.round(value);
-  } else if (Math.abs(value) < 100) {
-    return Math.round(value / 10) * 10;
-  } else if (Math.abs(value) < 1000) {
-    return Math.round(value / 100) * 100;
-  } else if (Math.abs(value) < 10000) {
-    return Math.round(value / 1000) * 1000;
-  } else {
-    return Math.round(value / 10000) * 10000;
-  }
+  // Validate and return the appropriate break range
+  const validBreakCount = Math.max(1, Math.min(10, Math.floor(totalBreaks)));
+  return breakRanges[validBreakCount] || breakRanges[10];
+};
+
+/**
+ * Gets the appropriate TCG color for each break based on the 
+ * break index and total number of breaks.
+ * 
+ * @param {number} index - Index of the break (0-based)
+ * @param {number} totalBreaks - Total number of breaks (1-10)
+ * @return {string} - CSS color string
+ */
+const getBreakColor = (index, totalBreaks) => {
+  // Complete color mappings for all break levels (1-10)
+  const colorMappings = {
+    1: ['TCG Red Dark'],
+    2: ['TCG Red Dark', 'TCG Orange Dark'],
+    3: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Green Dark'],
+    4: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Cyan Dark'],
+    5: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark'],
+    6: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark'],
+    7: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark'],
+    8: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark'],
+    9: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark'],
+    10: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark', 'Carbon Gray Light']
+  };
+  
+  // Validate inputs and get appropriate color mapping
+  const validBreakCount = Math.max(1, Math.min(10, Math.floor(totalBreaks)));
+  const validIndex = Math.max(0, Math.min(validBreakCount - 1, index));
+  const colorNames = colorMappings[validBreakCount] || colorMappings[10];
+  const colorName = colorNames[validIndex];
+  
+  // Convert RGB array to CSS string with alpha
+  const rgbValues = TCG_COLORS[colorName];
+  const alpha = 0.8; // Default alpha value
+  
+  return `rgba(${rgbValues[0]}, ${rgbValues[1]}, ${rgbValues[2]}, ${alpha})`;
 };
 
 // Enhanced helper function to convert area type to string with better validation
@@ -161,102 +324,252 @@ const validateConfigurationData = (configData) => {
   return errors;
 };
 
-// Table-driven class break generation utility functions
-const determineBreakCountByAreas = (areaCount) => {
-  if (areaCount <= 10) return 3;
-  if (areaCount <= 50) return 4;
-  if (areaCount <= 100) return 5;
-  if (areaCount <= 500) return 6;
-  return 7;
+/**
+ * Formats a color value (array or string) into a CSS-compatible color string.
+ * 
+ * @param {Array|string} color - Color as RGB/RGBA array or string
+ * @return {string} - CSS color string (rgb, rgba, or original if already string)
+ */
+const formatColorForDisplay = (color) => {
+  if (Array.isArray(color)) {
+    if (color.length === 3) {
+      return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    } else if (color.length === 4) {
+      return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
+    }
+  }
+  return color; // Return as is if already a string
 };
 
-const getBreakColor = (index, totalBreaks, areaCount) => {
-  // Enhanced color palettes based on break count and area density
-  const colorPalettes = {
-    3: ['#3182ce', '#be56b0', '#e53e3e'],
-    4: ['#3182ce', '#8371cc', '#e13b7d', '#e53e3e'],
-    5: ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'],
-    6: ['#2b6cb8', '#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'],
-    7: ['#2563eb', '#2b6cb8', '#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e']
-  };
-  
-  const palette = colorPalettes[totalBreaks] || colorPalettes[5];
-  return palette[index % palette.length];
-};
+/**
+ * Calculates evenly distributed break points based on actual data values.
+ * 
+ * @param {Array<number>} values - Sorted array of numeric values
+ * @param {number} breakCount - Number of breaks to generate
+ * @return {Array<{min: number, max: number}>} - Array of min/max range objects
+ */
+const calculateDataDrivenBreaks = (values, breakCount) => {
+  if (!values || values.length === 0 || !breakCount) {
+    console.warn('[PointStyleEditor] Cannot calculate breaks: missing values or break count');
+    return [];
+  }
 
-const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbol = {}) => {
-  if (!data || data.length === 0 || !valueColumn) {
-    console.warn('[PointStyleEditor] Cannot generate table-driven breaks: missing data or value column');
-    return [];
+  // Sort values if not already sorted
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const min = sortedValues[0];
+  const max = sortedValues[sortedValues.length - 1];
+  
+  // Handle special case where all values are the same
+  if (min === max) {
+    console.log('[PointStyleEditor] All values are the same:', min);
+    return [{ min, max }];
   }
-  
-  // Extract and validate numeric values
-  const values = data
-    .map(item => parseFloat(item[valueColumn]))
-    .filter(value => !isNaN(value) && isFinite(value))
-    .sort((a, b) => a - b);
-  
-  if (values.length === 0) {
-    console.warn('[PointStyleEditor] No valid numeric values found for table-driven generation');
-    return [];
-  }
-  
-  // Determine break count based on area/data point count
-  const breakCount = determineBreakCountByAreas(values.length);
-  
-  // Calculate statistical breaks using quantiles for better distribution
+
+  // Calculate breaks based on actual data distribution
   const breaks = [];
-  const step = values.length / breakCount;
+  const dataLength = sortedValues.length;
   
-  for (let i = 0; i < breakCount; i++) {
-    let minValue, maxValue;
+  // Ensure we don't create more breaks than unique values
+  const uniqueValues = new Set(sortedValues);
+  const actualBreakCount = Math.min(breakCount, uniqueValues.size);
+  
+  console.log(`[PointStyleEditor] Creating ${actualBreakCount} breaks for ${dataLength} data points with ${uniqueValues.size} unique values`);
+  
+  // Calculate step size for even distribution across the dataset
+  const step = dataLength / actualBreakCount;
+  
+  for (let i = 0; i < actualBreakCount; i++) {
+    const startIdx = Math.floor(i * step);
+    const endIdx = (i === actualBreakCount - 1) 
+      ? dataLength - 1 
+      : Math.floor((i + 1) * step) - 1;
     
-    if (i === 0) {
-      minValue = values[0];
-    } else {
-      minValue = values[Math.floor(i * step)];
+    const rangeMin = sortedValues[startIdx];
+    const rangeMax = sortedValues[endIdx];
+    
+    // Apply smart rounding to make the ranges more user-friendly
+    const roundedMin = smartRound(rangeMin);
+    const roundedMax = smartRound(rangeMax);
+    
+    breaks.push({
+      min: roundedMin,
+      max: roundedMax
+    });
+  }
+
+  // Fix any overlap caused by rounding
+  for (let i = 0; i < breaks.length - 1; i++) {
+    if (breaks[i].max >= breaks[i + 1].min) {
+      // Find a midpoint value between the actual data points
+      const currentEndIdx = Math.floor((i + 1) * step) - 1;
+      const nextStartIdx = Math.floor((i + 1) * step);
+      
+      const midpoint = (sortedValues[currentEndIdx] + sortedValues[nextStartIdx]) / 2;
+      const roundedMidpoint = smartRound(midpoint);
+      
+      breaks[i].max = roundedMidpoint;
+      breaks[i + 1].min = roundedMidpoint;
     }
-    
-    if (i === breakCount - 1) {
-      maxValue = values[values.length - 1];
-    } else {
-      maxValue = values[Math.floor((i + 1) * step) - 1];
-    }
-    
-    // Apply smart rounding for cleaner break values
-    const roundedMin = smartRound(minValue);
-    const roundedMax = smartRound(maxValue);
-    
-    // Create break with enhanced symbol configuration
-    const breakSymbol = {
-      type: "simple-marker",
-      style: "circle",
-      color: getBreakColor(i, breakCount, values.length),
-      size: baseSymbol.size || 10,
-      outline: {
-        color: baseSymbol.outline?.color || '#FFFFFF',
-        width: baseSymbol.outline?.width || 1
+  }
+
+  // Ensure the last break includes the maximum value exactly
+  breaks[breaks.length - 1].max = max;
+  
+  console.log('[PointStyleEditor] Generated data-driven breaks:', breaks);
+  return breaks;
+};
+
+/**
+ * Generates table-driven class breaks for data visualization
+ * based on the specified data and value column.
+ * 
+ * @param {Array} data - Array of data objects
+ * @param {string} valueColumn - Column name for values
+ * @param {Object} baseSymbolStyle - Base style for symbols (optional)
+ * @param {number} customBreakCount - Custom break count (optional)
+ * @return {Array} - Array of class break objects
+ */
+const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {}, customBreakCount = null) => {
+  // Validate inputs
+  if (!data || data.length === 0 || !valueColumn) {
+    console.warn("generateTableDrivenClassBreaks: Missing data or valueColumn.");
+    return [];
+  }
+
+  // Extract numeric values from data
+  const values = data.map(item => {
+    const rawValue = item[valueColumn];
+    if (rawValue === null || rawValue === undefined || rawValue === '') return NaN;
+    const num = Number(rawValue);
+    return isNaN(num) ? NaN : num;
+  }).filter(val => !isNaN(val));
+
+  // Handle special case with no valid values
+  if (values.length === 0) {
+    console.warn(`generateTableDrivenClassBreaks: No valid numeric data in '${valueColumn}'.`);
+    return [];
+  }
+  
+  // Handle special case with single value
+  if (values.length === 1) {
+    const singleValue = smartRound(values[0]);
+    return [{
+      minValue: singleValue,
+      maxValue: singleValue,
+      label: `${singleValue.toLocaleString()}`,
+      symbol: {
+        type: "simple-marker",
+        style: baseSymbolStyle.style || 'circle',
+        color: getBreakColor(0, 1),
+        size: baseSymbolStyle.size || 10,
+        outline: {
+          color: baseSymbolStyle.outline?.color || '#FFFFFF',
+          width: Number(baseSymbolStyle.outline?.width) || 1
+        }
       }
-    };
+    }];
+  }
+
+  // Determine optimal break count based on TOTAL data count
+  const totalDataCount = data.length;
+  const optimalBreakCount = customBreakCount !== null ? 
+    customBreakCount : determineBreakCountByAreas(totalDataCount);
+  
+  console.log(`[PointStyleEditor] Using ${optimalBreakCount} breaks for ${totalDataCount} data points`);
+  
+  // Calculate data-driven breaks based on actual value distribution
+  const dataBreaks = calculateDataDrivenBreaks(values, optimalBreakCount);
+  const breaks = [];
+  
+  // Create break objects with appropriate colors and labels
+  for (let i = 0; i < dataBreaks.length; i++) {
+    const range = dataBreaks[i];
     
-    // Generate intelligent labels
+    // Create intelligent label based on position
     let label;
-    if (i === breakCount - 1 && roundedMax === values[values.length - 1]) {
-      label = `${roundedMin} and above`;
+    if (i === 0 && dataBreaks.length > 1) {
+      label = `Less than ${range.max.toLocaleString()}`;
+    } else if (i === dataBreaks.length - 1 && dataBreaks.length > 1) {
+      label = `${range.min.toLocaleString()} or more`;
     } else {
-      label = `${roundedMin} - ${roundedMax}`;
+      label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
     }
     
     breaks.push({
-      minValue: roundedMin,
-      maxValue: i === breakCount - 1 ? Infinity : roundedMax,
+      minValue: range.min,
+      maxValue: i === dataBreaks.length - 1 ? Infinity : range.max,
       label: label,
-      symbol: breakSymbol
+      symbol: {
+        type: "simple-marker",
+        style: baseSymbolStyle.style || 'circle',
+        color: getBreakColor(i, dataBreaks.length),
+        size: baseSymbolStyle.size || 10,
+        outline: {
+          color: baseSymbolStyle.outline?.color || '#FFFFFF',
+          width: Number(baseSymbolStyle.outline?.width) || 1
+        }
+      }
     });
   }
-  
-  console.log(`[PointStyleEditor] Generated ${breaks.length} table-driven class breaks for ${values.length} data points`);
+
   return breaks;
+};
+
+/**
+ * Generates class breaks specifically for point data colorization
+ * 
+ * @param {Array} data - Array of data objects
+ * @param {string} valueColumn - Column name for values
+ * @param {number} numClasses - Custom break count (optional)
+ * @param {Object} baseSymbolStyle - Base style for symbols (optional)
+ * @return {Array} - Array of class break objects
+ */
+const generateClassBreaksForPoints = (data, valueColumn, numClasses = null, baseSymbolStyle = {}) => {
+  return generateTableDrivenClassBreaks(data, valueColumn, baseSymbolStyle, numClasses);
+};
+
+/**
+ * Generates class breaks for point size visualization
+ * 
+ * @param {Array} data - Array of data objects
+ * @param {string} valueColumn - Column name for values
+ * @param {number} numClasses - Custom break count (optional)
+ * @param {number} minSize - Minimum point size (optional)
+ * @param {number} maxSize - Maximum point size (optional)
+ * @return {Array} - Array of size break objects
+ */
+const generateSizeBreaksForPoints = (data, valueColumn, numClasses = null, minSize = 6, maxSize = 24) => {
+  // Validate inputs
+  if (!data || data.length === 0 || !valueColumn) {
+    console.warn("generateSizeBreaksForPoints: Missing data or valueColumn.");
+    return null;
+  }
+
+  // Determine optimal break count based on TOTAL data count
+  const totalDataCount = data.length;
+  const optimalBreakCount = numClasses !== null ? 
+    numClasses : determineBreakCountByAreas(totalDataCount);
+  
+  // Generate breaks based on predefined ranges
+  const breakRanges = getBreakRanges(optimalBreakCount);
+  const sizeBreaks = [];
+  
+  // Create size break objects with appropriate size progression
+  for (let i = 0; i < breakRanges.length; i++) {
+    const range = breakRanges[i];
+    // Calculate proportional size between min and max
+    const proportion = i / (breakRanges.length - 1 || 1);
+    const currentSize = minSize + (proportion * (maxSize - minSize));
+    
+    sizeBreaks.push({
+      minValue: range.min,
+      maxValue: range.max,
+      label: `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`,
+      size: Math.round(currentSize)
+    });
+  }
+
+  return sizeBreaks;
 };
 
 const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'comps' }) => {
@@ -290,11 +603,11 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
 
   // Default class breaks template
   const defaultClassBreaks = [
-    { minValue: 2, maxValue: 3, label: "2 - 3", symbol: { type: "simple-marker", style: "circle", color: "#3182ce", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
-    { minValue: 3, maxValue: 4, label: "3 - 4", symbol: { type: "simple-marker", style: "circle", color: "#8371cc", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
-    { minValue: 4, maxValue: 5, label: "4 - 5", symbol: { type: "simple-marker", style: "circle", color: "#be56b0", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
-    { minValue: 5, maxValue: 6, label: "5 - 6", symbol: { type: "simple-marker", style: "circle", color: "#e13b7d", size: 10, outline: { color: "#FFFFFF", width: 1 } } },
-    { minValue: 6, maxValue: 7, label: "6 - 7", symbol: { type: "simple-marker", style: "circle", color: "#e53e3e", size: 10, outline: { color: "#FFFFFF", width: 1 } } }
+    { minValue: 0, maxValue: 1, label: "0 - 1", symbol: { type: "simple-marker", style: "circle", color: getBreakColor(0, 5), size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 2, maxValue: 5, label: "2 - 5", symbol: { type: "simple-marker", style: "circle", color: getBreakColor(1, 5), size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 6, maxValue: 9, label: "6 - 9", symbol: { type: "simple-marker", style: "circle", color: getBreakColor(2, 5), size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 10, maxValue: 16, label: "10 - 16", symbol: { type: "simple-marker", style: "circle", color: getBreakColor(3, 5), size: 10, outline: { color: "#FFFFFF", width: 1 } } },
+    { minValue: 17, maxValue: 25, label: "17 - 25", symbol: { type: "simple-marker", style: "circle", color: getBreakColor(4, 5), size: 10, outline: { color: "#FFFFFF", width: 1 } } }
   ];
 
   // Get current values safely with defaults
@@ -333,7 +646,27 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     if (config?.customData?.data && config.customData.data.length > 0) {
       const firstItem = config.customData.data[0];
       const columns = Object.keys(firstItem);
-      const numericColumns = columns.filter(col => typeof firstItem[col] === 'number');
+      
+      // More robust numeric column detection
+      const numericColumns = columns.filter(col => {
+        // Check first 5 rows for numeric values
+        let numericCount = 0;
+        let checkedCount = 0;
+        
+        for (let i = 0; i < Math.min(5, config.customData.data.length); i++) {
+          const item = config.customData.data[i];
+          if (item && item[col] !== undefined && item[col] !== null && item[col] !== '') {
+            checkedCount++;
+            const value = typeof item[col] === 'number' ? item[col] : parseFloat(item[col]);
+            if (!isNaN(value)) {
+              numericCount++;
+            }
+          }
+        }
+        
+        // Consider column numeric if at least 80% of checked values are numeric
+        return checkedCount > 0 && (numericCount / checkedCount) >= 0.8;
+      });
       
       setAvailableColumns(numericColumns);
       setLayerData(config.customData.data);
@@ -342,7 +675,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     }
   }, [config]);
 
-  // Automatic break generation when value column changes
+  // Update the auto-generate breaks code in the useEffect
   useEffect(() => {
     if (!useClassBreaks || !valueColumn || !layerData || layerData.length === 0) {
       return;
@@ -361,20 +694,21 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
         }
       };
       
-      // Generate table-driven class breaks
-      const newBreaks = generateTableDrivenClassBreaks(layerData, valueColumn, baseSymbol);
+      // Use new TCG method to generate class breaks
+      const newBreaks = generateClassBreaksForPoints(layerData, valueColumn, null, baseSymbol);
       
       if (newBreaks && newBreaks.length > 0) {
-        console.log('[PointStyleEditor] Auto-generated', newBreaks.length, 'class breaks');
+        console.log('[PointStyleEditor] Auto-generated', newBreaks.length, 'class breaks using TCG logic');
         setGeneratedClassBreaks(newBreaks);
         setClassBreaks(newBreaks);
         setHasUnsavedChanges(true);
         
-        // Update working configuration
+        // Update working configuration with data-driven flag
         const updatedConfig = JSON.parse(JSON.stringify(workingConfig));
         updatedConfig.classBreakInfos = newBreaks;
         updatedConfig.rendererType = 'classBreaks';
         updatedConfig.valueColumn = valueColumn;
+        updatedConfig.usesDataDrivenBreaks = true; // Mark as using new approach
         setWorkingConfig(updatedConfig);
         
         // Apply preview if available
@@ -388,7 +722,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       setIsGeneratingBreaks(false);
     }
   }, [valueColumn, useClassBreaks, layerData, workingSize, workingOutlineColor, workingOutlineWidth]);
-
+  
   // Update local state when config changes
   useEffect(() => {
     setWorkingConfig(JSON.parse(JSON.stringify(config)));
@@ -999,9 +1333,9 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
     minValue = smartRound(minValue);
     maxValue = smartRound(maxValue);
     
-    // Cycle through colors for visual distinction
-    const colorIndex = newBreaks.length % 5;
-    const colors = ['#3182ce', '#8371cc', '#be56b0', '#e13b7d', '#e53e3e'];
+    // Get break color using new TCG color system
+    const colorIndex = newBreaks.length % 10;
+    const color = getBreakColor(colorIndex, newBreaks.length + 1);
     
     // Create new break with current symbol settings
     const newBreak = {
@@ -1011,7 +1345,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
       symbol: {
         type: "simple-marker",
         style: "circle",
-        color: colors[colorIndex],
+        color: color,
         size: workingSize,
         outline: {
           color: workingOutlineColor,
@@ -1122,7 +1456,7 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
           style={{
             width: `${workingSize}px`,
             height: `${workingSize}px`,
-            backgroundColor: workingColor,
+            backgroundColor: typeof workingColor === 'string' ? workingColor : formatColorForDisplay(workingColor),
             border: `${workingOutlineWidth}px solid ${workingOutlineColor}`,
             borderRadius: '50%',
             flexShrink: 0,
@@ -1166,7 +1500,9 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
                 style={{
                   width: `${breakInfo.symbol?.size || workingSize}px`,
                   height: `${breakInfo.symbol?.size || workingSize}px`,
-                  backgroundColor: breakInfo.symbol?.color,
+                  backgroundColor: typeof breakInfo.symbol?.color === 'string' 
+                    ? breakInfo.symbol.color 
+                    : formatColorForDisplay(breakInfo.symbol?.color),
                   border: `${breakInfo.symbol?.outline?.width || workingOutlineWidth}px solid ${breakInfo.symbol?.outline?.color || workingOutlineColor}`,
                   borderRadius: '50%',
                   flexShrink: 0,
@@ -1469,7 +1805,9 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
                   <input
                     id={`break-${index}-color`}
                     type="color"
-                    value={breakInfo.symbol?.color || '#3182CE'}
+                    value={typeof breakInfo.symbol?.color === 'string' && breakInfo.symbol?.color.startsWith('#') 
+                      ? breakInfo.symbol.color 
+                      : getBreakColor(index, classBreaks.length)}
                     onChange={(e) => updateClassBreak(index, 'symbol.color', e.target.value)}
                     className="w-full h-8 p-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded cursor-pointer"
                   />
@@ -1511,10 +1849,11 @@ const PointStyleEditor = ({ config, onChange, onPreview, onClose, mapType = 'com
               <li>Consider the data range when setting break values</li>
             </>
           )}
-          <li><strong>New:</strong> Class breaks are automatically generated based on data distribution</li>
-          <li><strong>Smart:</strong> Break count adapts to your dataset size for optimal visualization</li>
-          <li><strong>Intelligent:</strong> Values are automatically rounded for better readability</li>
-          <li>Colors are automatically assigned using proven color palettes</li>
+          <li><strong>New:</strong> Now supports up to 10 class breaks based on dataset size</li>
+          <li><strong>Improved:</strong> Using TCG color palette for consistent visualization</li>
+          <li><strong>Smart:</strong> Break points calculated from actual data distribution</li>
+          <li><strong>Dynamic:</strong> Even distribution across values for optimal representation</li>
+          <li><strong>Intelligent:</strong> Labels automatically adjust for different value ranges</li>
           <li>Changes auto-apply when you change the value column</li>
           <li>Manual fine-tuning is still available after auto-generation</li>
         </ul>
