@@ -10,11 +10,13 @@ class ColorKeySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'last_modified']
 
+# serializers.py - Update LabelPositionSerializer
 class LabelPositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = LabelPosition
         fields = ['id', 'project', 'map_configuration', 'label_id', 'x_offset',
-                 'y_offset', 'font_size', 'text', 'visibility', 'last_modified']
+                 'y_offset', 'font_size', 'text', 'visibility', 'font_weight',
+                 'has_background', 'background_color', 'last_modified']
         read_only_fields = ['id', 'created_at', 'last_modified', 'created_by']
 
 class TcgThemeSerializer(serializers.ModelSerializer):

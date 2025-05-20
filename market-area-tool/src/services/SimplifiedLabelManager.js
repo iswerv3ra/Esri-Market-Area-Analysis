@@ -9,6 +9,7 @@ import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
  * - Manages creation, editing, and persistence of labels
  * - Single source of truth for label positions
  * - Unified storage mechanism
+ * - Ensures labels are unique to each map configuration
  */
 class LabelManager {
   constructor(view) {
@@ -19,11 +20,10 @@ class LabelManager {
     this.editedLabels = new Map();
     this.projectId = null;
     this.mapConfigId = null;
+    this.mapType = null; // Added to support different map types
     this.handlers = [];
     this.dragInfo = { startPoint: null, labelOffset: null };
     this.labelLayer = null;
-    this.storageKey = 'customLabelPositions';
-    this.autoSaveInterval = null;
     
     // Direct drag handling state
     this.isDragging = false;
@@ -43,7 +43,45 @@ class LabelManager {
       autoSaveIntervalMs: 30000, // 30 seconds
     };
     
+    this.autoSaveInterval = null;
+    
     this._initialize();
+  }
+
+  /**
+   * Generate storage key that includes mapConfigId and mapType
+   * @returns {string} The storage key
+   */
+  getStorageKey() {
+    // Ensure we use a stable key that's based on the map configuration
+    if (!this.mapConfigId) {
+      // Try to get from sessionStorage if missing
+      this.mapConfigId = sessionStorage.getItem("currentMapConfigId");
+      console.log(`[LabelManager] Retrieved mapConfigId from sessionStorage: ${this.mapConfigId}`);
+    }
+    
+    // Also check for map type if available
+    if (!this.mapType) {
+      this.mapType = sessionStorage.getItem("currentMapType");
+      console.log(`[LabelManager] Retrieved mapType from sessionStorage: ${this.mapType}`);
+    }
+    
+    // Build the storage key with enhanced uniqueness
+    const baseKey = 'customLabelPositions';
+    let storageKey = baseKey;
+    
+    // Add config ID if available
+    if (this.mapConfigId) {
+      storageKey = `${storageKey}_config_${this.mapConfigId}`;
+    }
+    
+    // Add map type if available for additional uniqueness
+    if (this.mapType) {
+      storageKey = `${storageKey}_type_${this.mapType}`;
+    }
+    
+    console.log(`[LabelManager] Using storage key: ${storageKey}`);
+    return storageKey;
   }
 
   /**
@@ -69,13 +107,16 @@ class LabelManager {
     this.projectId = localStorage.getItem("currentProjectId") || 
                     sessionStorage.getItem("currentProjectId");
     this.mapConfigId = sessionStorage.getItem("currentMapConfigId");
+    this.mapType = sessionStorage.getItem("currentMapType");
     
     // Load saved positions
     if (this.projectId) {
       this.loadPositions();
     }
     
-    console.log("[LabelManager] Initialized");
+    console.log("[LabelManager] Initialized with project:", this.projectId, 
+                "config:", this.mapConfigId, 
+                "type:", this.mapType);
   }
   
   /**
@@ -97,14 +138,37 @@ class LabelManager {
   }
   
   /**
-   * Set project context
+   * Set project context and map configuration context
    * @param {string} projectId - Project ID
    * @param {string} mapConfigId - Map configuration ID
+   * @param {string} mapType - Map type (optional)
    */
-  setContext(projectId, mapConfigId) {
+  setContext(projectId, mapConfigId, mapType = null) {
+    // Log current and new values for debugging
+    console.log(`[LabelManager] Context change: Project ${this.projectId} -> ${projectId}, Config ${this.mapConfigId} -> ${mapConfigId}, Type ${this.mapType} -> ${mapType}`);
+    
+    const previousConfigId = this.mapConfigId;
+    const previousMapType = this.mapType;
+    
     this.projectId = projectId;
     this.mapConfigId = mapConfigId;
-    console.log(`[LabelManager] Context set: Project=${projectId}, Config=${mapConfigId}`);
+    this.mapType = mapType;
+    
+    // Update in sessionStorage to ensure persistence
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem("currentMapConfigId", mapConfigId);
+      if (mapType) {
+        sessionStorage.setItem("currentMapType", mapType);
+      }
+    }
+    
+    console.log(`[LabelManager] Context set: Project=${projectId}, Config=${mapConfigId}, Type=${mapType}`);
+    
+    // Important: Clear tracked labels when switching configurations or map types
+    if (previousConfigId !== mapConfigId || (mapType && previousMapType !== mapType)) {
+      console.log(`[LabelManager] Configuration/Map Type changed, clearing tracked labels`);
+      this.editedLabels.clear();
+    }
     
     // Reload positions with the new context
     this.loadPositions();
@@ -183,7 +247,28 @@ class LabelManager {
   processLayer(layer) {
     if (!layer || !layer.graphics) return [];
     
-    console.log(`[LabelManager] Processing layer: ${layer.title || layer.id}`);
+    // Get mapConfigId from the layer or fall back to current context
+    const layerMapConfigId = layer.mapConfigId || 
+                          (layer.labelFormatInfo?.mapConfigId) || 
+                          this.mapConfigId;
+    
+    // Get mapType from the layer or fall back to current context
+    const layerMapType = layer.mapType || 
+                        (layer.labelFormatInfo?.mapType) || 
+                        this.mapType;
+    
+    // CRITICAL: Only process if the layer's mapConfigId and mapType match our current context
+    const configMismatch = this.mapConfigId && layerMapConfigId && this.mapConfigId !== layerMapConfigId;
+    const typeMismatch = this.mapType && layerMapType && this.mapType !== layerMapType;
+    
+    if (configMismatch || typeMismatch) {
+      console.log(`[LabelManager] Skipping layer processing - context mismatch:`, 
+                  `Layer Config=${layerMapConfigId}, Manager Config=${this.mapConfigId}`,
+                  `Layer Type=${layerMapType}, Manager Type=${this.mapType}`);
+      return [];
+    }
+    
+    console.log(`[LabelManager] Processing layer: ${layer.title || layer.id} with mapConfigId=${layerMapConfigId}, mapType=${layerMapType}`);
     
     // Get label options if they exist on the layer's configuration
     const labelOptions = layer.labelConfiguration?.labelOptions || layer.layerConfiguration?.labelOptions || {};
@@ -191,81 +276,113 @@ class LabelManager {
     // Track labels found in this layer
     const labelsFound = [];
     
+    // Store map config ID and type on the layer if not already set
+    if (this.mapConfigId && !layer.mapConfigId) {
+      layer.mapConfigId = this.mapConfigId;
+      console.log(`[LabelManager] Set mapConfigId ${this.mapConfigId} on layer ${layer.title || layer.id}`);
+      if (layer.labelFormatInfo) {
+        layer.labelFormatInfo.mapConfigId = this.mapConfigId;
+      }
+    }
+    
+    if (this.mapType && !layer.mapType) {
+      layer.mapType = this.mapType;
+      console.log(`[LabelManager] Set mapType ${this.mapType} on layer ${layer.title || layer.id}`);
+      if (layer.labelFormatInfo) {
+        layer.labelFormatInfo.mapType = this.mapType;
+      }
+    }
+    
     // Process all graphics in the layer
     layer.graphics.forEach(graphic => {
-        // Check if this is a label
-        const isLabel = graphic.symbol?.type === "text" || 
+      // Check if this is a label
+      const isLabel = graphic.symbol?.type === "text" || 
                     graphic.attributes?.isLabel === true;
+      
+      if (isLabel) {
+        // Generate a stable ID for this label
+        const labelId = this.getLabelId(graphic);
         
-        if (isLabel) {
-            // Generate a stable ID for this label
-            const labelId = this.getLabelId(graphic);
-            
-            if (!labelId) return; // Skip if no stable ID can be generated
-            
-            // CRITICAL: Check for saved styles BEFORE applying options
-            const savedPositions = this._getSavedPositions();
-            const hasSavedStyle = savedPositions[labelId] !== undefined;
-            
-            // CRITICAL: Only apply basic styles if no saved styles exist
-            if (!hasSavedStyle) {
-                // Apply label style options before storing
-                if (graphic.symbol) {
-                    // Apply bold option
-                    if (labelOptions.bold === true && graphic.symbol.font) {
-                        graphic.symbol.font.weight = 'bold';
-                    }
-                    
-                    // Apply white background option - USING RECTANGULAR BACKGROUND INSTEAD OF HALO
-                    if (labelOptions.whiteBackground === true) {
-                        // Create a rectangular background behind text
-                        graphic.symbol.backgroundColor = [255, 255, 255, 0.9]; // White with 90% opacity
-                        // Add some padding around the text
-                        graphic.symbol.kerning = true;
-                        graphic.symbol.horizontalAlignment = "center";
-                        // Optional: Add slight border for definition
-                        graphic.symbol.borderLineColor = [220, 220, 220, 0.5]; // Light gray border
-                        graphic.symbol.borderLineSize = 0.5;
-                        // Remove any existing halo effect
-                        graphic.symbol.haloSize = 0;
-                        graphic.symbol.haloColor = null;
-                    } else if (labelOptions.whiteBackground === false) {
-                        // Remove background
-                        graphic.symbol.backgroundColor = null;
-                        graphic.symbol.borderLineColor = null;
-                        graphic.symbol.borderLineSize = 0;
-                    }
-                }
-            }
-            
-            // Store in our tracking map
-            this.editedLabels.set(labelId, {
-                graphic: graphic,
-                position: {
-                    x: graphic.symbol?.xoffset || 0,
-                    y: graphic.symbol?.yoffset || 0
-                },
-                fontSize: graphic.symbol?.font?.size || this.settings.fontSize,
-                text: graphic.symbol?.text || graphic.attributes?.text || "",
-                fontWeight: graphic.symbol?.font?.weight || "normal",
-                backgroundColor: graphic.symbol?.backgroundColor || null,
-                borderLineColor: graphic.symbol?.borderLineColor || null,
-                borderLineSize: graphic.symbol?.borderLineSize || 0
-            });
-            
-            labelsFound.push(labelId);
-            
-            // CRITICAL: Apply any saved position with forced reapplication
-            if (hasSavedStyle) {
-                this._applySavedPosition(graphic);
-            }
+        if (!labelId) return; // Skip if no stable ID can be generated
+        
+        // Add context metadata to graphic attributes if missing
+        if (graphic.attributes) {
+          if (!graphic.attributes.mapConfigId && this.mapConfigId) {
+            graphic.attributes.mapConfigId = this.mapConfigId;
+          }
+          if (!graphic.attributes.mapType && this.mapType) {
+            graphic.attributes.mapType = this.mapType;
+          }
         }
+        
+        // CRITICAL: Check for saved styles BEFORE applying options
+        const savedPositions = this._getSavedPositions();
+        const hasSavedStyle = savedPositions[labelId] !== undefined;
+        
+        // CRITICAL: Only apply basic styles if no saved styles exist
+        if (!hasSavedStyle) {
+          // Apply label style options before storing
+          if (graphic.symbol) {
+            // Apply bold option
+            if (labelOptions.bold === true && graphic.symbol.font) {
+              graphic.symbol.font.weight = 'bold';
+            }
+            
+            // Apply white background option - USING RECTANGULAR BACKGROUND INSTEAD OF HALO
+            if (labelOptions.whiteBackground === true) {
+              // Create a rectangular background behind text
+              graphic.symbol.backgroundColor = [255, 255, 255, 0.9]; // White with 90% opacity
+              // Add some padding around the text
+              graphic.symbol.kerning = true;
+              graphic.symbol.horizontalAlignment = "center";
+              // Optional: Add slight border for definition
+              graphic.symbol.borderLineColor = [220, 220, 220, 0.5]; // Light gray border
+              graphic.symbol.borderLineSize = 0.5;
+              // Remove any existing halo effect
+              graphic.symbol.haloSize = 0;
+              graphic.symbol.haloColor = null;
+            } else if (labelOptions.whiteBackground === false) {
+              // Remove background
+              graphic.symbol.backgroundColor = null;
+              graphic.symbol.borderLineColor = null;
+              graphic.symbol.borderLineSize = 0;
+            }
+          }
+        }
+        
+        // Store in our tracking map
+        this.editedLabels.set(labelId, {
+          graphic: graphic,
+          position: {
+            x: graphic.symbol?.xoffset || 0,
+            y: graphic.symbol?.yoffset || 0
+          },
+          fontSize: graphic.symbol?.font?.size || this.settings.fontSize,
+          text: graphic.symbol?.text || graphic.attributes?.text || "",
+          fontWeight: graphic.symbol?.font?.weight || "normal",
+          backgroundColor: graphic.symbol?.backgroundColor || null,
+          borderLineColor: graphic.symbol?.borderLineColor || null,
+          borderLineSize: graphic.symbol?.borderLineSize || 0,
+          // Store context information in the label data
+          mapConfigId: this.mapConfigId,
+          mapType: this.mapType
+        });
+        
+        labelsFound.push(labelId);
+        
+        // CRITICAL: Apply any saved position with forced reapplication
+        if (hasSavedStyle) {
+          this._applySavedPosition(graphic);
+        }
+      }
     });
     
     console.log(`[LabelManager] Found ${labelsFound.length} labels in layer`);
     
     // Mark layer as processed
     layer._labelManagerProcessed = true;
+    layer._processedWithConfigId = this.mapConfigId;
+    layer._processedWithMapType = this.mapType;
     
     return labelsFound;
   }
@@ -280,119 +397,145 @@ class LabelManager {
     if (!label || !label.symbol) return false;
 
     try {
-        const labelId = this.getLabelId(label);
-        if (!labelId) return false;
+      const labelId = this.getLabelId(label);
+      if (!labelId) return false;
     
-        const savedPositions = this._getSavedPositions();
+      const savedPositions = this._getSavedPositions();
     
-        if (savedPositions[labelId]) {
-            console.log(`[LabelManager] Found saved data for label ${labelId}:`, 
-                        JSON.stringify({
-                            fontSize: savedPositions[labelId].fontSize,
-                            fontWeight: savedPositions[labelId].fontWeight,
-                            hasBackground: !!savedPositions[labelId].backgroundColor
-                        }));
-                        
-            const savedData = savedPositions[labelId];
-            const newSymbol = label.symbol.clone(); // Start with current symbol properties
-    
-            // Apply position if available
-            if (savedData.position) {
-                newSymbol.xoffset = savedData.position.x;
-                newSymbol.yoffset = savedData.position.y;
-            }
-    
-            // CRITICAL IMPROVEMENT: Create font object if missing
-            if (!newSymbol.font) {
-                newSymbol.font = { 
-                    family: this.settings.fontFamily,
-                    size: this.settings.fontSize,
-                    weight: "normal"
-                };
-            }
-            
-            // CRITICAL: Apply saved fontSize correctly 
-            if (savedData.fontSize !== undefined) {
-                newSymbol.font.size = savedData.fontSize;
-                console.log(`[LabelManager] Applied saved fontSize ${savedData.fontSize} to label ${labelId}`);
-            }
-            
-            // CRITICAL: Apply font weight ALWAYS if available in saved data
-            if (savedData.fontWeight) {
-                newSymbol.font.weight = savedData.fontWeight;
-                console.log(`[LabelManager] Applied saved fontWeight ${savedData.fontWeight} to label ${labelId}`);
-            }
-            
-            // CRITICAL: Apply background ALWAYS if available in saved data
-            if (savedData.backgroundColor) {
-                newSymbol.backgroundColor = savedData.backgroundColor;
-                newSymbol.borderLineColor = savedData.borderLineColor || null;
-                newSymbol.borderLineSize = savedData.borderLineSize || 0;
-                newSymbol.kerning = true;
-                newSymbol.horizontalAlignment = "center";
-                
-                // Remove any halo effect when background is applied
-                newSymbol.haloSize = 0;
-                newSymbol.haloColor = null;
-                
-                console.log(`[LabelManager] Applied background to label ${labelId}`);
-            }
-            
-            // CRITICAL: Mark label with persistent style flags to prevent overrides
-            if (label.attributes) {
-                label.attributes._persistentStyle = true;
-                label.attributes._fontSize = savedData.fontSize;
-                label.attributes._fontWeight = savedData.fontWeight;
-                label.attributes._hasBackground = !!savedData.backgroundColor;
-            }
-    
-            // Apply the updated symbol to the label
-            label.symbol = newSymbol;
-    
-            // Update tracking map with ALL properties explicitly
-            this.editedLabels.set(labelId, {
-                graphic: label,
-                position: {
-                    x: newSymbol.xoffset || 0,
-                    y: newSymbol.yoffset || 0
-                },
-                fontSize: savedData.fontSize || newSymbol.font?.size || this.settings.fontSize,
-                text: newSymbol.text || label.attributes?.text || "", 
-                fontWeight: savedData.fontWeight || newSymbol.font?.weight || "normal",
-                backgroundColor: savedData.backgroundColor || null,
-                borderLineColor: savedData.borderLineColor || null,
-                borderLineSize: savedData.borderLineSize || 0,
-                // Add style flags for persistence
-                _persistentStyle: true,
-            });
-    
-            // Ensure label visibility is applied
-            label.visible = savedData.visible !== false;
-    
-            console.log(`[LabelManager] Successfully applied saved style to label ${labelId}`);
-            return true;
-        } else {
-            // If no saved position, still ensure it's tracked with current info
-            if (!this.editedLabels.has(labelId)) {
-                this.editedLabels.set(labelId, {
-                    graphic: label,
-                    position: {
-                        x: label.symbol?.xoffset || 0,
-                        y: label.symbol?.yoffset || 0
-                    },
-                    fontSize: label.symbol?.font?.size || this.settings.fontSize,
-                    text: label.symbol?.text || label.attributes?.text || "",
-                    fontWeight: label.symbol?.font?.weight || "normal",
-                    backgroundColor: label.symbol?.backgroundColor || null,
-                    borderLineColor: label.symbol?.borderLineColor || null,
-                    borderLineSize: label.symbol?.borderLineSize || 0
-                });
-            }
-            return false;
+      if (savedPositions[labelId]) {
+        const savedData = savedPositions[labelId];
+        
+        // CRITICAL: Verify the map context matches before applying
+        if (savedData.mapConfigId && this.mapConfigId && 
+            savedData.mapConfigId !== this.mapConfigId) {
+          console.log(`[LabelManager] Skipping position application - config mismatch: Label=${savedData.mapConfigId}, Manager=${this.mapConfigId}`);
+          return false;
         }
-    } catch (error) {
-        console.error(`[LabelManager] Error applying saved position to ${label?.attributes?.labelId || 'unknown label'}:`, error);
+        
+        // CRITICAL: Also verify map type matches if available
+        if (savedData.mapType && this.mapType && 
+            savedData.mapType !== this.mapType) {
+          console.log(`[LabelManager] Skipping position application - type mismatch: Label=${savedData.mapType}, Manager=${this.mapType}`);
+          return false;
+        }
+        
+        console.log(`[LabelManager] Found saved data for label ${labelId}:`, 
+                  JSON.stringify({
+                    fontSize: savedData.fontSize,
+                    fontWeight: savedData.fontWeight,
+                    hasBackground: !!savedData.backgroundColor,
+                    mapConfigId: savedData.mapConfigId,
+                    mapType: savedData.mapType
+                  }));
+                  
+        const newSymbol = label.symbol.clone(); // Start with current symbol properties
+    
+        // Apply position if available
+        if (savedData.position) {
+          newSymbol.xoffset = savedData.position.x;
+          newSymbol.yoffset = savedData.position.y;
+        }
+    
+        // CRITICAL IMPROVEMENT: Create font object if missing
+        if (!newSymbol.font) {
+          newSymbol.font = { 
+            family: this.settings.fontFamily,
+            size: this.settings.fontSize,
+            weight: "normal"
+          };
+        }
+        
+        // CRITICAL: Apply saved fontSize correctly 
+        if (savedData.fontSize !== undefined) {
+          newSymbol.font.size = savedData.fontSize;
+          console.log(`[LabelManager] Applied saved fontSize ${savedData.fontSize} to label ${labelId}`);
+        }
+        
+        // CRITICAL: Apply font weight ALWAYS if available in saved data
+        if (savedData.fontWeight) {
+          newSymbol.font.weight = savedData.fontWeight;
+          console.log(`[LabelManager] Applied saved fontWeight ${savedData.fontWeight} to label ${labelId}`);
+        }
+        
+        // CRITICAL: Apply background ALWAYS if available in saved data
+        if (savedData.backgroundColor) {
+          newSymbol.backgroundColor = savedData.backgroundColor;
+          newSymbol.borderLineColor = savedData.borderLineColor || null;
+          newSymbol.borderLineSize = savedData.borderLineSize || 0;
+          newSymbol.kerning = true;
+          newSymbol.horizontalAlignment = "center";
+          
+          // Remove any halo effect when background is applied
+          newSymbol.haloSize = 0;
+          newSymbol.haloColor = null;
+          
+          console.log(`[LabelManager] Applied background to label ${labelId}`);
+        }
+        
+        // CRITICAL: Mark label with persistent style flags to prevent overrides
+        if (label.attributes) {
+          label.attributes._persistentStyle = true;
+          label.attributes._fontSize = savedData.fontSize;
+          label.attributes._fontWeight = savedData.fontWeight;
+          label.attributes._hasBackground = !!savedData.backgroundColor;
+          // Also store context information
+          label.attributes.mapConfigId = savedData.mapConfigId || this.mapConfigId;
+          label.attributes.mapType = savedData.mapType || this.mapType;
+        }
+    
+        // Apply the updated symbol to the label
+        label.symbol = newSymbol;
+    
+        // Update tracking map with ALL properties explicitly
+        this.editedLabels.set(labelId, {
+          graphic: label,
+          position: {
+            x: newSymbol.xoffset || 0,
+            y: newSymbol.yoffset || 0
+          },
+          fontSize: savedData.fontSize || newSymbol.font?.size || this.settings.fontSize,
+          text: newSymbol.text || label.attributes?.text || "", 
+          fontWeight: savedData.fontWeight || newSymbol.font?.weight || "normal",
+          backgroundColor: savedData.backgroundColor || null,
+          borderLineColor: savedData.borderLineColor || null,
+          borderLineSize: savedData.borderLineSize || 0,
+          // Add style flags for persistence
+          _persistentStyle: true,
+          // Store context information
+          mapConfigId: savedData.mapConfigId || this.mapConfigId,
+          mapType: savedData.mapType || this.mapType
+        });
+    
+        // Ensure label visibility is applied
+        label.visible = savedData.visible !== false;
+    
+        console.log(`[LabelManager] Successfully applied saved style to label ${labelId}`);
+        return true;
+      } else {
+        // If no saved position, still ensure it's tracked with current info
+        if (!this.editedLabels.has(labelId)) {
+          this.editedLabels.set(labelId, {
+            graphic: label,
+            position: {
+              x: label.symbol?.xoffset || 0,
+              y: label.symbol?.yoffset || 0
+            },
+            fontSize: label.symbol?.font?.size || this.settings.fontSize,
+            text: label.symbol?.text || label.attributes?.text || "",
+            fontWeight: label.symbol?.font?.weight || "normal",
+            backgroundColor: label.symbol?.backgroundColor || null,
+            borderLineColor: label.symbol?.borderLineColor || null,
+            borderLineSize: label.symbol?.borderLineSize || 0,
+            // Store context information
+            mapConfigId: this.mapConfigId,
+            mapType: this.mapType
+          });
+        }
         return false;
+      }
+    } catch (error) {
+      console.error(`[LabelManager] Error applying saved position to ${label?.attributes?.labelId || 'unknown label'}:`, error);
+      return false;
     }
   }
   
@@ -403,7 +546,8 @@ class LabelManager {
    */
   _getSavedPositions() {
     try {
-      const savedData = localStorage.getItem(this.storageKey);
+      // Use the configurable storage key that includes mapConfigId and mapType
+      const savedData = localStorage.getItem(this.getStorageKey());
       return savedData ? JSON.parse(savedData) : {};
     } catch (error) {
       console.error('[LabelManager] Error reading saved positions:', error);
@@ -462,11 +606,30 @@ class LabelManager {
               );
               
               if (labelHit && labelHit.graphic) {
+                // CRITICAL: Check if the label belongs to the current context
+                const hitLabel = labelHit.graphic;
+                
+                // Skip if label is from a different map config
+                if (hitLabel.attributes?.mapConfigId && 
+                    this.mapConfigId && 
+                    hitLabel.attributes.mapConfigId !== this.mapConfigId) {
+                  console.log("[LabelManager] Ignoring label from different map config");
+                  return;
+                }
+                
+                // Skip if label is from a different map type
+                if (hitLabel.attributes?.mapType && 
+                    this.mapType && 
+                    hitLabel.attributes.mapType !== this.mapType) {
+                  console.log("[LabelManager] Ignoring label from different map type");
+                  return;
+                }
+                
                 // Found a label - start drag operation
                 event.stopPropagation();
                 
                 // Store references
-                this.draggedLabel = labelHit.graphic;
+                this.draggedLabel = hitLabel;
                 this.dragStartPoint = { x: event.x, y: event.y };
                 this.originalOffset = { 
                   x: this.draggedLabel.symbol?.xoffset || 0, 
@@ -609,116 +772,105 @@ class LabelManager {
     }
   }
   
-
-
+  /**
+   * Save positions to storage
+   * @param {boolean} force - Whether to force save even if no changes
+   * @returns {Object} Result of the save operation
+   */
   savePositions(force = false) {
     if (this.editedLabels.size === 0 && !force) {
-        return { success: true, message: "No changes to save", count: 0 };
+      return { success: true, message: "No changes to save", count: 0 };
     }
     
     try {
-        // Get existing saved positions
-        const savedPositions = this._getSavedPositions();
+      // Ensure we have the correct configId and mapType context
+      if (!this.mapConfigId) {
+        this.mapConfigId = sessionStorage.getItem("currentMapConfigId");
+        console.log(`[LabelManager] Retrieved mapConfigId from sessionStorage for save: ${this.mapConfigId}`);
+      }
+      
+      if (!this.mapType) {
+        this.mapType = sessionStorage.getItem("currentMapType");
+        console.log(`[LabelManager] Retrieved mapType from sessionStorage for save: ${this.mapType}`);
+      }
+      
+      // Get the storage key for the current context
+      const storageKey = this.getStorageKey();
+      
+      // Get existing saved positions
+      let savedPositions = {};
+      try {
+        const savedData = localStorage.getItem(storageKey);
+        savedPositions = savedData ? JSON.parse(savedData) : {};
+      } catch (readError) {
+        console.error(`[LabelManager] Error reading from ${storageKey}:`, readError);
+        savedPositions = {};
+      }
+      
+      // Update with current edited labels
+      let updatedCount = 0;
+      
+      this.editedLabels.forEach((labelData, labelId) => {
+        // Determine font size and weight
+        const fontSize = labelData.fontSize || 
+                        labelData.graphic?.symbol?.font?.size || 
+                        this.settings.fontSize;
         
-        // Update with current edited labels
-        let updatedCount = 0;
+        const fontWeight = labelData.fontWeight || 
+                          labelData.graphic?.symbol?.font?.weight || 
+                          "normal";
         
-        this.editedLabels.forEach((labelData, labelId) => {
-            // CRITICAL CHANGE: Prioritize direct fontSize property
-            let fontSize = null;
-            
-            // First check for direct fontSize property in labelData
-            if (labelData.fontSize !== undefined && labelData.fontSize !== null) {
-                fontSize = labelData.fontSize;
-            } 
-            // Next try to get from the symbol's font
-            else if (labelData.graphic?.symbol?.font?.size !== undefined) {
-                fontSize = labelData.graphic.symbol.font.size;
-            }
-            // Fallback to default
-            else {
-                fontSize = this.settings.fontSize;
-            }
-            
-            // Get font weight - prioritize direct property
-            let fontWeight = "normal";
-            if (labelData.fontWeight) {
-                fontWeight = labelData.fontWeight;
-            } 
-            else if (labelData.graphic?.symbol?.font?.weight) {
-                fontWeight = labelData.graphic.symbol.font.weight;
-            }
-            
-            // Get background and border settings
-            let backgroundColor = null;
-            let borderLineColor = null;
-            let borderLineSize = 0;
-            
-            // Extract from explicit properties if available
-            if (labelData.backgroundColor !== undefined) {
-                backgroundColor = labelData.backgroundColor;
-            }
-            else if (labelData.graphic?.symbol?.backgroundColor) {
-                backgroundColor = labelData.graphic.symbol.backgroundColor;
-            }
-            
-            if (labelData.borderLineColor !== undefined) {
-                borderLineColor = labelData.borderLineColor;
-            }
-            else if (labelData.graphic?.symbol?.borderLineColor) {
-                borderLineColor = labelData.graphic.symbol.borderLineColor;
-            }
-            
-            if (labelData.borderLineSize !== undefined) {
-                borderLineSize = labelData.borderLineSize;
-            }
-            else if (labelData.graphic?.symbol?.borderLineSize) {
-                borderLineSize = labelData.graphic.symbol.borderLineSize;
-            }
-            
-            // CRITICAL: Store ALL properties explicitly to ensure persistence
-            savedPositions[labelId] = {
-                position: labelData.position,
-                fontSize: fontSize,
-                text: labelData.text,
-                visible: labelData.graphic?.visible !== false,
-                fontWeight: fontWeight,
-                backgroundColor: backgroundColor,
-                borderLineColor: borderLineColor,
-                borderLineSize: borderLineSize,
-                lastEdited: Date.now(),
-                // Store additional symbol properties for complete persistence
-                symbolProperties: {
-                    haloSize: labelData.graphic?.symbol?.haloSize,
-                    haloColor: labelData.graphic?.symbol?.haloColor,
-                    kerning: labelData.graphic?.symbol?.kerning,
-                    horizontalAlignment: labelData.graphic?.symbol?.horizontalAlignment
-                }
-            };
-            
-            console.log(`[LabelManager SAVE] Label ${labelId}: fontSize=${fontSize}, weight=${fontWeight}, hasBackground=${!!backgroundColor}`);
-            updatedCount++;
-        });
+        const backgroundColor = labelData.backgroundColor;
+        const borderLineColor = labelData.borderLineColor;
+        const borderLineSize = labelData.borderLineSize;
         
-        // CRITICAL: Force immediate storage - make sure it's committed
-        localStorage.setItem(this.storageKey, JSON.stringify(savedPositions));
-        
-        console.log(`[LabelManager] Saved ${updatedCount} label positions and styles`);
-        
-        return {
-            success: true,
-            message: `Saved ${updatedCount} label positions and styles`,
-            count: updatedCount
+        // CRITICAL: Store ALL properties explicitly to ensure persistence
+        savedPositions[labelId] = {
+          position: labelData.position,
+          fontSize: fontSize,
+          text: labelData.text,
+          visible: labelData.graphic?.visible !== false,
+          fontWeight: fontWeight,
+          backgroundColor: backgroundColor,
+          borderLineColor: borderLineColor,
+          borderLineSize: borderLineSize,
+          lastEdited: Date.now(),
+          // Store the mapConfigId explicitly for verification
+          mapConfigId: this.mapConfigId,
+          // Store the mapType explicitly for verification
+          mapType: this.mapType,
+          // Store additional symbol properties for complete persistence
+          symbolProperties: {
+            haloSize: labelData.graphic?.symbol?.haloSize,
+            haloColor: labelData.graphic?.symbol?.haloColor,
+            kerning: labelData.graphic?.symbol?.kerning,
+            horizontalAlignment: labelData.graphic?.symbol?.horizontalAlignment
+          }
         };
+        
+        console.log(`[LabelManager SAVE] Label ${labelId}: fontSize=${fontSize}, weight=${fontWeight}, hasBackground=${!!backgroundColor}, mapConfigId=${this.mapConfigId}, mapType=${this.mapType}`);
+        updatedCount++;
+      });
+      
+      // CRITICAL: Force immediate storage - make sure it's committed
+      localStorage.setItem(storageKey, JSON.stringify(savedPositions));
+      
+      console.log(`[LabelManager] Saved ${updatedCount} label positions and styles for config ${this.mapConfigId}, type ${this.mapType} using key ${storageKey}`);
+      
+      return {
+        success: true,
+        message: `Saved ${updatedCount} label positions and styles`,
+        count: updatedCount
+      };
     } catch (error) {
-        console.error('[LabelManager] Error saving positions:', error);
-        return {
-            success: false,
-            message: `Error saving positions: ${error.message}`,
-            count: 0
-        };
+      console.error('[LabelManager] Error saving positions:', error);
+      return {
+        success: false,
+        message: `Error saving positions: ${error.message}`,
+        count: 0
+      };
     }
-}
+  }
   
   /**
    * Load positions from storage
@@ -728,7 +880,7 @@ class LabelManager {
    */
   loadPositions(force = false, preserveEdits = true) {
     try {
-      // Get saved positions
+      // Get saved positions using current context
       const savedPositions = this._getSavedPositions();
       const positionCount = Object.keys(savedPositions).length;
       
@@ -737,7 +889,7 @@ class LabelManager {
         return { success: true, message: "No saved positions found", count: 0 };
       }
       
-      console.log(`[LabelManager] Found ${positionCount} saved positions`);
+      console.log(`[LabelManager] Found ${positionCount} saved positions for config ${this.mapConfigId}, type ${this.mapType}`);
       
       // Apply to tracked labels and visible layers
       let appliedCount = 0;
@@ -747,6 +899,18 @@ class LabelManager {
         if (savedPositions[labelId] && labelData.graphic) {
           try {
             const savedData = savedPositions[labelId];
+            
+            // CRITICAL: Verify context matches
+            if (savedData.mapConfigId && this.mapConfigId && 
+                savedData.mapConfigId !== this.mapConfigId) {
+              return; // Skip if config ID doesn't match
+            }
+            
+            if (savedData.mapType && this.mapType && 
+                savedData.mapType !== this.mapType) {
+              return; // Skip if map type doesn't match
+            }
+            
             const graphic = labelData.graphic;
             
             // Skip if graphic is no longer valid
@@ -777,12 +941,19 @@ class LabelManager {
               };
             }
             
-            // Apply background (halo) if present
-            if (savedData.haloSize !== undefined) {
-              newSymbol.haloSize = savedData.haloSize;
-              if (savedData.haloColor) {
-                newSymbol.haloColor = savedData.haloColor;
-              }
+            // Apply background properties if present
+            if (savedData.backgroundColor) {
+              newSymbol.backgroundColor = savedData.backgroundColor;
+              newSymbol.borderLineColor = savedData.borderLineColor || null;
+              newSymbol.borderLineSize = savedData.borderLineSize || 0;
+              
+              // Apply additional properties
+              newSymbol.kerning = true;
+              newSymbol.horizontalAlignment = "center";
+              
+              // Remove any halo effect when background is applied
+              newSymbol.haloSize = 0;
+              newSymbol.haloColor = null;
             }
             
             // Apply text if different
@@ -796,7 +967,7 @@ class LabelManager {
             // Update visibility
             graphic.visible = savedData.visible !== false;
             
-            // Update tracking info
+            // Update tracking info with context information
             this.editedLabels.set(labelId, {
               graphic: graphic,
               position: {
@@ -806,8 +977,11 @@ class LabelManager {
               fontSize: newSymbol.font?.size || this.settings.fontSize,
               text: newSymbol.text || "",
               fontWeight: newSymbol.font?.weight || "normal",
-              haloSize: newSymbol.haloSize,
-              haloColor: newSymbol.haloColor
+              backgroundColor: newSymbol.backgroundColor,
+              borderLineColor: newSymbol.borderLineColor,
+              borderLineSize: newSymbol.borderLineSize,
+              mapConfigId: savedData.mapConfigId || this.mapConfigId,
+              mapType: savedData.mapType || this.mapType
             });
             
             appliedCount++;
@@ -821,7 +995,13 @@ class LabelManager {
       if (this.view?.map?.layers) {
         this.view.map.layers.forEach(layer => {
           // Skip if not a graphics layer or already processed
-          if (!layer.graphics || layer._allLabelsApplied) return;
+          if (!layer.graphics) return;
+          
+          // Skip if processed with current context
+          if (layer._processedWithConfigId === this.mapConfigId && 
+              layer._processedWithMapType === this.mapType) {
+            return;
+          }
           
           let layerAppliedCount = 0;
           
@@ -842,6 +1022,17 @@ class LabelManager {
             if (savedPositions[labelId]) {
               try {
                 const savedData = savedPositions[labelId];
+                
+                // CRITICAL: Verify context matches
+                if (savedData.mapConfigId && this.mapConfigId && 
+                    savedData.mapConfigId !== this.mapConfigId) {
+                  return; // Skip if config ID doesn't match
+                }
+                
+                if (savedData.mapType && this.mapType && 
+                    savedData.mapType !== this.mapType) {
+                  return; // Skip if map type doesn't match
+                }
                 
                 // Skip if graphic is no longer valid
                 if (!graphic.symbol) return;
@@ -871,12 +1062,19 @@ class LabelManager {
                   };
                 }
                 
-                // Apply background (halo) if present
-                if (savedData.haloSize !== undefined) {
-                  newSymbol.haloSize = savedData.haloSize;
-                  if (savedData.haloColor) {
-                    newSymbol.haloColor = savedData.haloColor;
-                  }
+                // Apply background properties if present
+                if (savedData.backgroundColor) {
+                  newSymbol.backgroundColor = savedData.backgroundColor;
+                  newSymbol.borderLineColor = savedData.borderLineColor || null;
+                  newSymbol.borderLineSize = savedData.borderLineSize || 0;
+                  
+                  // Apply additional properties
+                  newSymbol.kerning = true;
+                  newSymbol.horizontalAlignment = "center";
+                  
+                  // Remove any halo effect when background is applied
+                  newSymbol.haloSize = 0;
+                  newSymbol.haloColor = null;
                 }
                 
                 // Apply text if different
@@ -890,6 +1088,12 @@ class LabelManager {
                 // Update visibility
                 graphic.visible = savedData.visible !== false;
                 
+                // Add context metadata to graphic attributes
+                if (graphic.attributes) {
+                  graphic.attributes.mapConfigId = savedData.mapConfigId || this.mapConfigId;
+                  graphic.attributes.mapType = savedData.mapType || this.mapType;
+                }
+                
                 // Start tracking this label
                 this.editedLabels.set(labelId, {
                   graphic: graphic,
@@ -900,8 +1104,11 @@ class LabelManager {
                   fontSize: newSymbol.font?.size || this.settings.fontSize,
                   text: newSymbol.text || "",
                   fontWeight: newSymbol.font?.weight || "normal",
-                  haloSize: newSymbol.haloSize,
-                  haloColor: newSymbol.haloColor
+                  backgroundColor: savedData.backgroundColor,
+                  borderLineColor: savedData.borderLineColor,
+                  borderLineSize: savedData.borderLineSize,
+                  mapConfigId: savedData.mapConfigId || this.mapConfigId,
+                  mapType: savedData.mapType || this.mapType
                 });
                 
                 layerAppliedCount++;
@@ -916,12 +1123,13 @@ class LabelManager {
             console.log(`[LabelManager] Applied ${layerAppliedCount} saved positions to layer ${layer.id}`);
           }
           
-          // Mark layer as fully processed
-          layer._allLabelsApplied = true;
+          // Mark layer as fully processed with this context
+          layer._processedWithConfigId = this.mapConfigId;
+          layer._processedWithMapType = this.mapType;
         });
       }
       
-      console.log(`[LabelManager] Applied ${appliedCount} saved positions and styles`);
+      console.log(`[LabelManager] Applied ${appliedCount} saved positions and styles for config ${this.mapConfigId}, type ${this.mapType}`);
       
       return {
         success: true,
@@ -939,18 +1147,29 @@ class LabelManager {
   }
 
   /**
-   * Reset all label positions
+   * Reset all label positions for the current map configuration and type
    * @returns {Object} Result of the reset operation
    */
   resetAllLabels() {
     try {
-      // Remove saved positions from storage
-      localStorage.removeItem(this.storageKey);
+      // Remove saved positions from storage for this specific context
+      localStorage.removeItem(this.getStorageKey());
       
       let resetCount = 0;
       
-      // Reset all tracked labels
+      // Reset all tracked labels that belong to the current context
       this.editedLabels.forEach((labelData, labelId) => {
+        // Skip labels from different contexts
+        if (labelData.mapConfigId && this.mapConfigId && 
+            labelData.mapConfigId !== this.mapConfigId) {
+          return;
+        }
+        
+        if (labelData.mapType && this.mapType && 
+            labelData.mapType !== this.mapType) {
+          return;
+        }
+        
         const graphic = labelData.graphic;
         
         // Skip if graphic is no longer valid
@@ -980,10 +1199,20 @@ class LabelManager {
         resetCount++;
       });
       
-      // Clear tracking
-      this.editedLabels.clear();
+      // Only clear labels for this context
+      const filteredEditedLabels = new Map();
+      this.editedLabels.forEach((labelData, labelId) => {
+        // Keep labels from different contexts
+        if ((labelData.mapConfigId && labelData.mapConfigId !== this.mapConfigId) ||
+            (labelData.mapType && labelData.mapType !== this.mapType)) {
+          filteredEditedLabels.set(labelId, labelData);
+        }
+      });
       
-      console.log(`[LabelManager] Reset ${resetCount} label positions`);
+      // Replace the current tracking map
+      this.editedLabels = filteredEditedLabels;
+      
+      console.log(`[LabelManager] Reset ${resetCount} label positions for config ${this.mapConfigId}, type ${this.mapType}`);
       
       return {
         success: true,
@@ -1018,6 +1247,17 @@ class LabelManager {
         return { success: false, message: "Label not found or invalid" };
       }
       
+      // Verify the label belongs to the current context
+      if ((labelData.mapConfigId && this.mapConfigId && 
+           labelData.mapConfigId !== this.mapConfigId) ||
+          (labelData.mapType && this.mapType && 
+           labelData.mapType !== this.mapType)) {
+        return { 
+          success: false, 
+          message: `Label belongs to a different context (Config: ${labelData.mapConfigId}, Type: ${labelData.mapType})` 
+        };
+      }
+      
       // Create new symbol with reset position
       const newSymbol = labelData.graphic.symbol.clone();
       
@@ -1045,13 +1285,15 @@ class LabelManager {
         position: { x: 0, y: 0 },
         fontSize: this.settings.fontSize,
         text: labelData.graphic.symbol.text || "",
+        mapConfigId: this.mapConfigId,
+        mapType: this.mapType
       });
       
       // Remove from saved positions
       const savedPositions = this._getSavedPositions();
       if (savedPositions[labelId]) {
         delete savedPositions[labelId];
-        localStorage.setItem(this.storageKey, JSON.stringify(savedPositions));
+        localStorage.setItem(this.getStorageKey(), JSON.stringify(savedPositions));
       }
       
       console.log(`[LabelManager] Reset label position for ${labelId}`);
@@ -1089,6 +1331,17 @@ class LabelManager {
         return { success: false, message: "Label not found or invalid" };
       }
       
+      // Verify the label belongs to the current context
+      if ((labelData.mapConfigId && this.mapConfigId && 
+           labelData.mapConfigId !== this.mapConfigId) ||
+          (labelData.mapType && this.mapType && 
+           labelData.mapType !== this.mapType)) {
+        return { 
+          success: false, 
+          message: `Label belongs to a different context (Config: ${labelData.mapConfigId}, Type: ${labelData.mapType})` 
+        };
+      }
+      
       // Create new symbol with updated position
       const newSymbol = labelData.graphic.symbol.clone();
       newSymbol.xoffset = position.x;
@@ -1118,59 +1371,75 @@ class LabelManager {
     }
   }
   
-  // ENHANCED: updateLabelFontSize method with immediate save trigger
+  /**
+   * Update a label's font size with immediate save
+   * @param {string|Object} labelOrId - Label ID or label graphic
+   * @param {number} fontSize - New font size
+   * @returns {Object} Result of the update operation
+   */
   updateLabelFontSize(labelOrId, fontSize) {
     try {
-        const labelId = typeof labelOrId === 'string' ? labelOrId : this.getLabelId(labelOrId);
-        if (!labelId) {
-            return { success: false, message: "Invalid label ID" };
-        }
-        
-        // Get the label graphic
-        const labelData = this.editedLabels.get(labelId);
-        if (!labelData || !labelData.graphic || !labelData.graphic.symbol) {
-            return { success: false, message: "Label not found or invalid" };
-        }
-        
-        // Create new symbol with updated font size
-        const newSymbol = labelData.graphic.symbol.clone();
-        
-        if (newSymbol.font) {
-            newSymbol.font = {
-                ...newSymbol.font,
-                size: fontSize
-            };
-        } else {
-            newSymbol.font = {
-                family: this.settings.fontFamily,
-                size: fontSize
-            };
-        }
-        
-        // Apply the updated symbol
-        labelData.graphic.symbol = newSymbol;
-        
-        // CRITICAL: Update tracking with EXPLICIT fontSize property
-        this.editedLabels.set(labelId, {
-            ...labelData,
-            fontSize: fontSize, // Store fontSize DIRECTLY in the data object
-        });
-        
-        console.log(`[LabelManager] Updated font size for ${labelId} to ${fontSize}`);
-        
-        // IMPORTANT: Trigger an immediate save to ensure persistence
-        this.savePositions(true);
-        
-        return {
-            success: true,
-            message: `Updated font size for ${labelId}`,
+      const labelId = typeof labelOrId === 'string' ? labelOrId : this.getLabelId(labelOrId);
+      if (!labelId) {
+        return { success: false, message: "Invalid label ID" };
+      }
+      
+      // Get the label graphic
+      const labelData = this.editedLabels.get(labelId);
+      if (!labelData || !labelData.graphic || !labelData.graphic.symbol) {
+        return { success: false, message: "Label not found or invalid" };
+      }
+      
+      // Verify the label belongs to the current context
+      if ((labelData.mapConfigId && this.mapConfigId && 
+           labelData.mapConfigId !== this.mapConfigId) ||
+          (labelData.mapType && this.mapType && 
+           labelData.mapType !== this.mapType)) {
+        return { 
+          success: false, 
+          message: `Label belongs to a different context (Config: ${labelData.mapConfigId}, Type: ${labelData.mapType})` 
         };
+      }
+      
+      // Create new symbol with updated font size
+      const newSymbol = labelData.graphic.symbol.clone();
+      
+      if (newSymbol.font) {
+        newSymbol.font = {
+          ...newSymbol.font,
+          size: fontSize
+        };
+      } else {
+        newSymbol.font = {
+          family: this.settings.fontFamily,
+          size: fontSize
+        };
+      }
+      
+      // Apply the updated symbol
+      labelData.graphic.symbol = newSymbol;
+      
+      // CRITICAL: Update tracking with EXPLICIT fontSize property
+      this.editedLabels.set(labelId, {
+        ...labelData,
+        fontSize: fontSize, // Store fontSize DIRECTLY in the data object
+      });
+      
+      console.log(`[LabelManager] Updated font size for ${labelId} to ${fontSize}`);
+      
+      // IMPORTANT: Trigger an immediate save to ensure persistence
+      this.savePositions(true);
+      
+      return {
+        success: true,
+        message: `Updated font size for ${labelId}`,
+      };
     } catch (error) {
-        console.error('[LabelManager] Error updating font size:', error);
-        return {
-            success: false,
-            message: `Error updating font size: ${error.message}`,
-        };
+      console.error('[LabelManager] Error updating font size:', error);
+      return {
+        success: false,
+        message: `Error updating font size: ${error.message}`,
+      };
     }
   }
   
@@ -1191,6 +1460,17 @@ class LabelManager {
       const labelData = this.editedLabels.get(labelId);
       if (!labelData || !labelData.graphic || !labelData.graphic.symbol) {
         return { success: false, message: "Label not found or invalid" };
+      }
+      
+      // Verify the label belongs to the current context
+      if ((labelData.mapConfigId && this.mapConfigId && 
+           labelData.mapConfigId !== this.mapConfigId) ||
+          (labelData.mapType && this.mapType && 
+           labelData.mapType !== this.mapType)) {
+        return { 
+          success: false, 
+          message: `Label belongs to a different context (Config: ${labelData.mapConfigId}, Type: ${labelData.mapType})` 
+        };
       }
       
       // Create new symbol with updated text
@@ -1321,9 +1601,28 @@ class LabelManager {
             });
             
             if (labelHits && labelHits.length > 0) {
-              // Select the first hit label
-              event.stopPropagation();
-              this.selectLabel(labelHits[0].graphic);
+              // Filter to only include labels from the current context
+              const contextLabelHits = labelHits.filter(hit => {
+                const attrs = hit.graphic.attributes || {};
+                
+                // Check if label matches current context
+                const configMatch = !attrs.mapConfigId || !this.mapConfigId || 
+                                  attrs.mapConfigId === this.mapConfigId;
+                                  
+                const typeMatch = !attrs.mapType || !this.mapType || 
+                                attrs.mapType === this.mapType;
+                                
+                return configMatch && typeMatch;
+              });
+              
+              if (contextLabelHits.length > 0) {
+                // Select the first hit label from the current context
+                event.stopPropagation();
+                this.selectLabel(contextLabelHits[0].graphic);
+              } else {
+                // Deselect if no labels from current context
+                this.selectedLabel = null;
+              }
             } else {
               // Deselect if clicking outside
               this.selectedLabel = null;
@@ -1377,6 +1676,19 @@ class LabelManager {
   selectLabel(labelGraphic) {
     if (!labelGraphic) return null;
     
+    // Verify the label belongs to the current context
+    const attrs = labelGraphic.attributes || {};
+    const configMatch = !attrs.mapConfigId || !this.mapConfigId || 
+                      attrs.mapConfigId === this.mapConfigId;
+                      
+    const typeMatch = !attrs.mapType || !this.mapType || 
+                    attrs.mapType === this.mapType;
+    
+    if (!configMatch || !typeMatch) {
+      console.log("[LabelManager] Ignoring selection of label from different context");
+      return null;
+    }
+    
     // Store the selected label
     this.selectedLabel = labelGraphic;
     
@@ -1393,6 +1705,8 @@ class LabelManager {
         },
         fontSize: labelGraphic.symbol?.font?.size || this.settings.fontSize,
         text: labelGraphic.symbol?.text || "",
+        mapConfigId: this.mapConfigId,
+        mapType: this.mapType
       });
     }
     
@@ -1407,6 +1721,19 @@ class LabelManager {
    */
   startMovingLabel() {
     if (!this.selectedLabel || !this.view) {
+      return false;
+    }
+    
+    // Verify the label belongs to the current context
+    const attrs = this.selectedLabel.attributes || {};
+    const configMatch = !attrs.mapConfigId || !this.mapConfigId || 
+                      attrs.mapConfigId === this.mapConfigId;
+                      
+    const typeMatch = !attrs.mapType || !this.mapType || 
+                    attrs.mapType === this.mapType;
+    
+    if (!configMatch || !typeMatch) {
+      console.log("[LabelManager] Cannot move label from different context");
       return false;
     }
     
@@ -1573,98 +1900,108 @@ class LabelManager {
    */
   refreshLabels() {
     try {
-        // Get all saved positions to ensure we apply latest styles
-        const savedPositions = this._getSavedPositions();
+      // Get all saved positions to ensure we apply latest styles
+      const savedPositions = this._getSavedPositions();
+      
+      // Ensure all tracked labels are visible and have correct styles
+      let refreshCount = 0;
+      let appliedStylesCount = 0;
+      
+      // Process each tracked label
+      this.editedLabels.forEach((labelData, labelId) => {
+        // Skip labels from different contexts
+        if ((labelData.mapConfigId && this.mapConfigId && 
+             labelData.mapConfigId !== this.mapConfigId) ||
+            (labelData.mapType && this.mapType && 
+             labelData.mapType !== this.mapType)) {
+          return;
+        }
         
-        // Ensure all tracked labels are visible and have correct styles
-        let refreshCount = 0;
-        let appliedStylesCount = 0;
-        
-        // Process each tracked label
-        this.editedLabels.forEach((labelData, labelId) => {
-            if (labelData.graphic && labelData.graphic.symbol) {
-                try {
-                    // CRITICAL: ALWAYS reapply saved styles during refresh to prevent style loss
-                    if (savedPositions[labelId]) {
-                        // Apply saved position and styles
-                        const applied = this._applySavedPosition(labelData.graphic);
-                        if (applied) {
-                            appliedStylesCount++;
-                        }
-                    } else if (labelData.fontSize || labelData.fontWeight || labelData.backgroundColor) {
-                        // If we have styles in tracking but not in localStorage, save them
-                        savedPositions[labelId] = {
-                            position: labelData.position || { x: 0, y: 0 },
-                            fontSize: labelData.fontSize || this.settings.fontSize,
-                            fontWeight: labelData.fontWeight || "normal",
-                            backgroundColor: labelData.backgroundColor,
-                            borderLineColor: labelData.borderLineColor,
-                            borderLineSize: labelData.borderLineSize,
-                            text: labelData.text || "",
-                            visible: labelData.graphic.visible !== false,
-                            lastEdited: Date.now()
-                        };
-                        
-                        // Save to localStorage immediately
-                        localStorage.setItem(this.storageKey, JSON.stringify(savedPositions));
-                        
-                        // And apply the styles
-                        const applied = this._applySavedPosition(labelData.graphic);
-                        if (applied) {
-                            appliedStylesCount++;
-                        }
-                    }
-                    
-                    // Ensure label is visible based on zoom level
-                    labelData.graphic.visible = this.view.zoom >= this.settings.minZoom;
-                    refreshCount++;
-                } catch (labelError) {
-                    console.error(`[LabelManager] Error refreshing label ${labelId}:`, labelError);
-                }
+        if (labelData.graphic && labelData.graphic.symbol) {
+          try {
+            // CRITICAL: ALWAYS reapply saved styles during refresh to prevent style loss
+            if (savedPositions[labelId]) {
+              // Apply saved position and styles
+              const applied = this._applySavedPosition(labelData.graphic);
+              if (applied) {
+                appliedStylesCount++;
+              }
+            } else if (labelData.fontSize || labelData.fontWeight || labelData.backgroundColor) {
+              // If we have styles in tracking but not in localStorage, save them
+              savedPositions[labelId] = {
+                position: labelData.position || { x: 0, y: 0 },
+                fontSize: labelData.fontSize || this.settings.fontSize,
+                fontWeight: labelData.fontWeight || "normal",
+                backgroundColor: labelData.backgroundColor,
+                borderLineColor: labelData.borderLineColor,
+                borderLineSize: labelData.borderLineSize,
+                text: labelData.text || "",
+                visible: labelData.graphic.visible !== false,
+                lastEdited: Date.now(),
+                mapConfigId: this.mapConfigId,
+                mapType: this.mapType
+              };
+              
+              // Save to localStorage immediately
+              localStorage.setItem(this.getStorageKey(), JSON.stringify(savedPositions));
+              
+              // And apply the styles
+              const applied = this._applySavedPosition(labelData.graphic);
+              if (applied) {
+                appliedStylesCount++;
+              }
             }
-        });
-        
-        // Refresh the label layer if available
-        if (this.labelLayer && typeof this.labelLayer.refresh === 'function') {
-            this.labelLayer.refresh();
+            
+            // Ensure label is visible based on zoom level
+            labelData.graphic.visible = this.view.zoom >= this.settings.minZoom;
+            refreshCount++;
+          } catch (labelError) {
+            console.error(`[LabelManager] Error refreshing label ${labelId}:`, labelError);
+          }
         }
-        
-        // Also refresh the original layers
-        if (this.view?.map?.layers) {
-            this.view.map.layers.forEach(layer => {
-                if (layer.graphics && typeof layer.refresh === 'function') {
-                    try {
-                        layer.refresh();
-                    } catch (layerError) {
-                        console.warn(`[LabelManager] Error refreshing layer ${layer.id}:`, layerError);
-                    }
-                }
-            });
-        }
-        
-        // CRITICAL: Force redraw of map to ensure styles are displayed
-        if (this.view && typeof this.view.redraw === 'function') {
+      });
+      
+      // Refresh the label layer if available
+      if (this.labelLayer && typeof this.labelLayer.refresh === 'function') {
+        this.labelLayer.refresh();
+      }
+      
+      // Also refresh the original layers
+      if (this.view?.map?.layers) {
+        this.view.map.layers.forEach(layer => {
+          if (layer.graphics && typeof layer.refresh === 'function') {
             try {
-                this.view.redraw();
-            } catch (redrawError) {
-                console.warn("[LabelManager] Error redrawing view:", redrawError);
+              layer.refresh();
+            } catch (layerError) {
+              console.warn(`[LabelManager] Error refreshing layer ${layer.id}:`, layerError);
             }
+          }
+        });
+      }
+      
+      // CRITICAL: Force redraw of map to ensure styles are displayed
+      if (this.view && typeof this.view.redraw === 'function') {
+        try {
+          this.view.redraw();
+        } catch (redrawError) {
+          console.warn("[LabelManager] Error redrawing view:", redrawError);
         }
-        
-        console.log(`[LabelManager] Refreshed ${refreshCount} labels, reapplied styles to ${appliedStylesCount}`);
-        
-        return {
-            success: true,
-            message: `Refreshed ${refreshCount} labels, reapplied ${appliedStylesCount} styles`,
-            count: refreshCount
-        };
+      }
+      
+      console.log(`[LabelManager] Refreshed ${refreshCount} labels, reapplied styles to ${appliedStylesCount}`);
+      
+      return {
+        success: true,
+        message: `Refreshed ${refreshCount} labels, reapplied ${appliedStylesCount} styles`,
+        count: refreshCount
+      };
     } catch (error) {
-        console.error('[LabelManager] Error refreshing labels:', error);
-        return {
-            success: false,
-            message: `Error refreshing labels: ${error.message}`,
-            count: 0
-        };
+      console.error('[LabelManager] Error refreshing labels:', error);
+      return {
+        success: false,
+        message: `Error refreshing labels: ${error.message}`,
+        count: 0
+      };
     }
   }
   
@@ -1689,6 +2026,10 @@ class LabelManager {
     }
   }
   
+  /**
+   * Configure layer settings based on layer type
+   * @param {string} layerType - The type of layer (pipe, comp, custom, etc.)
+   */
   configureLayerSettings(layerType) {
     if (!layerType) return;
     
@@ -1748,17 +2089,33 @@ class LabelManager {
     // Update settings
     this.updateSettings(mergedSettings);
     
+    // Store the current map type
+    this.mapType = type;
+    
+    // Update in session storage
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem("currentMapType", type);
+    }
+    
     console.log(`[LabelManager] Configured settings for layer type: ${type}, preserving user fontSize: ${userFontSize !== null}`);
   }
   
   /**
-   * Get all label graphics
+   * Get all label graphics for the current context
    * @returns {Array} Array of label graphics
    */
   getAllLabelGraphics() {
     const labels = [];
     
     this.editedLabels.forEach(labelData => {
+      // Only include labels from the current context
+      if ((labelData.mapConfigId && this.mapConfigId && 
+           labelData.mapConfigId !== this.mapConfigId) ||
+          (labelData.mapType && this.mapType && 
+           labelData.mapType !== this.mapType)) {
+        return;
+      }
+      
       if (labelData.graphic) {
         labels.push(labelData.graphic);
       }
@@ -1790,6 +2147,14 @@ class LabelManager {
     // Ensure all saved positions are tracked
     positionIds.forEach(labelId => {
       const savedPos = savedPositions[labelId];
+      
+      // Skip positions from different contexts
+      if ((savedPos.mapConfigId && this.mapConfigId && 
+           savedPos.mapConfigId !== this.mapConfigId) ||
+          (savedPos.mapType && this.mapType && 
+           savedPos.mapType !== this.mapType)) {
+        return;
+      }
       
       // Skip if already tracked
       if (this.editedLabels.has(labelId)) {
@@ -1831,13 +2196,19 @@ class LabelManager {
           position: savedPos.position || { x: 0, y: 0 },
           fontSize: savedPos.fontSize || this.settings.fontSize,
           text: savedPos.text || "",
+          fontWeight: savedPos.fontWeight || "normal",
+          backgroundColor: savedPos.backgroundColor,
+          borderLineColor: savedPos.borderLineColor,
+          borderLineSize: savedPos.borderLineSize,
+          mapConfigId: savedPos.mapConfigId || this.mapConfigId,
+          mapType: savedPos.mapType || this.mapType
         });
         
         markedCount++;
       }
     });
     
-    console.log(`[LabelManager] Marked ${markedCount} saved positions as edited`);
+    console.log(`[LabelManager] Marked ${markedCount} saved positions as edited for config ${this.mapConfigId}, type ${this.mapType}`);
     
     return markedCount;
   }

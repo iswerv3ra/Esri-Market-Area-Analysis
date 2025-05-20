@@ -1666,10 +1666,10 @@ export default function MapComponent({ onToggleLis }) {
   };
 
   /**
-   * Handles tab click events with improved legend management for all map types.
-   * Ensures legends for Heat Maps and Dot Density maps are properly displayed.
+   * Handles tab click events with improved legend and label management for all map types.
+   * Ensures legends are properly displayed and labels are configuration-specific.
    *
-   * @param {number|string} tabId - The ID of the tab being clicked
+   * @param {number|string} tabId - The ID of the tab being clicked (this will be used as mapConfigId)
    * @returns {Promise<void>}
    */
   const handleTabClick = async (tabId) => {
@@ -1677,7 +1677,20 @@ export default function MapComponent({ onToggleLis }) {
       `[TabClick] Clicked tab: ${tabId}. Current label editor open: ${isLabelEditorOpen}`
     );
 
+    // Get the tab data for the newly active tab
+    const clickedTabData = tabs.find((tab) => tab.id === tabId);
+
+    if (!clickedTabData) {
+      console.error(`[TabClick] Tab data not found for tab ID: ${tabId}`);
+      return;
+    }
+
+    // Get the map configuration ID from the clicked tab
+    const mapConfigId = tabId; // Use tabId directly as the mapConfigId as per Fix Section 1
+    const currentProjectId = projectId || localStorage.getItem("currentProjectId");
+    
     // CRITICAL: Always save pending edits first, even if not in label edit mode
+    // This uses the CURRENT (pre-switch) config ID context in LabelManager
     if (
       labelManagerRef.current &&
       typeof labelManagerRef.current.savePositions === "function"
@@ -1688,10 +1701,10 @@ export default function MapComponent({ onToggleLis }) {
         await labelManagerRef.current.savePositions(true);
         console.log("[TabClick] Successfully saved all label positions");
 
-        // Immediately persist to storage as well
+        // Immediately persist to storage as well (optional, depends on savePositions internal behavior)
         if (typeof localStorage !== "undefined") {
           try {
-            // Force the browser to sync localStorage to disk
+            // Force the browser to sync localStorage to disk (browser-dependent)
             const event = new Event("storage");
             window.dispatchEvent(event);
           } catch (localStorageErr) {
@@ -1734,14 +1747,6 @@ export default function MapComponent({ onToggleLis }) {
     console.log(`[TabClick] Setting active tab to: ${tabId}`);
     setActiveTab(tabId);
 
-    // Find the tab data for the newly active tab
-    const clickedTabData = tabs.find((tab) => tab.id === tabId);
-
-    if (!clickedTabData) {
-      console.error(`[TabClick] Tab data not found for tab ID: ${tabId}`);
-      return;
-    }
-
     // Update tabs array to mark the clicked tab as active and others as inactive
     setTabs((prevTabs) =>
       prevTabs.map((tab) => ({
@@ -1774,11 +1779,35 @@ export default function MapComponent({ onToggleLis }) {
       console.error("[TabClick] Error removing existing layers:", layerError);
     }
 
+    // IMPORTANT: Update session storage BEFORE setting label manager context (as per Fix Section 1)
+    // This ensures correct storage keys are used if LabelManager needs it during setContext
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem("currentMapConfigId", mapConfigId);
+      console.log(`[TabClick] Updated currentMapConfigId in sessionStorage to: ${mapConfigId}`);
+    }
+
+    // CRITICAL: Update the label manager's context with the new map configuration ID
+    if (labelManagerRef.current && typeof labelManagerRef.current.setContext === "function") {
+      console.log(`[TabClick] Updating label manager context: Project=${currentProjectId}, Config=${mapConfigId}`);
+      try {
+        // Update the context with explicit map config ID
+        labelManagerRef.current.setContext(currentProjectId, mapConfigId);
+      } catch (contextError) {
+        console.error("[TabClick] Error updating label manager context:", contextError);
+      }
+    }
+
     // Force legend update based on the tab data - important for class-breaks and dot-density maps
     try {
       // Get the visualization type - determine if it's a standard type
       let vizType = clickedTabData.visualizationType;
       const config = clickedTabData.layerConfiguration || {};
+      
+      // Add mapConfigId to the layer configuration for label management (as per Fix Section 1)
+      if (config && typeof config === 'object') {
+        config.mapConfigId = mapConfigId;
+        console.log(`[TabClick] Added mapConfigId ${mapConfigId} to layer configuration for ${clickedTabData.title || tabId}`);
+      }
 
       // Check if it's a standard visualization by examining the config
       const isStandardViz =
@@ -1792,8 +1821,8 @@ export default function MapComponent({ onToggleLis }) {
           `[TabClick] Tab has standard visualization (${vizType}), triggering legend update`
         );
 
-        // Force visualization layer update to create the layer
-        updateVisualizationLayer();
+        // Force visualization layer update to create the layer (which now receives config.mapConfigId)
+        updateVisualizationLayer(); 
 
         // Schedule legend update after layer creation - give it time to complete
         setTimeout(() => {
@@ -1826,7 +1855,7 @@ export default function MapComponent({ onToggleLis }) {
           }
         }, 500); // Give the layer creation time to finish
       } else {
-        // Normal visualization update for non-standard types
+        // Normal visualization update for non-standard types (which now receives config.mapConfigId)
         updateVisualizationLayer();
       }
     } catch (updateError) {
@@ -1838,20 +1867,54 @@ export default function MapComponent({ onToggleLis }) {
       updateVisualizationLayer();
     }
 
-    // Refresh labels after a delay to ensure all changes are complete
+    // Process labels for the new map configuration after a delay to ensure layers are created
     setTimeout(() => {
-      if (
-        labelManagerRef.current &&
-        typeof labelManagerRef.current.refreshLabels === "function"
-      ) {
+      if (labelManagerRef.current) {
         try {
-          labelManagerRef.current.refreshLabels();
-          console.log("[TabClick] Refreshed labels after tab change");
-        } catch (refreshError) {
-          console.error("[TabClick] Error refreshing labels:", refreshError);
+          // Process layers for the new map configuration
+          if (mapView?.map) {
+            const graphicsLayers = mapView.map.layers
+              .filter(layer => 
+                layer.type === 'graphics' && 
+                (layer.hasLabelGraphics === true || ['comp', 'pipe'].includes(layer.visualizationType)) // Ensure we only process layers designed for this
+              )
+              .toArray();
+              
+            console.log(`[TabClick] Processing ${graphicsLayers.length} graphics layers for labels with config ${mapConfigId}`);
+            
+            // Process each layer to find and manage labels
+            // LabelManager's processLayer should now correctly use its internal mapConfigId context
+            graphicsLayers.forEach(layer => {
+              // Ensure the layer itself has the mapConfigId if it was just created via updateVisualizationLayer
+              // This is a safeguard, as config.mapConfigId should have been set earlier.
+              if (!layer.mapConfigId && layer.layerConfiguration && layer.layerConfiguration.mapConfigId) {
+                  layer.mapConfigId = layer.layerConfiguration.mapConfigId;
+              } else if (!layer.mapConfigId) {
+                  // If still missing, assign the current mapConfigId. This is important for layers
+                  // that might be added outside the direct updateVisualizationLayer flow but are present.
+                  layer.mapConfigId = mapConfigId;
+              }
+
+              if (layer.labelFormatInfo && !layer.labelFormatInfo.mapConfigId) {
+                  layer.labelFormatInfo.mapConfigId = layer.mapConfigId || mapConfigId;
+              }
+              
+              if (typeof labelManagerRef.current.processLayer === 'function') {
+                labelManagerRef.current.processLayer(layer);
+              }
+            });
+          }
+          
+          // Finally refresh labels to apply any saved positions for the new context
+          if (typeof labelManagerRef.current.refreshLabels === "function") {
+            labelManagerRef.current.refreshLabels();
+            console.log("[TabClick] Refreshed labels after tab change for config " + mapConfigId);
+          }
+        } catch (labelError) {
+          console.error("[TabClick] Error processing labels:", labelError);
         }
       }
-    }, 600);
+    }, 800); // Give layer creation enough time to complete
 
     console.log(`[TabClick] Tab switch process complete for tab: ${tabId}`);
   };
