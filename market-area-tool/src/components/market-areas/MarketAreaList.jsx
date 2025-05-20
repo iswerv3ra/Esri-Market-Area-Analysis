@@ -41,7 +41,7 @@ const SortableItem = ({
     transition,
   };
 
-  // Updated to include site_location type
+  // Calculate count based on market area type
   const count =
     marketArea.ma_type === "radius"
       ? marketArea.radius_points?.length || 0
@@ -110,7 +110,8 @@ const SortableItem = ({
   );
 };
 
-export default function MarketAreaList({ onClose, onEdit }) {
+// Removed onClose parameter as this component should always stay open
+export default function MarketAreaList({ onEdit }) {
   const { projectId } = useParams();
   const {
     marketAreas = [],
@@ -124,15 +125,15 @@ export default function MarketAreaList({ onClose, onEdit }) {
   const {
     drawRadius,
     drawDriveTimePolygon,
-    drawSiteLocation, // Add the drawSiteLocation function from MapContext
+    drawSiteLocation,
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers,
     clearMarketAreaGraphics,
-    extractSiteLocationInfo, // Add this to extract site location data
+    extractSiteLocationInfo,
   } = useMap();
 
-  // Add ref to track editing state
+  // Track editing state
   const isEditingRef = useRef(false);
 
   // Transformer for radius points
@@ -284,7 +285,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
             }
           }
           else if (marketArea.locations) {
-            // Add the validation check like in your other functions
+            // Validate features before adding
             const validFeatures = marketArea.locations
               .filter(loc => loc.geometry && (loc.geometry.rings || loc.geometry.paths))
               .map((loc) => ({
@@ -348,7 +349,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
       // Log the toggle action
       console.log(`${isVisible ? 'Hiding' : 'Showing'} market area ${id} of type ${marketArea.ma_type}`);
 
-      // Important: Update state FIRST before making graphics changes
+      // Update state FIRST before making graphics changes
       // This ensures the visibleMarketAreaIds is updated before any drawing effects run
       const newVisibleIds = isVisible
         ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
@@ -370,7 +371,6 @@ export default function MarketAreaList({ onClose, onEdit }) {
       }
 
       // If showing, directly draw just this market area (don't rely on the effect)
-      // This provides immediate visual feedback
       try {
         if (marketArea.ma_type === "radius" && marketArea.radius_points) {
           let radiusPoints;
@@ -530,7 +530,8 @@ export default function MarketAreaList({ onClose, onEdit }) {
       }
     } catch (error) {
       console.error("[MarketAreaList] Toggle visibility error:", error);
-      toast.error("Failed to toggle market area visibility");
+      // Consider adding a toast notification system
+      console.error("Failed to toggle market area visibility");
     }
   }, [
     visibleMarketAreaIds,
@@ -642,7 +643,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
       // Process each market area, but ONLY if it's in the visibleMarketAreaIds
       for (const marketArea of sortedMarketAreas) {
-        // IMPORTANT: Double-check that this market area is still supposed to be visible
+        // Double-check that this market area is still supposed to be visible
         // This prevents race conditions when toggling visibility rapidly
         if (!visibleMarketAreaIds.includes(marketArea.id)) {
           console.log(`[MarketAreaList] Skipping hidden market area: ${marketArea.id}`);
@@ -866,8 +867,9 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return <div className="p-4 text-red-600">{error}</div>;
   }
 
+  // Added permanent display styles to ensure the component always stays open
   return (
-    <div className="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow">
+    <div className="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow h-full">
       <div className="p-2 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={handleToggleAll}

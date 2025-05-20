@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import NumberRangeInput from './NumberRangeInput';
@@ -26,24 +24,34 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     };
   }, []);
 
-  // Sync local breaks with props
+  // Normalize breaks on initial load to ensure no Infinity values
   useEffect(() => {
-    setLocalBreaks(breaks || []);
-  }, [breaks]);
-
-  useEffect(() => {
-    // Initialize ranges when breaks array changes
     if (breaks && breaks.length > 0) {
-      const firstBreak = breaks[0]?.maxValue;
-      const lastBreak = breaks[breaks.length - 1]?.minValue;
+      const normalizedBreaks = [...breaks];
+      
+      // Convert Infinity values to large numeric values
+      // This ensures all values are finite while preserving the visual effect
+      const lastBreakIndex = normalizedBreaks.length - 1;
+      if (normalizedBreaks[lastBreakIndex].maxValue === Infinity) {
+        // Use a large value based on the min value of the last break
+        const lastMinValue = normalizedBreaks[lastBreakIndex].minValue;
+        normalizedBreaks[lastBreakIndex].maxValue = lastMinValue * 2;
+      }
+      
+      setLocalBreaks(normalizedBreaks);
+      
+      // Update min/max range UI values
+      const firstBreak = normalizedBreaks[0]?.maxValue;
+      const lastBreak = normalizedBreaks[lastBreakIndex]?.minValue;
+      const lastBreakMax = normalizedBreaks[lastBreakIndex]?.maxValue;
       
       if (firstBreak !== undefined && lastBreak !== undefined) {
         setMinRange(firstBreak);
-        setMaxRange(lastBreak);
+        setMaxRange(lastBreakMax || lastBreak * 2);
       }
 
       // Sync transparency state with actual break transparency
-      const firstBreakColor = breaks[0]?.symbol?.color;
+      const firstBreakColor = normalizedBreaks[0]?.symbol?.color;
       if (Array.isArray(firstBreakColor) && firstBreakColor[3] !== undefined) {
         const currentTransparency = Math.round(firstBreakColor[3] * 100);
         setTransparency(currentTransparency);
@@ -62,8 +70,6 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
 
   const formatValue = (value) => {
     if (value === undefined || value === null) return '';
-    if (value === Infinity) return '∞';
-    if (value === -Infinity) return '-∞';
     if (typeof value === 'number') {
       if (visualizationType === 'income') {
         return Math.round(value).toLocaleString();
@@ -79,8 +85,6 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     
     const cleanNumber = (value) => {
       if (value === undefined || value === null) return '';
-      if (value === -Infinity) return '-∞';
-      if (value === Infinity) return '∞';
       if (typeof value === 'number') {
         if (visualizationType === 'income') {
           return Math.round(value).toLocaleString();
@@ -92,13 +96,14 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     };
 
     const isFirst = index === 0;
-    const isLast = index === breaks.length - 1;
+    const isLast = index === localBreaks.length - 1;
 
     if (isFirst) {
       return `Less than ${cleanNumber(breakItem.maxValue)}`;
     }
     if (isLast) {
-      return `${cleanNumber(breakItem.minValue)} or more`;
+      // Display the actual range for the last break instead of "or more"
+      return `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
     }
     return `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
   };
@@ -110,9 +115,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
   
     const cleanValue = String(value).replace(/,/g, '').trim();
     
-    if (cleanValue.toLowerCase() === 'infinity' || cleanValue === '∞') return Infinity;
-    if (cleanValue.toLowerCase() === '-infinity' || cleanValue === '-∞') return -Infinity;
-    
+    // Don't support Infinity anymore - parse as number instead
     const numValue = parseFloat(cleanValue);
     return isNaN(numValue) ? null : numValue;
   };
@@ -143,7 +146,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
       transparencyTimeoutRef.current = setTimeout(() => {
         const numValue = parseInt(value);
         const alpha = numValue / 100;
-        const updatedBreaks = [...breaks];
+        const updatedBreaks = [...localBreaks]; // Use localBreaks not breaks
         updatedBreaks.forEach(breakItem => {
           if (Array.isArray(breakItem.symbol.color)) {
             breakItem.symbol.color[3] = alpha;
@@ -172,7 +175,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
       
       // Function to process the break update with full validation
       const processBreakUpdate = () => {
-        const finalBreaks = [...breaks];
+        const finalBreaks = [...localBreaks]; // Use localBreaks not breaks
         const finalBreakItem = finalBreaks[index];
         
         // Parse the final value
@@ -188,7 +191,6 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         
         // Function to parse break value safely
         const parseBreakValue = (val) => {
-          if (val === Infinity || val === -Infinity) return val;
           return parseFloat(val);
         };
     
@@ -225,12 +227,24 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
               current.maxValue = parseBreakValue(current.minValue) + 1;
             }
             
-            // Ensure current break's max equals next break's min
-            next.minValue = current.maxValue;
+            // Ensure current break's max equals next break's min for all except last break
+            if (i < sortedBreaks.length - 2) { // Only adjust when not dealing with last break
+              next.minValue = current.maxValue;
+            }
           }
           
-          // Backward pass to maintain continuity
-          for (let i = sortedBreaks.length - 1; i > 0; i--) {
+          // For the last break, check if max is greater than min but don't auto-adjust
+          const lastBreak = sortedBreaks[sortedBreaks.length - 1];
+          if (parseBreakValue(lastBreak.minValue) >= parseBreakValue(lastBreak.maxValue)) {
+            // Only adjust if there's an actual problem
+            if (field !== 'maxValue' || index !== sortedBreaks.length - 1) { 
+              // Don't auto-adjust if user is explicitly setting the max value of last break
+              lastBreak.maxValue = parseBreakValue(lastBreak.minValue) * 1.1;
+            }
+          }
+          
+          // Backward pass to maintain continuity for all except last break
+          for (let i = sortedBreaks.length - 2; i > 0; i--) {
             const current = sortedBreaks[i];
             const prev = sortedBreaks[i - 1];
             
@@ -280,33 +294,39 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
 
   const addBreak = () => {
     const lastBreak = localBreaks[localBreaks.length - 1];
-    let newMaxValue;
+    const lastMaxValue = lastBreak.maxValue;
     
-    if (lastBreak.maxValue === Infinity) {
-      const secondToLastBreak = localBreaks[localBreaks.length - 2];
-      newMaxValue = lastBreak.minValue * 1.5;
-      lastBreak.minValue = newMaxValue;
-    } else {
-      newMaxValue = lastBreak.maxValue * 1.5;
-    }
-
+    // Calculate new break point values
+    const range = lastMaxValue - lastBreak.minValue;
+    const newMinValue = lastBreak.minValue;
+    const newMaxValue = newMinValue + (range * 0.7); // Smaller increment
+    
+    // Update last break's max value
+    lastBreak.maxValue = newMaxValue;
+    lastBreak.label = getDisplayLabel(lastBreak, localBreaks.length - 1);
+    
+    // Create new break with same color configuration as the last break
     const newBreak = {
-      minValue: lastBreak.maxValue,
-      maxValue: newMaxValue,
+      minValue: newMaxValue,
+      maxValue: lastMaxValue, // Use the original max value for the new last break
       symbol: {
         type: "simple-fill",
-        color: "#ffffff",
-        outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-      },
-      label: `${lastBreak.maxValue} - ${newMaxValue}`
+        color: Array.isArray(lastBreak.symbol.color) 
+          ? [...lastBreak.symbol.color.slice(0, 3), lastBreak.symbol.color[3]] 
+          : hexToRgba(lastBreak.symbol.color || "#ffffff"),
+        outline: { 
+          color: [50, 50, 50, 0.2], 
+          width: lastBreak.symbol.outline?.width || "0.5px" 
+        }
+      }
     };
-
-    const newBreaks = [...localBreaks];
-    if (lastBreak.maxValue === Infinity) {
-      newBreaks.splice(newBreaks.length - 1, 0, newBreak);
-    } else {
-      newBreaks.push(newBreak);
-    }
+    
+    const newBreaks = [...localBreaks, newBreak];
+    
+    // Update all labels to ensure consistency
+    newBreaks.forEach((breakItem, idx) => {
+      breakItem.label = getDisplayLabel(breakItem, idx);
+    });
 
     setLocalBreaks(newBreaks);
     onBreaksChange(newBreaks);
@@ -315,15 +335,23 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
   const removeBreak = (index) => {
     if (localBreaks.length > 2) {
       const newBreaks = [...localBreaks];
+      const removedBreak = newBreaks[index];
+      const lastMaxValue = newBreaks[newBreaks.length - 1].maxValue;
+      
       newBreaks.splice(index, 1);
       
       // Update adjacent breaks
-      for (let i = 0; i < newBreaks.length; i++) {
-        if (i > 0) {
-          newBreaks[i].minValue = newBreaks[i - 1].maxValue;
-        }
-        newBreaks[i].label = getDisplayLabel(newBreaks[i], i);
+      for (let i = index; i < newBreaks.length - 1; i++) {
+        newBreaks[i + 1].minValue = newBreaks[i].maxValue;
       }
+      
+      // Preserve the last break's max value
+      newBreaks[newBreaks.length - 1].maxValue = lastMaxValue;
+      
+      // Update all labels
+      newBreaks.forEach((breakItem, idx) => {
+        breakItem.label = getDisplayLabel(breakItem, idx);
+      });
       
       setLocalBreaks(newBreaks);
       onBreaksChange(newBreaks);
@@ -351,8 +379,8 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
             Maximum Range
           </label>
           <NumberRangeInput
-            value={localBreaks[localBreaks.length - 1]?.minValue}
-            onChange={(value) => updateBreak(localBreaks.length - 1, 'minValue', value)}
+            value={localBreaks[localBreaks.length - 1]?.maxValue}
+            onChange={(value) => updateBreak(localBreaks.length - 1, 'maxValue', value)}
             formatValue={formatValue}
             className="w-full px-3 py-2"
             placeholder="Enter maximum value"
@@ -427,7 +455,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
                 <NumberRangeInput
                   value={breakItem.maxValue}
                   onChange={(value) => updateBreak(index, 'maxValue', value)}
-                  disabled={index === localBreaks.length - 1}
+                  disabled={false} // Enable max input for all breaks including last one
                   placeholder="Max"
                   formatValue={formatValue}
                 />
