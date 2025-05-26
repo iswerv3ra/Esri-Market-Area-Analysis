@@ -22,7 +22,7 @@ import { usePresets } from "../../contexts/PresetsContext";
 import { useProjectCleanup } from "../../hooks/useProjectCleanup";
 import * as projection from "@arcgis/core/geometry/projection";
 import JSZip from "jszip";
-import { projectsAPI } from "../../services/api";  // Ensure this import is correct
+import { projectsAPI } from "../../services/api"; // Ensure this import is correct
 
 const MA_TYPE_MAPPING = {
   radius: "RADIUS",
@@ -49,12 +49,12 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const { mapView } = useMap();
   const { marketAreas } = useMarketAreas();
   const [isMapReady, setIsMapReady] = useState(false);
-  
+
   // Initialize with more robust default values
   const [projectDetails, setProjectDetails] = useState({
-    project_number: 'Loading...',
-    client: '',
-    location: '',
+    project_number: "Loading...",
+    client: "",
+    location: "",
     last_modified: new Date().toISOString(),
   });
 
@@ -67,22 +67,23 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       try {
         // Use the projectsAPI to retrieve project details
         const response = await projectsAPI.retrieve(projectId);
-        
+
         // Update project details with retrieved data
         setProjectDetails({
-          project_number: response.data.project_number || 'Unknown',
-          client: response.data.client || '',
-          location: response.data.location || 'N/A',
-          last_modified: response.data.last_modified || new Date().toISOString()
+          project_number: response.data.project_number || "Unknown",
+          client: response.data.client || "",
+          location: response.data.location || "N/A",
+          last_modified:
+            response.data.last_modified || new Date().toISOString(),
         });
       } catch (error) {
-        console.error('Failed to fetch project details:', error);
-        
+        console.error("Failed to fetch project details:", error);
+
         // Set error state, but keep the loading indicator
-        setProjectDetails(prev => ({
+        setProjectDetails((prev) => ({
           ...prev,
-          client: 'Error Loading Project',
-          location: 'Please refresh'
+          client: "Error Loading Project",
+          location: "Please refresh",
         }));
       }
     };
@@ -97,69 +98,426 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     navigate("/");
   };
 
-  const handleExportData = async ({
-    variables,
-    selectedMarketAreas,
-    fileName,
-    includeUSAData
-  }) => {
-    if (!variables?.length) {
-      setIsExportDialogOpen(true);
-      return;
-    }
+/**
+ * Enhanced handleExportData function with proper error handling and toast notifications
+ */
+const handleExportData = async ({
+  variables,
+  selectedMarketAreas,
+  fileName,
+  includeUSAData
+}) => {
+  if (!variables?.length) {
+    setIsExportDialogOpen(true);
+    return;
+  }
+
+  let loadingToast;
   
-    try {
-      setIsExporting(true);
-      const loadingToast = toast.loading("Enriching market areas...");
-  
-      const enrichedData = await enrichmentService.enrichAreas(
-        selectedMarketAreas,
-        variables,
-        includeUSAData
+  try {
+    setIsExporting(true);
+    
+    // Analyze the market areas to provide better user feedback
+    const areaAnalysis = analyzeMarketAreas(selectedMarketAreas);
+    const isStateLevelExport = areaAnalysis.hasStateLevelAreas;
+    const variableCount = variables.length;
+    
+    console.log(`[Toolbar] Starting export with analysis:`, {
+      totalAreas: selectedMarketAreas.length,
+      variableCount: variables.length,
+      hasStateLevelAreas: areaAnalysis.hasStateLevelAreas,
+      stateAreas: areaAnalysis.stateAreas,
+      includeUSAData,
+      projectId
+    });
+
+    // Check for potentially problematic combinations
+    if (isStateLevelExport && variableCount > 100) {
+      const shouldContinue = window.confirm(
+        `You're exporting ${variableCount} variables for state-level data. This may take a very long time or fail.\n\n` +
+        `Recommended: Reduce to under 50 variables for better reliability.\n\n` +
+        `Continue anyway?`
       );
-  
-      const result = await enrichmentService.handleExport(
-        enrichedData,
-        selectedMarketAreas,
-        variables,
-        { 
-          includeUSAData, 
-          projectId: projectId  // Pass the project ID explicitly
-        }
-      );
-  
-      if (result instanceof Blob) {
-        saveAs(result, fileName);
+      
+      if (!shouldContinue) {
+        setIsExporting(false);
+        return;
       }
-  
-      toast.dismiss(loadingToast);
-      toast.success("Export completed successfully");
-    } catch (error) {
-      console.error("Export failed:", error);
-      toast.error(`Failed to export data: ${error.message}`);
-    } finally {
-      setIsExporting(false);
     }
+    
+    // Provide appropriate loading message based on area types and variable count
+    let loadingMessage;
+    let estimatedDuration;
+    
+    if (isStateLevelExport) {
+      if (variableCount > 200) {
+        loadingMessage = "Processing large state-level export (this will take 5-10 minutes)...";
+        estimatedDuration = 600000; // 10 minutes
+      } else if (variableCount > 100) {
+        loadingMessage = "Processing state-level export (this may take 3-5 minutes)...";
+        estimatedDuration = 300000; // 5 minutes
+      } else {
+        loadingMessage = "Processing state-level export (this may take 1-3 minutes)...";
+        estimatedDuration = 180000; // 3 minutes
+      }
+    } else {
+      loadingMessage = "Enriching market areas...";
+      estimatedDuration = 60000; // 1 minute for non-state data
+    }
+    
+    loadingToast = toast.loading(loadingMessage, {
+      duration: estimatedDuration
+    });
+
+    // Show additional warning for state-level exports using toast.success (since toast.info doesn't exist)
+    if (isStateLevelExport) {
+      setTimeout(() => {
+        toast.success("State-level data detected. Large exports may take several minutes to complete.", {
+          duration: 8000,
+          position: 'top-center',
+          icon: '⚠️'
+        });
+      }, 500);
+    }
+
+    // Show progress updates for long-running exports
+    let progressUpdateInterval;
+    if (isStateLevelExport && variableCount > 50) {
+      let progressCounter = 0;
+      progressUpdateInterval = setInterval(() => {
+        progressCounter++;
+        const messages = [
+          "Still processing... State data requires more time",
+          "Processing continues... Large datasets take patience", 
+          "Almost there... Complex state geometries being processed",
+          "Final processing... Preparing your export file"
+        ];
+        
+        if (progressCounter <= messages.length) {
+          toast.loading(messages[progressCounter - 1], {
+            id: loadingToast,
+            duration: 30000
+          });
+        }
+      }, 30000); // Update every 30 seconds
+    }
+
+    const enrichedData = await enrichmentService.enrichAreas(
+      selectedMarketAreas,
+      variables,
+      includeUSAData
+    );
+
+    // Clear progress interval if it was set
+    if (progressUpdateInterval) {
+      clearInterval(progressUpdateInterval);
+    }
+
+    console.log(`[Toolbar] Enrichment completed, starting export processing`);
+
+    const result = await enrichmentService.handleExport(
+      enrichedData,
+      selectedMarketAreas,
+      variables,
+      { 
+        includeUSAData, 
+        projectId: projectId,
+        isStateLevelExport
+      }
+    );
+
+    if (result instanceof Blob) {
+      saveAs(result, fileName);
+      
+      toast.dismiss(loadingToast);
+      
+      // Success message with stats
+      const successMessage = isStateLevelExport 
+        ? `State-level export completed! ${variableCount} variables exported for ${selectedMarketAreas.length} state area(s).`
+        : `Export completed successfully! ${variableCount} variables exported for ${selectedMarketAreas.length} area(s).`;
+        
+      toast.success(successMessage, {
+        duration: 6000,
+        position: 'top-center'
+      });
+    } else {
+      throw new Error("Export did not return expected file data");
+    }
+
+  } catch (error) {
+    console.error(`[Toolbar] Export failed:`, {
+      errorName: error.name,
+      errorMessage: error.message,
+      stack: error.stack,
+      selectedAreas: selectedMarketAreas?.map(area => ({
+        name: area.name,
+        type: area.ma_type || area.type,
+        locationsCount: area.locations?.length || 0
+      })),
+      variableCount: variables?.length
+    });
+
+    // Clear any progress intervals
+    if (typeof progressUpdateInterval !== 'undefined') {
+      clearInterval(progressUpdateInterval);
+    }
+
+    if (loadingToast) {
+      toast.dismiss(loadingToast);
+    }
+
+    // Provide specific error messages based on error type
+    let userMessage = "Failed to export data";
+    let actionAdvice = "";
+    let errorDuration = 8000;
+
+    if (error.message.includes('timeout') || error.message.includes('Request timeout')) {
+      userMessage = "Export timed out";
+      actionAdvice = `Try reducing variables (currently ${variables.length}) or export smaller areas separately.`;
+      errorDuration = 10000;
+    } else if (error.message.includes('Network error') || error.message.includes('Failed to fetch')) {
+      userMessage = "Network connection error";
+      actionAdvice = "Please check your internet connection and try again.";
+    } else if (error.message.includes('State-level enrichment failed')) {
+      userMessage = "State-level data export failed";
+      actionAdvice = `With ${variables.length} variables, try selecting fewer (recommended: under 50 for states).`;
+      errorDuration = 12000;
+    } else if (error.message.includes('No valid study areas')) {
+      userMessage = "Invalid market area data";
+      actionAdvice = "Please check that your market areas have valid geographic data.";
+    } else if (error.message.includes('authentication') || error.message.includes('unauthorized')) {
+      userMessage = "Authentication error";
+      actionAdvice = "Please refresh the page and log in again.";
+    } else if (error.message.includes('Too many variables') || variables.length > 300) {
+      userMessage = "Too many variables selected";
+      actionAdvice = `${variables.length} variables is excessive. Try reducing to under 100 variables.`;
+      errorDuration = 10000;
+    }
+
+    // Show error with action advice
+    toast.error(
+      <div className="max-w-md">
+        <div className="font-semibold text-red-800">{userMessage}</div>
+        {actionAdvice && (
+          <div className="text-sm mt-2 text-red-700 leading-relaxed">{actionAdvice}</div>
+        )}
+        <div className="text-xs mt-2 text-red-600 opacity-75">
+          Technical: {error.message.substring(0, 100)}{error.message.length > 100 ? '...' : ''}
+        </div>
+      </div>,
+      { 
+        duration: errorDuration,
+        position: 'top-center'
+      }
+    );
+
+    // For debugging: also show technical details in console
+    console.group('Export Error Details');
+    console.error('Error object:', error);
+    console.error('Market areas being processed:', selectedMarketAreas);
+    console.error('Variables selected:', variables);
+    console.groupEnd();
+
+  } finally {
+    setIsExporting(false);
+  }
+};
+
+/**
+ * Analyze market areas to understand what type of export we're dealing with
+ */
+const analyzeMarketAreas = (marketAreas) => {
+  if (!marketAreas || !Array.isArray(marketAreas)) {
+    return {
+      hasStateLevelAreas: false,
+      stateAreas: [],
+      totalAreas: 0,
+      areaTypes: [],
+      totalLocations: 0
+    };
+  }
+
+  const stateAreas = [];
+  const areaTypes = new Set();
+  let totalLocations = 0;
+  
+  marketAreas.forEach(area => {
+    const areaType = area.ma_type || area.type || 'unknown';
+    areaTypes.add(areaType);
+    
+    // Count locations for analysis
+    if (area.locations && Array.isArray(area.locations)) {
+      totalLocations += area.locations.length;
+    }
+    
+    // Check if this is a state-level area
+    if (isStateLevelArea(area)) {
+      stateAreas.push({
+        name: area.name,
+        type: areaType,
+        locationsCount: area.locations?.length || 0
+      });
+    }
+  });
+
+  return {
+    hasStateLevelAreas: stateAreas.length > 0,
+    stateAreas,
+    totalAreas: marketAreas.length,
+    areaTypes: Array.from(areaTypes),
+    totalLocations
+  };
+};
+
+ /**
+ * Determine if a market area represents state-level data
+ */
+const isStateLevelArea = (area) => {
+  // Check explicit type indicators
+  if (area.ma_type === 'state' || area.type === 'state') {
+    return true;
+  }
+  
+  // Check name patterns for state indicators
+  const name = (area.name || '').toLowerCase();
+  const stateIndicators = ['state', 'province', 'region'];
+  if (stateIndicators.some(indicator => name.includes(indicator))) {
+    return true;
+  }
+  
+  // Check for patterns like "15 States", "All States", etc.
+  if (name.match(/\d+\s*states?/i) || name.match(/all\s*states?/i)) {
+    return true;
+  }
+  
+  // Check for common state abbreviations or full names
+  const stateNames = [
+    'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado', 'connecticut',
+    'delaware', 'florida', 'georgia', 'hawaii', 'idaho', 'illinois', 'indiana', 'iowa',
+    'kansas', 'kentucky', 'louisiana', 'maine', 'maryland', 'massachusetts', 'michigan',
+    'minnesota', 'mississippi', 'missouri', 'montana', 'nebraska', 'nevada', 'new hampshire',
+    'new jersey', 'new mexico', 'new york', 'north carolina', 'north dakota', 'ohio',
+    'oklahoma', 'oregon', 'pennsylvania', 'rhode island', 'south carolina', 'south dakota',
+    'tennessee', 'texas', 'utah', 'vermont', 'virginia', 'washington', 'west virginia',
+    'wisconsin', 'wyoming'
+  ];
+  
+  const stateAbbreviations = [
+    'al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'de', 'fl', 'ga', 'hi', 'id', 'il', 'in',
+    'ia', 'ks', 'ky', 'la', 'me', 'md', 'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv',
+    'nh', 'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri', 'sc', 'sd', 'tn',
+    'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi', 'wy'
+  ];
+  
+  if (stateNames.includes(name) || stateAbbreviations.includes(name)) {
+    return true;
+  }
+  
+  // Check if the area has many locations (indicator of aggregated state data)
+  if (area.locations && Array.isArray(area.locations) && area.locations.length > 10) {
+    return true;
+  }
+  
+  // Check geometry complexity as a heuristic
+  if (area.geometry && area.geometry.rings) {
+    const totalPoints = area.geometry.rings.reduce((sum, ring) => sum + ring.length, 0);
+    if (totalPoints > 500) { // Arbitrary threshold for complex geometries
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+  /**
+   * Enhanced error boundary component for the export process
+   */
+  const ExportErrorBoundary = ({ children, onError }) => {
+    const [hasError, setHasError] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+      const handleError = (error) => {
+        console.error("[ExportErrorBoundary] Caught error:", error);
+        setHasError(true);
+        setError(error);
+        if (onError) onError(error);
+      };
+
+      window.addEventListener("unhandledrejection", handleError);
+
+      return () => {
+        window.removeEventListener("unhandledrejection", handleError);
+      };
+    }, [onError]);
+
+    if (hasError) {
+      return (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+          <h3 className="text-lg font-semibold text-red-800 mb-2">
+            Export Error
+          </h3>
+          <p className="text-red-700 mb-3">
+            An error occurred during the export process. Please try again.
+          </p>
+          <details className="text-sm text-red-600">
+            <summary className="cursor-pointer hover:text-red-800">
+              Technical Details
+            </summary>
+            <pre className="mt-2 p-2 bg-red-100 rounded text-xs overflow-auto">
+              {error?.stack || error?.message || "Unknown error"}
+            </pre>
+          </details>
+          <button
+            onClick={() => {
+              setHasError(false);
+              setError(null);
+            }}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return children;
+  };
+
+  /**
+   * Add this to your Toolbar component's return statement to wrap the export functionality
+   */
+  const ToolbarWithErrorHandling = ({ ...props }) => {
+    const handleExportError = (error) => {
+      console.error("[Toolbar] Export error caught by boundary:", error);
+      // Additional error reporting logic could go here
+    };
+
+    return (
+      <ExportErrorBoundary onError={handleExportError}>
+        {/* Your existing Toolbar JSX here */}
+      </ExportErrorBoundary>
+    );
   };
 
   const handleImportExcel = async (fileData) => {
     if (!fileData) {
       return;
     }
-    
+
     try {
       setIsImporting(true);
       const loadingToast = toast.loading("Importing Excel data...");
-      
+
       // Handle the import logic here - this would need to be implemented
       // based on your application's requirements
-      
+
       // Example implementation:
       // const result = await dataImportService.importExcelData(fileData, projectId);
-      
+
       // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       toast.dismiss(loadingToast);
       toast.success("Excel data imported successfully");
     } catch (error) {
@@ -200,88 +558,98 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       setIsExporting(false);
       return;
     }
-  
+
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting map as JPEG...");
-  
+
       // Dynamically import html2canvas
-      const html2canvas = (await import('html2canvas')).default;
-  
+      const html2canvas = (await import("html2canvas")).default;
+
       // Export configuration
       const rightCropPx = 450; // Amount to crop from right side
       const targetWidth = 3160;
       const targetHeight = 2048;
       const captureWidth = targetWidth + rightCropPx;
-      
-      console.log(`[ExportJPEG] Dimensions: Capturing ${captureWidth}x${targetHeight}, cropping to ${targetWidth}x${targetHeight}`);
-  
+
+      console.log(
+        `[ExportJPEG] Dimensions: Capturing ${captureWidth}x${targetHeight}, cropping to ${targetWidth}x${targetHeight}`
+      );
+
       // --- LEGEND CAPTURE LOGIC ---
       const legendElement = document.querySelector(".esri-legend");
       let legendImage = null;
       let originalStyles = null;
-  
-      if (legendElement && window.getComputedStyle(legendElement).display !== 'none') {
+
+      if (
+        legendElement &&
+        window.getComputedStyle(legendElement).display !== "none"
+      ) {
         try {
           // Store original styles
           originalStyles = legendElement.style.cssText;
-  
+
           // Apply temporary styles for capture
-          legendElement.style.position = 'relative';
-          legendElement.style.backgroundColor = 'white';
-          legendElement.style.padding = '10px';
-          legendElement.style.boxShadow = 'none';
-          legendElement.style.border = 'none';
-          legendElement.style.width = 'auto';
-          legendElement.style.display = 'inline-block';
-  
-          const standardFontSize = '14px';
+          legendElement.style.position = "relative";
+          legendElement.style.backgroundColor = "white";
+          legendElement.style.padding = "10px";
+          legendElement.style.boxShadow = "none";
+          legendElement.style.border = "none";
+          legendElement.style.width = "auto";
+          legendElement.style.display = "inline-block";
+
+          const standardFontSize = "14px";
           legendElement.style.fontSize = standardFontSize;
-  
+
           // Style text elements
-          const textElements = legendElement.querySelectorAll('.esri-legend__layer-cell--info, .esri-legend__service-label, .esri-legend__layer-label');
-          textElements.forEach(element => {
+          const textElements = legendElement.querySelectorAll(
+            ".esri-legend__layer-cell--info, .esri-legend__service-label, .esri-legend__layer-label"
+          );
+          textElements.forEach((element) => {
             element.style.fontSize = standardFontSize;
-            element.style.padding = '2px 4px';
-            element.style.display = 'inline-block';
-            element.style.verticalAlign = 'middle';
-            element.style.lineHeight = '1.2';
-            element.style.whiteSpace = 'nowrap';
+            element.style.padding = "2px 4px";
+            element.style.display = "inline-block";
+            element.style.verticalAlign = "middle";
+            element.style.lineHeight = "1.2";
+            element.style.whiteSpace = "nowrap";
           });
-  
+
           // Style symbols
-          const symbols = legendElement.querySelectorAll('.esri-legend__symbol');
-          symbols.forEach(symbol => {
-            symbol.style.width = '20px';
-            symbol.style.height = '20px';
-            symbol.style.marginRight = '5px';
-            symbol.style.display = 'inline-block';
-            symbol.style.verticalAlign = 'middle';
+          const symbols = legendElement.querySelectorAll(
+            ".esri-legend__symbol"
+          );
+          symbols.forEach((symbol) => {
+            symbol.style.width = "20px";
+            symbol.style.height = "20px";
+            symbol.style.marginRight = "5px";
+            symbol.style.display = "inline-block";
+            symbol.style.verticalAlign = "middle";
           });
-  
+
           // Adjust row layout
-          const rows = legendElement.querySelectorAll('.esri-legend__layer-row');
-          rows.forEach(row => {
-            row.style.marginBottom = '3px';
-            row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.minHeight = '22px';
+          const rows = legendElement.querySelectorAll(
+            ".esri-legend__layer-row"
+          );
+          rows.forEach((row) => {
+            row.style.marginBottom = "3px";
+            row.style.display = "flex";
+            row.style.alignItems = "center";
+            row.style.minHeight = "22px";
           });
-  
+
           // Adjust layer spacing
-          const layers = legendElement.querySelectorAll('.esri-legend__layer');
-          layers.forEach(layer => {
-            layer.style.marginBottom = '5px';
+          const layers = legendElement.querySelectorAll(".esri-legend__layer");
+          layers.forEach((layer) => {
+            layer.style.marginBottom = "5px";
           });
-  
+
           // Capture the legend
           legendImage = await html2canvas(legendElement, {
-            backgroundColor: 'white',
+            backgroundColor: "white",
             scale: 2,
             logging: false,
-            useCORS: true
+            useCORS: true,
           });
-  
         } catch (error) {
           console.warn("[ExportJPEG] Failed to capture legend:", error);
           legendImage = null;
@@ -289,82 +657,105 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
           // Restore original styles
           if (legendElement && originalStyles !== null) {
             legendElement.style.cssText = originalStyles;
-            const childrenWithStyle = legendElement.querySelectorAll('[style]');
-            childrenWithStyle.forEach(el => {
-              if(el !== legendElement) el.removeAttribute('style');
+            const childrenWithStyle = legendElement.querySelectorAll("[style]");
+            childrenWithStyle.forEach((el) => {
+              if (el !== legendElement) el.removeAttribute("style");
             });
           }
         }
       }
-  
+
       // --- CAPTURE SCREENSHOT ---
       if (!mapView || mapView.destroyed) {
-        console.error("[ExportJPEG] MapView became unavailable before taking screenshot.");
+        console.error(
+          "[ExportJPEG] MapView became unavailable before taking screenshot."
+        );
         toast.error("Map became unavailable during export.");
         setIsExporting(false);
         return;
       }
-      
+
       // Capture the screenshot with extra width for cropping
       console.log("[ExportJPEG] Taking screenshot...");
       const screenshot = await mapView.takeScreenshot({
         format: "png",
         quality: 100,
         width: captureWidth,
-        height: targetHeight
+        height: targetHeight,
       });
       console.log("[ExportJPEG] Screenshot captured successfully");
-  
+
       // --- PROCESS SCREENSHOT ---
       const finalCanvas = document.createElement("canvas");
       const mainImage = new Image();
-      
+
       // Store current extent and scale for later use in scale bar
       const currentExtent = mapView.extent;
       const currentScale = mapView.scale;
-      console.log(`[ExportJPEG] Current scale: ${currentScale}, Extent width (degrees): ${currentExtent.width}`);
-  
+      console.log(
+        `[ExportJPEG] Current scale: ${currentScale}, Extent width (degrees): ${currentExtent.width}`
+      );
+
       await new Promise((resolve, reject) => {
         mainImage.onload = async () => {
           finalCanvas.width = targetWidth;
           finalCanvas.height = targetHeight;
           const finalCtx = finalCanvas.getContext("2d");
-  
+
           // Draw white background
           finalCtx.fillStyle = "#FFFFFF";
           finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-  
+
           // Draw main map image with cropping - only draw the left portion
           finalCtx.drawImage(
             mainImage,
-            0, 0,
-            targetWidth, targetHeight,
-            0, 0,
-            targetWidth, targetHeight
+            0,
+            0,
+            targetWidth,
+            targetHeight,
+            0,
+            0,
+            targetWidth,
+            targetHeight
           );
-  
+
           // --- DRAW LEGEND ---
           if (legendImage) {
             try {
               // Calculate legend position and size
               const legendPadding = 40;
               const maxWidth = targetWidth * 0.25;
-              const legendTargetWidth = Math.min(legendImage.width / 2, maxWidth);
-              const aspectRatio = (legendImage.height / 2) / (legendImage.width / 2);
+              const legendTargetWidth = Math.min(
+                legendImage.width / 2,
+                maxWidth
+              );
+              const aspectRatio =
+                legendImage.height / 2 / (legendImage.width / 2);
               const legendTargetHeight = legendTargetWidth * aspectRatio;
               const legendX = legendPadding;
               const legendY = targetHeight - legendTargetHeight - legendPadding;
-  
+
               // Draw legend with background
               finalCtx.fillStyle = "rgba(255, 255, 255, 0.85)";
-              finalCtx.fillRect(legendX - 5, legendY - 5, legendTargetWidth + 10, legendTargetHeight + 10);
-              finalCtx.drawImage(legendImage, legendX, legendY, legendTargetWidth, legendTargetHeight);
+              finalCtx.fillRect(
+                legendX - 5,
+                legendY - 5,
+                legendTargetWidth + 10,
+                legendTargetHeight + 10
+              );
+              finalCtx.drawImage(
+                legendImage,
+                legendX,
+                legendY,
+                legendTargetWidth,
+                legendTargetHeight
+              );
               console.log("[ExportJPEG] Legend drawn successfully");
             } catch (drawError) {
               console.error("[ExportJPEG] Error drawing legend:", drawError);
             }
           }
-  
+
           // --- DRAW SCALE BAR ---
           try {
             const padding = 60;
@@ -373,68 +764,86 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             const barHeight = 50;
             const lineThickness = 4;
             const yPos = targetHeight - padding;
-            
+
             // Correction factor: 500ft should be 1.25 miles (6600ft), so multiply by 13.2
             const correctionFactor = 28; // 6600/500
-            
+
             // Calculate scale based on the VIEW's state at the time of screenshot
             const viewState = screenshot.camera?.viewpoint || mapView.viewpoint;
             const scale = viewState.scale || currentScale;
-            
+
             // Get map units per pixel (e.g. meters per pixel at this scale)
             const mapUnitsPerPixel = scale / (mapView.width * 96);
-            
+
             // Apply correction factor to make calculations accurate
-            const correctedMapUnitsPerPixel = mapUnitsPerPixel * correctionFactor;
-            
+            const correctedMapUnitsPerPixel =
+              mapUnitsPerPixel * correctionFactor;
+
             // Calculate what ground distance in map units would be represented by the max bar width
-            const maxGroundDistanceMapUnits = maxBarWidthPixels * correctedMapUnitsPerPixel;
-            const minGroundDistanceMapUnits = minBarWidthPixels * correctedMapUnitsPerPixel;
-            
+            const maxGroundDistanceMapUnits =
+              maxBarWidthPixels * correctedMapUnitsPerPixel;
+            const minGroundDistanceMapUnits =
+              minBarWidthPixels * correctedMapUnitsPerPixel;
+
             // Convert to feet (assuming map units are meters)
             const maxGroundDistanceFeet = maxGroundDistanceMapUnits * 3.28084;
             const minGroundDistanceFeet = minGroundDistanceMapUnits * 3.28084;
-            
+
             // Log for debugging
-            console.log(`[ExportJPEG] Scale calculation: Max distance = ${(maxGroundDistanceFeet / 5280).toFixed(2)} miles, Min distance = ${(minGroundDistanceFeet / 5280).toFixed(2)} miles`);
-            
+            console.log(
+              `[ExportJPEG] Scale calculation: Max distance = ${(
+                maxGroundDistanceFeet / 5280
+              ).toFixed(2)} miles, Min distance = ${(
+                minGroundDistanceFeet / 5280
+              ).toFixed(2)} miles`
+            );
+
             // Determine whether to use feet or miles based on the maximum bar distance
             let unit, standardIncrements, barWidthPixels, displayDistance;
-            
+
             if (maxGroundDistanceFeet < 5000) {
               // Use feet with 500ft increments
               unit = "ft";
-              standardIncrements = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+              standardIncrements = [
+                500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
+              ];
             } else {
               // Use miles with 0.5mi increments
               unit = "mi";
-              standardIncrements = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 7.5, 10, 15, 20, 25, 50, 100];
+              standardIncrements = [
+                0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 7.5, 10, 15, 20, 25, 50,
+                100,
+              ];
             }
-            
+
             // Find the best standard increment
             if (unit === "ft") {
               // Find the largest standard increment that fits within max bar width
               for (let i = standardIncrements.length - 1; i >= 0; i--) {
                 const incrementFeet = standardIncrements[i];
-                
+
                 // Calculate what width this increment would need (accounting for correction)
                 const incrementMapUnits = incrementFeet / 3.28084;
-                const incrementPixels = incrementMapUnits / correctedMapUnitsPerPixel;
-                
+                const incrementPixels =
+                  incrementMapUnits / correctedMapUnitsPerPixel;
+
                 // If this increment fits within our max width and is not too small, use it
-                if (incrementPixels <= maxBarWidthPixels && incrementPixels >= minBarWidthPixels) {
+                if (
+                  incrementPixels <= maxBarWidthPixels &&
+                  incrementPixels >= minBarWidthPixels
+                ) {
                   displayDistance = incrementFeet;
                   barWidthPixels = incrementPixels;
                   break;
                 }
               }
-              
+
               // If no suitable increment was found, use the smallest standard increment
               if (!displayDistance) {
                 displayDistance = standardIncrements[0];
                 const incrementMapUnits = displayDistance / 3.28084;
                 barWidthPixels = incrementMapUnits / correctedMapUnitsPerPixel;
-                
+
                 // Cap at max bar width if necessary
                 if (barWidthPixels > maxBarWidthPixels) {
                   barWidthPixels = maxBarWidthPixels;
@@ -444,87 +853,115 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
               // Find the largest standard mile increment that fits within max bar width
               for (let i = standardIncrements.length - 1; i >= 0; i--) {
                 const incrementMiles = standardIncrements[i];
-                
+
                 // Calculate what width this increment would need (accounting for correction)
                 const incrementFeet = incrementMiles * 5280;
                 const incrementMapUnits = incrementFeet / 3.28084;
-                const incrementPixels = incrementMapUnits / correctedMapUnitsPerPixel;
-                
+                const incrementPixels =
+                  incrementMapUnits / correctedMapUnitsPerPixel;
+
                 // If this increment fits within our max width and is not too small, use it
-                if (incrementPixels <= maxBarWidthPixels && incrementPixels >= minBarWidthPixels) {
+                if (
+                  incrementPixels <= maxBarWidthPixels &&
+                  incrementPixels >= minBarWidthPixels
+                ) {
                   displayDistance = incrementMiles;
                   barWidthPixels = incrementPixels;
                   break;
                 }
               }
-              
+
               // If no suitable increment was found, use the smallest standard increment
               if (!displayDistance) {
                 displayDistance = standardIncrements[0];
                 const incrementFeet = displayDistance * 5280;
                 const incrementMapUnits = incrementFeet / 3.28084;
                 barWidthPixels = incrementMapUnits / correctedMapUnitsPerPixel;
-                
+
                 // Cap at max bar width if necessary
                 if (barWidthPixels > maxBarWidthPixels) {
                   barWidthPixels = maxBarWidthPixels;
                 }
               }
             }
-            
+
             // Calculate xPos based on the calculated barWidthPixels
             const xPos = finalCanvas.width - barWidthPixels - padding;
-            
+
             // Format scale text
             const scaleText = `${displayDistance} ${unit}`;
-            
+
             // Draw scale bar background
             finalCtx.fillStyle = "rgba(255, 255, 255, 0.7)";
-            finalCtx.fillRect(xPos - 5, yPos - barHeight - 5, barWidthPixels + 10, barHeight + 10);
-            
+            finalCtx.fillRect(
+              xPos - 5,
+              yPos - barHeight - 5,
+              barWidthPixels + 10,
+              barHeight + 10
+            );
+
             // Draw scale bar lines
             finalCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-            finalCtx.fillRect(xPos, yPos - lineThickness, barWidthPixels, lineThickness); // Bottom line
+            finalCtx.fillRect(
+              xPos,
+              yPos - lineThickness,
+              barWidthPixels,
+              lineThickness
+            ); // Bottom line
             finalCtx.fillRect(xPos, yPos - barHeight, lineThickness, barHeight); // Left line
-            finalCtx.fillRect(xPos + barWidthPixels - lineThickness, yPos - barHeight, lineThickness, barHeight); // Right line
-            
+            finalCtx.fillRect(
+              xPos + barWidthPixels - lineThickness,
+              yPos - barHeight,
+              lineThickness,
+              barHeight
+            ); // Right line
+
             // Draw scale text
             finalCtx.font = "bold 22px Arial";
             finalCtx.fillStyle = "rgba(0, 0, 0, 0.9)";
             finalCtx.textAlign = "center";
             finalCtx.textBaseline = "middle";
-            finalCtx.fillText(scaleText, xPos + barWidthPixels / 2, yPos - barHeight / 2 - 2); // Center text
-            
-            console.log(`[ExportJPEG] Scale bar drawn successfully: ${displayDistance} ${unit} (${barWidthPixels.toFixed(1)}px)`);
-            console.log(`[ExportJPEG] Using correction factor of ${correctionFactor}x to adjust scale measurements`);
+            finalCtx.fillText(
+              scaleText,
+              xPos + barWidthPixels / 2,
+              yPos - barHeight / 2 - 2
+            ); // Center text
+
+            console.log(
+              `[ExportJPEG] Scale bar drawn successfully: ${displayDistance} ${unit} (${barWidthPixels.toFixed(
+                1
+              )}px)`
+            );
+            console.log(
+              `[ExportJPEG] Using correction factor of ${correctionFactor}x to adjust scale measurements`
+            );
           } catch (scaleBarError) {
             console.error("Error drawing scale bar:", scaleBarError);
             // Continue without scale bar if it fails
           }
-  
+
           resolve();
         };
-        
+
         mainImage.onerror = (err) => {
           console.error("[ExportJPEG] Error loading screenshot image:", err);
           reject(new Error("Failed to load screenshot image"));
-        }
+        };
         mainImage.src = screenshot.dataUrl;
       });
-  
+
       // --- EXPORT IMAGE ---
       const finalDataUrl = finalCanvas.toDataURL("image/jpeg", 0.95);
       const response = await fetch(finalDataUrl);
       const blob = await response.blob();
-  
+
       const date = new Date().toISOString().split("T")[0];
       const filename = `market_areas_map_${date}.jpg`;
       saveAs(blob, filename);
-  
+
       console.log("[ExportJPEG] Export completed successfully");
       toast.dismiss(loadingToast);
       toast.success("Map exported successfully");
-  
     } catch (error) {
       console.error("[ExportJPEG] Export failed:", error);
       toast.error(`Failed to export map: ${error.message}`);
@@ -563,7 +1000,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
   const handleExportKML = () => {
     setIsExportKMLDialogOpen(true);
   };
-  
+
   const handleImportExcelClick = () => {
     setIsImportExcelDialogOpen(true);
   };
@@ -581,77 +1018,91 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       toast.error("No market areas selected");
       return;
     }
-  
+
     try {
       setIsExporting(true);
       const loadingToast = toast.loading("Exporting KML files...");
-  
+
       const zip = new JSZip();
-  
+
       const toKmlCoordinates = (rings) => {
         return rings
           .map((ring) => {
             // Convert each coordinate to longitude,latitude,altitude format
-            return ring.map((coord) => {
-              // Convert Web Mercator to WGS84 (ensure proper precision)
-              const lng = (coord[0] * 180) / 20037508.34;
-              const lat = (Math.atan(Math.exp((coord[1] * Math.PI) / 20037508.34)) * 360) / Math.PI - 90;
-              // Use fixed precision to avoid floating point errors
-              return `${lng.toFixed(6)},${lat.toFixed(6)},0`;
-            }).join(" ");
+            return ring
+              .map((coord) => {
+                // Convert Web Mercator to WGS84 (ensure proper precision)
+                const lng = (coord[0] * 180) / 20037508.34;
+                const lat =
+                  (Math.atan(Math.exp((coord[1] * Math.PI) / 20037508.34)) *
+                    360) /
+                    Math.PI -
+                  90;
+                // Use fixed precision to avoid floating point errors
+                return `${lng.toFixed(6)},${lat.toFixed(6)},0`;
+              })
+              .join(" ");
           })
           .join(" ");
       };
-  
+
       // Process each selected market area
       for (const maId of selectedMAIds) {
         const area = marketAreas.find((m) => m.id === maId);
         if (!area) continue;
-  
+
         let kmlPlacemarks = "";
         const geometries = [];
-  
+
         // Collect all geometries from both radius points and locations
         if (area.ma_type === "radius" && Array.isArray(area.radius_points)) {
-          geometries.push(...area.radius_points.filter(pt => pt.geometry));
+          geometries.push(...area.radius_points.filter((pt) => pt.geometry));
         }
         if (area.locations && Array.isArray(area.locations)) {
-          geometries.push(...area.locations.filter(loc => loc.geometry));
+          geometries.push(...area.locations.filter((loc) => loc.geometry));
         }
-  
+
         // Process all geometries for this market area
         for (const geom of geometries) {
           const sourceGeom = geom.geometry;
           if (!sourceGeom || !sourceGeom.rings) continue;
-  
+
           // Sort rings by area to identify outer and inner boundaries
-          const rings = sourceGeom.rings.map(ring => ({
-            coordinates: ring,
-            area: Math.abs(ring.reduce((area, coord, i) => {
-              const next = ring[(i + 1) % ring.length];
-              return area + (coord[0] * next[1] - next[0] * coord[1]);
-            }, 0) / 2)
-          })).sort((a, b) => b.area - a.area);
-  
+          const rings = sourceGeom.rings
+            .map((ring) => ({
+              coordinates: ring,
+              area: Math.abs(
+                ring.reduce((area, coord, i) => {
+                  const next = ring[(i + 1) % ring.length];
+                  return area + (coord[0] * next[1] - next[0] * coord[1]);
+                }, 0) / 2
+              ),
+            }))
+            .sort((a, b) => b.area - a.area);
+
           const outerRing = rings[0];
           const innerRings = rings.slice(1);
-  
+
           const outerCoords = toKmlCoordinates([outerRing.coordinates]);
-          const innerBoundaries = innerRings.map(ring => {
-            const coords = toKmlCoordinates([ring.coordinates]);
-            return `
+          const innerBoundaries = innerRings
+            .map((ring) => {
+              const coords = toKmlCoordinates([ring.coordinates]);
+              return `
             <innerBoundaryIs>
               <LinearRing>
                 <coordinates>${coords}</coordinates>
               </LinearRing>
             </innerBoundaryIs>`;
-          }).join("");
-  
+            })
+            .join("");
+
           // Create individual placemark for each shape
           kmlPlacemarks += `
     <Placemark>
       <name>${geom.name || area.name}</name>
-      <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${area.short_name || ""}</description>
+      <description>${MA_TYPE_MAPPING[area.ma_type] || area.ma_type} - ${
+            area.short_name || ""
+          }</description>
       <styleUrl>#polygonStyle</styleUrl>
       <Polygon>
         <tessellate>1</tessellate>
@@ -663,7 +1114,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
       </Polygon>
     </Placemark>`;
         }
-  
+
         // Create KML content for this market area, containing all its shapes
         const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
   <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -684,24 +1135,24 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
     ${kmlPlacemarks}
   </Document>
   </kml>`;
-  
+
         // Create sanitized filename
         const fileName = `${area.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.kml`;
-        
+
         // Add KML file to the ZIP
         zip.file(fileName, kmlContent);
       }
-  
+
       // Generate the ZIP file
       const content = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
         compressionOptions: { level: 6 },
       });
-  
+
       // Save the ZIP file
       saveAs(content, `${folderName}.zip`);
-  
+
       toast.dismiss(loadingToast);
       toast.success("KML files exported successfully");
     } catch (error) {
@@ -754,7 +1205,7 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
               goToOverride: (view, params) => {
                 // Prevent the default zoom behavior
                 return null;
-              }
+              },
             });
 
             const searchInput = searchContainer.querySelector("input");
@@ -764,21 +1215,29 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
               searchInput.classList.add("dark:bg-gray-800", "dark:text-white");
             }
 
-            const suggestionContainer = searchContainer.querySelector(".esri-search__suggestions-menu");
+            const suggestionContainer = searchContainer.querySelector(
+              ".esri-search__suggestions-menu"
+            );
             if (suggestionContainer) {
-              suggestionContainer.classList.add("dark:bg-gray-700", "dark:text-white");
+              suggestionContainer.classList.add(
+                "dark:bg-gray-700",
+                "dark:text-white"
+              );
             }
 
             // Handle zoom manually only in select-result
             sw.on("select-result", (event) => {
               if (event.result && event.result.extent) {
                 // Disable animation to prevent any intermediate zoom states
-                mapView.goTo({
-                  target: event.result.extent.center,
-                  zoom: 10
-                }, {
-                  animate: false
-                });
+                mapView.goTo(
+                  {
+                    target: event.result.extent.center,
+                    zoom: 10,
+                  },
+                  {
+                    animate: false,
+                  }
+                );
               }
             });
 
@@ -841,7 +1300,9 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                           ${
+                             isExporting ? "opacity-50 cursor-not-allowed" : ""
+                           }`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export JPEG
@@ -856,7 +1317,9 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                           ${
+                             isExporting ? "opacity-50 cursor-not-allowed" : ""
+                           }`}
                       >
                         <PhotoIcon className="mr-3 h-5 w-5" />
                         Export KML
@@ -871,7 +1334,9 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
                         className={`${
                           active ? "bg-gray-100 dark:bg-gray-600" : ""
                         } flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200
-                           ${isImporting ? "opacity-50 cursor-not-allowed" : ""}`}
+                           ${
+                             isImporting ? "opacity-50 cursor-not-allowed" : ""
+                           }`}
                       >
                         <ArrowUpOnSquareIcon className="mr-3 h-5 w-5" />
                         Import Excel
@@ -911,7 +1376,8 @@ export default function Toolbar({ onCreateMA, onToggleList }) {
             id="maListButton"
             onClick={onToggleList}
             disabled={isExporting || isImporting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed">
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <ListBulletIcon className="h-5 w-5" />
             MA List
           </button>

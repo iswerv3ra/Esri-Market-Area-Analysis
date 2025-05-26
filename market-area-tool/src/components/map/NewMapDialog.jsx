@@ -1231,12 +1231,17 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                     </div>
                   ))}
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[ {id: 'dotdensity', name: 'Dot Density', desc: 'Points representing data quantity.'},
                     {id: 'custom', name: 'Custom Points Map', desc: 'Points with color by Value1, size by Value2.'} ].map(type => (
-                    <div key={type.id} className={`border rounded-lg p-4 cursor-pointer transition-colors ${mapType === type.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`} onClick={() => !isSaving && setMapType(type.id)}>
-                      <div className="font-medium">{type.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{type.desc}</div>
+                    <div key={type.id} className={`border rounded-lg p-4 transition-colors ${
+                      type.id === 'custom' 
+                        ? 'border-gray-300 bg-gray-100 dark:bg-gray-800 dark:border-gray-600 opacity-50 cursor-not-allowed' 
+                        : `cursor-pointer ${mapType === type.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`
+                    }`} onClick={() => !isSaving && type.id !== 'custom' && setMapType(type.id)}>
+                      <div className={`font-medium ${type.id === 'custom' ? 'text-gray-400 dark:text-gray-500' : ''}`}>{type.name}</div>
+                      <div className={`text-sm ${type.id === 'custom' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{type.desc}</div>
                     </div>
                   ))}
                 </div>

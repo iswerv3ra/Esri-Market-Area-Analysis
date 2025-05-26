@@ -395,84 +395,126 @@ const FEATURE_LAYERS = {
     },
   },
   // Modified state layer configuration with reduced detail
-  state: {
-    url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/80",
-    outFields: [
-      "OBJECTID",
-      "GEOID",     // State FIPS code
-      "STUSAB",    // State abbreviation
-      "NAME",      // State name
-      "BASENAME",  // Base name
-      "REGION",    // Census region
-      "DIVISION",  // Census division
-      "AREALAND",  // Land area
-      "AREAWATER", // Water area
-      "CENTLAT",   // Centroid latitude
-      "CENTLON"    // Centroid longitude
-    ],
-    uniqueIdField: "OBJECTID",
-    title: "States",
-    geometryType: "esriGeometryPolygon",
-    popupTemplate: {
-      title: "{NAME}",
-      content: [
-        {
-          type: "fields",
-          fieldInfos: [
-            { fieldName: "NAME", label: "State Name" },
-            { fieldName: "STUSAB", label: "State Abbreviation" },
-            { fieldName: "GEOID", label: "State FIPS Code" },
-            { fieldName: "REGION", label: "Census Region" },
-            { fieldName: "DIVISION", label: "Census Division" },
-            { fieldName: "AREALAND", label: "Land Area (sq m)" },
-            { fieldName: "AREAWATER", label: "Water Area (sq m)" }
-          ]
-        }
-      ]
-    },
-    labelingInfo: [{
-      labelExpressionInfo: {
-        expression: "$feature.NAME"
-      },
-      labelPlacement: "always-horizontal",
-      symbol: {
-        type: "text",
-        color: [0, 0, 0, 1],
-        haloColor: [255, 255, 255, 1],
-        haloSize: 2,
-        font: {
-          size: 14,
-          family: "Noto Sans",
-          weight: "bold"
-        }
+// Modified state layer configuration with aggressive geometry simplification
+// Replace the existing 'state' configuration in FEATURE_LAYERS object
+
+state: {
+  url: "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/80",
+  
+  // Reduced output fields to minimize data transfer and improve performance
+  outFields: [
+    "OBJECTID",
+    "GEOID",     // State FIPS code
+    "STUSAB",    // State abbreviation  
+    "NAME",      // State name
+    "CENTLAT",   // Centroid latitude
+    "CENTLON"    // Centroid longitude
+    // Removed REGION, DIVISION, AREALAND, AREAWATER to reduce payload
+  ],
+  
+  uniqueIdField: "OBJECTID",
+  title: "States",
+  geometryType: "esriGeometryPolygon",
+  
+  popupTemplate: {
+    title: "{NAME}",
+    content: [
+      {
+        type: "fields",
+        fieldInfos: [
+          { fieldName: "NAME", label: "State Name" },
+          { fieldName: "STUSAB", label: "State Abbreviation" },
+          { fieldName: "GEOID", label: "State FIPS Code" }
+          // Removed detailed area fields from popup to keep it simple
+        ]
       }
-    }],
-    renderer: {
-      type: "simple",
-      symbol: {
-        type: "simple-fill",
-        color: [0, 0, 0, 0],
-        outline: {
-          color: [110, 110, 110, 255],
-          width: 2
-        }
+    ]
+  },
+  
+  labelingInfo: [{
+    labelExpressionInfo: {
+      expression: "$feature.NAME"
+    },
+    labelPlacement: "always-horizontal",
+    symbol: {
+      type: "text",
+      color: [0, 0, 0, 1],
+      haloColor: [255, 255, 255, 1],
+      haloSize: 2,
+      font: {
+        size: 14,
+        family: "Noto Sans",
+        weight: "bold"
       }
     },
-    // Add these parameters to control geometry detail level
-    minScale: 5.91657527591555E8,
-    maxScale: 100,
-    spatialReference: {
-      wkid: 102100
-    },
-    // Add these parameters to reduce geometry detail
-    maxAllowableOffset: 500,  // Increase this value to reduce detail (in meters)
-    simplificationTolerance: 500,  // Control geometry simplification
-    quantizationParameters: {
-      mode: "view",
-      originPosition: "upper-left",
-      tolerance: 500  // Higher value = less detail
+    // Only show labels at medium to large scales to reduce rendering load
+    minScale: 50000000,
+    maxScale: 0
+  }],
+  
+  renderer: {
+    type: "simple",
+    symbol: {
+      type: "simple-fill",
+      color: [0, 0, 0, 0], // Transparent fill
+      outline: {
+        color: [110, 110, 110, 255],
+        width: 1.5 // Reduced from 2 to 1.5 for better performance
+      }
     }
   },
+  
+  // Aggressive scale-dependent rendering to limit when layer draws
+  minScale: 200000000, // Only show when zoomed out significantly (was 5.91657527591555E8)
+  maxScale: 1000, // Hide when zoomed in too close (was 100)
+  
+  spatialReference: {
+    wkid: 102100
+  },
+  
+  // AGGRESSIVE geometry simplification parameters for performance
+  maxAllowableOffset: 2500,  // Increased from 500 to 5000 meters - very aggressive simplification
+  simplificationTolerance: 2500,  // Increased from 500 to 5000 meters
+  
+  // Enhanced quantization parameters for maximum performance
+  quantizationParameters: {
+    mode: "view",
+    originPosition: "upper-left",
+    tolerance: 2500,  // Increased from 500 to 5000 - very aggressive
+    extent: null // Let the service determine optimal extent
+  },
+  
+  // Additional performance optimization parameters
+  definitionExpression: null, // No filtering to keep queries simple
+  
+  // Limit the maximum number of features returned
+  maxRecordCount: 100, // Reasonable limit for all US states
+  
+  // Optimize for performance over precision
+  geometryPrecision: 3, // Reduce coordinate precision (2 decimal places)
+  
+  // Additional service-level optimizations
+  useViewTime: false, // Disable time-based queries
+  refreshInterval: 0, // No auto-refresh
+  
+  // Cache settings for better performance
+  cacheHint: true, // Enable client-side caching if supported
+  
+  // Reduce detail at different zoom levels
+  levelOfDetail: {
+    // At very small scales, use maximum simplification
+    0: { tolerance: 10000 },
+    1: { tolerance: 8000 },
+    2: { tolerance: 6000 },
+    3: { tolerance: 5000 },
+    4: { tolerance: 3000 },
+    // At larger scales, use moderate simplification
+    5: { tolerance: 2000 },
+    6: { tolerance: 1500 },
+    7: { tolerance: 1000 },
+    8: { tolerance: 500 }
+  }
+},
   cbsa: {
     // TWO sub-layer URLs: 91 (Micropolitan), 93 (Metropolitan)
     urls: [
