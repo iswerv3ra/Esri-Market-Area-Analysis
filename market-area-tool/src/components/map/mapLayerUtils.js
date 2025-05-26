@@ -127,8 +127,17 @@ export const createCompLayer = (config) => {
   console.log("[createCompLayer] Received config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
   
   // Extract mapConfigId from config or from session storage as fallback
-  const mapConfigId = config.mapConfigId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("currentMapConfigId") : null);
-  console.log(`[createCompLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}`);
+  let determinedMapConfigId = config.configId || config.mapConfigId;
+  if (!determinedMapConfigId && typeof sessionStorage !== 'undefined') {
+      determinedMapConfigId = sessionStorage.getItem("currentMapConfigId");
+  }
+  const mapConfigId = determinedMapConfigId; // Use the correctly determined ID
+
+  // Add more detailed logging to confirm:
+  console.log(`[createCompLayer/PipeLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}. \
+  Derived from config.configId: ${config.configId}, \
+  config.mapConfigId: ${config.mapConfigId}, \
+  sessionStorage('currentMapConfigId'): ${typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("currentMapConfigId") : 'N/A'}`);  console.log(`[createCompLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}`);
   
   // Create the graphics layer
   const graphicsLayer = new GraphicsLayer({
@@ -316,9 +325,18 @@ export const createCompLayer = (config) => {
 export const createPipeLayer = (config) => {
   console.log("[createPipeLayer] Creating Pipe Layer with config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
   
-  // Extract mapConfigId from config or from session storage as fallback
-  const mapConfigId = config.mapConfigId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("currentMapConfigId") : null);
-  console.log(`[createPipeLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}`);
+    // Extract mapConfigId from config or from session storage as fallback
+  let determinedMapConfigId = config.configId || config.mapConfigId;
+  if (!determinedMapConfigId && typeof sessionStorage !== 'undefined') {
+      determinedMapConfigId = sessionStorage.getItem("currentMapConfigId");
+  }
+  const mapConfigId = determinedMapConfigId; // Use the correctly determined ID
+
+  // Add more detailed logging to confirm:
+  console.log(`[createCompLayer/PipeLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}. \
+  Derived from config.configId: ${config.configId}, \
+  config.mapConfigId: ${config.mapConfigId}, \
+  sessionStorage('currentMapConfigId'): ${typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("currentMapConfigId") : 'N/A'}`);  console.log(`[createPipeLayer] Using mapConfigId: ${mapConfigId} for layer title: ${config?.title}`);
   
   // Early validation check - quit if critical data is missing
   if (!config || !config.customData || !Array.isArray(config.customData.data) || 
