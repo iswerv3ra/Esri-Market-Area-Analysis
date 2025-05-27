@@ -1397,6 +1397,240 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
+
+  /**
+   * Comprehensive function to clear all visualization layers from the map
+   * This ensures comp/pipe/custom layers are completely removed when switching tabs
+   */
+  const clearAllVisualizationLayers = useCallback(() => {
+    if (!mapView?.map) {
+      console.log("[clearAllVisualizationLayers] MapView not available");
+      return { removed: 0, errors: [] };
+    }
+
+    const errors = [];
+    let removedCount = 0;
+
+    try {
+      console.log("[clearAllVisualizationLayers] Starting comprehensive layer removal...");
+
+      // Get all layers as array to avoid modification during iteration
+      const allLayers = mapView.map.layers.toArray();
+      console.log(`[clearAllVisualizationLayers] Found ${allLayers.length} total layers on map`);
+
+      // Identify layers to remove with multiple criteria
+      const layersToRemove = allLayers.filter(layer => {
+        if (!layer) return false;
+
+        // Primary criteria: isVisualizationLayer flag
+        if (layer.isVisualizationLayer === true) {
+          console.log(`[clearAllVisualizationLayers] Found visualization layer: "${layer.title || layer.id}" (type: ${layer.type})`);
+          return true;
+        }
+
+        // Secondary criteria: layer type and naming patterns
+        if (layer.type === "graphics") {
+          // Check for graphics layers that might be visualization layers
+          const title = layer.title || "";
+          const id = layer.id || "";
+          
+          // Check for common visualization layer patterns
+          const isVisualizationByName = 
+            title.toLowerCase().includes("comp") ||
+            title.toLowerCase().includes("pipe") ||
+            title.toLowerCase().includes("custom") ||
+            title.toLowerCase().includes("visualization") ||
+            id.includes("visualization") ||
+            layer.visualizationType; // Check for visualizationType property
+
+          if (isVisualizationByName) {
+            console.log(`[clearAllVisualizationLayers] Found potential visualization graphics layer: "${title}" (id: ${id})`);
+            return true;
+          }
+        }
+
+        // Tertiary criteria: layers with specific visualization properties
+        if (layer.visualizationType || layer._isCustomVisualization) {
+          console.log(`[clearAllVisualizationLayers] Found layer with visualization properties: "${layer.title || layer.id}"`);
+          return true;
+        }
+
+        return false;
+      });
+
+      console.log(`[clearAllVisualizationLayers] Identified ${layersToRemove.length} layers for removal`);
+
+      // Remove layers one by one for better error handling
+      layersToRemove.forEach((layer, index) => {
+        try {
+          const layerTitle = layer.title || layer.id || `Layer ${index}`;
+          
+          // Clear any graphics first if it's a graphics layer
+          if (layer.type === "graphics" && layer.graphics && layer.graphics.length > 0) {
+            const graphicsCount = layer.graphics.length;
+            layer.removeAll();
+            console.log(`[clearAllVisualizationLayers] Cleared ${graphicsCount} graphics from layer: ${layerTitle}`);
+          }
+
+          // Remove the layer from the map
+          mapView.map.remove(layer);
+          removedCount++;
+          console.log(`[clearAllVisualizationLayers] Successfully removed layer: ${layerTitle}`);
+          
+          // Clear any references to this layer
+          if (activeLayersRef.current) {
+            Object.keys(activeLayersRef.current).forEach(tabId => {
+              if (activeLayersRef.current[tabId] === layer) {
+                delete activeLayersRef.current[tabId];
+                console.log(`[clearAllVisualizationLayers] Cleared reference for tab ${tabId}`);
+              }
+            });
+          }
+
+        } catch (layerError) {
+          const errorMsg = `Error removing layer ${layer.title || layer.id}: ${layerError.message}`;
+          errors.push(errorMsg);
+          console.error(`[clearAllVisualizationLayers] ${errorMsg}`, layerError);
+        }
+      });
+
+      // Additional cleanup: remove any orphaned graphics from map view
+      if (mapView.graphics && mapView.graphics.length > 0) {
+        const tempGraphics = mapView.graphics.filter(graphic => 
+          graphic.attributes && (
+            graphic.attributes.isVisualization ||
+            graphic.attributes.isComp ||
+            graphic.attributes.isPipe ||
+            graphic.attributes.isCustomPoint ||
+            graphic.attributes.isTemporary ||
+            graphic.attributes.isMarketArea
+          )
+        );
+        
+        if (tempGraphics.length > 0) {
+          mapView.graphics.removeMany(tempGraphics);
+          console.log(`[clearAllVisualizationLayers] Removed ${tempGraphics.length} orphaned graphics from map view`);
+        }
+      }
+
+      // Force map refresh to ensure UI is updated
+      if (typeof mapView.refresh === "function") {
+        mapView.refresh();
+      }
+
+      console.log(`[clearAllVisualizationLayers] Completed: Removed ${removedCount} layers, ${errors.length} errors`);
+      
+      return {
+        removed: removedCount,
+        errors: errors,
+        success: errors.length === 0
+      };
+
+    } catch (error) {
+      const errorMsg = `Critical error during layer removal: ${error.message}`;
+      console.error(`[clearAllVisualizationLayers] ${errorMsg}`, error);
+      errors.push(errorMsg);
+      
+      return {
+        removed: removedCount,
+        errors: errors,
+        success: false
+      };
+    }
+  }, [mapView, activeLayersRef]);
+
+/**
+ * Enhanced clearSelection function that also removes visualization layers
+ * This is the comprehensive clearing function for tab switches
+ */
+const clearSelectionAndLayers = useCallback(() => {
+  if (!mapView) {
+    console.log("[clearSelectionAndLayers] MapView not available");
+    return;
+  }
+
+  try {
+    console.log("[clearSelectionAndLayers] Starting comprehensive map clearing...");
+
+    // First, clear all selections (existing logic)
+    if (mapView.popup && mapView.popup.visible) {
+      mapView.popup.close();
+      console.log("[clearSelectionAndLayers] Closed map popup");
+    }
+
+    // Clear highlight on the map view
+    if (typeof mapView.highlightOptions !== 'undefined') {
+      mapView.highlightOptions = null;
+    }
+
+    // Clear selections from remaining layers (before removal)
+    mapView.map.layers.forEach((layer) => {
+      try {
+        if (layer.type === "feature" && typeof layer.clearSelection === "function") {
+          layer.clearSelection();
+        }
+        
+        if (layer.type === "graphics" && layer.graphics) {
+          layer.graphics.forEach((graphic) => {
+            if (graphic.attributes && graphic.attributes._isSelected) {
+              graphic.attributes._isSelected = false;
+            }
+          });
+        }
+      } catch (layerError) {
+        console.warn(`[clearSelectionAndLayers] Error clearing selection from layer:`, layerError);
+      }
+    });
+
+    // Now remove all visualization layers
+    const removalResult = clearAllVisualizationLayers();
+    console.log(`[clearSelectionAndLayers] Layer removal result:`, removalResult);
+
+    // Clear label manager selections if available
+    if (labelManagerRef.current && typeof labelManagerRef.current.clearAllSelections === "function") {
+      try {
+        labelManagerRef.current.clearAllSelections();
+        console.log("[clearSelectionAndLayers] Cleared label manager selections");
+      } catch (labelError) {
+        console.warn("[clearSelectionAndLayers] Error clearing label manager selections:", labelError);
+      }
+    }
+
+    // Reset interaction states
+    if (isZoomToolActive && setIsZoomToolActive) {
+      setIsZoomToolActive(false);
+    }
+    if (isPlacingSiteLocation) {
+      setIsPlacingSiteLocation(false);
+    }
+    if (isMarketAreaInteractionActive) {
+      setIsMarketAreaInteractionActive(false);
+    }
+
+    // Reset cursor
+    if (mapView.container) {
+      mapView.container.style.cursor = "default";
+    }
+
+    console.log("[clearSelectionAndLayers] Comprehensive clearing completed successfully");
+
+  } catch (error) {
+    console.error("[clearSelectionAndLayers] Error during comprehensive clearing:", error);
+  }
+}, [
+  mapView, 
+  clearAllVisualizationLayers,
+  isZoomToolActive, 
+  setIsZoomToolActive, 
+  isPlacingSiteLocation, 
+  setIsPlacingSiteLocation,
+  isMarketAreaInteractionActive, 
+  setIsMarketAreaInteractionActive,
+  labelManagerRef
+]);
+
+
+
   /**
    * Enhanced tab click handler with proper optimization triggering
    */
@@ -1442,22 +1676,7 @@ export default function MapComponent({ onToggleLis }) {
       }))
     );
 
-    clearSelection();
-
-    // Clean up existing layers
-    try {
-      if (mapView?.map) {
-        const layersToRemove = mapView.map.layers
-          .filter((layer) => layer?.isVisualizationLayer === true && !layer?._preventRemoval)
-          .toArray();
-
-        if (layersToRemove.length > 0) {
-          mapView.map.removeMany(layersToRemove);
-        }
-      }
-    } catch (layerError) {
-      console.error("[TabClick] Error removing existing layers:", layerError);
-    }
+    clearSelectionAndLayers();
 
     // Update session storage and label manager context
     if (typeof sessionStorage !== 'undefined') {
