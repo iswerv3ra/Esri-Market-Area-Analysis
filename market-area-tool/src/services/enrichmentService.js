@@ -1137,8 +1137,35 @@ export const analysisCategories = {
       { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
       { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
       { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" },
+    
+      { id: "incomebyage.AVGIA15_CY", label: "2024 Average HH Inc: HHr 15-24" },
+      { id: "incomebyage.AVGIA25_CY", label: "2024 Average HH Inc: HHr 25-34" },
+      { id: "incomebyage.AVGIA35_CY", label: "2024 Average HH Inc: HHr 35-44" },
+      { id: "incomebyage.AVGIA45_CY", label: "2024 Average HH Inc: HHr 45-54" },
+      { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
+      { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
+      { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" },
+
+      // NEW VARIABLES - Add these at the end of tier2 variables array
+      // Future Year Median Household Income by Age Groups
+      { id: "incomebyage.MEDIA15_FY", label: "2029 Median HH Inc: HHr 15-24" },
+      { id: "incomebyage.MEDIA25_FY", label: "2029 Median HH Inc: HHr 25-34" },
+      { id: "incomebyage.MEDIA35_FY", label: "2029 Median HH Inc: HHr 35-44" },
+      { id: "incomebyage.MEDIA45_FY", label: "2029 Median HH Inc: HHr 45-54" },
+      { id: "incomebyage.MEDIA55_FY", label: "2029 Median HH Inc: HHr 55-64" },
+      { id: "incomebyage.MEDIA65_FY", label: "2029 Median HH Inc: HHr 65-74" },
+      { id: "incomebyage.MEDIA75_FY", label: "2029 Median HH Inc: HHr 75+" },
+
+      // Median Household Income by Age Groups - Consolidated Age Ranges
+      { id: "incomebyage.MEDIA55UFY", label: "2029 Median HH Inc: HHr 55+" },
+      { id: "incomebyage.MEDIA65UFY", label: "2029 Median HH Inc: HHr 65+" },
+      { id: "incomebyage.MEDIA65UCY", label: "2024 Median HH Inc: HHr 65+" },
+      { id: "incomebyage.MEDIA55UCY", label: "2024 Median HH Inc: HHr 55+" },
+      { id: "incomebyage.MEDIA75_CY", label: "2024 Median HH Inc: HHr 75+" },
     ]
   },
+
+  
   retail: {
     label: "Retail Variables",
     variables: [

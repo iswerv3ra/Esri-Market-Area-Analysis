@@ -491,7 +491,7 @@ state: {
   maxRecordCount: 100, // Reasonable limit for all US states
   
   // Optimize for performance over precision
-  geometryPrecision: 3, // Reduce coordinate precision (2 decimal places)
+  geometryPrecision: 2, // Reduce coordinate precision (2 decimal places)
   
   // Additional service-level optimizations
   useViewTime: false, // Disable time-based queries
