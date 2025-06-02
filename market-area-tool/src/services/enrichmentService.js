@@ -978,14 +978,6 @@ export const analysisCategories = {
       { id: "incomebyage.IA65BASEFY", label: "2029 HH Income Base: HHr 65-74" },
       { id: "incomebyage.IA75BASEFY", label: "2029 HH Income Base: HHr 75+" },
 
-      { id: "incomebyage.MEDIA15_CY", label: "2024 Median HH Inc: HHr 15-24" },
-      { id: "incomebyage.MEDIA25_CY", label: "2024 Median HH Inc: HHr 25-34" },
-      { id: "incomebyage.MEDIA35_CY", label: "2024 Median HH Inc: HHr 35-44" },
-      { id: "incomebyage.MEDIA45_CY", label: "2024 Median HH Inc: HHr 45-54" },
-      { id: "incomebyage.MEDIA55_CY", label: "2024 Median HH Inc: HHr 55-64" },
-      { id: "incomebyage.MEDIA65_CY", label: "2024 Median HH Inc: HHr 65-74" },
-      { id: "incomebyage.MEDIA75_CY", label: "2024 Median HH Inc: HHr 75+" },
-
 
       { id: "incomebyage.A15I0_CY", label: "2024 HH Inc <$15000/HHr 15-24" },
       { id: "incomebyage.A15I15_CY", label: "2024 HH Inc $15K-24999/HHr 15-24" },
@@ -1137,8 +1129,41 @@ export const analysisCategories = {
       { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
       { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
       { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" },
+    
+      { id: "incomebyage.AVGIA15_CY", label: "2024 Average HH Inc: HHr 15-24" },
+      { id: "incomebyage.AVGIA25_CY", label: "2024 Average HH Inc: HHr 25-34" },
+      { id: "incomebyage.AVGIA35_CY", label: "2024 Average HH Inc: HHr 35-44" },
+      { id: "incomebyage.AVGIA45_CY", label: "2024 Average HH Inc: HHr 45-54" },
+      { id: "incomebyage.AVGIA55_CY", label: "2024 Average HH Inc: HHr 55-64" },
+      { id: "incomebyage.AVGIA65_CY", label: "2024 Average HH Inc: HHr 65-74" },
+      { id: "incomebyage.AVGIA75_CY", label: "2024 Average HH Inc: HHr 75+" },
+
+      // NEW VARIABLES - Add these at the end of tier2 variables array
+      // Future Year Median Household Income by Age Groups
+      { id: "incomebyage.MEDIA15_CY", label: "2024 Median HH Inc: HHr 15-24" },
+      { id: "incomebyage.MEDIA25_CY", label: "2024 Median HH Inc: HHr 25-34" },
+      { id: "incomebyage.MEDIA35_CY", label: "2024 Median HH Inc: HHr 35-44" },
+      { id: "incomebyage.MEDIA45_CY", label: "2024 Median HH Inc: HHr 45-54" },
+      { id: "incomebyage.MEDIA55_CY", label: "2024 Median HH Inc: HHr 55-64" },
+      { id: "incomebyage.MEDIA65_CY", label: "2024 Median HH Inc: HHr 65-74" },
+      { id: "incomebyage.MEDIA55UCY", label: "2024 Median HH Inc: HHr 55+" },
+      { id: "incomebyage.MEDIA65UCY", label: "2024 Median HH Inc: HHr 65+" },
+      { id: "incomebyage.MEDIA75_CY", label: "2024 Median HH Inc: HHr 75+" },
+
+
+      { id: "incomebyage.MEDIA15_FY", label: "2029 Median HH Inc: HHr 15-24" },
+      { id: "incomebyage.MEDIA25_FY", label: "2029 Median HH Inc: HHr 25-34" },
+      { id: "incomebyage.MEDIA35_FY", label: "2029 Median HH Inc: HHr 35-44" },
+      { id: "incomebyage.MEDIA45_FY", label: "2029 Median HH Inc: HHr 45-54" },
+      { id: "incomebyage.MEDIA55_FY", label: "2029 Median HH Inc: HHr 55-64" },
+      { id: "incomebyage.MEDIA65_FY", label: "2029 Median HH Inc: HHr 65-74" },
+      { id: "incomebyage.MEDIA55UFY", label: "2029 Median HH Inc: HHr 55+" },
+      { id: "incomebyage.MEDIA65UFY", label: "2029 Median HH Inc: HHr 65+" },
+      { id: "incomebyage.MEDIA75_FY", label: "2029 Median HH Inc: HHr 75+" },
     ]
   },
+
+  
   retail: {
     label: "Retail Variables",
     variables: [
@@ -1401,10 +1426,10 @@ export class EnrichmentService {
 
   async prepareGeometryForEnrichment(marketAreas) {
     await projection.load();
-  
+
     const expandedAreas = [];
     let areaIndex = 0;
-  
+
     for (const area of marketAreas) {
       console.log("Processing market area for enrichment:", {
         name: area.name,
@@ -1413,23 +1438,23 @@ export class EnrichmentService {
         hasDriveTimePoints: Boolean(area.drive_time_points?.length),
         hasLocations: Boolean(area.locations?.length),
       });
-  
+
       // Check for both area.ma_type and area.type to handle different data structures
       if ((area.ma_type === "radius" || area.type === "radius")) {
         if (area.radius_points?.length > 0) {
           let largestRadiusInfo = { radius: 0, polygon: null };
-  
+
           for (const point of area.radius_points) {
             console.log("Processing radius point:", JSON.stringify(point, null, 2));
-  
+
             if (!point.center) {
               console.warn("Radius point has no center:", point);
               continue;
             }
-  
+
             // Extract coordinates correctly based on available properties
             let centerLon, centerLat;
-  
+
             // Handle different data structures
             if (point.center.longitude !== undefined && point.center.latitude !== undefined) {
               centerLon = point.center.longitude;
@@ -1441,11 +1466,11 @@ export class EnrichmentService {
               console.warn("Cannot determine center coordinates from point:", point.center);
               continue;
             }
-  
+
             // Check if coordinates need to be transformed from Web Mercator to geographic
             const spatialRefWkid = point.center.spatialReference?.wkid ||
               point.center.spatialReference?.latestWkid;
-  
+
             // CRITICAL FIX: Special handling for lat/long values incorrectly tagged as Web Mercator
             if (spatialRefWkid === 102100 || spatialRefWkid === 3857) {
               // If we have lat/long values with Web Mercator spatial ref
@@ -1461,7 +1486,7 @@ export class EnrichmentService {
                   try {
                     const { default: Point } = await import("@arcgis/core/geometry/Point");
                     const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-  
+
                     const webMercatorPoint = new Point({
                       x: centerLon,
                       y: centerLat,
@@ -1469,9 +1494,9 @@ export class EnrichmentService {
                         wkid: spatialRefWkid
                       }
                     });
-  
+
                     const geographicPoint = webMercatorToGeographic(webMercatorPoint);
-  
+
                     if (geographicPoint) {
                       centerLon = geographicPoint.longitude;
                       centerLat = geographicPoint.latitude;
@@ -1490,7 +1515,7 @@ export class EnrichmentService {
                 try {
                   const { default: Point } = await import("@arcgis/core/geometry/Point");
                   const { webMercatorToGeographic } = await import("@arcgis/core/geometry/support/webMercatorUtils");
-  
+
                   const webMercatorPoint = new Point({
                     x: centerLon,
                     y: centerLat,
@@ -1498,9 +1523,9 @@ export class EnrichmentService {
                       wkid: spatialRefWkid
                     }
                   });
-  
+
                   const geographicPoint = webMercatorToGeographic(webMercatorPoint);
-  
+
                   if (geographicPoint) {
                     centerLon = geographicPoint.longitude;
                     centerLat = geographicPoint.latitude;
@@ -1514,7 +1539,7 @@ export class EnrichmentService {
                 }
               }
             }
-  
+
             // Skip if we have invalid coordinates
             if (!centerLon || !centerLat ||
               isNaN(centerLon) || isNaN(centerLat) ||
@@ -1522,34 +1547,34 @@ export class EnrichmentService {
               console.warn("Invalid center coordinates:", centerLon, centerLat);
               continue;
             }
-  
+
             console.log("Using center coordinates for enrichment:", { longitude: centerLon, latitude: centerLat });
-  
+
             // Process each radius
             for (const radiusMiles of (point.radii || [])) {
               console.log(`Processing radius: ${radiusMiles} miles`);
-  
+
               try {
                 // Create a circle polygon directly in geographic coordinates
                 const { default: Point } = await import("@arcgis/core/geometry/Point");
                 const { geodesicBuffer } = await import("@arcgis/core/geometry/geometryEngine");
-  
+
                 // Create a geographic point
                 const geoPoint = new Point({
                   longitude: centerLon,
                   latitude: centerLat,
                   spatialReference: { wkid: 4326 }
                 });
-  
+
                 // Create a geodesic buffer (proper circle on Earth's surface)
                 const radiusMeters = radiusMiles * 1609.34;
                 const bufferPolygon = geodesicBuffer(geoPoint, radiusMeters, "meters");
-  
+
                 if (bufferPolygon && bufferPolygon.rings?.length > 0) {
                   // Log the first few points to verify they're valid
                   console.log(`Created buffer with ${bufferPolygon.rings[0].length} points. First 3:`,
                     JSON.stringify(bufferPolygon.rings[0].slice(0, 3)));
-  
+
                   if (radiusMiles > largestRadiusInfo.radius) {
                     largestRadiusInfo = {
                       radius: radiusMiles,
@@ -1565,10 +1590,10 @@ export class EnrichmentService {
               }
             }
           }
-  
+
           if (largestRadiusInfo.polygon) {
             console.log("Using largest radius polygon:", largestRadiusInfo.radius);
-  
+
             // Add the expanded area with the buffer polygon
             expandedAreas.push({
               geometry: {
@@ -1701,86 +1726,309 @@ export class EnrichmentService {
         }
       }
       else {
-        // Non-radius area processing remains the same
+        // Enhanced processing for non-radius areas (states, counties, etc.)
+        console.log(`Processing ${area.ma_type || area.type} area: ${area.name}`);
+        
         const allRings = area.locations?.flatMap((loc) => loc.geometry?.rings || []) || [];
-  
+
         if (!allRings.length) {
           console.warn(`No valid rings found for market area: ${area.name}`);
           continue;
         }
-  
+
         try {
-          const combinedPolygon = new Polygon({
-            rings: allRings,
-            spatialReference: { wkid: 3857 },
-          });
-  
-          const projectedGeometry = projection.project(combinedPolygon, {
+          // ENHANCED: Better handling for state-level and complex geometries
+          const isStateLevelArea = (area.ma_type === "state" || area.type === "state");
+          const hasMultipleLocations = area.locations && area.locations.length > 1;
+          
+          let finalGeometry = null;
+
+          if (isStateLevelArea && hasMultipleLocations) {
+            console.log(`Processing multi-state area with ${area.locations.length} states`);
+            
+            // For multi-state areas, union the geometries properly
+            const { union, simplify } = await import("@arcgis/core/geometry/geometryEngine");
+            const geometries = [];
+            
+            // Process each state individually first
+            for (const location of area.locations) {
+              if (location.geometry?.rings?.length > 0) {
+                try {
+                  const statePolygon = new Polygon({
+                    rings: location.geometry.rings,
+                    spatialReference: { wkid: 3857 }
+                  });
+                  
+                  // Validate and simplify individual state geometry
+                  const simplified = simplify(statePolygon);
+                  if (simplified && this.isValidPolygon(simplified)) {
+                    geometries.push(simplified);
+                    console.log(`Added valid geometry for state: ${location.name}`);
+                  } else {
+                    console.warn(`Invalid or overly complex geometry for state: ${location.name}`);
+                  }
+                } catch (error) {
+                  console.error(`Error processing state ${location.name}:`, error);
+                }
+              }
+            }
+            
+            if (geometries.length === 0) {
+              console.error(`No valid state geometries found for: ${area.name}`);
+              continue;
+            }
+            
+            // Union all state geometries
+            try {
+              let combinedGeometry = geometries[0];
+              for (let i = 1; i < geometries.length; i++) {
+                const unionResult = union([combinedGeometry, geometries[i]]);
+                if (unionResult && this.isValidPolygon(unionResult)) {
+                  combinedGeometry = unionResult;
+                } else {
+                  console.warn(`Union failed for geometry ${i}, skipping`);
+                }
+              }
+              
+              // Final simplification of the combined geometry
+              const finalSimplified = simplify(combinedGeometry);
+              if (finalSimplified && this.isValidPolygon(finalSimplified)) {
+                finalGeometry = finalSimplified;
+                console.log(`Successfully created union of ${geometries.length} state geometries`);
+              } else {
+                console.error(`Final union result is invalid for: ${area.name}`);
+                continue;
+              }
+            } catch (error) {
+              console.error(`Union operation failed for: ${area.name}`, error);
+              continue;
+            }
+          } else {
+            // Single location or non-state area - use existing logic with validation
+            const combinedPolygon = new Polygon({
+              rings: allRings,
+              spatialReference: { wkid: 3857 },
+            });
+            
+            // Validate the polygon before proceeding
+            if (!this.isValidPolygon(combinedPolygon)) {
+              console.error(`Invalid polygon geometry for: ${area.name}`);
+              continue;
+            }
+            
+            // Simplify complex geometries
+            try {
+              const { simplify } = await import("@arcgis/core/geometry/geometryEngine");
+              const simplified = simplify(combinedPolygon);
+              
+              if (simplified && this.isValidPolygon(simplified)) {
+                finalGeometry = simplified;
+                console.log(`Simplified geometry for: ${area.name}`);
+              } else {
+                finalGeometry = combinedPolygon;
+                console.log(`Using original geometry for: ${area.name}`);
+              }
+            } catch (error) {
+              console.warn(`Simplification failed for ${area.name}, using original:`, error);
+              finalGeometry = combinedPolygon;
+            }
+          }
+
+          // Project to WGS84
+          const projectedGeometry = projection.project(finalGeometry, {
             wkid: 4326,
           });
-  
-          if (projectedGeometry) {
-            expandedAreas.push({
-              geometry: {
-                rings: projectedGeometry.rings,
-                spatialReference: { wkid: 4326 },
-              },
-              attributes: {
-                ObjectID: areaIndex,
-                name: area.name,
-                originalAreaName: area.name,
-              },
-              originalIndex: areaIndex,
-            });
+
+          if (projectedGeometry && this.isValidPolygon(projectedGeometry)) {
+            // Additional validation for API limits
+            const ringCount = projectedGeometry.rings.length;
+            const totalPoints = projectedGeometry.rings.reduce((sum, ring) => sum + ring.length, 0);
+            
+            console.log(`Geometry stats for ${area.name}: ${ringCount} rings, ${totalPoints} total points`);
+            
+            // Check if geometry is too complex for the API
+            if (totalPoints > 10000) {
+              console.warn(`Geometry may be too complex for API (${totalPoints} points), attempting further simplification`);
+              
+              try {
+                const { generalize } = await import("@arcgis/core/geometry/geometryEngine");
+                const generalized = generalize(projectedGeometry, 0.001); // 0.001 degree tolerance
+                
+                if (generalized && this.isValidPolygon(generalized)) {
+                  const newPointCount = generalized.rings.reduce((sum, ring) => sum + ring.length, 0);
+                  console.log(`Generalized geometry to ${newPointCount} points`);
+                  
+                  expandedAreas.push({
+                    geometry: {
+                      rings: generalized.rings,
+                      spatialReference: { wkid: 4326 },
+                    },
+                    attributes: {
+                      ObjectID: areaIndex,
+                      name: area.name,
+                      originalAreaName: area.name,
+                      simplified: true,
+                      originalPointCount: totalPoints,
+                      finalPointCount: newPointCount
+                    },
+                    originalIndex: areaIndex,
+                  });
+                } else {
+                  throw new Error("Generalization produced invalid geometry");
+                }
+              } catch (error) {
+                console.error(`Generalization failed for ${area.name}:`, error);
+                // Still try with original geometry
+                expandedAreas.push({
+                  geometry: {
+                    rings: projectedGeometry.rings,
+                    spatialReference: { wkid: 4326 },
+                  },
+                  attributes: {
+                    ObjectID: areaIndex,
+                    name: area.name,
+                    originalAreaName: area.name,
+                    warning: "Complex geometry - may fail API validation"
+                  },
+                  originalIndex: areaIndex,
+                });
+              }
+            } else {
+              // Geometry is within reasonable limits
+              expandedAreas.push({
+                geometry: {
+                  rings: projectedGeometry.rings,
+                  spatialReference: { wkid: 4326 },
+                },
+                attributes: {
+                  ObjectID: areaIndex,
+                  name: area.name,
+                  originalAreaName: area.name,
+                },
+                originalIndex: areaIndex,
+              });
+            }
+            
             areaIndex++;
           } else {
-            console.error(`Projection returned null for ${area.name}`);
+            console.error(`Projection returned null or invalid geometry for ${area.name}`);
           }
         } catch (error) {
-          console.error(`Projection failed for ${area.name}:`, error);
+          console.error(`Processing failed for ${area.name}:`, error);
         }
       }
     }
-  
+
     // Final validation of expanded areas
     if (expandedAreas.length === 0) {
       throw new Error("No valid study areas could be generated from market areas");
     }
-  
-    // Validate all polygons have rings with coordinates
+
+    // Enhanced validation of all polygons
     for (let i = 0; i < expandedAreas.length; i++) {
       const area = expandedAreas[i];
-      if (!area.geometry?.rings || !Array.isArray(area.geometry.rings) || area.geometry.rings.length === 0) {
+      if (!this.validateGeometryForAPI(area.geometry)) {
         console.error(`Invalid geometry for area ${i}:`, area);
-        throw new Error(`Area at index ${i} has invalid geometry: missing or empty rings array`);
-      }
-  
-      // Check if any ring has coordinates
-      let hasValidRing = false;
-      for (const ring of area.geometry.rings) {
-        if (Array.isArray(ring) && ring.length > 3) { // Need at least 3 points plus closing point
-          // Check if any ring has non-zero coordinates
-          const hasNonZeroPoints = ring.some(point =>
-            Array.isArray(point) && point.length >= 2 &&
-            (Math.abs(point[0]) > 0.000001 || Math.abs(point[1]) > 0.000001)
-          );
-  
-          if (hasNonZeroPoints) {
-            hasValidRing = true;
-            break;
-          }
-        }
-      }
-  
-      if (!hasValidRing) {
-        console.error(`All rings for area ${i} have zero or invalid coordinates:`, area.geometry.rings);
-        throw new Error(`Area at index ${i} has invalid geometry: all points are zero or invalid`);
+        throw new Error(`Area at index ${i} (${area.attributes.name}) has invalid geometry for API submission`);
       }
     }
-  
+
     console.log(`Successfully created ${expandedAreas.length} valid study areas for enrichment`);
     return expandedAreas;
   }
+
+  isValidPolygon(polygon) {
+    if (!polygon || !polygon.rings || !Array.isArray(polygon.rings)) {
+      return false;
+    }
+    
+    if (polygon.rings.length === 0) {
+      return false;
+    }
+    
+    // Check each ring
+    for (const ring of polygon.rings) {
+      if (!Array.isArray(ring) || ring.length < 4) {
+        return false;
+      }
+      
+      // Check for valid coordinates
+      for (const point of ring) {
+        if (!Array.isArray(point) || point.length < 2 || 
+            typeof point[0] !== 'number' || typeof point[1] !== 'number' ||
+            isNaN(point[0]) || isNaN(point[1])) {
+          return false;
+        }
+      }
+      
+      // Check if ring is closed
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  validateGeometryForAPI(geometry) {
+    if (!geometry || !geometry.rings || !Array.isArray(geometry.rings) || geometry.rings.length === 0) {
+      console.error("Geometry validation failed: missing or empty rings array");
+      return false;
+    }
+
+    // Check if any ring has coordinates
+    let hasValidRing = false;
+    let totalPoints = 0;
+    
+    for (const ring of geometry.rings) {
+      if (!Array.isArray(ring) || ring.length < 4) { // Need at least 4 points for a valid ring
+        console.error("Geometry validation failed: ring has insufficient points", ring?.length);
+        continue;
+      }
+      
+      totalPoints += ring.length;
+      
+      // Check if ring has valid, non-zero coordinates
+      const hasValidPoints = ring.every(point => {
+        if (!Array.isArray(point) || point.length < 2) return false;
+        const [x, y] = point;
+        return typeof x === 'number' && typeof y === 'number' && 
+              !isNaN(x) && !isNaN(y) && 
+              Math.abs(x) > 0.000001 && Math.abs(y) > 0.000001; // Not exactly zero
+      });
+      
+      if (hasValidPoints) {
+        hasValidRing = true;
+      }
+    }
+
+    if (!hasValidRing) {
+      console.error("Geometry validation failed: no valid rings with non-zero coordinates");
+      return false;
+    }
+    
+    // Check for reasonable complexity limits
+    if (totalPoints > 15000) {
+      console.warn(`Geometry has high complexity: ${totalPoints} points - may cause API issues`);
+    }
+    
+    // Check spatial reference
+    if (!geometry.spatialReference || !geometry.spatialReference.wkid) {
+      console.error("Geometry validation failed: missing spatial reference");
+      return false;
+    }
+    
+    // Ensure WGS84 for API
+    if (geometry.spatialReference.wkid !== 4326) {
+      console.error("Geometry validation failed: spatial reference must be WGS84 (4326)");
+      return false;
+    }
+
+    return true;
+  }
+
 
   createCirclePolygon(centerX, centerY, radiusMiles, fromWkid = 102100) {
     // Convert miles to meters
