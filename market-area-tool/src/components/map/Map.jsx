@@ -3988,922 +3988,845 @@ export default function MapComponent({ onToggleLis }) {
   }, []); // Empty dependency array
 
   const updateVisualizationAndLegend = useCallback(async () => {
-    const now = Date.now();
+      const now = Date.now();
 
-    // Prevent concurrent updates and rate limiting
-    if (updateInProgressRef.current || now - lastUpdateTimeRef.current < 500) {
-      console.log(
-        "[updateVisualizationAndLegend] Skipping: Update in progress or too frequent"
-      );
-      return null;
-    }
-
-    // Set update flags
-    updateInProgressRef.current = true;
-    lastUpdateTimeRef.current = now;
-
-    console.log(
-      "[updateVisualizationAndLegend] Starting update for Active Tab:",
-      activeTab
-    );
-    let labelLoadTimeoutId = null;
-
-    // Helper function to find visualization option by various criteria
-    const findVisualizationOption = (config, effectiveType, tabData) => {
-      console.log("🔍 [findVisualizationOption] === DETAILED DEBUG START ===");
-      console.log("🔍 [findVisualizationOption] Input parameters:");
-      console.log("🔍   - config:", JSON.stringify(config, null, 2));
-      console.log("🔍   - effectiveType:", effectiveType);
-      console.log("🔍   - tabData:", JSON.stringify(tabData, null, 2));
-
-      if (!visualizationOptions || !Array.isArray(visualizationOptions)) {
+      // Prevent concurrent updates and rate limiting
+      if (updateInProgressRef.current || now - lastUpdateTimeRef.current < 500) {
         console.log(
-          "🔍 [findVisualizationOption] ❌ EARLY EXIT: visualizationOptions not available or not array"
-        );
-        console.log(
-          "🔍   - visualizationOptions type:",
-          typeof visualizationOptions
-        );
-        console.log(
-          "🔍   - visualizationOptions isArray:",
-          Array.isArray(visualizationOptions)
+          "[updateVisualizationAndLegend] Skipping: Update in progress or too frequent"
         );
         return null;
       }
 
-      console.log(
-        "🔍 [findVisualizationOption] ✅ visualizationOptions available with",
-        visualizationOptions.length,
-        "entries"
-      );
-      console.log(
-        "🔍 [findVisualizationOption] visualizationOptions sample (first 3):",
-        visualizationOptions.slice(0, 3).map((opt) => ({
-          value: opt.value,
-          label: opt.label,
-          type: opt.type,
-          category: opt.category,
-        }))
-      );
+      // Set update flags
+      updateInProgressRef.current = true;
+      lastUpdateTimeRef.current = now;
 
-      // Try to match by field/attribute being visualized
-      let matchingOption = null;
-
-      // Method 1: Match by config field/attribute name
       console.log(
-        "🔍 [findVisualizationOption] === METHOD 1: Config Field Match ==="
+        "[updateVisualizationAndLegend] Starting update for Active Tab:",
+        activeTab
       );
-      if (config?.field) {
-        console.log("🔍   - Searching for config.field:", config.field);
-        matchingOption = visualizationOptions.find(
-          (opt) => opt.value === config.field
-        );
-        console.log(
-          "🔍   - Method 1 result:",
-          matchingOption
-            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-            : "❌ NOT FOUND"
-        );
-      } else {
-        console.log("🔍   - config.field not available, skipping Method 1");
-      }
+      let labelLoadTimeoutId = null;
 
-      // Method 2: Match by visualization key/identifier
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 2: Visualization Key Match ==="
-      );
-      if (!matchingOption && config?.visualizationKey) {
-        console.log(
-          "🔍   - Searching for config.visualizationKey:",
-          config.visualizationKey
-        );
-        matchingOption = visualizationOptions.find(
-          (opt) => opt.value === config.visualizationKey
-        );
-        console.log(
-          "🔍   - Method 2 result:",
-          matchingOption
-            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-            : "❌ NOT FOUND"
-        );
-      } else {
-        console.log(
-          "🔍   - config.visualizationKey not available or already found match, skipping Method 2"
-        );
-      }
+      // Enhanced type normalization function
+      const normalizeVisualizationType = (type) => {
+        if (!type) return type;
+        
+        // Convert string to lowercase for consistent comparison
+        const lowerType = String(type).toLowerCase();
+        
+        // Handle all known type variations
+        if (lowerType === "pipeline") return "pipe";
+        if (lowerType === "comps") return "comp";
+        if (lowerType === "dotdensity") return "dot-density";  // KEY FIX: Handle dotdensity -> dot-density
+        if (lowerType === "classbreaks" || lowerType === "class_breaks") return "class-breaks";
+        if (lowerType === "dotdensitymap") return "dot-density";
+        if (lowerType === "heatmap") return "class-breaks";
+        
+        // Handle field names that end with suffixes
+        if (lowerType.endsWith("_heat")) return "class-breaks";
+        if (lowerType.endsWith("_dot")) return "dot-density";
+        if (lowerType.endsWith("_viz")) return type.replace(/_viz$/i, "");
+        if (lowerType.endsWith("_map")) return type.replace(/_map$/i, "");
+        
+        // Return original if no normalization needed
+        return type;
+      };
 
-      // Method 3: Match by config type and look for corresponding heat/dot density version
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 3: Type-based Match ==="
-      );
-      if (!matchingOption && effectiveType) {
+      // Helper function to find visualization option by various criteria
+      const findVisualizationOption = (config, effectiveType, tabData) => {
+        console.log("🔍 [findVisualizationOption] === DETAILED DEBUG START ===");
+        console.log("🔍 [findVisualizationOption] Input parameters:");
+        console.log("🔍   - config:", JSON.stringify(config, null, 2));
         console.log("🔍   - effectiveType:", effectiveType);
+        console.log("🔍   - tabData:", JSON.stringify(tabData, null, 2));
 
-        if (
-          effectiveType === "class-breaks" ||
-          effectiveType.endsWith("_HEAT")
-        ) {
-          console.log("🔍   - Looking for class-breaks/heat map matches");
+        if (!visualizationOptions || !Array.isArray(visualizationOptions)) {
           console.log(
-            "🔍   - config.field:",
-            config?.field,
-            "config.attribute:",
-            config?.attribute
+            "🔍 [findVisualizationOption] ❌ EARLY EXIT: visualizationOptions not available or not array"
           );
+          return null;
+        }
 
-          const heatMapOptions = visualizationOptions.filter(
-            (opt) => opt.type === "class-breaks"
-          );
-          console.log(
-            "🔍   - Available class-breaks options:",
-            heatMapOptions.map((opt) => `${opt.value} (${opt.label})`)
-          );
+        console.log(
+          "🔍 [findVisualizationOption] ✅ visualizationOptions available with",
+          visualizationOptions.length,
+          "entries"
+        );
 
+        let matchingOption = null;
+
+        // Method 1: Match by config field/attribute name
+        console.log(
+          "🔍 [findVisualizationOption] === METHOD 1: Config Field Match ==="
+        );
+        if (config?.field) {
+          console.log("🔍   - Searching for config.field:", config.field);
           matchingOption = visualizationOptions.find(
-            (opt) =>
-              opt.type === "class-breaks" &&
-              (config?.field
-                ? opt.value === config.field
-                : config?.attribute
-                ? opt.value === config.attribute
-                : false)
+            (opt) => opt.value === config.field
           );
           console.log(
-            "🔍   - Method 3 (class-breaks) result:",
+            "🔍   - Method 1 result:",
             matchingOption
               ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
               : "❌ NOT FOUND"
-          );
-        } else if (effectiveType === "dot-density") {
-          console.log("🔍   - Looking for dot-density matches");
-          console.log(
-            "🔍   - config.field:",
-            config?.field,
-            "config.dotValue:",
-            config?.dotValue
-          );
-
-          const dotDensityOptions = visualizationOptions.filter(
-            (opt) => opt.type === "dot-density"
-          );
-          console.log(
-            "🔍   - Available dot-density options:",
-            dotDensityOptions.map((opt) => `${opt.value} (${opt.label})`)
-          );
-
-          matchingOption = visualizationOptions.find(
-            (opt) =>
-              opt.type === "dot-density" &&
-              (config?.field
-                ? opt.value === config.field
-                : config?.dotValue
-                ? opt.value === config.dotValue
-                : false)
-          );
-          console.log(
-            "🔍   - Method 3 (dot-density) result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        } else {
-          console.log(
-            "🔍   - effectiveType doesn't match class-breaks or dot-density patterns"
           );
         }
-      } else {
-        console.log(
-          "🔍   - effectiveType not available or already found match, skipping Method 3"
-        );
-      }
 
-      // Method 4: Match by activeTabData properties
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 4: ActiveTabData Match ==="
-      );
-      if (!matchingOption && tabData) {
-        console.log("🔍   - tabData.field:", tabData.field);
+        // Method 2: Match by visualization key/identifier
         console.log(
-          "🔍   - tabData.visualizationKey:",
-          tabData.visualizationKey
+          "🔍 [findVisualizationOption] === METHOD 2: Visualization Key Match ==="
         );
-
-        if (tabData.field) {
-          console.log("🔍   - Searching for tabData.field:", tabData.field);
+        if (!matchingOption && config?.visualizationKey) {
+          console.log(
+            "🔍   - Searching for config.visualizationKey:",
+            config.visualizationKey
+          );
           matchingOption = visualizationOptions.find(
-            (opt) => opt.value === tabData.field
+            (opt) => opt.value === config.visualizationKey
           );
           console.log(
-            "🔍   - Method 4 (field) result:",
+            "🔍   - Method 2 result:",
             matchingOption
               ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
               : "❌ NOT FOUND"
           );
-        } else if (tabData.visualizationKey) {
-          console.log(
-            "🔍   - Searching for tabData.visualizationKey:",
-            tabData.visualizationKey
-          );
-          matchingOption = visualizationOptions.find(
-            (opt) => opt.value === tabData.visualizationKey
-          );
-          console.log(
-            "🔍   - Method 4 (visualizationKey) result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        } else {
-          console.log("🔍   - No field or visualizationKey in tabData");
         }
-      } else {
+
+        // Method 3: Match by config type and look for corresponding heat/dot density version
         console.log(
-          "🔍   - tabData not available or already found match, skipping Method 4"
+          "🔍 [findVisualizationOption] === METHOD 3: Type-based Match ==="
         );
-      }
+        if (!matchingOption && effectiveType) {
+          console.log("🔍   - effectiveType:", effectiveType);
 
-      // Additional debugging: Show all possible matching strategies
-      console.log("🔍 [findVisualizationOption] === ADDITIONAL DEBUG INFO ===");
-      console.log("🔍   - All possible search values to try:");
-      const searchValues = [
-        { source: "config.field", value: config?.field },
-        { source: "config.attribute", value: config?.attribute },
-        { source: "config.visualizationKey", value: config?.visualizationKey },
-        { source: "config.dotValue", value: config?.dotValue },
-        { source: "tabData.field", value: tabData?.field },
-        {
-          source: "tabData.visualizationKey",
-          value: tabData?.visualizationKey,
-        },
-      ].filter((item) => item.value !== undefined && item.value !== null);
+          if (
+            effectiveType === "class-breaks" ||
+            effectiveType.endsWith("_HEAT")
+          ) {
+            console.log("🔍   - Looking for class-breaks/heat map matches");
+            const heatMapOptions = visualizationOptions.filter(
+              (opt) => opt.type === "class-breaks"
+            );
+            console.log(
+              "🔍   - Available class-breaks options:",
+              heatMapOptions.map((opt) => `${opt.value} (${opt.label})`)
+            );
 
-      searchValues.forEach((item) => {
-        console.log(`🔍     - ${item.source}: "${item.value}"`);
-        const matches = visualizationOptions.filter(
-          (opt) => opt.value === item.value
-        );
-        if (matches.length > 0) {
-          console.log(
-            `🔍       -> Matches found:`,
-            matches.map((m) => `${m.label} (type: ${m.type})`)
-          );
-        } else {
-          console.log(`🔍       -> No matches found`);
-        }
-      });
+            matchingOption = visualizationOptions.find(
+              (opt) =>
+                opt.type === "class-breaks" &&
+                (config?.field
+                  ? opt.value === config.field
+                  : config?.attribute
+                  ? opt.value === config.attribute
+                  : false)
+            );
+          } else if (effectiveType === "dot-density") {
+            console.log("🔍   - Looking for dot-density matches");
+            const dotDensityOptions = visualizationOptions.filter(
+              (opt) => opt.type === "dot-density"
+            );
+            console.log(
+              "🔍   - Available dot-density options:",
+              dotDensityOptions.map((opt) => `${opt.value} (${opt.label})`)
+            );
 
-      console.log("🔍 [findVisualizationOption] === FINAL RESULT ===");
-      if (matchingOption) {
-        console.log("🔍 ✅ FINAL MATCH FOUND:", {
-          value: matchingOption.value,
-          label: matchingOption.label,
-          type: matchingOption.type,
-          category: matchingOption.category,
-        });
-      } else {
-        console.log("🔍 ❌ NO MATCH FOUND - Will use fallback title logic");
-      }
-      console.log("🔍 [findVisualizationOption] === DETAILED DEBUG END ===");
-
-      return matchingOption;
-    };
-
-    // Helper function for legend visibility with DOM manipulation
-    const setLegendVisibility = (legendWidget, visible) => {
-      if (!legendWidget) return;
-
-      try {
-        legendWidget.visible = visible;
-
-        if (legendWidget.container) {
-          legendWidget.container.style.display = visible ? "block" : "none";
-          legendWidget.container.style.visibility = visible
-            ? "visible"
-            : "hidden";
-
-          const parentElement = legendWidget.container.parentElement;
-          if (parentElement) {
-            parentElement.style.display = visible ? "block" : "none";
-            parentElement.style.visibility = visible ? "visible" : "hidden";
+            matchingOption = visualizationOptions.find(
+              (opt) =>
+                opt.type === "dot-density" &&
+                (config?.field
+                  ? opt.value === config.field
+                  : config?.dotValue
+                  ? opt.value === config.dotValue
+                  : false)
+            );
           }
+          
+          console.log(
+            "🔍   - Method 3 result:",
+            matchingOption
+              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+              : "❌ NOT FOUND"
+          );
         }
 
+        // Method 4: Match by activeTabData properties
         console.log(
-          `[setLegendVisibility] Legend ${
-            visible ? "shown" : "hidden"
-          } with DOM manipulations`
+          "🔍 [findVisualizationOption] === METHOD 4: ActiveTabData Match ==="
         );
-      } catch (error) {
-        console.error(
-          "[setLegendVisibility] Error setting legend visibility:",
-          error
-        );
-      }
-    };
-
-    try {
-      // Prerequisites validation
-      if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
-        console.log(
-          "[updateVisualizationAndLegend] Skipping: Prerequisites not met.",
-          {
-            isConfigLoading,
-            mapReady: !!mapView?.map,
-            legendReady: !!legend,
-            labelManagerReady: isLabelManagerReady,
+        if (!matchingOption && tabData) {
+          if (tabData.field) {
+            matchingOption = visualizationOptions.find(
+              (opt) => opt.value === tabData.field
+            );
+          } else if (tabData.visualizationKey) {
+            matchingOption = visualizationOptions.find(
+              (opt) => opt.value === tabData.visualizationKey
+            );
           }
-        );
-        return null;
-      }
+          
+          console.log(
+            "🔍   - Method 4 result:",
+            matchingOption
+              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+              : "❌ NOT FOUND"
+          );
+        }
 
-      // Find active tab and validate
-      const activeTabData = tabs.find((tab) => tab.id === activeTab);
+        console.log("🔍 [findVisualizationOption] === FINAL RESULT ===");
+        if (matchingOption) {
+          console.log("🔍 ✅ FINAL MATCH FOUND:", {
+            value: matchingOption.value,
+            label: matchingOption.label,
+            type: matchingOption.type,
+            category: matchingOption.category,
+          });
+        } else {
+          console.log("🔍 ❌ NO MATCH FOUND - Will use fallback title logic");
+        }
+        console.log("🔍 [findVisualizationOption] === DETAILED DEBUG END ===");
 
-      // Check for redundant processing
-      if (
-        activeTabData &&
-        lastProcessedTabRef.current === activeTabData.id &&
-        Date.now() - lastProcessedTimeRef.current < 2000
-      ) {
-        console.log(
-          `[updateVisualizationAndLegend] Tab ${activeTabData.id} already processed recently, skipping`
-        );
-        return null;
-      }
+        return matchingOption;
+      };
 
-      // Update tracking references
-      if (activeTabData) {
-        lastProcessedTabRef.current = activeTabData.id;
-        lastProcessedTimeRef.current = Date.now();
-      }
+      // Helper function for legend visibility with DOM manipulation
+      const setLegendVisibility = (legendWidget, visible) => {
+        if (!legendWidget) return;
 
-      // Extract and establish context for label management
-      let mapConfigId = null;
-      let mapType = null;
-
-      if (activeTabData) {
-        mapConfigId =
-          activeTabData.configId ||
-          activeTabData.id ||
-          activeTabData.mapConfigId ||
-          sessionStorage.getItem("currentMapConfigId");
-
-        mapType =
-          activeTabData.visualizationType ||
-          activeTabData.type ||
-          sessionStorage.getItem("currentMapType");
-
-        // Normalize map type
-        if (mapType === "pipeline") mapType = "pipe";
-        if (mapType === "comps") mapType = "comp";
-      }
-
-      // Establish LabelManager context before any layer operations
-      if (labelManagerRef.current && mapConfigId) {
         try {
-          const projectId =
-            localStorage.getItem("currentProjectId") ||
-            sessionStorage.getItem("currentProjectId");
+          legendWidget.visible = visible;
 
-          if (projectId) {
-            // Store context in session storage
-            sessionStorage.setItem("currentMapConfigId", mapConfigId);
-            sessionStorage.setItem("currentMapType", mapType);
-            sessionStorage.setItem("currentProjectId", projectId);
+          if (legendWidget.container) {
+            legendWidget.container.style.display = visible ? "block" : "none";
+            legendWidget.container.style.visibility = visible
+              ? "visible"
+              : "hidden";
 
-            // Set LabelManager context
-            labelManagerRef.current.setContext(projectId, mapConfigId, mapType);
-
-            // Verify context
-            const contextVerification = {
-              success: labelManagerRef.current.mapConfigId === mapConfigId,
-              managerConfigId: labelManagerRef.current.mapConfigId,
-              expectedConfigId: mapConfigId,
-              managerType: labelManagerRef.current.mapType,
-            };
-
-            if (contextVerification.success) {
-              console.log(
-                `[updateVisualizationAndLegend] LabelManager context established:`,
-                {
-                  projectId,
-                  mapConfigId,
-                  mapType,
-                }
-              );
-            } else {
-              console.error(
-                `[updateVisualizationAndLegend] LabelManager context verification failed:`,
-                contextVerification
-              );
+            const parentElement = legendWidget.container.parentElement;
+            if (parentElement) {
+              parentElement.style.display = visible ? "block" : "none";
+              parentElement.style.visibility = visible ? "visible" : "hidden";
             }
           }
-        } catch (contextError) {
+
+          console.log(
+            `[setLegendVisibility] Legend ${
+              visible ? "shown" : "hidden"
+            } with DOM manipulations`
+          );
+        } catch (error) {
           console.error(
-            "[updateVisualizationAndLegend] Error establishing LabelManager context:",
-            contextError
+            "[setLegendVisibility] Error setting legend visibility:",
+            error
           );
         }
-      }
+      };
 
-      // Save existing label positions before layer modifications
-      saveLabelPositions(true);
-
-      // Remove existing visualization layers
-      const layersToRemove = [];
-      mapView.map.layers.forEach((layer) => {
-        if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
-          layersToRemove.push(layer);
+      try {
+        // Prerequisites validation
+        if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
+          console.log(
+            "[updateVisualizationAndLegend] Skipping: Prerequisites not met.",
+            {
+              isConfigLoading,
+              mapReady: !!mapView?.map,
+              legendReady: !!legend,
+              labelManagerReady: isLabelManagerReady,
+            }
+          );
+          return null;
         }
-      });
 
-      if (layersToRemove.length > 0) {
-        console.log(
-          `[updateVisualizationAndLegend] Removing ${layersToRemove.length} visualization layers`
-        );
-        mapView.map.removeMany(layersToRemove);
-      }
+        // Find active tab and validate
+        const activeTabData = tabs.find((tab) => tab.id === activeTab);
 
-      // Handle Core Map (activeTab === 1)
-      if (activeTab === 1) {
-        console.log(
-          "[updateVisualizationAndLegend] Core Map detected, ensuring legend is hidden"
-        );
-        setLegendVisibility(legend, false);
-        setCustomLegendContent(null);
-        return null;
-      }
+        // Check for redundant processing
+        if (
+          activeTabData &&
+          lastProcessedTabRef.current === activeTabData.id &&
+          Date.now() - lastProcessedTimeRef.current < 2000
+        ) {
+          console.log(
+            `[updateVisualizationAndLegend] Tab ${activeTabData.id} already processed recently, skipping`
+          );
+          return null;
+        }
 
-      // Process visualization for active tab
-      if (activeTabData?.visualizationType) {
-        let vizType = activeTabData.visualizationType;
-        if (vizType === "pipeline") vizType = "pipe";
-        if (vizType === "comps") vizType = "comp";
-        if (vizType === "site_location") vizType = "site_location";
+        // Update tracking references
+        if (activeTabData) {
+          lastProcessedTabRef.current = activeTabData.id;
+          lastProcessedTimeRef.current = Date.now();
+        }
 
-        const config = activeTabData.layerConfiguration;
-        const areaType = activeTabData.areaType;
+        // Extract and establish context for label management
+        let mapConfigId = null;
+        let mapType = null;
 
-        console.log(
-          `[updateVisualizationAndLegend] Preparing layer creation for type: ${vizType}`
-        );
+        if (activeTabData) {
+          mapConfigId =
+            activeTabData.configId ||
+            activeTabData.id ||
+            activeTabData.mapConfigId ||
+            sessionStorage.getItem("currentMapConfigId");
 
-        const effectiveType = vizType || config?.type;
-        if (!effectiveType) {
-          console.error(
-            "[updateVisualizationAndLegend] Cannot create layer: Missing visualization type"
+          // ENHANCED: Apply type normalization to the raw visualization type
+          const rawVisualizationType = activeTabData.visualizationType || 
+                                    activeTabData.type || 
+                                    sessionStorage.getItem("currentMapType");
+          
+          mapType = normalizeVisualizationType(rawVisualizationType);
+          
+          console.log(`[updateVisualizationAndLegend] Type normalization: ${rawVisualizationType} -> ${mapType}`);
+        }
+
+        // Establish LabelManager context before any layer operations
+        if (labelManagerRef.current && mapConfigId) {
+          try {
+            const projectId =
+              localStorage.getItem("currentProjectId") ||
+              sessionStorage.getItem("currentProjectId");
+
+            if (projectId) {
+              // Store context in session storage
+              sessionStorage.setItem("currentMapConfigId", mapConfigId);
+              sessionStorage.setItem("currentMapType", mapType);
+              sessionStorage.setItem("currentProjectId", projectId);
+
+              // Set LabelManager context
+              labelManagerRef.current.setContext(projectId, mapConfigId, mapType);
+
+              // Verify context
+              const contextVerification = {
+                success: labelManagerRef.current.mapConfigId === mapConfigId,
+                managerConfigId: labelManagerRef.current.mapConfigId,
+                expectedConfigId: mapConfigId,
+                managerType: labelManagerRef.current.mapType,
+              };
+
+              if (contextVerification.success) {
+                console.log(
+                  `[updateVisualizationAndLegend] LabelManager context established:`,
+                  {
+                    projectId,
+                    mapConfigId,
+                    mapType,
+                  }
+                );
+              } else {
+                console.error(
+                  `[updateVisualizationAndLegend] LabelManager context verification failed:`,
+                  contextVerification
+                );
+              }
+            }
+          } catch (contextError) {
+            console.error(
+              "[updateVisualizationAndLegend] Error establishing LabelManager context:",
+              contextError
+            );
+          }
+        }
+
+        // Save existing label positions before layer modifications
+        saveLabelPositions(true);
+
+        // Remove existing visualization layers
+        const layersToRemove = [];
+        mapView.map.layers.forEach((layer) => {
+          if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
+            layersToRemove.push(layer);
+          }
+        });
+
+        if (layersToRemove.length > 0) {
+          console.log(
+            `[updateVisualizationAndLegend] Removing ${layersToRemove.length} visualization layers`
+          );
+          mapView.map.removeMany(layersToRemove);
+        }
+
+        // Handle Core Map (activeTab === 1)
+        if (activeTab === 1) {
+          console.log(
+            "[updateVisualizationAndLegend] Core Map detected, ensuring legend is hidden"
           );
           setLegendVisibility(legend, false);
           setCustomLegendContent(null);
           return null;
         }
 
-        let newLayer = null;
-        try {
-          // Determine visualization category
-          const specialTypes = ["pipe", "comp", "custom", "site_location"];
-          const isSpecialType =
-            specialTypes.includes(effectiveType) ||
-            (config?.customData &&
-              !["class-breaks", "dot-density"].includes(effectiveType));
+        // Process visualization for active tab
+        if (activeTabData?.visualizationType) {
+          // ENHANCED: Apply comprehensive type normalization
+          let vizType = normalizeVisualizationType(activeTabData.visualizationType);
+          
+          // Additional normalization for site_location
+          if (vizType === "site_location") vizType = "site_location";
 
-          const standardTypes = ["class-breaks", "dot-density"];
-          const isStandardViz =
-            standardTypes.includes(effectiveType) ||
-            (config?.type && standardTypes.includes(config.type)) ||
-            config?.dotValue !== undefined ||
-            config?.classBreakInfos !== undefined ||
-            effectiveType.endsWith("_HEAT");
+          const config = activeTabData.layerConfiguration;
+          const areaType = activeTabData.areaType;
 
-          // Create layer with proper context metadata
-          if (isSpecialType) {
-            const configForCreator = {
-              ...(config || {}),
-              type: effectiveType,
-              configId: mapConfigId,
-              mapConfigId: mapConfigId,
-              // Add context metadata for label management
-              contextMetadata: {
-                mapConfigId: mapConfigId,
-                mapType: effectiveType,
-                projectId: localStorage.getItem("currentProjectId"),
-                createdAt: Date.now(),
-              },
-            };
+          console.log(
+            `[updateVisualizationAndLegend] Preparing layer creation for normalized type: ${vizType} (original: ${activeTabData.visualizationType})`
+          );
 
-            switch (effectiveType) {
-              case "pipe":
-                newLayer = await createPipeLayer(configForCreator);
-                break;
-              case "comp":
-                newLayer = await createCompLayer(configForCreator);
-                break;
-              case "site_location":
-                const { default: GraphicsLayer } = await import(
-                  "@arcgis/core/layers/GraphicsLayer"
-                );
-                newLayer = new GraphicsLayer({
-                  title: "Site Location",
-                  visualizationType: "site_location",
-                  isVisualizationLayer: true,
-                  listMode: "hide",
-                  mapConfigId: mapConfigId,
-                  mapType: "site_location",
-                });
-                break;
-              default:
-                newLayer = await createGraphicsLayerFromCustomData(
-                  configForCreator
-                );
-                break;
-            }
-          } else {
-            // Create standard feature layers
-            newLayer = await createLayers(
-              effectiveType,
-              config,
-              initialLayerConfigurations,
-              areaType
+          const effectiveType = vizType || config?.type;
+          if (!effectiveType) {
+            console.error(
+              "[updateVisualizationAndLegend] Cannot create layer: Missing visualization type"
             );
+            setLegendVisibility(legend, false);
+            setCustomLegendContent(null);
+            return null;
           }
 
-          // Configure layer with context metadata
-          if (
-            newLayer &&
-            (newLayer instanceof FeatureLayer ||
-              newLayer instanceof GraphicsLayer)
-          ) {
-            // Set visualization properties
-            newLayer.isVisualizationLayer = true;
-            newLayer.visualizationType = effectiveType;
-            newLayer._updateId = `update-${Date.now()}`;
+          let newLayer = null;
+          try {
+            // Determine visualization category with normalized types
+            const specialTypes = ["pipe", "comp", "custom", "site_location"];
+            const isSpecialType =
+              specialTypes.includes(effectiveType) ||
+              (config?.customData &&
+                !["class-breaks", "dot-density"].includes(effectiveType));
 
-            // Set context metadata for label management
-            newLayer.mapConfigId = mapConfigId;
-            newLayer.mapType = effectiveType;
-            newLayer.projectId = localStorage.getItem("currentProjectId");
+            const standardTypes = ["class-breaks", "dot-density"];
+            const isStandardViz =
+              standardTypes.includes(effectiveType) ||
+              (config?.type && standardTypes.includes(config.type)) ||
+              config?.dotValue !== undefined ||
+              config?.classBreakInfos !== undefined ||
+              effectiveType.endsWith("_HEAT");
 
-            // Ensure labelFormatInfo has context
-            newLayer.labelFormatInfo = {
-              ...newLayer.labelFormatInfo,
-              mapConfigId: mapConfigId,
-              mapType: effectiveType,
-            };
-
-            // Apply context metadata to all graphics
-            if (newLayer.graphics && newLayer.graphics.length > 0) {
-              newLayer.graphics.forEach((graphic) => {
-                if (graphic.attributes) {
-                  graphic.attributes.mapConfigId = mapConfigId;
-                  graphic.attributes.mapType = effectiveType;
-
-                  if (graphic.symbol?.type === "text") {
-                    graphic.attributes.isLabel = true;
-                  }
-                }
-              });
-            }
-
-            // Add layer to map
-            mapView.map.add(newLayer, 0);
-            console.log(
-              `[updateVisualizationAndLegend] Added layer "${
-                newLayer.title || newLayer.id
-              }" to map`
-            );
-
-            // Store layer reference
-            if (activeLayersRef.current) {
-              activeLayersRef.current[activeTab] = newLayer;
-            }
-
-            // Wait for layer to be ready
-            await newLayer.when();
-            console.log(
-              `[updateVisualizationAndLegend] Layer "${
-                newLayer.title || newLayer.id
-              }" is ready`
-            );
-
-            // Handle legend and label processing
-            const showStandardLegend =
-              isStandardViz &&
-              !isSpecialType &&
-              !isEditorOpen &&
-              !isLabelEditorOpen;
-
-            if (isSpecialType && activeTabData.layerConfiguration) {
-              // Handle custom legend for special types
-              console.log(
-                `[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`
-              );
-              setCustomLegendContent({
+            // Create layer with proper context metadata
+            if (isSpecialType) {
+              const configForCreator = {
+                ...(config || {}),
                 type: effectiveType,
-                config: activeTabData.layerConfiguration,
-              });
+                configId: mapConfigId,
+                mapConfigId: mapConfigId,
+                // Add context metadata for label management
+                contextMetadata: {
+                  mapConfigId: mapConfigId,
+                  mapType: effectiveType,
+                  projectId: localStorage.getItem("currentProjectId"),
+                  createdAt: Date.now(),
+                },
+              };
 
-              setLegendVisibility(legend, false);
-
-              // Notify label manager about layer
-              await notifyLabelManagerAboutLayer(
-                newLayer,
-                effectiveType,
-                activeTabData.layerConfiguration?.labelOptions
-              );
-
-              // Process labels with enhanced context management
-              if (labelManagerRef.current) {
-                console.log(
-                  `[updateVisualizationAndLegend] Processing layer ${newLayer.id} with Label Manager`
-                );
-
-                newLayer._isBeingProcessed = true;
-
-                try {
-                  // Ensure context is correct before processing
-                  if (labelManagerRef.current.mapConfigId !== mapConfigId) {
-                    console.warn(
-                      "[updateVisualizationAndLegend] Context mismatch detected, correcting..."
-                    );
-                    const projectId = localStorage.getItem("currentProjectId");
-                    labelManagerRef.current.setContext(
-                      projectId,
-                      mapConfigId,
-                      effectiveType
-                    );
-                  }
-
-                  // Process layer with temporary auto-save disable
-                  const originalSaveMethod =
-                    labelManagerRef.current.savePositions;
-                  if (typeof originalSaveMethod === "function") {
-                    labelManagerRef.current.savePositions = () => ({
-                      count: 0,
-                      skipped: true,
-                    });
-                    const processedLabels =
-                      labelManagerRef.current.processLayer(newLayer);
-                    labelManagerRef.current.savePositions = originalSaveMethod;
-
-                    console.log(
-                      `[updateVisualizationAndLegend] Processed ${
-                        Array.isArray(processedLabels)
-                          ? processedLabels.length
-                          : 0
-                      } labels`
-                    );
-                  } else {
-                    labelManagerRef.current.processLayer(newLayer);
-                  }
-                } catch (processingError) {
-                  console.error(
-                    "[updateVisualizationAndLegend] Error processing layer with LabelManager:",
-                    processingError
+              switch (effectiveType) {
+                case "pipe":
+                  newLayer = await createPipeLayer(configForCreator);
+                  break;
+                case "comp":
+                  newLayer = await createCompLayer(configForCreator);
+                  break;
+                case "site_location":
+                  const { default: GraphicsLayer } = await import(
+                    "@arcgis/core/layers/GraphicsLayer"
                   );
-                } finally {
-                  // Clear processing flag
-                  setTimeout(() => {
-                    if (newLayer) newLayer._isBeingProcessed = false;
-                  }, 500);
-                }
-
-                // Schedule label refresh
-                if (
-                  typeof labelManagerRef.current.refreshLabels === "function"
-                ) {
-                  labelLoadTimeoutId = setTimeout(() => {
-                    if (updateInProgressRef.current) {
-                      console.log(
-                        "[updateVisualizationAndLegend] Skipping scheduled refresh - update in progress"
-                      );
-                      return;
-                    }
-
-                    if (
-                      labelManagerRef.current &&
-                      typeof labelManagerRef.current.refreshLabels ===
-                        "function"
-                    ) {
-                      labelManagerRef.current.refreshLabels();
-                      console.log(
-                        `[updateVisualizationAndLegend] Refreshed labels after processing ${effectiveType} layer`
-                      );
-                    }
-                  }, 800);
-                }
-              }
-            } else if (showStandardLegend || isStandardViz) {
-              // Handle standard legend for feature layers
-              try {
-                const currentConfig = activeTabData?.layerConfiguration;
-                let displayTitle = newLayer.title || effectiveType; // Default title
-
-                // --- ENHANCED MODIFICATION FOR VISUALIZATION OPTIONS ---
-                // Priority 1: Use legendTitle from the layer's configuration if it exists
-                if (currentConfig && currentConfig.legendTitle) {
-                  displayTitle = currentConfig.legendTitle;
-                  console.log(
-                    `[updateVisualizationAndLegend] Using config legendTitle: "${displayTitle}"`
+                  newLayer = new GraphicsLayer({
+                    title: "Site Location",
+                    visualizationType: "site_location",
+                    isVisualizationLayer: true,
+                    listMode: "hide",
+                    mapConfigId: mapConfigId,
+                    mapType: "site_location",
+                  });
+                  break;
+                default:
+                  newLayer = await createGraphicsLayerFromCustomData(
+                    configForCreator
                   );
-                }
-                // Priority 2: Look up visualization option and use its label
-                else {
-                  const matchingVisualizationOption = findVisualizationOption(
-                    currentConfig,
-                    effectiveType,
-                    activeTabData
-                  );
-
-                  if (
-                    matchingVisualizationOption &&
-                    matchingVisualizationOption.label
-                  ) {
-                    displayTitle = matchingVisualizationOption.label;
-                    console.log(
-                      `[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`
-                    );
-                  }
-                  // Priority 3: Specific fallback cases (keep existing logic for backwards compatibility)
-                  else if (
-                    displayTitle === "2024 Renter Occupied Housing Units (Esri)"
-                  ) {
-                    displayTitle =
-                      "2024 Renter Occupied Housing Units (New Title)";
-                    console.log(
-                      `[updateVisualizationAndLegend] Using fallback title: "${displayTitle}"`
-                    );
-                  }
-                  // Priority 4: Default to layer title or effective type
-                  else {
-                    console.log(
-                      `[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`
-                    );
-                  }
-                }
-                // --- END ENHANCED MODIFICATION ---
-
-                console.log(
-                  `[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${
-                    newLayer.title || effectiveType
-                  }" (displaying as: "${displayTitle}")`
-                );
-
-                // Set the layer's title property directly - this is crucial for the legend widget
-                newLayer.title = displayTitle;
-                console.log(
-                  `[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`
-                );
-
-                // Also set the legend layerInfos for additional control
-                legend.layerInfos = [
-                  {
-                    layer: newLayer,
-                    title: displayTitle, // Use the determined title
-                    hideLayersNotInCurrentView: false,
-                  },
-                ];
-
-                // Force legend refresh to pick up the new title
-                if (legend.refresh && typeof legend.refresh === "function") {
-                  legend.refresh();
-                  console.log(
-                    `[updateVisualizationAndLegend] Forced legend refresh`
-                  );
-                }
-
-                setLegendVisibility(legend, true);
-
-                // Apply custom styling to hide layer subtitle and clean up legend appearance
-                if (legend.container) {
-                  styleLegend(legend.container);
-
-                  // Add CSS to hide the layer subtitle (the duplicate title line)
-                  const style = document.createElement("style");
-                  style.textContent = `
-                    .esri-legend__layer-caption,
-                    .esri-legend__layer-title,
-                    .esri-legend__layer-child-title {
-                      display: none !important;
-                    }
-                    .esri-legend__service {
-                      margin-top: 0 !important;
-                    }
-                    .esri-legend__layer-table {
-                      margin-top: 0 !important;
-                    }
-                  `;
-
-                  // Remove any existing legend subtitle styles first
-                  const existingStyle = legend.container.querySelector(
-                    "#legend-subtitle-hide-style"
-                  );
-                  if (existingStyle) {
-                    existingStyle.remove();
-                  }
-
-                  // Add the new style with ID for future removal
-                  style.id = "legend-subtitle-hide-style";
-                  legend.container.appendChild(style);
-
-                  console.log(
-                    `[updateVisualizationAndLegend] Applied CSS to hide legend subtitle`
-                  );
-                }
-
-                setCustomLegendContent(null);
-
-                console.log(
-                  `[updateVisualizationAndLegend] Successfully displayed standard legend for ${effectiveType} with title "${displayTitle}"`
-                );
-              } catch (layerError) {
-                console.error(
-                  "[updateVisualizationAndLegend] Error updating legend:",
-                  layerError
-                );
-                setLegendVisibility(legend, false);
+                  break;
               }
             } else {
-              // Hide legend for other cases
+              // Create standard feature layers with normalized type
+              newLayer = await createLayers(
+                effectiveType,
+                config,
+                initialLayerConfigurations,
+                areaType
+              );
+            }
+
+            // Configure layer with context metadata
+            if (
+              newLayer &&
+              (newLayer instanceof FeatureLayer ||
+                newLayer instanceof GraphicsLayer)
+            ) {
+              // Set visualization properties with normalized type
+              newLayer.isVisualizationLayer = true;
+              newLayer.visualizationType = effectiveType;  // Use normalized type
+              newLayer._updateId = `update-${Date.now()}`;
+
+              // Set context metadata for label management
+              newLayer.mapConfigId = mapConfigId;
+              newLayer.mapType = effectiveType;  // Use normalized type
+              newLayer.projectId = localStorage.getItem("currentProjectId");
+
+              // Ensure labelFormatInfo has context
+              newLayer.labelFormatInfo = {
+                ...newLayer.labelFormatInfo,
+                mapConfigId: mapConfigId,
+                mapType: effectiveType,  // Use normalized type
+              };
+
+              // Apply context metadata to all graphics
+              if (newLayer.graphics && newLayer.graphics.length > 0) {
+                newLayer.graphics.forEach((graphic) => {
+                  if (graphic.attributes) {
+                    graphic.attributes.mapConfigId = mapConfigId;
+                    graphic.attributes.mapType = effectiveType;  // Use normalized type
+
+                    if (graphic.symbol?.type === "text") {
+                      graphic.attributes.isLabel = true;
+                    }
+                  }
+                });
+              }
+
+              // Add layer to map
+              mapView.map.add(newLayer, 0);
               console.log(
-                "[updateVisualizationAndLegend] Hiding standard Esri legend"
+                `[updateVisualizationAndLegend] Added layer "${
+                  newLayer.title || newLayer.id
+                }" to map with normalized type: ${effectiveType}`
+              );
+
+              // Store layer reference
+              if (activeLayersRef.current) {
+                activeLayersRef.current[activeTab] = newLayer;
+              }
+
+              // Wait for layer to be ready
+              await newLayer.when();
+              console.log(
+                `[updateVisualizationAndLegend] Layer "${
+                  newLayer.title || newLayer.id
+                }" is ready`
+              );
+
+              // Handle legend and label processing
+              const showStandardLegend =
+                isStandardViz &&
+                !isSpecialType &&
+                !isEditorOpen &&
+                !isLabelEditorOpen;
+
+              if (isSpecialType && activeTabData.layerConfiguration) {
+                // Handle custom legend for special types
+                console.log(
+                  `[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`
+                );
+                setCustomLegendContent({
+                  type: effectiveType,
+                  config: activeTabData.layerConfiguration,
+                });
+
+                setLegendVisibility(legend, false);
+
+                // Notify label manager about layer
+                await notifyLabelManagerAboutLayer(
+                  newLayer,
+                  effectiveType,
+                  activeTabData.layerConfiguration?.labelOptions
+                );
+
+                // Process labels with enhanced context management
+                if (labelManagerRef.current) {
+                  console.log(
+                    `[updateVisualizationAndLegend] Processing layer ${newLayer.id} with Label Manager`
+                  );
+
+                  newLayer._isBeingProcessed = true;
+
+                  try {
+                    // Ensure context is correct before processing
+                    if (labelManagerRef.current.mapConfigId !== mapConfigId) {
+                      console.warn(
+                        "[updateVisualizationAndLegend] Context mismatch detected, correcting..."
+                      );
+                      const projectId = localStorage.getItem("currentProjectId");
+                      labelManagerRef.current.setContext(
+                        projectId,
+                        mapConfigId,
+                        effectiveType
+                      );
+                    }
+
+                    // Process layer with temporary auto-save disable
+                    const originalSaveMethod =
+                      labelManagerRef.current.savePositions;
+                    if (typeof originalSaveMethod === "function") {
+                      labelManagerRef.current.savePositions = () => ({
+                        count: 0,
+                        skipped: true,
+                      });
+                      const processedLabels =
+                        labelManagerRef.current.processLayer(newLayer);
+                      labelManagerRef.current.savePositions = originalSaveMethod;
+
+                      console.log(
+                        `[updateVisualizationAndLegend] Processed ${
+                          Array.isArray(processedLabels)
+                            ? processedLabels.length
+                            : 0
+                        } labels`
+                      );
+                    } else {
+                      labelManagerRef.current.processLayer(newLayer);
+                    }
+                  } catch (processingError) {
+                    console.error(
+                      "[updateVisualizationAndLegend] Error processing layer with LabelManager:",
+                      processingError
+                    );
+                  } finally {
+                    // Clear processing flag
+                    setTimeout(() => {
+                      if (newLayer) newLayer._isBeingProcessed = false;
+                    }, 500);
+                  }
+
+                  // Schedule label refresh
+                  if (
+                    typeof labelManagerRef.current.refreshLabels === "function"
+                  ) {
+                    labelLoadTimeoutId = setTimeout(() => {
+                      if (updateInProgressRef.current) {
+                        console.log(
+                          "[updateVisualizationAndLegend] Skipping scheduled refresh - update in progress"
+                        );
+                        return;
+                      }
+
+                      if (
+                        labelManagerRef.current &&
+                        typeof labelManagerRef.current.refreshLabels ===
+                          "function"
+                      ) {
+                        labelManagerRef.current.refreshLabels();
+                        console.log(
+                          `[updateVisualizationAndLegend] Refreshed labels after processing ${effectiveType} layer`
+                        );
+                      }
+                    }, 800);
+                  }
+                }
+              } else if (showStandardLegend || isStandardViz) {
+                // Handle standard legend for feature layers
+                try {
+                  const currentConfig = activeTabData?.layerConfiguration;
+                  let displayTitle = newLayer.title || effectiveType; // Default title
+
+                  // --- ENHANCED MODIFICATION FOR VISUALIZATION OPTIONS ---
+                  // Priority 1: Use legendTitle from the layer's configuration if it exists
+                  if (currentConfig && currentConfig.legendTitle) {
+                    displayTitle = currentConfig.legendTitle;
+                    console.log(
+                      `[updateVisualizationAndLegend] Using config legendTitle: "${displayTitle}"`
+                    );
+                  }
+                  // Priority 2: Look up visualization option and use its label
+                  else {
+                    const matchingVisualizationOption = findVisualizationOption(
+                      currentConfig,
+                      effectiveType,
+                      activeTabData
+                    );
+
+                    if (
+                      matchingVisualizationOption &&
+                      matchingVisualizationOption.label
+                    ) {
+                      displayTitle = matchingVisualizationOption.label;
+                      console.log(
+                        `[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`
+                      );
+                    }
+                    // Priority 3: Specific fallback cases (keep existing logic for backwards compatibility)
+                    else if (
+                      displayTitle === "2024 Renter Occupied Housing Units (Esri)"
+                    ) {
+                      displayTitle =
+                        "2024 Renter Occupied Housing Units (New Title)";
+                      console.log(
+                        `[updateVisualizationAndLegend] Using fallback title: "${displayTitle}"`
+                      );
+                    }
+                    // Priority 4: Default to layer title or effective type
+                    else {
+                      console.log(
+                        `[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`
+                      );
+                    }
+                  }
+                  // --- END ENHANCED MODIFICATION ---
+
+                  console.log(
+                    `[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${
+                      newLayer.title || effectiveType
+                    }" (displaying as: "${displayTitle}")`
+                  );
+
+                  // Set the layer's title property directly - this is crucial for the legend widget
+                  newLayer.title = displayTitle;
+                  console.log(
+                    `[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`
+                  );
+
+                  // Also set the legend layerInfos for additional control
+                  legend.layerInfos = [
+                    {
+                      layer: newLayer,
+                      title: displayTitle, // Use the determined title
+                      hideLayersNotInCurrentView: false,
+                    },
+                  ];
+
+                  // Force legend refresh to pick up the new title
+                  if (legend.refresh && typeof legend.refresh === "function") {
+                    legend.refresh();
+                    console.log(
+                      `[updateVisualizationAndLegend] Forced legend refresh`
+                    );
+                  }
+
+                  setLegendVisibility(legend, true);
+
+                  // Apply custom styling to hide layer subtitle and clean up legend appearance
+                  if (legend.container) {
+                    styleLegend(legend.container);
+
+                    // Add CSS to hide the layer subtitle (the duplicate title line)
+                    const style = document.createElement("style");
+                    style.textContent = `
+                      .esri-legend__layer-caption,
+                      .esri-legend__layer-title,
+                      .esri-legend__layer-child-title {
+                        display: none !important;
+                      }
+                      .esri-legend__service {
+                        margin-top: 0 !important;
+                      }
+                      .esri-legend__layer-table {
+                        margin-top: 0 !important;
+                      }
+                    `;
+
+                    // Remove any existing legend subtitle styles first
+                    const existingStyle = legend.container.querySelector(
+                      "#legend-subtitle-hide-style"
+                    );
+                    if (existingStyle) {
+                      existingStyle.remove();
+                    }
+
+                    // Add the new style with ID for future removal
+                    style.id = "legend-subtitle-hide-style";
+                    legend.container.appendChild(style);
+
+                    console.log(
+                      `[updateVisualizationAndLegend] Applied CSS to hide legend subtitle`
+                    );
+                  }
+
+                  setCustomLegendContent(null);
+
+                  console.log(
+                    `[updateVisualizationAndLegend] Successfully displayed standard legend for ${effectiveType} with title "${displayTitle}"`
+                  );
+                } catch (layerError) {
+                  console.error(
+                    "[updateVisualizationAndLegend] Error updating legend:",
+                    layerError
+                  );
+                  setLegendVisibility(legend, false);
+                }
+              } else {
+                // Hide legend for other cases
+                console.log(
+                  "[updateVisualizationAndLegend] Hiding standard Esri legend"
+                );
+                setLegendVisibility(legend, false);
+                setCustomLegendContent(null);
+              }
+
+              // Handle type-specific post-processing with guards (using normalized types)
+              if (effectiveType === "pipe" && !newLayer._pipeHandled) {
+                newLayer._pipeHandled = true;
+                setTimeout(
+                  () => handlePipeVisualization(activeTabData, newLayer),
+                  100
+                );
+              } else if (effectiveType === "comp" && !newLayer._compHandled) {
+                newLayer._compHandled = true;
+                setTimeout(
+                  () => handleCompVisualization(activeTabData, newLayer),
+                  100
+                );
+              } else if (effectiveType === "custom" && !newLayer._customHandled) {
+                newLayer._customHandled = true;
+                setTimeout(
+                  () => handleCustomDataVisualization(activeTabData, newLayer),
+                  100
+                );
+              }
+            } else {
+              console.error(
+                `[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`
               );
               setLegendVisibility(legend, false);
               setCustomLegendContent(null);
             }
-
-            // Handle type-specific post-processing with guards
-            if (effectiveType === "pipe" && !newLayer._pipeHandled) {
-              newLayer._pipeHandled = true;
-              setTimeout(
-                () => handlePipeVisualization(activeTabData, newLayer),
-                100
-              );
-            } else if (effectiveType === "comp" && !newLayer._compHandled) {
-              newLayer._compHandled = true;
-              setTimeout(
-                () => handleCompVisualization(activeTabData, newLayer),
-                100
-              );
-            } else if (effectiveType === "custom" && !newLayer._customHandled) {
-              newLayer._customHandled = true;
-              setTimeout(
-                () => handleCustomDataVisualization(activeTabData, newLayer),
-                100
-              );
-            }
-          } else {
+          } catch (error) {
             console.error(
-              `[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`
+              `[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`,
+              error
             );
             setLegendVisibility(legend, false);
             setCustomLegendContent(null);
           }
-        } catch (error) {
-          console.error(
-            `[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`,
-            error
+        } else {
+          console.log(
+            `[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`
           );
           setLegendVisibility(legend, false);
           setCustomLegendContent(null);
         }
-      } else {
-        console.log(
-          `[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`
-        );
+      } catch (error) {
+        console.error("[updateVisualizationAndLegend] Critical error:", error);
         setLegendVisibility(legend, false);
         setCustomLegendContent(null);
+      } finally {
+        // Reset update flag with delay
+        setTimeout(() => {
+          updateInProgressRef.current = false;
+          console.log("[updateVisualizationAndLegend] Update lock released");
+        }, 500);
       }
-    } catch (error) {
-      console.error("[updateVisualizationAndLegend] Critical error:", error);
-      setLegendVisibility(legend, false);
-      setCustomLegendContent(null);
-    } finally {
-      // Reset update flag with delay
-      setTimeout(() => {
-        updateInProgressRef.current = false;
-        console.log("[updateVisualizationAndLegend] Update lock released");
-      }, 500);
-    }
 
-    return labelLoadTimeoutId;
-  }, [
-    activeTab,
-    tabs,
-    mapView,
-    legend,
-    isEditorOpen,
-    isLabelEditorOpen,
-    isConfigLoading,
-    isLabelManagerReady,
-    initialLayerConfigurations,
-    saveLabelPositions,
-    notifyLabelManagerAboutLayer,
-    setCustomLegendContent,
-    styleLegend,
-    handlePipeVisualization,
-    handleCompVisualization,
-    handleCustomDataVisualization,
-  ]);
+      return labelLoadTimeoutId;
+    }, [
+      activeTab,
+      tabs,
+      mapView,
+      legend,
+      isEditorOpen,
+      isLabelEditorOpen,
+      isConfigLoading,
+      isLabelManagerReady,
+      initialLayerConfigurations,
+      saveLabelPositions,
+      notifyLabelManagerAboutLayer,
+      setCustomLegendContent,
+      styleLegend,
+      handlePipeVisualization,
+      handleCompVisualization,
+      handleCustomDataVisualization,
+    ]);
 
   // --- CONSOLIDATED EFFECT HOOKS ---
 
@@ -6133,7 +6056,7 @@ export default function MapComponent({ onToggleLis }) {
               {/* New Map Button */}
               <button
                 onClick={addNewTab}
-                className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
+                className="px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
               >
                 + New Map
               </button>
@@ -6219,17 +6142,17 @@ export default function MapComponent({ onToggleLis }) {
                     )}
 
                     {showEditButton && (
-                      <div className="flex">
+                      <div className="flex space-x-2">
                         <button
                           onClick={openLayerPropertiesEditor}
-                          className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-l hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
+                          className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
                           title="Edit layer properties"
                         >
                           Edit Map/Legend
                         </button>
                         <button
                           onClick={openLabelEditor}
-                          className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-r border-l border-gray-300 dark:border-gray-700 hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
+                          className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
                           title="Edit map labels"
                           disabled={!isLabelManagerReady}
                         >
