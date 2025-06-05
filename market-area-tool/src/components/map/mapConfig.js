@@ -32,6 +32,8 @@ export const createClassBreaks = (breakPoints, labels) => {
 // --- Initial Layer Configurations ---
 export const initialLayerConfigurations = {
   // Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
+
+// Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
   TOTPOP_CY_HEAT: {
     type: "class-breaks",
     field: "TOTPOP_CY",
@@ -42,7 +44,9 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2000 },
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
+        { min: 10000, max: 20000 },
+        { min: 20000, max: 50000 },
+        { min: 50000, max: 100000 }
       ],
       [
         "Less than 500",
@@ -50,7 +54,9 @@ export const initialLayerConfigurations = {
         "1,000 - 2,000",
         "2,000 - 5,000",
         "5,000 - 10,000",
-        "10,000 - 50,000"
+        "10,000 - 20,000",
+        "20,000 - 50,000",
+        "50,000 - 100,000"
       ]
     ),
   },
@@ -65,7 +71,8 @@ export const initialLayerConfigurations = {
         { min: 400, max: 800 },
         { min: 800, max: 2000 },
         { min: 2000, max: 4000 },
-        { min: 4000, max: 20000 }
+        { min: 4000, max: 20000 },
+        { min: 20000, max: 40000 }
       ],
       [
         "Less than 200",
@@ -73,7 +80,8 @@ export const initialLayerConfigurations = {
         "400 - 800", 
         "800 - 2,000",
         "2,000 - 4,000",
-        "4,000 - 20,000"
+        "4,000 - 20,000",
+        "20,000 - 40,000"
       ]
     ),
   },
@@ -87,14 +95,16 @@ export const initialLayerConfigurations = {
         { min: 2.0, max: 2.5 },
         { min: 2.5, max: 3.0 },
         { min: 3.0, max: 3.5 },
-        { min: 3.5, max: 4.0 }
+        { min: 3.5, max: 4.0 },
+        { min: 4.0, max: 4.5 }
       ],
       [
         "Less than 2.0",
         "2.0 - 2.5",
         "2.5 - 3.0",
         "3.0 - 3.5", 
-        "3.5 - 4.0"
+        "3.5 - 4.0",
+        "4.0 - 4.5"
       ]
     ),
   },
@@ -110,7 +120,8 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2000 },
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
+        { min: 10000, max: 50000 },
+        { min: 50000, max: 100000 }
       ],
       [
         "Less than 500",
@@ -118,7 +129,8 @@ export const initialLayerConfigurations = {
         "1,000 - 2,000",
         "2,000 - 5,000",
         "5,000 - 10,000",
-        "10,000 - 50,000"
+        "10,000 - 50,000",
+        "50,000 - 100,000"
       ]
     ),
   },
@@ -133,7 +145,8 @@ export const initialLayerConfigurations = {
         { min: 500, max: 1000 },
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
       ],
       [
         "Less than 250",
@@ -141,7 +154,8 @@ export const initialLayerConfigurations = {
         "500 - 1,000",
         "1,000 - 2,500",
         "2,500 - 5,000",
-        "5,000 - 25,000"
+        "5,000 - 25,000",
+        "25,000 - 50,000"
       ]
     ),
   },
@@ -156,7 +170,8 @@ export const initialLayerConfigurations = {
         { min: 500, max: 1000 },
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
       ],
       [
         "Less than 250",
@@ -164,7 +179,8 @@ export const initialLayerConfigurations = {
         "500 - 1,000",
         "1,000 - 2,500",
         "2,500 - 5,000",
-        "5,000 - 25,000"
+        "5,000 - 25,000",
+        "25,000 - 50,000"
       ]
     ),
   },
@@ -180,7 +196,8 @@ export const initialLayerConfigurations = {
         { min: 35, max: 40 },
         { min: 40, max: 45 },
         { min: 45, max: 50 },
-        { min: 50, max: 55 }
+        { min: 50, max: 55 },
+        { min: 55, max: 65 }
       ],
       [
         "Less than 30 years",
@@ -188,7 +205,8 @@ export const initialLayerConfigurations = {
         "35 - 40 years",
         "40 - 45 years",
         "45 - 50 years",
-        "50 - 55 years"
+        "50 - 55 years",
+        "55 - 65 years"
       ]
     ),
   },
@@ -203,7 +221,8 @@ export const initialLayerConfigurations = {
         { min: 750, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 6000 },
-        { min: 6000, max: 30000 }
+        { min: 6000, max: 30000 },
+        { min: 30000, max: 60000 }
       ],
       [
         "Less than 300",
@@ -211,7 +230,8 @@ export const initialLayerConfigurations = {
         "750 - 1,500",
         "1,500 - 3,000",
         "3,000 - 6,000",
-        "6,000 - 30,000"
+        "6,000 - 30,000",
+        "30,000 - 60,000"
       ]
     ),
   },
@@ -226,7 +246,8 @@ export const initialLayerConfigurations = {
         { min: 200, max: 400 },
         { min: 400, max: 800 },
         { min: 800, max: 1500 },
-        { min: 1500, max: 7500 }
+        { min: 1500, max: 7500 },
+        { min: 7500, max: 15000 }
       ],
       [
         "Less than 75",
@@ -234,7 +255,8 @@ export const initialLayerConfigurations = {
         "200 - 400",
         "400 - 800",
         "800 - 1,500",
-        "1,500 - 7,500"
+        "1,500 - 7,500",
+        "7,500 - 15,000"
       ]
     ),
   },
@@ -249,7 +271,8 @@ export const initialLayerConfigurations = {
         { min: 300, max: 600 },
         { min: 600, max: 1200 },
         { min: 1200, max: 2500 },
-        { min: 2500, max: 12500 }
+        { min: 2500, max: 12500 },
+        { min: 12500, max: 25000 }
       ],
       [
         "Less than 100",
@@ -257,7 +280,8 @@ export const initialLayerConfigurations = {
         "300 - 600",
         "600 - 1,200",
         "1,200 - 2,500",
-        "2,500 - 12,500"
+        "2,500 - 12,500",
+        "12,500 - 25,000"
       ]
     ),
   },
@@ -274,6 +298,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
+        { min: 500000, max: 1000000 }
       ],
       [
         "Less than $50,000",
@@ -282,6 +307,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
+        "$500,000 - $1,000,000"
       ]
     ),
   },
@@ -297,6 +323,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
+        { min: 500000, max: 1000000 }
       ],
       [
         "Less than $50,000",
@@ -305,6 +332,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
+        "$500,000 - $1,000,000"
       ]
     ),
   },
@@ -320,7 +348,8 @@ export const initialLayerConfigurations = {
         { min: 20, max: 40 },
         { min: 40, max: 80 },
         { min: 80, max: 175 },
-        { min: 175, max: 875 }
+        { min: 175, max: 875 },
+        { min: 875, max: 1750 }
       ],
       [
         "Less than 8 households",
@@ -328,7 +357,8 @@ export const initialLayerConfigurations = {
         "20 - 40 households",
         "40 - 80 households",
         "80 - 175 households",
-        "175 - 875 households"
+        "175 - 875 households",
+        "875 - 1,750 households"
       ]
     ),
   },
@@ -343,7 +373,8 @@ export const initialLayerConfigurations = {
         { min: 20, max: 40 },
         { min: 40, max: 80 },
         { min: 80, max: 175 },
-        { min: 175, max: 875 }
+        { min: 175, max: 875 },
+        { min: 875, max: 1750 }
       ],
       [
         "Less than 8 households",
@@ -351,7 +382,8 @@ export const initialLayerConfigurations = {
         "20 - 40 households",
         "40 - 80 households",
         "80 - 175 households",
-        "175 - 875 households"
+        "175 - 875 households",
+        "875 - 1,750 households"
       ]
     ),
   },
@@ -366,7 +398,8 @@ export const initialLayerConfigurations = {
         { min: 30, max: 60 },
         { min: 60, max: 125 },
         { min: 125, max: 250 },
-        { min: 250, max: 1250 }
+        { min: 250, max: 1250 },
+        { min: 1250, max: 2500 }
       ],
       [
         "Less than 12 households",
@@ -374,7 +407,8 @@ export const initialLayerConfigurations = {
         "30 - 60 households",
         "60 - 125 households",
         "125 - 250 households",
-        "250 - 1,250 households"
+        "250 - 1,250 households",
+        "1,250 - 2,500 households"
       ]
     ),
   },
@@ -389,7 +423,8 @@ export const initialLayerConfigurations = {
         { min: 30, max: 60 },
         { min: 60, max: 125 },
         { min: 125, max: 250 },
-        { min: 250, max: 1250 }
+        { min: 250, max: 1250 },
+        { min: 1250, max: 2500 }
       ],
       [
         "Less than 12 households",
@@ -397,7 +432,8 @@ export const initialLayerConfigurations = {
         "30 - 60 households",
         "60 - 125 households",
         "125 - 250 households",
-        "250 - 1,250 households"
+        "250 - 1,250 households",
+        "1,250 - 2,500 households"
       ]
     ),
   },
@@ -412,7 +448,8 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 300 },
-        { min: 300, max: 1500 }
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
       ],
       [
         "Less than 15 households",
@@ -420,7 +457,8 @@ export const initialLayerConfigurations = {
         "35 - 75 households",
         "75 - 150 households",
         "150 - 300 households",
-        "300 - 1,500 households"
+        "300 - 1,500 households",
+        "1,500 - 3,000 households"
       ]
     ),
   },
@@ -435,7 +473,8 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 300 },
-        { min: 300, max: 1500 }
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
       ],
       [
         "Less than 15 households",
@@ -443,7 +482,8 @@ export const initialLayerConfigurations = {
         "35 - 75 households",
         "75 - 150 households",
         "150 - 300 households",
-        "300 - 1,500 households"
+        "300 - 1,500 households",
+        "1,500 - 3,000 households"
       ]
     ),
   },
@@ -458,7 +498,8 @@ export const initialLayerConfigurations = {
         { min: 42, max: 85 },
         { min: 85, max: 175 },
         { min: 175, max: 350 },
-        { min: 350, max: 1750 }
+        { min: 350, max: 1750 },
+        { min: 1750, max: 3500 }
       ],
       [
         "Less than 18 households",
@@ -466,7 +507,8 @@ export const initialLayerConfigurations = {
         "42 - 85 households",
         "85 - 175 households",
         "175 - 350 households",
-        "350 - 1,750 households"
+        "350 - 1,750 households",
+        "1,750 - 3,500 households"
       ]
     ),
   },
@@ -481,7 +523,8 @@ export const initialLayerConfigurations = {
         { min: 25, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 200 },
-        { min: 200, max: 1000 }
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
       ],
       [
         "Less than 10 households",
@@ -489,7 +532,8 @@ export const initialLayerConfigurations = {
         "25 - 50 households",
         "50 - 100 households",
         "100 - 200 households",
-        "200 - 1,000 households"
+        "200 - 1,000 households",
+        "1,000 - 2,000 households"
       ]
     ),
   },
@@ -504,7 +548,8 @@ export const initialLayerConfigurations = {
         { min: 18, max: 35 },
         { min: 35, max: 75 },
         { min: 75, max: 150 },
-        { min: 150, max: 750 }
+        { min: 150, max: 750 },
+        { min: 750, max: 1500 }
       ],
       [
         "Less than 7 households",
@@ -512,7 +557,8 @@ export const initialLayerConfigurations = {
         "18 - 35 households",
         "35 - 75 households",
         "75 - 150 households",
-        "150 - 750 households"
+        "150 - 750 households",
+        "750 - 1,500 households"
       ]
     ),
   },
@@ -528,7 +574,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 9 },
         { min: 9, max: 12 },
         { min: 12, max: 25 },
-
+        { min: 25, max: 40 }
       ],
       [
         "Less than 3%",
@@ -537,7 +583,7 @@ export const initialLayerConfigurations = {
         "7% - 9%",
         "9% - 12%",
         "12% - 25%",
-
+        "25% - 40%"
       ]
     ),
   },
@@ -552,14 +598,16 @@ export const initialLayerConfigurations = {
         { min: 0, max: 0.5 },
         { min: 0.5, max: 1.0 },
         { min: 1.0, max: 1.5 },
-        { min: 1.5, max: 2.0 }
+        { min: 1.5, max: 2.0 },
+        { min: 2.0, max: 3.0 }
       ],
       [
         "Less than 0%",
         "0% - 0.5%",
         "0.5% - 1.0%",
         "1.0% - 1.5%",
-        "1.5% - 2.0%"
+        "1.5% - 2.0%",
+        "2.0% - 3.0%"
       ]
     ),
   },
@@ -573,14 +621,16 @@ export const initialLayerConfigurations = {
         { min: 0, max: 0.5 },
         { min: 0.5, max: 1.0 },
         { min: 1.0, max: 1.5 },
-        { min: 1.5, max: 2.0 }
+        { min: 1.5, max: 2.0 },
+        { min: 2.0, max: 3.0 }
       ],
       [
         "Less than 0%",
         "0% - 0.5%",
         "0.5% - 1.0%",
         "1.0% - 1.5%",
-        "1.5% - 2.0%"
+        "1.5% - 2.0%",
+        "2.0% - 3.0%"
       ]
     ),
   },
@@ -594,14 +644,16 @@ export const initialLayerConfigurations = {
         { min: 1, max: 2 },
         { min: 2, max: 3 },
         { min: 3, max: 4 },
-        { min: 4, max: 5 }
+        { min: 4, max: 5 },
+        { min: 5, max: 7 }
       ],
       [
         "Less than 1%",
         "1% - 2%",
         "2% - 3%",
         "3% - 4%",
-        "4% - 5%"
+        "4% - 5%",
+        "5% - 7%"
       ]
     ),
   },
@@ -615,14 +667,16 @@ export const initialLayerConfigurations = {
         { min: -1, max: 0 },
         { min: 0, max: 1 },
         { min: 1, max: 2 },
-        { min: 2, max: 3 }
+        { min: 2, max: 3 },
+        { min: 3, max: 5 }
       ],
       [
         "Less than -1%",
         "-1% to 0%",
         "0% to 1%",
         "1% to 2%",
-        "2% to 3%"
+        "2% to 3%",
+        "3% to 5%"
       ]
     ),
   },
@@ -636,14 +690,16 @@ export const initialLayerConfigurations = {
         { min: -1, max: 0 },
         { min: 0, max: 1 },
         { min: 1, max: 2 },
-        { min: 2, max: 3 }
+        { min: 2, max: 3 },
+        { min: 3, max: 5 }
       ],
       [
         "Less than -1%",
         "-1% to 0%",
         "0% to 1%",
         "1% to 2%",
-        "2% to 3%"
+        "2% to 3%",
+        "3% to 5%"
       ]
     ),
   },
@@ -659,7 +715,8 @@ export const initialLayerConfigurations = {
         { min: 500, max: 1000 },
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
       ],
       [
         "Less than 250",
@@ -667,7 +724,8 @@ export const initialLayerConfigurations = {
         "500 - 1,000",
         "1,000 - 2,500",
         "2,500 - 5,000",
-        "5,000 - 25,000"
+        "5,000 - 25,000",
+        "25,000 - 50,000"
       ]
     ),
   },
@@ -682,7 +740,8 @@ export const initialLayerConfigurations = {
         { min: 300, max: 600 },
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
-        { min: 3000, max: 15000 }
+        { min: 3000, max: 15000 },
+        { min: 15000, max: 30000 }
       ],
       [
         "Less than 150",
@@ -690,7 +749,8 @@ export const initialLayerConfigurations = {
         "300 - 600",
         "600 - 1,500",
         "1,500 - 3,000",
-        "3,000 - 15,000"
+        "3,000 - 15,000",
+        "15,000 - 30,000"
       ]
     ),
   },
@@ -705,7 +765,8 @@ export const initialLayerConfigurations = {
         { min: 250, max: 500 },
         { min: 500, max: 1250 },
         { min: 1250, max: 2500 },
-        { min: 2500, max: 12500 }
+        { min: 2500, max: 12500 },
+        { min: 12500, max: 25000 }
       ],
       [
         "Less than 100",
@@ -713,7 +774,8 @@ export const initialLayerConfigurations = {
         "250 - 500",
         "500 - 1,250",
         "1,250 - 2,500",
-        "2,500 - 12,500"
+        "2,500 - 12,500",
+        "12,500 - 25,000"
       ]
     ),
   },
@@ -729,6 +791,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 75 },
         { min: 75, max: 90 },
         { min: 90, max: 100 },
+        { min: 100, max: 100 }
       ],
       [
         "Less than 30%",
@@ -736,7 +799,8 @@ export const initialLayerConfigurations = {
         "45% - 60%",
         "60% - 75%",
         "75% - 85%",
-        "85% - 100%",        
+        "85% - 100%",
+        "100%"
       ]
     ),
   },
@@ -751,7 +815,8 @@ export const initialLayerConfigurations = {
         { min: 25, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 500 },
-        { min: 500, max: 2000 }
+        { min: 500, max: 2000 },
+        { min: 2000, max: 4000 }
       ],
       [
         "Less than 10",
@@ -759,7 +824,8 @@ export const initialLayerConfigurations = {
         "25 - 50",
         "50 - 100",
         "100 - 250",
-        "250 - 1,500"
+        "250 - 1,500",
+        "1,500 - 4,000"
       ]
     ),
   },
@@ -774,7 +840,8 @@ export const initialLayerConfigurations = {
         { min: 10, max: 15 },
         { min: 15, max: 20 },
         { min: 20, max: 25 },
-        { min: 25, max: 50 },        
+        { min: 25, max: 50 },
+        { min: 50, max: 75 }
       ],
       [
         "Less than 5%",
@@ -782,7 +849,8 @@ export const initialLayerConfigurations = {
         "10% - 15%",
         "15% - 20%",
         "20% - 25%",
-        "25% - 50%",        
+        "25% - 50%",
+        "50% - 75%"
       ]
     ),
   },
@@ -796,14 +864,16 @@ export const initialLayerConfigurations = {
         { min: 200000, max: 350000 },
         { min: 350000, max: 500000 },
         { min: 500000, max: 750000 },
-        { min: 750000, max: 1000000 }
+        { min: 750000, max: 1000000 },
+        { min: 1000000, max: 1500000 }
       ],
       [
         "Less than $200,000",
         "$200,000 - $350,000",
         "$350,000 - $500,000",
         "$500,000 - $750,000",
-        "$750,000 - $1,000,000"
+        "$750,000 - $1,000,000",
+        "$1,000,000 - $1,500,000"
       ]
     ),
   },
@@ -817,14 +887,16 @@ export const initialLayerConfigurations = {
         { min: 250000, max: 400000 },
         { min: 400000, max: 600000 },
         { min: 600000, max: 900000 },
-        { min: 900000, max: 1200000 }
+        { min: 900000, max: 1200000 },
+        { min: 1200000, max: 2000000 }
       ],
       [
         "Less than $250,000",
         "$250,000 - $400,000",
         "$400,000 - $600,000",
         "$600,000 - $900,000",
-        "$900,000 - $1,200,000"
+        "$900,000 - $1,200,000",
+        "$1,200,000 - $2,000,000"
       ]
     ),
   },
@@ -840,7 +912,8 @@ export const initialLayerConfigurations = {
         { min: 25, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 200 },
-        { min: 200, max: 1000 }
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
       ],
       [
         "Less than 10 homes",
@@ -848,7 +921,8 @@ export const initialLayerConfigurations = {
         "25 - 50 homes",
         "50 - 100 homes",
         "100 - 200 homes",
-        "200 - 1,000 homes"
+        "200 - 1,000 homes",
+        "1,000 - 2,000 homes"
       ]
     ),
   },
@@ -863,7 +937,8 @@ export const initialLayerConfigurations = {
         { min: 18, max: 35 },
         { min: 35, max: 75 },
         { min: 75, max: 150 },
-        { min: 150, max: 750 }
+        { min: 150, max: 750 },
+        { min: 750, max: 1500 }
       ],
       [
         "Less than 7 homes",
@@ -871,7 +946,8 @@ export const initialLayerConfigurations = {
         "18 - 35 homes",
         "35 - 75 homes",
         "75 - 150 homes",
-        "150 - 750 homes"
+        "150 - 750 homes",
+        "750 - 1,500 homes"
       ]
     ),
   },
@@ -886,7 +962,8 @@ export const initialLayerConfigurations = {
         { min: 18, max: 35 },
         { min: 35, max: 75 },
         { min: 75, max: 150 },
-        { min: 150, max: 750 }
+        { min: 150, max: 750 },
+        { min: 750, max: 1500 }
       ],
       [
         "Less than 7 homes",
@@ -894,7 +971,8 @@ export const initialLayerConfigurations = {
         "18 - 35 homes",
         "35 - 75 homes",
         "75 - 150 homes",
-        "150 - 750 homes"
+        "150 - 750 homes",
+        "750 - 1,500 homes"
       ]
     ),
   },
@@ -909,7 +987,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -917,7 +996,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -932,7 +1012,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -940,7 +1021,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -955,7 +1037,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -963,7 +1046,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -978,7 +1062,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -986,7 +1071,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -1001,7 +1087,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -1009,7 +1096,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -1024,7 +1112,8 @@ export const initialLayerConfigurations = {
         { min: 22, max: 45 },
         { min: 45, max: 90 },
         { min: 90, max: 180 },
-        { min: 180, max: 900 }
+        { min: 180, max: 900 },
+        { min: 900, max: 1800 }
       ],
       [
         "Less than 10 homes",
@@ -1032,7 +1121,8 @@ export const initialLayerConfigurations = {
         "22 - 45 homes",
         "45 - 90 homes",
         "90 - 180 homes",
-        "180 - 900 homes"
+        "180 - 900 homes",
+        "900 - 1,800 homes"
       ]
     ),
   },
@@ -1047,7 +1137,8 @@ export const initialLayerConfigurations = {
         { min: 7, max: 15 },
         { min: 15, max: 30 },
         { min: 30, max: 60 },
-        { min: 60, max: 300 }
+        { min: 60, max: 300 },
+        { min: 300, max: 600 }
       ],
       [
         "Less than 3 homes",
@@ -1055,7 +1146,8 @@ export const initialLayerConfigurations = {
         "7 - 15 homes",
         "15 - 30 homes",
         "30 - 60 homes",
-        "60 - 300 homes"
+        "60 - 300 homes",
+        "300 - 600 homes"
       ]
     ),
   },
@@ -1070,7 +1162,8 @@ export const initialLayerConfigurations = {
         { min: 4, max: 8 },
         { min: 8, max: 18 },
         { min: 18, max: 35 },
-        { min: 35, max: 175 }
+        { min: 35, max: 175 },
+        { min: 175, max: 350 }
       ],
       [
         "Less than 2 homes",
@@ -1078,7 +1171,8 @@ export const initialLayerConfigurations = {
         "4 - 8 homes",
         "8 - 18 homes",
         "18 - 35 homes",
-        "35 - 175 homes"
+        "35 - 175 homes",
+        "175 - 350 homes"
       ]
     ),
   },
@@ -1093,7 +1187,8 @@ export const initialLayerConfigurations = {
         { min: 2, max: 5 },
         { min: 5, max: 12 },
         { min: 12, max: 25 },
-        { min: 25, max: 125 }
+        { min: 25, max: 125 },
+        { min: 125, max: 250 }
       ],
       [
         "Less than 1 home",
@@ -1101,7 +1196,8 @@ export const initialLayerConfigurations = {
         "2 - 5 homes",
         "5 - 12 homes",
         "12 - 25 homes",
-        "25 - 125 homes"
+        "25 - 125 homes",
+        "125 - 250 homes"
       ]
     ),
   },
@@ -1116,7 +1212,8 @@ export const initialLayerConfigurations = {
         { min: 2, max: 4 },
         { min: 4, max: 8 },
         { min: 8, max: 15 },
-        { min: 15, max: 75 }
+        { min: 15, max: 75 },
+        { min: 75, max: 150 }
       ],
       [
         "Less than 1 home",
@@ -1124,10 +1221,2953 @@ export const initialLayerConfigurations = {
         "2 - 4 homes",
         "4 - 8 homes",
         "8 - 15 homes",
-        "15 - 75 homes"
+        "15 - 75 homes",
+        "75 - 150 homes"
       ]
     ),
   },
+
+  // Affluence & Affordability - Heat Maps
+  HAI_CY_HEAT: {
+    type: "class-breaks",
+    field: "HAI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 150 },
+        { min: 150, max: 200 },
+        { min: 200, max: 300 }
+      ],
+      [
+        "Less than 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 150",
+        "150 - 200",
+        "200 - 300"
+      ]
+    ),
+  },
+
+  INCMORT_CY_HEAT: {
+    type: "class-breaks",
+    field: "INCMORT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 20 },
+        { min: 20, max: 25 },
+        { min: 25, max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 50 },
+        { min: 50, max: 70 }
+      ],
+      [
+        "Less than 15%",
+        "15% - 20%",
+        "20% - 25%",
+        "25% - 30%",
+        "30% - 35%",
+        "35% - 50%",
+        "50% - 70%"
+      ]
+    ),
+  },
+
+  WLTHINDXCY_HEAT: {
+    type: "class-breaks",
+    field: "WLTHINDXCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 200 },
+        { min: 200, max: 300 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 200",
+        "200 - 300"
+      ]
+    ),
+  },
+
+  SEI_CY_HEAT: {
+    type: "class-breaks",
+    field: "SEI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 200 },
+        { min: 200, max: 300 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 200",
+        "200 - 300"
+      ]
+    ),
+  },
+
+  PCI_CY_HEAT: {
+    type: "class-breaks",
+    field: "PCI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25000 },
+        { min: 25000, max: 35000 },
+        { min: 35000, max: 45000 },
+        { min: 45000, max: 60000 },
+        { min: 60000, max: 80000 },
+        { min: 80000, max: 150000 },
+        { min: 150000, max: 250000 }
+      ],
+      [
+        "Less than $25,000",
+        "$25,000 - $35,000",
+        "$35,000 - $45,000",
+        "$45,000 - $60,000",
+        "$60,000 - $80,000",
+        "$80,000 - $150,000",
+        "$150,000 - $250,000"
+      ]
+    ),
+  },
+
+  // Race & Ethnicity Percentages - Heat Maps
+  HISPPOP_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "HISPPOP_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 50 },
+        { min: 50, max: 70 },
+        { min: 70, max: 95 },
+        { min: 95, max: 100 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 15%",
+        "15% - 30%",
+        "30% - 50%",
+        "50% - 70%",
+        "70% - 95%",
+        "95% - 100%"
+      ]
+    ),
+  },
+
+  NHSPWHT_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPWHT_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 },
+        { min: 95, max: 100 }
+      ],
+      [
+        "Less than 20%",
+        "20% - 40%",
+        "40% - 60%",
+        "60% - 75%",
+        "75% - 85%",
+        "85% - 95%",
+        "95% - 100%"
+      ]
+    ),
+  },
+
+  NHSPBLK_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPBLK_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 50 },
+        { min: 50, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 5%",
+        "5% - 15%",
+        "15% - 30%",
+        "30% - 50%",
+        "50% - 80%",
+        "80% - 100%"
+      ]
+    ),
+  },
+
+  NHSPAI_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPAI_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.5 },
+        { min: 0.5, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 50 },
+        { min: 50, max: 100 }
+      ],
+      [
+        "Less than 0.5%",
+        "0.5% - 1%",
+        "1% - 2%",
+        "2% - 5%",
+        "5% - 15%",
+        "15% - 50%",
+        "50% - 100%"
+      ]
+    ),
+  },
+
+  NHSPASN_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPASN_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 35 },
+        { min: 35, max: 60 },
+        { min: 60, max: 100 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 5%",
+        "5% - 10%",
+        "10% - 20%",
+        "20% - 35%",
+        "35% - 60%",
+        "60% - 100%"
+      ]
+    ),
+  },
+
+  NHSPPI_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPPI_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.2 },
+        { min: 0.2, max: 0.5 },
+        { min: 0.5, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 50 }
+      ],
+      [
+        "Less than 0.2%",
+        "0.2% - 0.5%",
+        "0.5% - 1%",
+        "1% - 2%",
+        "2% - 5%",
+        "5% - 15%",
+        "15% - 50%"
+      ]
+    ),
+  },
+
+  NHSPOTH_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPOTH_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 4%",
+        "4% - 8%",
+        "8% - 15%",
+        "15% - 30%",
+        "30% - 60%"
+      ]
+    ),
+  },
+
+  NHSPMLT_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPMLT_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 7 },
+        { min: 7, max: 12 },
+        { min: 12, max: 25 },
+        { min: 25, max: 50 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 4%",
+        "4% - 7%",
+        "7% - 12%",
+        "12% - 25%",
+        "25% - 50%"
+      ]
+    ),
+  },
+
+  // Education Percentages - Heat Maps
+  HSGRAD_LESS_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "HSGRAD_LESS_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 50 },
+        { min: 50, max: 75 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 35%",
+        "35% - 50%",
+        "50% - 75%"
+      ]
+    ),
+  },
+
+  BACHDEG_PLUS_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "BACHDEG_PLUS_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 60 },
+        { min: 60, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 15%",
+        "15% - 25%",
+        "25% - 35%",
+        "35% - 45%",
+        "45% - 60%",
+        "60% - 80%",
+        "80% - 100%"
+      ]
+    ),
+  },
+
+  // 2029 Future Projections - Heat Maps
+  TOTPOP_FY_HEAT: {
+    type: "class-breaks",
+    field: "TOTPOP_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 },
+        { min: 50000, max: 100000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000",
+        "50,000 - 100,000"
+      ]
+    ),
+  },
+
+  TOTHH_FY_HEAT: {
+    type: "class-breaks",
+    field: "TOTHH_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 2000 },
+        { min: 2000, max: 4000 },
+        { min: 4000, max: 20000 },
+        { min: 20000, max: 40000 }
+      ],
+      [
+        "Less than 200",
+        "200 - 400",
+        "400 - 800",
+        "800 - 2,000",
+        "2,000 - 4,000",
+        "4,000 - 20,000",
+        "20,000 - 40,000"
+      ]
+    ),
+  },
+
+  AVGHHSZ_FY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHHSZ_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2.0 },
+        { min: 2.0, max: 2.5 },
+        { min: 2.5, max: 3.0 },
+        { min: 3.0, max: 3.5 },
+        { min: 3.5, max: 4.0 },
+        { min: 4.0, max: 4.5 }
+      ],
+      [
+        "Less than 2.0",
+        "2.0 - 2.5",
+        "2.5 - 3.0",
+        "3.0 - 3.5",
+        "3.5 - 4.0",
+        "4.0 - 4.5"
+      ]
+    ),
+  },
+
+  MEDHINC_FY_HEAT: {
+    type: "class-breaks",
+    field: "MEDHINC_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 },
+        { min: 500000, max: 1000000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000",
+        "$500,000 - $1,000,000"
+      ]
+    ),
+  },
+
+  AVGHINC_FY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHINC_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 },
+        { min: 500000, max: 1000000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000",
+        "$500,000 - $1,000,000"
+      ]
+    ),
+  },
+
+  POPDENS_FY_HEAT: {
+    type: "class-breaks",
+    field: "POPDENS_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile",
+        "15,000 - 30,000 per sq. mile"
+      ]
+    ),
+  },
+
+  // Population Density - Heat Maps
+  POPDENS_CY_HEAT: {
+    type: "class-breaks",
+    field: "POPDENS_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile",
+        "15,000 - 30,000 per sq. mile"
+      ]
+    ),
+  },
+
+  DPOPDENSCY_HEAT: {
+    type: "class-breaks",
+    field: "DPOPDENSCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile",
+        "15,000 - 30,000 per sq. mile"
+      ]
+    ),
+  },
+
+  // Dependency Ratios - Heat Maps
+  CHLDDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "CHLDDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 20",
+        "20 - 30",
+        "30 - 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 80",
+        "80 - 100"
+      ]
+    ),
+  },
+
+  AGEDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "AGEDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 },
+        { min: 100, max: 120 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100",
+        "100 - 120"
+      ]
+    ),
+  },
+
+  SENRDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "SENRDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 55 },
+        { min: 55, max: 75 },
+        { min: 75, max: 100 }
+      ],
+      [
+        "Less than 15",
+        "15 - 25",
+        "25 - 35",
+        "35 - 45",
+        "45 - 55",
+        "55 - 75",
+        "75 - 100"
+      ]
+    ),
+  },
+
+  // Additional Population - Heat Maps (SIGNIFICANTLY LOWERED)
+  HHPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "HHPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 },
+        { min: 50000, max: 100000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000",
+        "50,000 - 100,000"
+      ]
+    ),
+  },
+
+  GQPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "GQPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  MALES_CY_HEAT: {
+    type: "class-breaks",
+    field: "MALES_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000",
+        "25,000 - 50,000"
+      ]
+    ),
+  },
+
+  MEDMAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDMAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 },
+        { min: 55, max: 65 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years",
+        "55 - 65 years"
+      ]
+    ),
+  },
+
+  FEMALES_CY_HEAT: {
+    type: "class-breaks",
+    field: "FEMALES_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000",
+        "25,000 - 50,000"
+      ]
+    ),
+  },
+
+  MEDFAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDFAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 },
+        { min: 55, max: 65 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years",
+        "55 - 65 years"
+      ]
+    ),
+  },
+
+  // Income Inequality - Heat Maps
+  GINI_CY_HEAT: {
+    type: "class-breaks",
+    field: "GINI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.35 },
+        { min: 0.35, max: 0.40 },
+        { min: 0.40, max: 0.45 },
+        { min: 0.45, max: 0.50 },
+        { min: 0.50, max: 0.55 },
+        { min: 0.55, max: 0.70 },
+        { min: 0.70, max: 0.85 }
+      ],
+      [
+        "Less than 0.35",
+        "0.35 - 0.40",
+        "0.40 - 0.45",
+        "0.45 - 0.50",
+        "0.50 - 0.55",
+        "0.55 - 0.70",
+        "0.70 - 0.85"
+      ]
+    ),
+  },
+
+  RAT9010_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT9010_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 20 }
+      ],
+      [
+        "Less than 3",
+        "3 - 4",
+        "4 - 5",
+        "5 - 6",
+        "6 - 8",
+        "8 - 12",
+        "12 - 20"
+      ]
+    ),
+  },
+
+  RAT9050_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT9050_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.5 },
+        { min: 1.5, max: 1.8 },
+        { min: 1.8, max: 2.0 },
+        { min: 2.0, max: 2.3 },
+        { min: 2.3, max: 2.8 },
+        { min: 2.8, max: 4.0 },
+        { min: 4.0, max: 6.0 }
+      ],
+      [
+        "Less than 1.5",
+        "1.5 - 1.8",
+        "1.8 - 2.0",
+        "2.0 - 2.3",
+        "2.3 - 2.8",
+        "2.8 - 4.0",
+        "4.0 - 6.0"
+      ]
+    ),
+  },
+
+  RAT5010_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT5010_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.8 },
+        { min: 1.8, max: 2.0 },
+        { min: 2.0, max: 2.2 },
+        { min: 2.2, max: 2.5 },
+        { min: 2.5, max: 3.0 },
+        { min: 3.0, max: 4.0 },
+        { min: 4.0, max: 6.0 }
+      ],
+      [
+        "Less than 1.8",
+        "1.8 - 2.0",
+        "2.0 - 2.2",
+        "2.2 - 2.5",
+        "2.5 - 3.0",
+        "3.0 - 4.0",
+        "4.0 - 6.0"
+      ]
+    ),
+  },
+
+  SHR8020_CY_HEAT: {
+    type: "class-breaks",
+    field: "SHR8020_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 20 }
+      ],
+      [
+        "Less than 3",
+        "3 - 4",
+        "4 - 5",
+        "5 - 6",
+        "6 - 8",
+        "8 - 12",
+        "12 - 20"
+      ]
+    ),
+  },
+
+  SHR9040_CY_HEAT: {
+    type: "class-breaks",
+    field: "SHR9040_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.5 },
+        { min: 1.5, max: 1.7 },
+        { min: 1.7, max: 1.9 },
+        { min: 1.9, max: 2.2 },
+        { min: 2.2, max: 2.6 },
+        { min: 2.6, max: 3.5 },
+        { min: 3.5, max: 5.0 }
+      ],
+      [
+        "Less than 1.5",
+        "1.5 - 1.7",
+        "1.7 - 1.9",
+        "1.9 - 2.2",
+        "2.2 - 2.6",
+        "2.6 - 3.5",
+        "3.5 - 5.0"
+      ]
+    ),
+  },
+
+  // Income Tiers - Heat Maps (SIGNIFICANTLY LOWERED household counts)
+  LOTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "LOTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 },
+        { min: 5000, max: 10000 }
+      ],
+      [
+        "Less than 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 500 households",
+        "500 - 1,000 households",
+        "1,000 - 5,000 households",
+        "5,000 - 10,000 households"
+      ]
+    ),
+  },
+
+  MDTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "MDTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 },
+        { min: 5000, max: 10000 }
+      ],
+      [
+        "Less than 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 500 households",
+        "500 - 1,000 households",
+        "1,000 - 5,000 households",
+        "5,000 - 10,000 households"
+      ]
+    ),
+  },
+
+  UPTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "UPTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25 households",
+        "25 - 50 households",
+        "50 - 100 households",
+        "100 - 250 households",
+        "250 - 500 households",
+        "500 - 2,500 households",
+        "2,500 - 5,000 households"
+      ]
+    ),
+  },
+
+  // Disposable Income - Heat Maps (SIGNIFICANTLY LOWERED household counts)
+  DI0_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI0_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 },
+        { min: 875, max: 1750 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households",
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households",
+        "875 - 1,750 households"
+      ]
+    ),
+  },
+
+  DI15_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI15_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 },
+        { min: 875, max: 1750 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households",
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households",
+        "875 - 1,750 households"
+      ]
+    ),
+  },
+
+  DI25_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 },
+        { min: 1250, max: 2500 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households",
+        "1,250 - 2,500 households"
+      ]
+    ),
+  },
+
+  DI35_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI35_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 },
+        { min: 1250, max: 2500 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households",
+        "1,250 - 2,500 households"
+      ]
+    ),
+  },
+
+  DI50_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI50_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households",
+        "1,500 - 3,000 households"
+      ]
+    ),
+  },
+
+  DI75_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI75_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households",
+        "1,500 - 3,000 households"
+      ]
+    ),
+  },
+
+  DI100_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI100_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 18 },
+        { min: 18, max: 42 },
+        { min: 42, max: 85 },
+        { min: 85, max: 175 },
+        { min: 175, max: 350 },
+        { min: 350, max: 1750 },
+        { min: 1750, max: 3500 }
+      ],
+      [
+        "Less than 18 households",
+        "18 - 42 households",
+        "42 - 85 households",
+        "85 - 175 households",
+        "175 - 350 households",
+        "350 - 1,750 households",
+        "1,750 - 3,500 households"
+      ]
+    ),
+  },
+
+  DI150_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI150_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10 households",
+        "10 - 25 households",
+        "25 - 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 1,000 households",
+        "1,000 - 2,000 households"
+      ]
+    ),
+  },
+
+  DI200_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI200_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 7 },
+        { min: 7, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 },
+        { min: 750, max: 1500 }
+      ],
+      [
+        "Less than 7 households",
+        "7 - 18 households",
+        "18 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 750 households",
+        "750 - 1,500 households"
+      ]
+    ),
+  },
+
+  MEDDI_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDDI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 35000 },
+        { min: 35000, max: 50000 },
+        { min: 50000, max: 70000 },
+        { min: 70000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 250000 },
+        { min: 250000, max: 500000 }
+      ],
+      [
+        "Less than $35,000",
+        "$35,000 - $50,000",
+        "$50,000 - $70,000",
+        "$70,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $250,000",
+        "$250,000 - $500,000"
+      ]
+    ),
+  },
+
+  // Employment & Labor Force - Heat Maps (SIGNIFICANTLY LOWERED)
+  CIVLBFR_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLBFR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000",
+        "25,000 - 50,000"
+      ]
+    ),
+  },
+
+  EMP_CY_HEAT: {
+    type: "class-breaks",
+    field: "EMP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 },
+        { min: 25000, max: 50000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000",
+        "25,000 - 50,000"
+      ]
+    ),
+  },
+
+  UNEMP_CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  // Employment by Age Groups - Heat Maps
+  CIVLF16_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF16_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500",
+        "2,500 - 5,000"
+      ]
+    ),
+  },
+
+  EMPAGE16CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500",
+        "2,500 - 5,000"
+      ]
+    ),
+  },
+
+  UNAGE16CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 300 },
+        { min: 300, max: 600 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 80",
+        "80 - 300",
+        "300 - 600"
+      ]
+    ),
+  },
+
+  UNEMRT16CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 50 },
+        { min: 50, max: 75 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 10%",
+        "10% - 15%",
+        "15% - 20%",
+        "20% - 30%",
+        "30% - 50%",
+        "50% - 75%"
+      ]
+    ),
+  },
+
+  CIVLF25_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000",
+        "15,000 - 30,000"
+      ]
+    ),
+  },
+
+  EMPAGE25CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000",
+        "15,000 - 30,000"
+      ]
+    ),
+  },
+
+  UNAGE25CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 120 },
+        { min: 120, max: 500 },
+        { min: 500, max: 1000 }
+      ],
+      [
+        "Less than 8",
+        "8 - 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 120",
+        "120 - 500",
+        "500 - 1,000"
+      ]
+    ),
+  },
+
+  UNEMRT25CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  CIVLF55_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF55_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 },
+        { min: 5000, max: 10000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000",
+        "5,000 - 10,000"
+      ]
+    ),
+  },
+
+  EMPAGE55CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 },
+        { min: 5000, max: 10000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000",
+        "5,000 - 10,000"
+      ]
+    ),
+  },
+
+  UNAGE55CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 12 },
+        { min: 12, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 },
+        { min: 200, max: 400 }
+      ],
+      [
+        "Less than 3",
+        "3 - 6",
+        "6 - 12",
+        "12 - 25",
+        "25 - 50",
+        "50 - 200",
+        "200 - 400"
+      ]
+    ),
+  },
+
+  UNEMRT55CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  CIVLF65_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF65_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  EMPAGE65CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  UNAGE65CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 50 },
+        { min: 50, max: 100 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 8",
+        "8 - 15",
+        "15 - 50",
+        "50 - 100"
+      ]
+    ),
+  },
+
+  UNEMRT65CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 20 },
+        { min: 20, max: 35 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 4%",
+        "4% - 6%",
+        "6% - 8%",
+        "8% - 12%",
+        "12% - 20%",
+        "20% - 35%"
+      ]
+    ),
+  },
+
+  // Economic Dependency Ratios - Heat Maps
+  CHLDEDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "CHLDEDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 20",
+        "20 - 30",
+        "30 - 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 80",
+        "80 - 100"
+      ]
+    ),
+  },
+
+  WRKEDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "WRKEDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 },
+        { min: 100, max: 120 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100",
+        "100 - 120"
+      ]
+    ),
+  },
+
+  SENREDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "SENREDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 55 },
+        { min: 55, max: 75 },
+        { min: 75, max: 100 }
+      ],
+      [
+        "Less than 15",
+        "15 - 25",
+        "25 - 35",
+        "35 - 45",
+        "45 - 55",
+        "55 - 75",
+        "75 - 100"
+      ]
+    ),
+  },
+
+  EDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "EDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 },
+        { min: 100, max: 120 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100",
+        "100 - 120"
+      ]
+    ),
+  },
+
+  // Employment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  EMPWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000",
+        "15,000 - 30,000"
+      ]
+    ),
+  },
+
+  EMPBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500",
+        "2,500 - 5,000"
+      ]
+    ),
+  },
+
+  EMPAICY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500",
+        "500 - 1,000"
+      ]
+    ),
+  },
+
+  EMPASNCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  EMPPICY_HEAT: {
+    type: "class-breaks",
+    field: "EMPPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 },
+        { min: 200, max: 400 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200",
+        "200 - 400"
+      ]
+    ),
+  },
+
+  EMPOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  EMPMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  // Unemployment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  UNWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 },
+        { min: 750, max: 1500 }
+      ],
+      [
+        "Less than 8",
+        "8 - 15",
+        "15 - 30",
+        "30 - 75",
+        "75 - 150",
+        "150 - 750",
+        "750 - 1,500"
+      ]
+    ),
+  },
+
+  UNBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "UNBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 300 },
+        { min: 300, max: 600 }
+      ],
+      [
+        "Less than 3",
+        "3 - 6",
+        "6 - 12",
+        "12 - 30",
+        "30 - 60",
+        "60 - 300",
+        "300 - 600"
+      ]
+    ),
+  },
+
+  UNAICY_HEAT: {
+    type: "class-breaks",
+    field: "UNAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 75 },
+        { min: 75, max: 150 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 8",
+        "8 - 15",
+        "15 - 75",
+        "75 - 150"
+      ]
+    ),
+  },
+
+  UNASNCY_HEAT: {
+    type: "class-breaks",
+    field: "UNASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 150 },
+        { min: 150, max: 300 }
+      ],
+      [
+        "Less than 1",
+        "1 - 3",
+        "3 - 6",
+        "6 - 15",
+        "15 - 30",
+        "30 - 150",
+        "150 - 300"
+      ]
+    ),
+  },
+
+  UNPICY_HEAT: {
+    type: "class-breaks",
+    field: "UNPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 25 },
+        { min: 25, max: 50 }
+      ],
+      [
+        "Less than 1",
+        "1",
+        "1 - 2",
+        "2 - 3",
+        "3 - 5",
+        "5 - 25",
+        "25 - 50"
+      ]
+    ),
+  },
+
+  UNOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "UNOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 100 },
+        { min: 100, max: 200 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 10",
+        "10 - 20",
+        "20 - 100",
+        "100 - 200"
+      ]
+    ),
+  },
+
+  UNMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 100 },
+        { min: 100, max: 200 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 10",
+        "10 - 20",
+        "20 - 100",
+        "100 - 200"
+      ]
+    ),
+  },
+
+  // Labor Force by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  CIVLFWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 },
+        { min: 15000, max: 30000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000",
+        "15,000 - 30,000"
+      ]
+    ),
+  },
+
+  CIVLFBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500",
+        "2,500 - 5,000"
+      ]
+    ),
+  },
+
+  CIVLFAICY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500",
+        "500 - 1,000"
+      ]
+    ),
+  },
+
+  CIVLFASNCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  CIVLFPICY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 },
+        { min: 200, max: 400 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200",
+        "200 - 400"
+      ]
+    ),
+  },
+
+  CIVLFOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  CIVLFMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  // Unemployment Rates by Race - Heat Maps
+  UNEMRTWHCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTWHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTBLCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTBLCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 },
+        { min: 40, max: 60 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%",
+        "40% - 60%"
+      ]
+    ),
+  },
+
+  UNEMRTAICY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 },
+        { min: 40, max: 60 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%",
+        "40% - 60%"
+      ]
+    ),
+  },
+
+  UNEMRTASCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTASCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTPICY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 },
+        { min: 40, max: 60 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%",
+        "40% - 60%"
+      ]
+    ),
+  },
+
+  UNEMRTOTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTOTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 },
+        { min: 40, max: 60 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%",
+        "40% - 60%"
+      ]
+    ),
+  },
+
+  UNEMRTMLCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTMLCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 },
+        { min: 40, max: 60 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%",
+        "40% - 60%"
+      ]
+    ),
+  },
+
+  // Race and Ethnicity Population Counts - Heat Maps (SIGNIFICANTLY LOWERED)
+  HISPPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "HISPPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 },
+        { min: 5000, max: 10000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000",
+        "5,000 - 10,000"
+      ]
+    ),
+  },
+
+  NHSPWHT_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPWHT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 2000 },
+        { min: 2000, max: 4000 },
+        { min: 4000, max: 20000 },
+        { min: 20000, max: 40000 }
+      ],
+      [
+        "Less than 200",
+        "200 - 400",
+        "400 - 800",
+        "800 - 2,000",
+        "2,000 - 4,000",
+        "4,000 - 20,000",
+        "20,000 - 40,000"
+      ]
+    ),
+  },
+
+  NHSPBLK_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPBLK_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 },
+        { min: 2500, max: 5000 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500",
+        "2,500 - 5,000"
+      ]
+    ),
+  },
+
+  NHSPAI_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPAI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500",
+        "500 - 1,000"
+      ]
+    ),
+  },
+
+  NHSPASN_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPASN_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  NHSPPI_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPPI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 },
+        { min: 200, max: 400 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200",
+        "200 - 400"
+      ]
+    ),
+  },
+
+  NHSPOTH_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPOTH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 },
+        { min: 1000, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000",
+        "1,000 - 2,000"
+      ]
+    ),
+  },
+
+  NHSPMLT_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPMLT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 },
+        { min: 1500, max: 3000 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500",
+        "1,500 - 3,000"
+      ]
+    ),
+  },
+
+  DIVINDX_CY_HEAT: {
+    type: "class-breaks",
+    field: "DIVINDX_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 },
+        { min: 95, max: 100 }
+      ],
+      [
+        "Less than 20",
+        "20 - 40",
+        "40 - 60",
+        "60 - 75",
+        "75 - 85",
+        "85 - 95",
+        "95 - 100"
+      ]
+    ),
+  },
+
+  RACEBASECY_HEAT: {
+    type: "class-breaks",
+    field: "RACEBASECY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 },
+        { min: 50000, max: 100000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000",
+        "50,000 - 100,000"
+      ]
+    ),
+  },
+
+  EDUCBASECY_HEAT: {
+    type: "class-breaks",
+    field: "EDUCBASECY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1200 },
+        { min: 1200, max: 3000 },
+        { min: 3000, max: 6000 },
+        { min: 6000, max: 30000 },
+        { min: 30000, max: 60000 }
+      ],
+      [
+        "Less than 300",
+        "300 - 600",
+        "600 - 1,200",
+        "1,200 - 3,000",
+        "3,000 - 6,000",
+        "6,000 - 30,000",
+        "30,000 - 60,000"
+      ]
+    ),
+  },
+
+  HHPOP_FY_HEAT: {
+    type: "class-breaks",
+    field: "HHPOP_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 },
+        { min: 50000, max: 100000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000",
+        "50,000 - 100,000"
+      ]
+    ),
+  },
+
+  PCIGRWCYFY_HEAT: {
+    type: "class-breaks",
+    field: "PCIGRWCYFY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 3%",
+        "3% - 4%",
+        "4% - 5%",
+        "5% - 7%",
+        "7% - 10%"
+      ]
+    ),
+  },
+
+  DIVINDX_FY_HEAT: {
+    type: "class-breaks",
+    field: "DIVINDX_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 },
+        { min: 95, max: 100 }
+      ],
+      [
+        "Less than 20",
+        "20 - 40",
+        "40 - 60",
+        "60 - 75",
+        "75 - 85",
+        "85 - 95",
+        "95 - 100"
+      ]
+    ),
+  },
+
+  PCI_FY_HEAT: {
+    type: "class-breaks",
+    field: "PCI_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25000 },
+        { min: 25000, max: 35000 },
+        { min: 35000, max: 45000 },
+        { min: 45000, max: 60000 },
+        { min: 60000, max: 80000 },
+        { min: 80000, max: 150000 },
+        { min: 150000, max: 250000 }
+      ],
+      [
+        "Less than $25,000",
+        "$25,000 - $35,000",
+        "$35,000 - $45,000",
+        "$45,000 - $60,000",
+        "$60,000 - $80,000",
+        "$80,000 - $150,000",
+        "$150,000 - $250,000"
+      ]
+    ),
+  },
+
 
   // Dot Density Configurations (UNCHANGED - these use different visualization method)
   TOTPOP_CY: {
@@ -1901,2712 +4941,7 @@ export const initialLayerConfigurations = {
       { field: "OLDRGENSCY", color: "#355C7D", label: "Silent & Greatest Generations" },
     ],
   },
-// Affluence & Affordability - Heat Maps
-  HAI_CY_HEAT: {
-    type: "class-breaks",
-    field: "HAI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 125 },
-        { min: 125, max: 150 },
-        { min: 150, max: 200 }
-      ],
-      [
-        "Less than 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 125",
-        "125 - 150",
-        "150 - 200"
-      ]
-    ),
-  },
 
-  INCMORT_CY_HEAT: {
-    type: "class-breaks",
-    field: "INCMORT_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 25 },
-        { min: 25, max: 30 },
-        { min: 30, max: 35 },
-        { min: 35, max: 50 }
-      ],
-      [
-        "Less than 15%",
-        "15% - 20%",
-        "20% - 25%",
-        "25% - 30%",
-        "30% - 35%",
-        "35% - 50%"
-      ]
-    ),
-  },
-
-  WLTHINDXCY_HEAT: {
-    type: "class-breaks",
-    field: "WLTHINDXCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 125 },
-        { min: 125, max: 200 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 125",
-        "125 - 200"
-      ]
-    ),
-  },
-
-  SEI_CY_HEAT: {
-    type: "class-breaks",
-    field: "SEI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 75 },
-        { min: 75, max: 100 },
-        { min: 100, max: 125 },
-        { min: 125, max: 200 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 75",
-        "75 - 100",
-        "100 - 125",
-        "125 - 200"
-      ]
-    ),
-  },
-
-  PCI_CY_HEAT: {
-    type: "class-breaks",
-    field: "PCI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25000 },
-        { min: 25000, max: 35000 },
-        { min: 35000, max: 45000 },
-        { min: 45000, max: 60000 },
-        { min: 60000, max: 80000 },
-        { min: 80000, max: 150000 }
-      ],
-      [
-        "Less than $25,000",
-        "$25,000 - $35,000",
-        "$35,000 - $45,000",
-        "$45,000 - $60,000",
-        "$60,000 - $80,000",
-        "$80,000 - $150,000"
-      ]
-    ),
-  },
-
-  // Race & Ethnicity Percentages - Heat Maps
-  HISPPOP_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "HISPPOP_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 50 },
-        { min: 50, max: 70 },
-        { min: 70, max: 95 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 15%",
-        "15% - 30%",
-        "30% - 50%",
-        "50% - 70%",
-        "70% - 95%"
-      ]
-    ),
-  },
-
-  NHSPWHT_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPWHT_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 60 },
-        { min: 60, max: 75 },
-        { min: 75, max: 85 },
-        { min: 85, max: 95 }
-      ],
-      [
-        "Less than 20%",
-        "20% - 40%",
-        "40% - 60%",
-        "60% - 75%",
-        "75% - 85%",
-        "85% - 95%"
-      ]
-    ),
-  },
-
-  NHSPBLK_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPBLK_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 50 },
-        { min: 50, max: 80 }
-      ],
-      [
-        "Less than 2%",
-        "2% - 5%",
-        "5% - 15%",
-        "15% - 30%",
-        "30% - 50%",
-        "50% - 80%"
-      ]
-    ),
-  },
-
-  NHSPAI_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPAI_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 0.5 },
-        { min: 0.5, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 15 },
-        { min: 15, max: 50 }
-      ],
-      [
-        "Less than 0.5%",
-        "0.5% - 1%",
-        "1% - 2%",
-        "2% - 5%",
-        "5% - 15%",
-        "15% - 50%"
-      ]
-    ),
-  },
-
-  NHSPASN_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPASN_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 35 },
-        { min: 35, max: 60 }
-      ],
-      [
-        "Less than 2%",
-        "2% - 5%",
-        "5% - 10%",
-        "10% - 20%",
-        "20% - 35%",
-        "35% - 60%"
-      ]
-    ),
-  },
-
-  NHSPPI_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPPI_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 0.2 },
-        { min: 0.2, max: 0.5 },
-        { min: 0.5, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 15 }
-      ],
-      [
-        "Less than 0.2%",
-        "0.2% - 0.5%",
-        "0.5% - 1%",
-        "1% - 2%",
-        "2% - 5%",
-        "5% - 15%"
-      ]
-    ),
-  },
-
-  NHSPOTH_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPOTH_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 8 },
-        { min: 8, max: 15 },
-        { min: 15, max: 30 }
-      ],
-      [
-        "Less than 1%",
-        "1% - 2%",
-        "2% - 4%",
-        "4% - 8%",
-        "8% - 15%",
-        "15% - 30%"
-      ]
-    ),
-  },
-
-  NHSPMLT_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "NHSPMLT_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 7 },
-        { min: 7, max: 12 },
-        { min: 12, max: 25 }
-      ],
-      [
-        "Less than 1%",
-        "1% - 2%",
-        "2% - 4%",
-        "4% - 7%",
-        "7% - 12%",
-        "12% - 25%"
-      ]
-    ),
-  },
-
-  // Education Percentages - Heat Maps
-  HSGRAD_LESS_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "HSGRAD_LESS_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 50 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 25%",
-        "25% - 35%",
-        "35% - 50%"
-      ]
-    ),
-  },
-
-  BACHDEG_PLUS_CY_PCT_HEAT: {
-    type: "class-breaks",
-    field: "BACHDEG_PLUS_CY_PCT",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 45 },
-        { min: 45, max: 60 },
-        { min: 60, max: 80 }
-      ],
-      [
-        "Less than 15%",
-        "15% - 25%",
-        "25% - 35%",
-        "35% - 45%",
-        "45% - 60%",
-        "60% - 80%"
-      ]
-    ),
-  },
-
-  // 2029 Future Projections - Heat Maps
-  TOTPOP_FY_HEAT: {
-    type: "class-breaks",
-    field: "TOTPOP_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
-      ],
-      [
-        "Less than 500",
-        "500 - 1,000",
-        "1,000 - 2,000",
-        "2,000 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 50,000"
-      ]
-    ),
-  },
-
-  TOTHH_FY_HEAT: {
-    type: "class-breaks",
-    field: "TOTHH_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 200 },
-        { min: 200, max: 400 },
-        { min: 400, max: 800 },
-        { min: 800, max: 2000 },
-        { min: 2000, max: 4000 },
-        { min: 4000, max: 20000 }
-      ],
-      [
-        "Less than 200",
-        "200 - 400",
-        "400 - 800",
-        "800 - 2,000",
-        "2,000 - 4,000",
-        "4,000 - 20,000"
-      ]
-    ),
-  },
-
-  AVGHHSZ_FY_HEAT: {
-    type: "class-breaks",
-    field: "AVGHHSZ_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2.0 },
-        { min: 2.0, max: 2.5 },
-        { min: 2.5, max: 3.0 },
-        { min: 3.0, max: 3.5 },
-        { min: 3.5, max: 4.0 }
-      ],
-      [
-        "Less than 2.0",
-        "2.0 - 2.5",
-        "2.5 - 3.0",
-        "3.0 - 3.5",
-        "3.5 - 4.0"
-      ]
-    ),
-  },
-
-  MEDHINC_FY_HEAT: {
-    type: "class-breaks",
-    field: "MEDHINC_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 150000 },
-        { min: 150000, max: 300000 },
-        { min: 300000, max: 500000 }
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $150,000",
-        "$150,000 - $300,000",
-        "$300,000 - $500,000"
-      ]
-    ),
-  },
-
-  AVGHINC_FY_HEAT: {
-    type: "class-breaks",
-    field: "AVGHINC_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50000 },
-        { min: 50000, max: 75000 },
-        { min: 75000, max: 100000 },
-        { min: 100000, max: 150000 },
-        { min: 150000, max: 300000 },
-        { min: 300000, max: 500000 }
-      ],
-      [
-        "Less than $50,000",
-        "$50,000 - $75,000",
-        "$75,000 - $100,000",
-        "$100,000 - $150,000",
-        "$150,000 - $300,000",
-        "$300,000 - $500,000"
-      ]
-    ),
-  },
-
-  POPDENS_FY_HEAT: {
-    type: "class-breaks",
-    field: "POPDENS_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 15000 }
-      ],
-      [
-        "Less than 100 per sq. mile",
-        "100 - 500 per sq. mile",
-        "500 - 1,000 per sq. mile",
-        "1,000 - 2,500 per sq. mile",
-        "2,500 - 5,000 per sq. mile",
-        "5,000 - 15,000 per sq. mile"
-      ]
-    ),
-  },
-
-  // Population Density - Heat Maps
-  POPDENS_CY_HEAT: {
-    type: "class-breaks",
-    field: "POPDENS_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 15000 }
-      ],
-      [
-        "Less than 100 per sq. mile",
-        "100 - 500 per sq. mile",
-        "500 - 1,000 per sq. mile",
-        "1,000 - 2,500 per sq. mile",
-        "2,500 - 5,000 per sq. mile",
-        "5,000 - 15,000 per sq. mile"
-      ]
-    ),
-  },
-
-  DPOPDENSCY_HEAT: {
-    type: "class-breaks",
-    field: "DPOPDENSCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 100 },
-        { min: 100, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 15000 }
-      ],
-      [
-        "Less than 100 per sq. mile",
-        "100 - 500 per sq. mile",
-        "500 - 1,000 per sq. mile",
-        "1,000 - 2,500 per sq. mile",
-        "2,500 - 5,000 per sq. mile",
-        "5,000 - 15,000 per sq. mile"
-      ]
-    ),
-  },
-
-  // Dependency Ratios - Heat Maps
-  CHLDDEP_CY_HEAT: {
-    type: "class-breaks",
-    field: "CHLDDEP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 20 },
-        { min: 20, max: 30 },
-        { min: 30, max: 40 },
-        { min: 40, max: 50 },
-        { min: 50, max: 60 },
-        { min: 60, max: 80 }
-      ],
-      [
-        "Less than 20",
-        "20 - 30",
-        "30 - 40",
-        "40 - 50",
-        "50 - 60",
-        "60 - 80"
-      ]
-    ),
-  },
-
-  AGEDEP_CY_HEAT: {
-    type: "class-breaks",
-    field: "AGEDEP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 40 },
-        { min: 40, max: 50 },
-        { min: 50, max: 60 },
-        { min: 60, max: 70 },
-        { min: 70, max: 80 },
-        { min: 80, max: 100 }
-      ],
-      [
-        "Less than 40",
-        "40 - 50",
-        "50 - 60",
-        "60 - 70",
-        "70 - 80",
-        "80 - 100"
-      ]
-    ),
-  },
-
-  SENRDEP_CY_HEAT: {
-    type: "class-breaks",
-    field: "SENRDEP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 45 },
-        { min: 45, max: 55 },
-        { min: 55, max: 75 }
-      ],
-      [
-        "Less than 15",
-        "15 - 25",
-        "25 - 35",
-        "35 - 45",
-        "45 - 55",
-        "55 - 75"
-      ]
-    ),
-  },
-
-  // Additional Population - Heat Maps (SIGNIFICANTLY LOWERED)
-  HHPOP_CY_HEAT: {
-    type: "class-breaks",
-    field: "HHPOP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
-      ],
-      [
-        "Less than 500",
-        "500 - 1,000",
-        "1,000 - 2,000",
-        "2,000 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 50,000"
-      ]
-    ),
-  },
-
-  GQPOP_CY_HEAT: {
-    type: "class-breaks",
-    field: "GQPOP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 1,000"
-      ]
-    ),
-  },
-
-  MALES_CY_HEAT: {
-    type: "class-breaks",
-    field: "MALES_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
-      ],
-      [
-        "Less than 250",
-        "250 - 500",
-        "500 - 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 25,000"
-      ]
-    ),
-  },
-
-  MEDMAGE_CY_HEAT: {
-    type: "class-breaks",
-    field: "MEDMAGE_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 30 },
-        { min: 30, max: 35 },
-        { min: 35, max: 40 },
-        { min: 40, max: 45 },
-        { min: 45, max: 50 },
-        { min: 50, max: 55 }
-      ],
-      [
-        "Less than 30 years",
-        "30 - 35 years",
-        "35 - 40 years",
-        "40 - 45 years",
-        "45 - 50 years",
-        "50 - 55 years"
-      ]
-    ),
-  },
-
-  FEMALES_CY_HEAT: {
-    type: "class-breaks",
-    field: "FEMALES_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
-      ],
-      [
-        "Less than 250",
-        "250 - 500",
-        "500 - 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 25,000"
-      ]
-    ),
-  },
-
-  MEDFAGE_CY_HEAT: {
-    type: "class-breaks",
-    field: "MEDFAGE_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 30 },
-        { min: 30, max: 35 },
-        { min: 35, max: 40 },
-        { min: 40, max: 45 },
-        { min: 45, max: 50 },
-        { min: 50, max: 55 }
-      ],
-      [
-        "Less than 30 years",
-        "30 - 35 years",
-        "35 - 40 years",
-        "40 - 45 years",
-        "45 - 50 years",
-        "50 - 55 years"
-      ]
-    ),
-  },
-
-  // Income Inequality - Heat Maps
-  GINI_CY_HEAT: {
-    type: "class-breaks",
-    field: "GINI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 0.35 },
-        { min: 0.35, max: 0.40 },
-        { min: 0.40, max: 0.45 },
-        { min: 0.45, max: 0.50 },
-        { min: 0.50, max: 0.55 },
-        { min: 0.55, max: 0.70 }
-      ],
-      [
-        "Less than 0.35",
-        "0.35 - 0.40",
-        "0.40 - 0.45",
-        "0.45 - 0.50",
-        "0.50 - 0.55",
-        "0.55 - 0.70"
-      ]
-    ),
-  },
-
-  RAT9010_CY_HEAT: {
-    type: "class-breaks",
-    field: "RAT9010_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 4 },
-        { min: 4, max: 5 },
-        { min: 5, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 12 }
-      ],
-      [
-        "Less than 3",
-        "3 - 4",
-        "4 - 5",
-        "5 - 6",
-        "6 - 8",
-        "8 - 12"
-      ]
-    ),
-  },
-
-  RAT9050_CY_HEAT: {
-    type: "class-breaks",
-    field: "RAT9050_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1.5 },
-        { min: 1.5, max: 1.8 },
-        { min: 1.8, max: 2.0 },
-        { min: 2.0, max: 2.3 },
-        { min: 2.3, max: 2.8 },
-        { min: 2.8, max: 4.0 }
-      ],
-      [
-        "Less than 1.5",
-        "1.5 - 1.8",
-        "1.8 - 2.0",
-        "2.0 - 2.3",
-        "2.3 - 2.8",
-        "2.8 - 4.0"
-      ]
-    ),
-  },
-
-  RAT5010_CY_HEAT: {
-    type: "class-breaks",
-    field: "RAT5010_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1.8 },
-        { min: 1.8, max: 2.0 },
-        { min: 2.0, max: 2.2 },
-        { min: 2.2, max: 2.5 },
-        { min: 2.5, max: 3.0 },
-        { min: 3.0, max: 4.0 }
-      ],
-      [
-        "Less than 1.8",
-        "1.8 - 2.0",
-        "2.0 - 2.2",
-        "2.2 - 2.5",
-        "2.5 - 3.0",
-        "3.0 - 4.0"
-      ]
-    ),
-  },
-
-  SHR8020_CY_HEAT: {
-    type: "class-breaks",
-    field: "SHR8020_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 4 },
-        { min: 4, max: 5 },
-        { min: 5, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 12 }
-      ],
-      [
-        "Less than 3",
-        "3 - 4",
-        "4 - 5",
-        "5 - 6",
-        "6 - 8",
-        "8 - 12"
-      ]
-    ),
-  },
-
-  SHR9040_CY_HEAT: {
-    type: "class-breaks",
-    field: "SHR9040_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1.5 },
-        { min: 1.5, max: 1.7 },
-        { min: 1.7, max: 1.9 },
-        { min: 1.9, max: 2.2 },
-        { min: 2.2, max: 2.6 },
-        { min: 2.6, max: 3.5 }
-      ],
-      [
-        "Less than 1.5",
-        "1.5 - 1.7",
-        "1.7 - 1.9",
-        "1.9 - 2.2",
-        "2.2 - 2.6",
-        "2.6 - 3.5"
-      ]
-    ),
-  },
-
-  // Income Tiers - Heat Maps (SIGNIFICANTLY LOWERED household counts)
-  LOTRHH_CY_HEAT: {
-    type: "class-breaks",
-    field: "LOTRHH_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 5000 }
-      ],
-      [
-        "Less than 50 households",
-        "50 - 100 households",
-        "100 - 200 households",
-        "200 - 500 households",
-        "500 - 1,000 households",
-        "1,000 - 5,000 households"
-      ]
-    ),
-  },
-
-  MDTRHH_CY_HEAT: {
-    type: "class-breaks",
-    field: "MDTRHH_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 5000 }
-      ],
-      [
-        "Less than 50 households",
-        "50 - 100 households",
-        "100 - 200 households",
-        "200 - 500 households",
-        "500 - 1,000 households",
-        "1,000 - 5,000 households"
-      ]
-    ),
-  },
-
-  UPTRHH_CY_HEAT: {
-    type: "class-breaks",
-    field: "UPTRHH_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25 households",
-        "25 - 50 households",
-        "50 - 100 households",
-        "100 - 250 households",
-        "250 - 500 households",
-        "500 - 2,500 households"
-      ]
-    ),
-  },
-
-  // Disposable Income - Heat Maps (SIGNIFICANTLY LOWERED household counts)
-  DI0_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI0_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 8 },
-        { min: 8, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 80 },
-        { min: 80, max: 175 },
-        { min: 175, max: 875 }
-      ],
-      [
-        "Less than 8 households",
-        "8 - 20 households",
-        "20 - 40 households",
-        "40 - 80 households",
-        "80 - 175 households",
-        "175 - 875 households"
-      ]
-    ),
-  },
-
-  DI15_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI15_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 8 },
-        { min: 8, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 80 },
-        { min: 80, max: 175 },
-        { min: 175, max: 875 }
-      ],
-      [
-        "Less than 8 households",
-        "8 - 20 households",
-        "20 - 40 households",
-        "40 - 80 households",
-        "80 - 175 households",
-        "175 - 875 households"
-      ]
-    ),
-  },
-
-  DI25_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI25_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 12 },
-        { min: 12, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 125 },
-        { min: 125, max: 250 },
-        { min: 250, max: 1250 }
-      ],
-      [
-        "Less than 12 households",
-        "12 - 30 households",
-        "30 - 60 households",
-        "60 - 125 households",
-        "125 - 250 households",
-        "250 - 1,250 households"
-      ]
-    ),
-  },
-
-  DI35_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI35_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 12 },
-        { min: 12, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 125 },
-        { min: 125, max: 250 },
-        { min: 250, max: 1250 }
-      ],
-      [
-        "Less than 12 households",
-        "12 - 30 households",
-        "30 - 60 households",
-        "60 - 125 households",
-        "125 - 250 households",
-        "250 - 1,250 households"
-      ]
-    ),
-  },
-
-  DI50_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI50_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 35 },
-        { min: 35, max: 75 },
-        { min: 75, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15 households",
-        "15 - 35 households",
-        "35 - 75 households",
-        "75 - 150 households",
-        "150 - 300 households",
-        "300 - 1,500 households"
-      ]
-    ),
-  },
-
-  DI75_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI75_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 35 },
-        { min: 35, max: 75 },
-        { min: 75, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15 households",
-        "15 - 35 households",
-        "35 - 75 households",
-        "75 - 150 households",
-        "150 - 300 households",
-        "300 - 1,500 households"
-      ]
-    ),
-  },
-
-  DI100_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI100_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 18 },
-        { min: 18, max: 42 },
-        { min: 42, max: 85 },
-        { min: 85, max: 175 },
-        { min: 175, max: 350 },
-        { min: 350, max: 1750 }
-      ],
-      [
-        "Less than 18 households",
-        "18 - 42 households",
-        "42 - 85 households",
-        "85 - 175 households",
-        "175 - 350 households",
-        "350 - 1,750 households"
-      ]
-    ),
-  },
-
-  DI150_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI150_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10 households",
-        "10 - 25 households",
-        "25 - 50 households",
-        "50 - 100 households",
-        "100 - 200 households",
-        "200 - 1,000 households"
-      ]
-    ),
-  },
-
-  DI200_CY_HEAT: {
-    type: "class-breaks",
-    field: "DI200_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 7 },
-        { min: 7, max: 18 },
-        { min: 18, max: 35 },
-        { min: 35, max: 75 },
-        { min: 75, max: 150 },
-        { min: 150, max: 750 }
-      ],
-      [
-        "Less than 7 households",
-        "7 - 18 households",
-        "18 - 35 households",
-        "35 - 75 households",
-        "75 - 150 households",
-        "150 - 750 households"
-      ]
-    ),
-  },
-
-  MEDDI_CY_HEAT: {
-    type: "class-breaks",
-    field: "MEDDI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 35000 },
-        { min: 35000, max: 50000 },
-        { min: 50000, max: 70000 },
-        { min: 70000, max: 100000 },
-        { min: 100000, max: 150000 },
-        { min: 150000, max: 250000 }
-      ],
-      [
-        "Less than $35,000",
-        "$35,000 - $50,000",
-        "$50,000 - $70,000",
-        "$70,000 - $100,000",
-        "$100,000 - $150,000",
-        "$150,000 - $250,000"
-      ]
-    ),
-  },
-
-  // Employment & Labor Force - Heat Maps (SIGNIFICANTLY LOWERED)
-  CIVLBFR_CY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLBFR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
-      ],
-      [
-        "Less than 250",
-        "250 - 500",
-        "500 - 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 25,000"
-      ]
-    ),
-  },
-
-  EMP_CY_HEAT: {
-    type: "class-breaks",
-    field: "EMP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2500 },
-        { min: 2500, max: 5000 },
-        { min: 5000, max: 25000 }
-      ],
-      [
-        "Less than 250",
-        "250 - 500",
-        "500 - 1,000",
-        "1,000 - 2,500",
-        "2,500 - 5,000",
-        "5,000 - 25,000"
-      ]
-    ),
-  },
-
-  UNEMP_CY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 1,000"
-      ]
-    ),
-  },
-
-  // Employment by Age Groups - Heat Maps
-  CIVLF16_CY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLF16_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 500",
-        "500 - 2,500"
-      ]
-    ),
-  },
-
-  EMPAGE16CY_HEAT: {
-    type: "class-breaks",
-    field: "EMPAGE16CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 500",
-        "500 - 2,500"
-      ]
-    ),
-  },
-
-  UNAGE16CY_HEAT: {
-    type: "class-breaks",
-    field: "UNAGE16CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 80 },
-        { min: 80, max: 300 }
-      ],
-      [
-        "Less than 5",
-        "5 - 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 80",
-        "80 - 300"
-      ]
-    ),
-  },
-
-  UNEMRT16CY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRT16CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 20 },
-        { min: 20, max: 30 },
-        { min: 30, max: 50 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 10%",
-        "10% - 15%",
-        "15% - 20%",
-        "20% - 30%",
-        "30% - 50%"
-      ]
-    ),
-  },
-
-  CIVLF25_CY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLF25_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 600 },
-        { min: 600, max: 1500 },
-        { min: 1500, max: 3000 },
-        { min: 3000, max: 15000 }
-      ],
-      [
-        "Less than 150",
-        "150 - 300",
-        "300 - 600",
-        "600 - 1,500",
-        "1,500 - 3,000",
-        "3,000 - 15,000"
-      ]
-    ),
-  },
-
-  EMPAGE25CY_HEAT: {
-    type: "class-breaks",
-    field: "EMPAGE25CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 600 },
-        { min: 600, max: 1500 },
-        { min: 1500, max: 3000 },
-        { min: 3000, max: 15000 }
-      ],
-      [
-        "Less than 150",
-        "150 - 300",
-        "300 - 600",
-        "600 - 1,500",
-        "1,500 - 3,000",
-        "3,000 - 15,000"
-      ]
-    ),
-  },
-
-  UNAGE25CY_HEAT: {
-    type: "class-breaks",
-    field: "UNAGE25CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 8 },
-        { min: 8, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 120 },
-        { min: 120, max: 500 }
-      ],
-      [
-        "Less than 8",
-        "8 - 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 120",
-        "120 - 500"
-      ]
-    ),
-  },
-
-  UNEMRT25CY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRT25CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 7 },
-        { min: 7, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 25 }
-      ],
-      [
-        "Less than 3%",
-        "3% - 5%",
-        "5% - 7%",
-        "7% - 10%",
-        "10% - 15%",
-        "15% - 25%"
-      ]
-    ),
-  },
-
-  CIVLF55_CY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLF55_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 5000 }
-      ],
-      [
-        "Less than 50",
-        "50 - 100",
-        "100 - 200",
-        "200 - 500",
-        "500 - 1,000",
-        "1,000 - 5,000"
-      ]
-    ),
-  },
-
-  EMPAGE55CY_HEAT: {
-    type: "class-breaks",
-    field: "EMPAGE55CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 5000 }
-      ],
-      [
-        "Less than 50",
-        "50 - 100",
-        "100 - 200",
-        "200 - 500",
-        "500 - 1,000",
-        "1,000 - 5,000"
-      ]
-    ),
-  },
-
-  UNAGE55CY_HEAT: {
-    type: "class-breaks",
-    field: "UNAGE55CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 6 },
-        { min: 6, max: 12 },
-        { min: 12, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 200 }
-      ],
-      [
-        "Less than 3",
-        "3 - 6",
-        "6 - 12",
-        "12 - 25",
-        "25 - 50",
-        "50 - 200"
-      ]
-    ),
-  },
-
-  UNEMRT55CY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRT55CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 7 },
-        { min: 7, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 25 }
-      ],
-      [
-        "Less than 3%",
-        "3% - 5%",
-        "5% - 7%",
-        "7% - 10%",
-        "10% - 15%",
-        "15% - 25%"
-      ]
-    ),
-  },
-
-  CIVLF65_CY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLF65_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  EMPAGE65CY_HEAT: {
-    type: "class-breaks",
-    field: "EMPAGE65CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  UNAGE65CY_HEAT: {
-    type: "class-breaks",
-    field: "UNAGE65CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 8 },
-        { min: 8, max: 15 },
-        { min: 15, max: 50 }
-      ],
-      [
-        "Less than 1",
-        "1 - 2",
-        "2 - 4",
-        "4 - 8",
-        "8 - 15",
-        "15 - 50"
-      ]
-    ),
-  },
-
-  UNEMRT65CY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRT65CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 6 },
-        { min: 6, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 20 }
-      ],
-      [
-        "Less than 2%",
-        "2% - 4%",
-        "4% - 6%",
-        "6% - 8%",
-        "8% - 12%",
-        "12% - 20%"
-      ]
-    ),
-  },
-
-  // Economic Dependency Ratios - Heat Maps
-  CHLDEDR_CY_HEAT: {
-    type: "class-breaks",
-    field: "CHLDEDR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 20 },
-        { min: 20, max: 30 },
-        { min: 30, max: 40 },
-        { min: 40, max: 50 },
-        { min: 50, max: 60 },
-        { min: 60, max: 80 }
-      ],
-      [
-        "Less than 20",
-        "20 - 30",
-        "30 - 40",
-        "40 - 50",
-        "50 - 60",
-        "60 - 80"
-      ]
-    ),
-  },
-
-  WRKEDR_CY_HEAT: {
-    type: "class-breaks",
-    field: "WRKEDR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 40 },
-        { min: 40, max: 50 },
-        { min: 50, max: 60 },
-        { min: 60, max: 70 },
-        { min: 70, max: 80 },
-        { min: 80, max: 100 }
-      ],
-      [
-        "Less than 40",
-        "40 - 50",
-        "50 - 60",
-        "60 - 70",
-        "70 - 80",
-        "80 - 100"
-      ]
-    ),
-  },
-
-  SENREDR_CY_HEAT: {
-    type: "class-breaks",
-    field: "SENREDR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 25 },
-        { min: 25, max: 35 },
-        { min: 35, max: 45 },
-        { min: 45, max: 55 },
-        { min: 55, max: 75 }
-      ],
-      [
-        "Less than 15",
-        "15 - 25",
-        "25 - 35",
-        "35 - 45",
-        "45 - 55",
-        "55 - 75"
-      ]
-    ),
-  },
-
-  EDR_CY_HEAT: {
-    type: "class-breaks",
-    field: "EDR_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 40 },
-        { min: 40, max: 50 },
-        { min: 50, max: 60 },
-        { min: 60, max: 70 },
-        { min: 70, max: 80 },
-        { min: 80, max: 100 }
-      ],
-      [
-        "Less than 40",
-        "40 - 50",
-        "50 - 60",
-        "60 - 70",
-        "70 - 80",
-        "80 - 100"
-      ]
-    ),
-  },
-
-  // Employment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
-  EMPWHTCY_HEAT: {
-    type: "class-breaks",
-    field: "EMPWHTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 600 },
-        { min: 600, max: 1500 },
-        { min: 1500, max: 3000 },
-        { min: 3000, max: 15000 }
-      ],
-      [
-        "Less than 150",
-        "150 - 300",
-        "300 - 600",
-        "600 - 1,500",
-        "1,500 - 3,000",
-        "3,000 - 15,000"
-      ]
-    ),
-  },
-
-  EMPBLKCY_HEAT: {
-    type: "class-breaks",
-    field: "EMPBLKCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 500",
-        "500 - 2,500"
-      ]
-    ),
-  },
-
-  EMPAICY_HEAT: {
-    type: "class-breaks",
-    field: "EMPAICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 500 }
-      ],
-      [
-        "Less than 5",
-        "5 - 10",
-        "10 - 20",
-        "20 - 50",
-        "50 - 100",
-        "100 - 500"
-      ]
-    ),
-  },
-
-  EMPASNCY_HEAT: {
-    type: "class-breaks",
-    field: "EMPASNCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  EMPPICY_HEAT: {
-    type: "class-breaks",
-    field: "EMPPICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 200 }
-      ],
-      [
-        "Less than 2",
-        "2 - 5",
-        "5 - 10",
-        "10 - 25",
-        "25 - 50",
-        "50 - 200"
-      ]
-    ),
-  },
-
-  EMPOTHCY_HEAT: {
-    type: "class-breaks",
-    field: "EMPOTHCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 100",
-        "100 - 200",
-        "200 - 1,000"
-      ]
-    ),
-  },
-
-  EMPMLTCY_HEAT: {
-    type: "class-breaks",
-    field: "EMPMLTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 100",
-        "100 - 200",
-        "200 - 1,000"
-      ]
-    ),
-  },
-
-  // Unemployment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
-  UNWHTCY_HEAT: {
-    type: "class-breaks",
-    field: "UNWHTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 8 },
-        { min: 8, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 75 },
-        { min: 75, max: 150 },
-        { min: 150, max: 750 }
-      ],
-      [
-        "Less than 8",
-        "8 - 15",
-        "15 - 30",
-        "30 - 75",
-        "75 - 150",
-        "150 - 750"
-      ]
-    ),
-  },
-
-  UNBLKCY_HEAT: {
-    type: "class-breaks",
-    field: "UNBLKCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 6 },
-        { min: 6, max: 12 },
-        { min: 12, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 300 }
-      ],
-      [
-        "Less than 3",
-        "3 - 6",
-        "6 - 12",
-        "12 - 30",
-        "30 - 60",
-        "60 - 300"
-      ]
-    ),
-  },
-
-  UNAICY_HEAT: {
-    type: "class-breaks",
-    field: "UNAICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 8 },
-        { min: 8, max: 15 },
-        { min: 15, max: 75 }
-      ],
-      [
-        "Less than 1",
-        "1 - 2",
-        "2 - 4",
-        "4 - 8",
-        "8 - 15",
-        "15 - 75"
-      ]
-    ),
-  },
-
-  UNASNCY_HEAT: {
-    type: "class-breaks",
-    field: "UNASNCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 3 },
-        { min: 3, max: 6 },
-        { min: 6, max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 150 }
-      ],
-      [
-        "Less than 1",
-        "1 - 3",
-        "3 - 6",
-        "6 - 15",
-        "15 - 30",
-        "30 - 150"
-      ]
-    ),
-  },
-
-  UNPICY_HEAT: {
-    type: "class-breaks",
-    field: "UNPICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 25 }
-      ],
-      [
-        "Less than 1",
-        "1",
-        "1 - 2",
-        "2 - 3",
-        "3 - 5",
-        "5 - 25"
-      ]
-    ),
-  },
-
-  UNOTHCY_HEAT: {
-    type: "class-breaks",
-    field: "UNOTHCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 100 }
-      ],
-      [
-        "Less than 1",
-        "1 - 2",
-        "2 - 4",
-        "4 - 10",
-        "10 - 20",
-        "20 - 100"
-      ]
-    ),
-  },
-
-  UNMLTCY_HEAT: {
-    type: "class-breaks",
-    field: "UNMLTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 4 },
-        { min: 4, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 100 }
-      ],
-      [
-        "Less than 1",
-        "1 - 2",
-        "2 - 4",
-        "4 - 10",
-        "10 - 20",
-        "20 - 100"
-      ]
-    ),
-  },
-
-  // Labor Force by Race - Heat Maps (SIGNIFICANTLY LOWERED)
-  CIVLFWHTCY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFWHTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 600 },
-        { min: 600, max: 1500 },
-        { min: 1500, max: 3000 },
-        { min: 3000, max: 15000 }
-      ],
-      [
-        "Less than 150",
-        "150 - 300",
-        "300 - 600",
-        "600 - 1,500",
-        "1,500 - 3,000",
-        "3,000 - 15,000"
-      ]
-    ),
-  },
-
-  CIVLFBLKCY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFBLKCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 500",
-        "500 - 2,500"
-      ]
-    ),
-  },
-
-  CIVLFAICY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFAICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 500 }
-      ],
-      [
-        "Less than 5",
-        "5 - 10",
-        "10 - 20",
-        "20 - 50",
-        "50 - 100",
-        "100 - 500"
-      ]
-    ),
-  },
-
-  CIVLFASNCY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFASNCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  CIVLFPICY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFPICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 200 }
-      ],
-      [
-        "Less than 2",
-        "2 - 5",
-        "5 - 10",
-        "10 - 25",
-        "25 - 50",
-        "50 - 200"
-      ]
-    ),
-  },
-
-  CIVLFOTHCY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFOTHCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 100",
-        "100 - 200",
-        "200 - 1,000"
-      ]
-    ),
-  },
-
-  CIVLFMLTCY_HEAT: {
-    type: "class-breaks",
-    field: "CIVLFMLTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 100",
-        "100 - 200",
-        "200 - 1,000"
-      ]
-    ),
-  },
-
-  // Unemployment Rates by Race - Heat Maps
-  UNEMRTWHCY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTWHCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 7 },
-        { min: 7, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 25 }
-      ],
-      [
-        "Less than 3%",
-        "3% - 5%",
-        "5% - 7%",
-        "7% - 10%",
-        "10% - 15%",
-        "15% - 25%"
-      ]
-    ),
-  },
-
-  UNEMRTBLCY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTBLCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 18 },
-        { min: 18, max: 25 },
-        { min: 25, max: 40 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 8%",
-        "8% - 12%",
-        "12% - 18%",
-        "18% - 25%",
-        "25% - 40%"
-      ]
-    ),
-  },
-
-  UNEMRTAICY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTAICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 18 },
-        { min: 18, max: 25 },
-        { min: 25, max: 40 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 8%",
-        "8% - 12%",
-        "12% - 18%",
-        "18% - 25%",
-        "25% - 40%"
-      ]
-    ),
-  },
-
-  UNEMRTASCY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTASCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 3 },
-        { min: 3, max: 5 },
-        { min: 5, max: 7 },
-        { min: 7, max: 10 },
-        { min: 10, max: 15 },
-        { min: 15, max: 25 }
-      ],
-      [
-        "Less than 3%",
-        "3% - 5%",
-        "5% - 7%",
-        "7% - 10%",
-        "10% - 15%",
-        "15% - 25%"
-      ]
-    ),
-  },
-
-  UNEMRTPICY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTPICY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 18 },
-        { min: 18, max: 25 },
-        { min: 25, max: 40 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 8%",
-        "8% - 12%",
-        "12% - 18%",
-        "18% - 25%",
-        "25% - 40%"
-      ]
-    ),
-  },
-
-  UNEMRTOTCY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTOTCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 18 },
-        { min: 18, max: 25 },
-        { min: 25, max: 40 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 8%",
-        "8% - 12%",
-        "12% - 18%",
-        "18% - 25%",
-        "25% - 40%"
-      ]
-    ),
-  },
-
-  UNEMRTMLCY_HEAT: {
-    type: "class-breaks",
-    field: "UNEMRTMLCY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 8 },
-        { min: 8, max: 12 },
-        { min: 12, max: 18 },
-        { min: 18, max: 25 },
-        { min: 25, max: 40 }
-      ],
-      [
-        "Less than 5%",
-        "5% - 8%",
-        "8% - 12%",
-        "12% - 18%",
-        "18% - 25%",
-        "25% - 40%"
-      ]
-    ),
-  },
-
-  // Race and Ethnicity Population Counts - Heat Maps (SIGNIFICANTLY LOWERED)
-  HISPPOP_CY_HEAT: {
-    type: "class-breaks",
-    field: "HISPPOP_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 5000 }
-      ],
-      [
-        "Less than 50",
-        "50 - 100",
-        "100 - 200",
-        "200 - 500",
-        "500 - 1,000",
-        "1,000 - 5,000"
-      ]
-    ),
-  },
-
-  NHSPWHT_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPWHT_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 200 },
-        { min: 200, max: 400 },
-        { min: 400, max: 800 },
-        { min: 800, max: 2000 },
-        { min: 2000, max: 4000 },
-        { min: 4000, max: 20000 }
-      ],
-      [
-        "Less than 200",
-        "200 - 400",
-        "400 - 800",
-        "800 - 2,000",
-        "2,000 - 4,000",
-        "4,000 - 20,000"
-      ]
-    ),
-  },
-
-  NHSPBLK_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPBLK_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 250 },
-        { min: 250, max: 500 },
-        { min: 500, max: 2500 }
-      ],
-      [
-        "Less than 25",
-        "25 - 50",
-        "50 - 100",
-        "100 - 250",
-        "250 - 500",
-        "500 - 2,500"
-      ]
-    ),
-  },
-
-  NHSPAI_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPAI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 50 },
-        { min: 50, max: 100 },
-        { min: 100, max: 500 }
-      ],
-      [
-        "Less than 5",
-        "5 - 10",
-        "10 - 20",
-        "20 - 50",
-        "50 - 100",
-        "100 - 500"
-      ]
-    ),
-  },
-
-  NHSPASN_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPASN_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  NHSPPI_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPPI_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 2 },
-        { min: 2, max: 5 },
-        { min: 5, max: 10 },
-        { min: 10, max: 25 },
-        { min: 25, max: 50 },
-        { min: 50, max: 200 }
-      ],
-      [
-        "Less than 2",
-        "2 - 5",
-        "5 - 10",
-        "10 - 25",
-        "25 - 50",
-        "50 - 200"
-      ]
-    ),
-  },
-
-  NHSPOTH_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPOTH_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 10 },
-        { min: 10, max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 100 },
-        { min: 100, max: 200 },
-        { min: 200, max: 1000 }
-      ],
-      [
-        "Less than 10",
-        "10 - 20",
-        "20 - 40",
-        "40 - 100",
-        "100 - 200",
-        "200 - 1,000"
-      ]
-    ),
-  },
-
-  NHSPMLT_CY_HEAT: {
-    type: "class-breaks",
-    field: "NHSPMLT_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 15 },
-        { min: 15, max: 30 },
-        { min: 30, max: 60 },
-        { min: 60, max: 150 },
-        { min: 150, max: 300 },
-        { min: 300, max: 1500 }
-      ],
-      [
-        "Less than 15",
-        "15 - 30",
-        "30 - 60",
-        "60 - 150",
-        "150 - 300",
-        "300 - 1,500"
-      ]
-    ),
-  },
-
-  DIVINDX_CY_HEAT: {
-    type: "class-breaks",
-    field: "DIVINDX_CY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 60 },
-        { min: 60, max: 75 },
-        { min: 75, max: 85 },
-        { min: 85, max: 95 }
-      ],
-      [
-        "Less than 20",
-        "20 - 40",
-        "40 - 60",
-        "60 - 75",
-        "75 - 85",
-        "85 - 95"
-      ]
-    ),
-  },
-
-  RACEBASECY_HEAT: {
-    type: "class-breaks",
-    field: "RACEBASECY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
-      ],
-      [
-        "Less than 500",
-        "500 - 1,000",
-        "1,000 - 2,000",
-        "2,000 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 50,000"
-      ]
-    ),
-  },
-
-  EDUCBASECY_HEAT: {
-    type: "class-breaks",
-    field: "EDUCBASECY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 300 },
-        { min: 300, max: 600 },
-        { min: 600, max: 1200 },
-        { min: 1200, max: 3000 },
-        { min: 3000, max: 6000 },
-        { min: 6000, max: 30000 }
-      ],
-      [
-        "Less than 300",
-        "300 - 600",
-        "600 - 1,200",
-        "1,200 - 3,000",
-        "3,000 - 6,000",
-        "6,000 - 30,000"
-      ]
-    ),
-  },
-
-  HHPOP_FY_HEAT: {
-    type: "class-breaks",
-    field: "HHPOP_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 500 },
-        { min: 500, max: 1000 },
-        { min: 1000, max: 2000 },
-        { min: 2000, max: 5000 },
-        { min: 5000, max: 10000 },
-        { min: 10000, max: 50000 }
-      ],
-      [
-        "Less than 500",
-        "500 - 1,000",
-        "1,000 - 2,000",
-        "2,000 - 5,000",
-        "5,000 - 10,000",
-        "10,000 - 50,000"
-      ]
-    ),
-  },
-
-  PCIGRWCYFY_HEAT: {
-    type: "class-breaks",
-    field: "PCIGRWCYFY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 4 },
-        { min: 4, max: 5 },
-        { min: 5, max: 7 }
-      ],
-      [
-        "Less than 1%",
-        "1% - 2%",
-        "2% - 3%",
-        "3% - 4%",
-        "4% - 5%",
-        "5% - 7%"
-      ]
-    ),
-  },
-
-  DIVINDX_FY_HEAT: {
-    type: "class-breaks",
-    field: "DIVINDX_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 20 },
-        { min: 20, max: 40 },
-        { min: 40, max: 60 },
-        { min: 60, max: 75 },
-        { min: 75, max: 85 },
-        { min: 85, max: 95 }
-      ],
-      [
-        "Less than 20",
-        "20 - 40",
-        "40 - 60",
-        "60 - 75",
-        "75 - 85",
-        "85 - 95"
-      ]
-    ),
-  },
-
-  PCI_FY_HEAT: {
-    type: "class-breaks",
-    field: "PCI_FY",
-    classBreakInfos: createClassBreaks(
-      [
-        { max: 25000 },
-        { min: 25000, max: 35000 },
-        { min: 35000, max: 45000 },
-        { min: 45000, max: 60000 },
-        { min: 60000, max: 80000 },
-        { min: 80000, max: 150000 }
-      ],
-      [
-        "Less than $25,000",
-        "$25,000 - $35,000",
-        "$35,000 - $45,000",
-        "$45,000 - $60,000",
-        "$60,000 - $80,000",
-        "$80,000 - $150,000"
-      ]
-    ),
-  },
 
   // Education - Dot Density
   NOHS_CY: {
