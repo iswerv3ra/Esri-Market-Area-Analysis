@@ -46,7 +46,6 @@ export const initialLayerConfigurations = {
         { min: 5000, max: 10000 },
         { min: 10000, max: 20000 },
         { min: 20000, max: 50000 },
-        { min: 50000, max: 100000 }
       ],
       [
         "Less than 500",
@@ -56,7 +55,6 @@ export const initialLayerConfigurations = {
         "5,000 - 10,000",
         "10,000 - 20,000",
         "20,000 - 50,000",
-        "50,000 - 100,000"
       ]
     ),
   },
