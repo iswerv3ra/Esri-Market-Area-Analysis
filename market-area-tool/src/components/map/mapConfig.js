@@ -2,13 +2,13 @@
 import Color from "@arcgis/core/Color"; // May be needed by createClassBreaks
 
 const colorScheme = {
-    level1: [128, 0, 128, 0.45], // Purple
-    level2: [0, 0, 139, 0.45], // Dark blue
-    level3: [135, 206, 235, 0.45], // Sky blue
-    level4: [144, 238, 144, 0.45], // Light green
-    level5: [255, 255, 144, 0.45], // Light yellow
-    level6: [255, 165, 0, 0.45], // Orange
-    level7: [255, 99, 71, 0.45], // Salmon red
+    level1: [128, 0, 128, 0.30], // Purple
+    level2: [0, 0, 139, 0.30], // Dark blue
+    level3: [135, 206, 235, 0.30], // Sky blue
+    level4: [144, 238, 144, 0.30], // Light green
+    level5: [255, 255, 144, 0.30], // Light yellow
+    level6: [255, 165, 0, 0.30], // Orange
+    level7: [255, 99, 71, 0.30], // Salmon red
   };
 
 // Update the createClassBreaks function accordingly
@@ -28,3638 +28,6338 @@ export const createClassBreaks = (breakPoints, labels) => {
     }));
   };
 
+
 // --- Initial Layer Configurations ---
-// (This is the largest part to move)
 export const initialLayerConfigurations = {
-    // Existing heatmap configurations
-    // Total Population
-    totalPopulation_HEAT: {
-      type: "class-breaks",
-      field: "TOTPOP_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000, max: 100000 },
-          { min: 100000 },
-        ],
-        [
-          "Less than 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 - 100,000",
-          "100,000 or more",
-        ]
-      ),
-    },
-  
-    TOTPOP_FY_HEAT: {
-      type: "class-breaks",
-      field: "TOTPOP_FY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000, max: 100000 },
-          { min: 100000 },
-        ],
-        [
-          "Less than 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 - 100,000",
-          "100,000 or more",
-        ]
-      ),
-    },
-  
-    // Total Households
-    totalHouseholds_HEAT: {
-      type: "class-breaks",
-      field: "TOTHH_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2000 },
-          { min: 2000, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 20000 },
-          { min: 20000, max: 40000 },
-          { min: 40000 },
-        ],
-        [
-          "Less than 2,000",
-          "2,000 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 20,000",
-          "20,000 - 40,000",
-          "40,000 or more",
-        ]
-      ),
-    },
-  
-    // Total Housing Units
-    totalHousingUnits_HEAT: {
-      type: "class-breaks",
-      field: "TOTHU_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000 },
-        ],
-        [
-          "Less than 2,500",
-          "2,500 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 or more",
-        ]
-      ),
-    },
-  
-    // Less than 9th Grade Education
-    lessThan9thGrade_HEAT: {
-      type: "class-breaks",
-      field: "NOHS_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2 },
-          { min: 2, max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20 },
-        ],
-        [
-          "Less than 2%",
-          "2% - 5%",
-          "5% - 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% or more",
-        ]
-      ),
-    },
-  
-    // 9-12th Grade/No Diploma
-    someHighSchool_HEAT: {
-      type: "class-breaks",
-      field: "SOMEHS_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 3 },
-          { min: 3, max: 6 },
-          { min: 6, max: 9 },
-          { min: 9, max: 12 },
-          { min: 12, max: 15 },
-          { min: 15 },
-        ],
-        [
-          "Less than 3%",
-          "3% - 6%",
-          "6% - 9%",
-          "9% - 12%",
-          "12% - 15%",
-          "15% or more",
-        ]
-      ),
-    },
-  
-    // GED/Alternative Credential
-    gedCredential_HEAT: {
-      type: "class-breaks",
-      field: "GED_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2 },
-          { min: 2, max: 4 },
-          { min: 4, max: 6 },
-          { min: 6, max: 8 },
-          { min: 8, max: 10 },
-          { min: 10 },
-        ],
-        [
-          "Less than 2%",
-          "2% - 4%",
-          "4% - 6%",
-          "6% - 8%",
-          "8% - 10%",
-          "10% or more",
-        ]
-      ),
-    },
-  
-    // Home Value $50,000-$99,999
-    homesUnder100k_HEAT: {
-      type: "class-breaks",
-      field: "VAL50K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $100,000-$149,999
-    homes100to150k_HEAT: {
-      type: "class-breaks",
-      field: "VAL100K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $150,000-$199,999
-    homes150to200k_HEAT: {
-      type: "class-breaks",
-      field: "VAL150K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $200,000-$249,999
-    homes200to250k_HEAT: {
-      type: "class-breaks",
-      field: "VAL200K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $250,000-$299,999
-    homes250to300k_HEAT: {
-      type: "class-breaks",
-      field: "VAL250K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $400,000-$499,999
-    homes400to500k_HEAT: {
-      type: "class-breaks",
-      field: "VAL400K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Home Value $1,500,000-$1,999,999
-    veryLuxuryHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL1PT5MCY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 25 },
-          { min: 25, max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 200 },
-          { min: 200 },
-        ],
-        [
-          "Less than 10 homes",
-          "10 - 25 homes",
-          "25 - 50 homes",
-          "50 - 100 homes",
-          "100 - 200 homes",
-          "200+ homes",
-        ]
-      ),
-    },
-  
-    // Population Density - Note: This was included in the initial config but with a different name "density"
-    populationDensity_HEAT: {
-      type: "class-breaks",
-      field: "POPDENS_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1000 },
-          { min: 1000, max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 7500 },
-          { min: 7500, max: 10000 },
-          { min: 10000 },
-        ],
-        [
-          "Less than 1,000/sq mi",
-          "1,000 - 2,500/sq mi",
-          "2,500 - 5,000/sq mi",
-          "5,000 - 7,500/sq mi",
-          "7,500 - 10,000/sq mi",
-          "10,000+/sq mi",
-        ]
-      ),
-    },
-  
-    // Homeownership Rate - This field exists in the config but as a different variable name
-    homeownershipRate_HEAT: {
-      type: "class-breaks",
-      field: "PCTHOMEOWNER",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 35 },
-          { min: 35, max: 50 },
-          { min: 50, max: 65 },
-          { min: 65, max: 80 },
-          { min: 80, max: 90 },
-          { min: 90 },
-        ],
-        [
-          "Less than 35%",
-          "35% - 50%",
-          "50% - 65%",
-          "65% - 80%",
-          "80% - 90%",
-          "90% or more",
-        ]
-      ),
-    },
-  
-    income_HEAT: {
-      type: "class-breaks",
-      field: "MEDHINC_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 35000 },
-          { min: 35000, max: 65000 },
-          { min: 65000, max: 95000 },
-          { min: 95000, max: 125000 },
-          { min: 125000, max: 155000 },
-          { min: 155000, max: 200000 },
-          { min: 200000 },
-        ],
-        [
-          "Less than $35,000",
-          "$35,000 - $65,000",
-          "$65,000 - $95,000",
-          "$95,000 - $125,000",
-          "$125,000 - $155,000",
-          "$155,000 - $200,000",
-          "$200,000 or more",
-        ]
-      ),
-    },
-    growth_HEAT: {
-      type: "class-breaks",
-      field: "HHGRW20CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: -3 },
-          { min: -3, max: -2 },
-          { min: -2, max: -1 },
-          { min: -1, max: 0 },
-          { min: 0, max: 1 },
-          { min: 1, max: 2 },
-          { min: 2 },
-        ],
-        [
-          "Less than -3%",
-          "-3% to -2%",
-          "-2% to -1%",
-          "-1% to 0%",
-          "0% to 1%",
-          "1% to 2%",
-          "2% or more",
-        ]
-      ),
-    },
-    density_HEAT: {
-      type: "class-breaks",
-      field: "POPDENS_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1000 },
-          { min: 1000, max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 7500 },
-          { min: 7500, max: 10000 },
-          { min: 10000, max: 15000 },
-          { min: 15000 },
-        ],
-        [
-          "Less than 1,000",
-          "1,000 - 2,500",
-          "2,500 - 5,000",
-          "5,000 - 7,500",
-          "7,500 - 10,000",
-          "10,000 - 15,000",
-          "15,000 or more",
-        ]
-      ),
-    },
-    age_HEAT: {
-      type: "class-breaks",
-      field: "MEDAGE_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 30 },
-          { min: 30, max: 35 },
-          { min: 35, max: 40 },
-          { min: 40, max: 45 },
-          { min: 45, max: 50 },
-          { min: 50, max: 55 },
-          { min: 55 },
-        ],
-        [
-          "Less than 30 years",
-          "30 - 35 years",
-          "35 - 40 years",
-          "40 - 45 years",
-          "45 - 50 years",
-          "50 - 55 years",
-          "55 years or more",
-        ]
-      ),
-    },
-    unemployment_HEAT: {
-      type: "class-breaks",
-      field: "UNEMPRT_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 3 },
-          { min: 3, max: 5 },
-          { min: 5, max: 7 },
-          { min: 7, max: 9 },
-          { min: 9, max: 11 },
-          { min: 11, max: 13 },
-          { min: 13 },
-        ],
-        [
-          "Less than 3%",
-          "3% - 5%",
-          "5% - 7%",
-          "7% - 9%",
-          "9% - 11%",
-          "11% - 13%",
-          "13% or more",
-        ]
-      ),
-    },
-    homeValue_HEAT: {
-      type: "class-breaks",
-      field: "MEDVAL_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 200000 },
-          { min: 200000, max: 350000 },
-          { min: 350000, max: 500000 },
-          { min: 500000, max: 750000 },
-          { min: 750000, max: 1000000 },
-          { min: 1000000, max: 1500000 },
-          { min: 1500000 },
-        ],
-        [
-          "Less than $200,000",
-          "$200,000 - $350,000",
-          "$350,000 - $500,000",
-          "$500,000 - $750,000",
-          "$750,000 - $1,000,000",
-          "$1,000,000 - $1,500,000",
-          "$1,500,000 or more",
-        ]
-      ),
-    },
-    affordability_HEAT: {
-      type: "class-breaks",
-      field: "HAI_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 75 },
-          { min: 75, max: 100 },
-          { min: 100, max: 125 },
-          { min: 125, max: 150 },
-          { min: 150, max: 175 },
-          { min: 175 },
-        ],
-        [
-          "Less than 50",
-          "50 - 75",
-          "75 - 100",
-          "100 - 125",
-          "125 - 150",
-          "150 - 175",
-          "175 or more",
-        ]
-      ),
-    },
-    MEDHINC_CY_HEAT: {
-      type: "class-breaks",
-      field: "MEDHINC_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    AVGHINC_CY_HEAT: {
-      type: "class-breaks",
-      field: "AVGHINC_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC0_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC0_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC15_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC15_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 500000 },
-          { min: 2000, max: 5000 },
-          { min: 1000, max: 2000 },
-          { min: 500, max: 1000 },
-          { min: 250, max: 500 },
-          { min: 0 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC25_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC25_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5000 },
-          { min: 2000, max: 5000 },
-          { min: 1000, max: 2000 },
-          { min: 500, max: 1000 },
-          { min: 250, max: 500 },
-          { min: 0 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC35_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC35_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC50_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC50_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC75_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC75_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC100_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC100_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC150_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC150_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-    HINC200_CY_HEAT: {
-      type: "class-breaks",
-      field: "HINC200_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50000 },
-          { min: 50000, max: 75000 },
-          { min: 75000, max: 100000 },
-          { min: 100000, max: 125000 },
-          { min: 125000, max: 150000 },
-          { min: 150000 },
-        ],
-        [
-          "Less than $50,000",
-          "$50,000 - $75,000",
-          "$75,000 - $100,000",
-          "$100,000 - $125,000",
-          "$125,000 - $150,000",
-          "$150,000 or more",
-        ]
-      ),
-    },
-  
-    // Educational attainment
-    education_HEAT: {
-      type: "class-breaks",
-      field: "BACHDEG_PLUS_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 25 },
-          { min: 25, max: 35 },
-          { min: 35, max: 45 },
-          { min: 45, max: 55 },
-          { min: 55 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 25%",
-          "25% - 35%",
-          "35% - 45%",
-          "45% - 55%",
-          "55% or more",
-        ]
-      ),
-    },
-  
-    // Housing occupancy
-    ownerOccupied_HEAT: {
-      type: "class-breaks",
-      field: "PCTHOMEOWNER",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 30 },
-          { min: 30, max: 45 },
-          { min: 45, max: 60 },
-          { min: 60, max: 75 },
-          { min: 75, max: 90 },
-          { min: 90 },
-        ],
-        [
-          "Less than 30%",
-          "30% - 45%",
-          "45% - 60%",
-          "60% - 75%",
-          "75% - 90%",
-          "90% or more",
-        ]
-      ),
-    },
-  
-    // Vacancy rate
-    vacancy_HEAT: {
-      type: "class-breaks",
-      field: "VACANT_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% or more",
-        ]
-      ),
-    },
-  
-    // Diversity/Demographics
-    diversity_HEAT: {
-      type: "class-breaks",
-      field: "NHSPWHT_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 40 },
-          { min: 40, max: 55 },
-          { min: 55, max: 70 },
-          { min: 70, max: 85 },
-          { min: 85, max: 95 },
-          { min: 95 },
-        ],
-        [
-          "Less than 40%",
-          "40% - 55%",
-          "55% - 70%",
-          "70% - 85%",
-          "85% - 95%",
-          "95% or more",
-        ]
-      ),
-    },
-  
-    // Hispanic population
-    hispanic_HEAT: {
-      type: "class-breaks",
-      field: "HISPPOP_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 15 },
-          { min: 15, max: 30 },
-          { min: 30, max: 45 },
-          { min: 45, max: 60 },
-          { min: 60 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 15%",
-          "15% - 30%",
-          "30% - 45%",
-          "45% - 60%",
-          "60% or more",
-        ]
-      ),
-    },
-  
-    // Per capita income
-    perCapitaIncome_HEAT: {
-      type: "class-breaks",
-      field: "PCI_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 25000 },
-          { min: 25000, max: 40000 },
-          { min: 40000, max: 55000 },
-          { min: 55000, max: 70000 },
-          { min: 70000, max: 85000 },
-          { min: 85000 },
-        ],
-        [
-          "Less than $25,000",
-          "$25,000 - $40,000",
-          "$40,000 - $55,000",
-          "$55,000 - $70,000",
-          "$70,000 - $85,000",
-          "$85,000 or more",
-        ]
-      ),
-    },
-  
-    // Household size
-    householdSize_HEAT: {
-      type: "class-breaks",
-      field: "AVGHHSZ_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2.0 },
-          { min: 2.0, max: 2.5 },
-          { min: 2.5, max: 3.0 },
-          { min: 3.0, max: 3.5 },
-          { min: 3.5, max: 4.0 },
-          { min: 4.0 },
-        ],
-        [
-          "Less than 2.0",
-          "2.0 - 2.5",
-          "2.5 - 3.0",
-          "3.0 - 3.5",
-          "3.5 - 4.0",
-          "4.0 or more",
-        ]
-      ),
-    },
-  
-    // Future growth projections
-    futureGrowth_HEAT: {
-      type: "class-breaks",
-      field: "POPGRWCYFY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: -1 },
-          { min: -1, max: 0 },
-          { min: 0, max: 1 },
-          { min: 1, max: 2 },
-          { min: 2, max: 3 },
-          { min: 3 },
-        ],
-        [
-          "Less than -1%",
-          "-1% to 0%",
-          "0% to 1%",
-          "1% to 2%",
-          "2% to 3%",
-          "3% or more",
-        ]
-      ),
-    },
-  
-    // Generational breakdown
-    millennials_HEAT: {
-      type: "class-breaks",
-      field: "MILLENN_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 25 },
-          { min: 25, max: 35 },
-          { min: 35, max: 45 },
-          { min: 45, max: 55 },
-          { min: 55 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 25%",
-          "25% - 35%",
-          "35% - 45%",
-          "45% - 55%",
-          "55% or more",
-        ]
-      ),
-    },
-  
-    // Wealth Index
-    wealth_HEAT: {
-      type: "class-breaks",
-      field: "WLTHINDXCY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 75 },
-          { min: 75, max: 100 },
-          { min: 100, max: 150 },
-          { min: 150, max: 200 },
-          { min: 200 },
-        ],
-        [
-          "Less than 50",
-          "50 - 75",
-          "75 - 100",
-          "100 - 150",
-          "150 - 200",
-          "200 or more",
-        ]
-      ),
-    },
-  
-    // Socioeconomic Status Index
-    socioeconomic_HEAT: {
-      type: "class-breaks",
-      field: "SEI_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 75 },
-          { min: 75, max: 100 },
-          { min: 100, max: 125 },
-          { min: 125, max: 150 },
-          { min: 150 },
-        ],
-        [
-          "Less than 50",
-          "50 - 75",
-          "75 - 100",
-          "100 - 125",
-          "125 - 150",
-          "150 or more",
-        ]
-      ),
-    },
-    // Baby Boomer population
-    babyBoomers_HEAT: {
-      type: "class-breaks",
-      field: "BABYBOOMCY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30 },
-        ],
-        [
-          "Less than 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% or more",
-        ]
-      ),
-    },
-  
-    // Gen Z population
-    genZ_HEAT: {
-      type: "class-breaks",
-      field: "GENZ_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30, max: 35 },
-          { min: 35 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% - 35%",
-          "35% or more",
-        ]
-      ),
-    },
-  
-    // Gen X population
-    genX_HEAT: {
-      type: "class-breaks",
-      field: "GENX_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30, max: 35 },
-          { min: 35 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% - 35%",
-          "35% or more",
-        ]
-      ),
-    },
-  
-    // Children population
-    children_HEAT: {
-      type: "class-breaks",
-      field: "CHILD_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30, max: 35 },
-          { min: 35 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% - 35%",
-          "35% or more",
-        ]
-      ),
-    },
-  
-    // Senior population
-    seniors_HEAT: {
-      type: "class-breaks",
-      field: "SENIOR_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30 },
-        ],
-        [
-          "Less than 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% or more",
-        ]
-      ),
-    },
-  
-    // Working population
-    workingAge_HEAT: {
-      type: "class-breaks",
-      field: "WORKAGE_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 55 },
-          { min: 55, max: 60 },
-          { min: 60, max: 65 },
-          { min: 65, max: 70 },
-          { min: 70 },
-        ],
-        [
-          "Less than 50%",
-          "50% - 55%",
-          "55% - 60%",
-          "60% - 65%",
-          "65% - 70%",
-          "70% or more",
-        ]
-      ),
-    },
-  
-    // Asian population
-    NHSPASN_CY_PCT_HEAT: {
-      type: "class-breaks",
-      field: "NHSPASN_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 20 },
-          { min: 20, max: 30 },
-          { min: 30, max: 40 },
-          { min: 40 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 10%",
-          "10% - 20%",
-          "20% - 30%",
-          "30% - 40%",
-          "40% or more",
-        ]
-      ),
-    },
-  
-    // Black population
-    NHSPBLK_CY_PCT_HEAT: {
-      type: "class-breaks",
-      field: "NHSPBLK_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 15 },
-          { min: 15, max: 30 },
-          { min: 30, max: 45 },
-          { min: 45, max: 60 },
-          { min: 60 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 15%",
-          "15% - 30%",
-          "30% - 45%",
-          "45% - 60%",
-          "60% or more",
-        ]
-      ),
-    },
-  
-    // Daytime population
-    daytimePopulation_HEAT: {
-      type: "class-breaks",
-      field: "DPOP_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000, max: 100000 },
-          { min: 100000 },
-        ],
-        [
-          "Less than 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 - 100,000",
-          "100,000 or more",
-        ]
-      ),
-    },
-  
-    // Higher education percentage
-    highEducation_HEAT: {
-      type: "class-breaks",
-      field: "GRADDEG_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 30 },
-          { min: 30 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 30%",
-          "30% or more",
-        ]
-      ),
-    },
-  
-    // Low educational attainment
-    lowEducation_HEAT: {
-      type: "class-breaks",
-      field: "HSGRAD_LESS_CY_PCT",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 30 },
-          { min: 30 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 30%",
-          "30% or more",
-        ]
-      ),
-    },
-  
-    // Household income growth projection
-    incomeGrowth_HEAT: {
-      type: "class-breaks",
-      field: "MHIGRWCYFY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1 },
-          { min: 1, max: 2 },
-          { min: 2, max: 3 },
-          { min: 3, max: 4 },
-          { min: 4, max: 5 },
-          { min: 5 },
-        ],
-        ["Less than 1%", "1% - 2%", "2% - 3%", "3% - 4%", "4% - 5%", "5% or more"]
-      ),
-    },
-  
-    // Future household growth
-    householdGrowth_HEAT: {
-      type: "class-breaks",
-      field: "HHGRWCYFY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 0 },
-          { min: 0, max: 1 },
-          { min: 1, max: 2 },
-          { min: 2, max: 3 },
-          { min: 3, max: 5 },
-          { min: 5 },
-        ],
-        ["Less than 0%", "0% - 1%", "1% - 2%", "2% - 3%", "3% - 5%", "5% or more"]
-      ),
-    },
-  
-    // Mortgage affordability
-    mortgagePercent_HEAT: {
-      type: "class-breaks",
-      field: "INCMORT_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30, max: 35 },
-          { min: 35 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% - 35%",
-          "35% or more",
-        ]
-      ),
-    },
-  
-    // Associate's degree
-    associateDegree_HEAT: {
-      type: "class-breaks",
-      field: "ASSCDEG_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 7.5 },
-          { min: 7.5, max: 10 },
-          { min: 10, max: 12.5 },
-          { min: 12.5, max: 15 },
-          { min: 15 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 7.5%",
-          "7.5% - 10%",
-          "10% - 12.5%",
-          "12.5% - 15%",
-          "15% or more",
-        ]
-      ),
-    },
-  
-    // Bachelor's degree
-    bachelorDegree_HEAT: {
-      type: "class-breaks",
-      field: "BACHDEG_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 20 },
-          { min: 20, max: 30 },
-          { min: 30, max: 40 },
-          { min: 40, max: 50 },
-          { min: 50 },
-        ],
-        [
-          "Less than 10%",
-          "10% - 20%",
-          "20% - 30%",
-          "30% - 40%",
-          "40% - 50%",
-          "50% or more",
-        ]
-      ),
-    },
-  
-    // Some college, no degree
-    someCollege_HEAT: {
-      type: "class-breaks",
-      field: "SMCOLL_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30 },
-        ],
-        [
-          "Less than 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% or more",
-        ]
-      ),
-    },
-  
-    // High school graduates
-    highSchoolGrad_HEAT: {
-      type: "class-breaks",
-      field: "HSGRAD_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25, max: 30 },
-          { min: 30, max: 35 },
-          { min: 35 },
-        ],
-        [
-          "Less than 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% - 30%",
-          "30% - 35%",
-          "35% or more",
-        ]
-      ),
-    },
-  
-    // Owner-occupied homes
-    ownerHomes_HEAT: {
-      type: "class-breaks",
-      field: "OWNER_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1000 },
-          { min: 1000, max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 20000 },
-          { min: 20000 },
-        ],
-        [
-          "Less than 1,000",
-          "1,000 - 2,500",
-          "2,500 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 20,000",
-          "20,000 or more",
-        ]
-      ),
-    },
-  
-    // Renter-occupied homes
-    renterHomes_HEAT: {
-      type: "class-breaks",
-      field: "RENTER_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1000 },
-          { min: 1000, max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 20000 },
-          { min: 20000 },
-        ],
-        [
-          "Less than 1,000",
-          "1,000 - 2,500",
-          "2,500 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 20,000",
-          "20,000 or more",
-        ]
-      ),
-    },
-  
-    // Average home value
-    avgHomeValue_HEAT: {
-      type: "class-breaks",
-      field: "AVGVAL_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 200000 },
-          { min: 200000, max: 350000 },
-          { min: 350000, max: 500000 },
-          { min: 500000, max: 750000 },
-          { min: 750000, max: 1000000 },
-          { min: 1000000 },
-        ],
-        [
-          "Less than $200,000",
-          "$200,000 - $350,000",
-          "$350,000 - $500,000",
-          "$500,000 - $750,000",
-          "$750,000 - $1,000,000",
-          "$1,000,000 or more",
-        ]
-      ),
-    },
-  
-    // Expensive homes ($1M+)
-    luxuryHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL1M_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Very expensive homes ($2M+)
-    ultraLuxuryHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL2M_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 10 },
-          { min: 10, max: 25 },
-          { min: 25, max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250 },
-        ],
-        [
-          "Less than 10 homes",
-          "10 - 25 homes",
-          "25 - 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250+ homes",
-        ]
-      ),
-    },
-  
-    // Entry-level homes (<$250K)
-    entryLevelHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL0_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000, max: 2000 },
-          { min: 2000 },
-        ],
-        [
-          "Less than 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000 - 2,000 homes",
-          "2,000+ homes",
-        ]
-      ),
-    },
-  
-    // Daytime workers
-    daytimeWorkers_HEAT: {
-      type: "class-breaks",
-      field: "DPOPWRK_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000 },
-        ],
-        [
-          "Less than 2,500",
-          "2,500 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 or more",
-        ]
-      ),
-    },
-  
-    // Young adults (20-34)
-    youngAdults_HEAT: {
-      type: "class-breaks",
-      field: "POP20_CY", // Using 20-24 as a representative, could combine multiple fields
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 10 },
-          { min: 10, max: 15 },
-          { min: 15, max: 20 },
-          { min: 20, max: 25 },
-          { min: 25 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 10%",
-          "10% - 15%",
-          "15% - 20%",
-          "20% - 25%",
-          "25% or more",
-        ]
-      ),
-    },
-  
-    // Middle-aged adults (35-54)
-    middleAged_HEAT: {
-      type: "class-breaks",
-      field: "POP35_CY", // Using 35-39 as a representative, could combine multiple fields
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 7.5 },
-          { min: 7.5, max: 10 },
-          { min: 10, max: 12.5 },
-          { min: 12.5, max: 15 },
-          { min: 15 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 7.5%",
-          "7.5% - 10%",
-          "10% - 12.5%",
-          "12.5% - 15%",
-          "15% or more",
-        ]
-      ),
-    },
-  
-    // Pre-retirement (55-64)
-    preRetirement_HEAT: {
-      type: "class-breaks",
-      field: "POP55_CY", // Using 55-59 as a representative, could combine with 60-64
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 7.5 },
-          { min: 7.5, max: 10 },
-          { min: 10, max: 12.5 },
-          { min: 12.5, max: 15 },
-          { min: 15 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 7.5%",
-          "7.5% - 10%",
-          "10% - 12.5%",
-          "12.5% - 15%",
-          "15% or more",
-        ]
-      ),
-    },
-  
-    // Elderly (75+)
-    elderly_HEAT: {
-      type: "class-breaks",
-      field: "POP75_CY", // Using 75-79 as a representative, could combine multiple fields
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2 },
-          { min: 2, max: 4 },
-          { min: 4, max: 6 },
-          { min: 6, max: 8 },
-          { min: 8, max: 10 },
-          { min: 10 },
-        ],
-        [
-          "Less than 2%",
-          "2% - 4%",
-          "4% - 6%",
-          "6% - 8%",
-          "8% - 10%",
-          "10% or more",
-        ]
-      ),
-    },
-  
-    // Silent & Greatest Generations
-    oldestGenerations_HEAT: {
-      type: "class-breaks",
-      field: "OLDRGENSCY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2 },
-          { min: 2, max: 4 },
-          { min: 4, max: 6 },
-          { min: 6, max: 8 },
-          { min: 8, max: 10 },
-          { min: 10 },
-        ],
-        [
-          "Less than 2%",
-          "2% - 4%",
-          "4% - 6%",
-          "6% - 8%",
-          "8% - 10%",
-          "10% or more",
-        ]
-      ),
-    },
-  
-    // Generation Alpha
-    genAlpha_HEAT: {
-      type: "class-breaks",
-      field: "GENALPHACY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 5 },
-          { min: 5, max: 7.5 },
-          { min: 7.5, max: 10 },
-          { min: 10, max: 12.5 },
-          { min: 12.5, max: 15 },
-          { min: 15 },
-        ],
-        [
-          "Less than 5%",
-          "5% - 7.5%",
-          "7.5% - 10%",
-          "10% - 12.5%",
-          "12.5% - 15%",
-          "15% or more",
-        ]
-      ),
-    },
-  
-    // Mid-range homes ($300-500K)
-    midRangeHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL300K_CY", // Could combine with VAL400K_CY
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000, max: 2000 },
-          { min: 2000 },
-        ],
-        [
-          "Less than 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000 - 2,000 homes",
-          "2,000+ homes",
-        ]
-      ),
-    },
-  
-    // Upper-middle range homes ($500-750K)
-    upperMidHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL500K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000, max: 2000 },
-          { min: 2000 },
-        ],
-        [
-          "Less than 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000 - 2,000 homes",
-          "2,000+ homes",
-        ]
-      ),
-    },
-  
-    // High-end homes ($750K-1M)
-    highEndHomes_HEAT: {
-      type: "class-breaks",
-      field: "VAL750K_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 homes",
-          "50 - 100 homes",
-          "100 - 250 homes",
-          "250 - 500 homes",
-          "500 - 1,000 homes",
-          "1,000+ homes",
-        ]
-      ),
-    },
-  
-    // Income group: $100K-$150K
-    upperMiddleIncome_HEAT: {
-      type: "class-breaks",
-      field: "HINC100_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000, max: 2000 },
-          { min: 2000 },
-        ],
-        [
-          "Less than 100 households",
-          "100 - 250 households",
-          "250 - 500 households",
-          "500 - 1,000 households",
-          "1,000 - 2,000 households",
-          "2,000+ households",
-        ]
-      ),
-    },
-  
-    // Income group: $150K-$200K
-    affluentIncome_HEAT: {
-      type: "class-breaks",
-      field: "HINC150_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 households",
-          "50 - 100 households",
-          "100 - 250 households",
-          "250 - 500 households",
-          "500 - 1,000 households",
-          "1,000+ households",
-        ]
-      ),
-    },
-  
-    // Income group: $200K+
-    wealthyIncome_HEAT: {
-      type: "class-breaks",
-      field: "HINC200_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 households",
-          "50 - 100 households",
-          "100 - 250 households",
-          "250 - 500 households",
-          "500 - 1,000 households",
-          "1,000+ households",
-        ]
-      ),
-    },
-  
-    // Low income: Less than $25K
-    lowIncome_HEAT: {
-      type: "class-breaks",
-      field: "HINC0_CY", // Could combine with HINC15_CY
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000 },
-        ],
-        [
-          "Less than 50 households",
-          "50 - 100 households",
-          "100 - 250 households",
-          "250 - 500 households",
-          "500 - 1,000 households",
-          "1,000+ households",
-        ]
-      ),
-    },
-  
-    // Moderate income: $25K-$50K
-    moderateIncome_HEAT: {
-      type: "class-breaks",
-      field: "HINC25_CY", // Could combine with HINC35_CY
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 100 },
-          { min: 100, max: 250 },
-          { min: 250, max: 500 },
-          { min: 500, max: 1000 },
-          { min: 1000, max: 2000 },
-          { min: 2000 },
-        ],
-        [
-          "Less than 100 households",
-          "100 - 250 households",
-          "250 - 500 households",
-          "500 - 1,000 households",
-          "1,000 - 2,000 households",
-          "2,000+ households",
-        ]
-      ),
-    },
-  
-    // Daytime residents ratio
-    daytimeResidentRatio_HEAT: {
-      type: "class-breaks",
-      field: "DPOPRES_CY", // Would need calculation relative to total population for a meaningful ratio
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 10000 },
-          { min: 10000, max: 25000 },
-          { min: 25000, max: 50000 },
-          { min: 50000 },
-        ],
-        [
-          "Less than 2,500",
-          "2,500 - 5,000",
-          "5,000 - 10,000",
-          "10,000 - 25,000",
-          "25,000 - 50,000",
-          "50,000 or more",
-        ]
-      ),
-    },
-  
-    // New dot density configurations
-    TOTPOP_CY: {
-      type: "dot-density",
-      field: "TOTPOP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "TOTPOP_CY", color: "#E60049", label: "Total Population" },
-      ],
-    },
-    TOTHH_CY: {
-      type: "dot-density",
-      field: "TOTHH_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        { field: "TOTHH_CY", color: "#0BB4FF", label: "Total Households" },
-      ],
-    },
-    DPOP_CY: {
-      type: "dot-density",
-      field: "DPOP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "DPOP_CY", color: "#50E991", label: "Daytime Population" },
-      ],
-    },
-    DPOPWRK_CY: {
-      type: "dot-density",
-      field: "DPOPWRK_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "DPOPWRK_CY", color: "#9B19F5", label: "Daytime Workers" },
-      ],
-    },
-    WORKAGE_CY: {
-      type: "dot-density",
-      field: "WORKAGE_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "WORKAGE_CY",
-          color: "#FFB400",
-          label: "Working Age Population",
-        },
-      ],
-    },
-    SENIOR_CY: {
-      type: "dot-density",
-      field: "SENIOR_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "SENIOR_CY", color: "#007ED6", label: "Senior Population" },
-      ],
-    },
-    CHILD_CY: {
-      type: "dot-density",
-      field: "CHILD_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "children" },
-      attributes: [
-        { field: "CHILD_CY", color: "#FF6B6B", label: "Child Population" },
-      ],
-    },
-    HISPPOP_CY: {
-      type: "dot-density",
-      field: "HISPPOP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "HISPPOP_CY", color: "#007ED6", label: "Hispanic Population" },
-      ],
-    },
-    NHSPWHT_CY: {
-      type: "dot-density",
-      field: "NHSPWHT_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPWHT_CY",
-          color: "#5954D6",
-          label: "White Non-Hispanic Population",
-        },
-      ],
-    },
-    NHSPBLK_CY: {
-      type: "dot-density",
-      field: "NHSPBLK_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPBLK_CY",
-          color: "#9B19F5",
-          label: "Black Non-Hispanic Population",
-        },
-      ],
-    },
-    NHSPASN_CY: {
-      type: "dot-density",
-      field: "NHSPASN_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPASN_CY",
-          color: "#FF6B6B",
-          label: "Asian Non-Hispanic Population",
-        },
-      ],
-    },
-    NHSPAI_CY: {
-      type: "dot-density",
-      field: "NHSPAI_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPAI_CY",
-          color: "#00C6B7",
-          label: "American Indian/Alaska Native Non-Hispanic",
-        },
-      ],
-    },
-    EMP_CY: {
-      type: "dot-density",
-      field: "EMP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMP_CY", color: "#00BA3F", label: "Employed Population" },
-      ],
-    },
-    UNEMP_CY: {
-      type: "dot-density",
-      field: "UNEMP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "UNEMP_CY", color: "#E60049", label: "Unemployed Population" },
-      ],
-    },
-    OWNER_CY: {
-      type: "dot-density",
-      field: "OWNER_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        { field: "OWNER_CY", color: "#0BB4FF", label: "Owner Occupied Housing" },
-      ],
-    },
-    RENTER_CY: {
-      type: "dot-density",
-      field: "RENTER_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        {
-          field: "RENTER_CY",
-          color: "#FFB400",
-          label: "Renter Occupied Housing",
-        },
-      ],
-    },
-    // Age-specific populations
-    POP0_CY: {
-      type: "dot-density",
-      field: "POP0_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP0_CY", color: "#FF9E8F", label: "Population Age 0-4" },
-      ],
-    },
-    POP5_CY: {
-      type: "dot-density",
-      field: "POP5_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP5_CY", color: "#FF8E72", label: "Population Age 5-9" },
-      ],
-    },
-    POP10_CY: {
-      type: "dot-density",
-      field: "POP10_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP10_CY", color: "#FF7E55", label: "Population Age 10-14" },
-      ],
-    },
-    POP15_CY: {
-      type: "dot-density",
-      field: "POP15_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP15_CY", color: "#FF6E38", label: "Population Age 15-19" },
-      ],
-    },
-    POP35_CY: {
-      type: "dot-density",
-      field: "POP35_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP35_CY", color: "#FFF4B3", label: "Population Age 35-39" },
-      ],
-    },
-    POP40_CY: {
-      type: "dot-density",
-      field: "POP40_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP40_CY", color: "#B3FFB3", label: "Population Age 40-44" },
-      ],
-    },
-    POP45_CY: {
-      type: "dot-density",
-      field: "POP45_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP45_CY", color: "#B3D1FF", label: "Population Age 45-49" },
-      ],
-    },
-    POP50_CY: {
-      type: "dot-density",
-      field: "POP50_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP50_CY", color: "#FFB3E6", label: "Population Age 50-54" },
-      ],
-    },
-    POP55_CY: {
-      type: "dot-density",
-      field: "POP55_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP55_CY", color: "#FFE6B3", label: "Population Age 55-59" },
-      ],
-    },
-    POP60_CY: {
-      type: "dot-density",
-      field: "POP60_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP60_CY", color: "#E6FFB3", label: "Population Age 60-64" },
-      ],
-    },
-    POP65_CY: {
-      type: "dot-density",
-      field: "POP65_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP65_CY", color: "#B3FFE6", label: "Population Age 65-69" },
-      ],
-    },
-    POP70_CY: {
-      type: "dot-density",
-      field: "POP70_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP70_CY", color: "#B3FFFF", label: "Population Age 70-74" },
-      ],
-    },
-    POP75_CY: {
-      type: "dot-density",
-      field: "POP75_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP75_CY", color: "#B3B3FF", label: "Population Age 75-79" },
-      ],
-    },
-    POP80_CY: {
-      type: "dot-density",
-      field: "POP80_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP80_CY", color: "#E6B3FF", label: "Population Age 80-84" },
-      ],
-    },
-    // Generation groups
-    GENALPHACY: {
-      type: "dot-density",
-      field: "GENALPHACY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "GENALPHACY", color: "#FFB400", label: "Generation Alpha" },
-      ],
-    },
-    GENZ_CY: {
-      type: "dot-density",
-      field: "GENZ_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [{ field: "GENZ_CY", color: "#FF6B6B", label: "Generation Z" }],
-    },
-    MILLENN_CY: {
-      type: "dot-density",
-      field: "MILLENN_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "MILLENN_CY", color: "#4ECDC4", label: "Millennials" },
-      ],
-    },
-  
-    // Educational Attainment
-    NOHS_CY: {
-      type: "dot-density",
-      field: "NOHS_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "NOHS_CY", color: "#FF6B6B", label: "Less than 9th Grade" },
-      ],
-    },
-    SOMEHS_CY: {
-      type: "dot-density",
-      field: "SOMEHS_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "SOMEHS_CY", color: "#FFB400", label: "Some High School" },
-      ],
-    },
-  
-    // Income Brackets
-    HINC0_CY: {
-      type: "dot-density",
-      field: "HINC0_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        { field: "HINC0_CY", color: "#E60049", label: "Income < $15,000" },
-      ],
-    },
-    HINC15_CY: {
-      type: "dot-density",
-      field: "HINC15_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        { field: "HINC15_CY", color: "#0BB4FF", label: "Income $15,000-$24,999" },
-      ],
-    },
-  
-    // Home Values
-    VAL0_CY: {
-      type: "dot-density",
-      field: "VAL0_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        { field: "VAL0_CY", color: "#50E991", label: "Home Value < $50,000" },
-      ],
-    },
-    VAL50K_CY: {
-      type: "dot-density",
-      field: "VAL50K_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        {
-          field: "VAL50K_CY",
-          color: "#9B19F5",
-          label: "Home Value $50,000-$99,999",
-        },
-      ],
-    },
-  
-    // Labor Force Demographics
-    CIVLBFR_CY: {
-      type: "dot-density",
-      field: "CIVLBFR_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "CIVLBFR_CY", color: "#0BB4FF", label: "Civilian Labor Force" },
-      ],
-    },
-  
-    // Employment by Race
-    EMPWHTCY: {
-      type: "dot-density",
-      field: "EMPWHTCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPWHTCY", color: "#E60049", label: "White Employed" },
-      ],
-    },
-    EMPBLKCY: {
-      type: "dot-density",
-      field: "EMPBLKCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        {
-          field: "EMPBLKCY",
-          color: "#0BB4FF",
-          label: "Black/African American Employed",
-        },
-      ],
-    },
-  
-    // Unemployment by Race
-    UNWHTCY: {
-      type: "dot-density",
-      field: "UNWHTCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "UNWHTCY", color: "#FFB400", label: "White Unemployed" },
-      ],
-    },
-    UNBLKCY: {
-      type: "dot-density",
-      field: "UNBLKCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "UNBLKCY",
-          color: "#007ED6",
-          label: "Black/African American Unemployed",
-        },
-      ],
-    },
-  
-    // Labor Force by Age
-    CIVLF16_CY: {
-      type: "dot-density",
-      field: "CIVLF16_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "CIVLF16_CY", color: "#50E991", label: "Labor Force Age 16-24" },
-      ],
-    },
-    CIVLF25_CY: {
-      type: "dot-density",
-      field: "CIVLF25_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "CIVLF25_CY", color: "#9B19F5", label: "Labor Force Age 25-54" },
-      ],
-    },
-  
-    // Income Tiers
-    LOTRHH_CY: {
-      type: "dot-density",
-      field: "LOTRHH_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        {
-          field: "LOTRHH_CY",
-          color: "#FFB400",
-          label: "Low Income Tier Households",
-        },
-      ],
-    },
-    MDTRHH_CY: {
-      type: "dot-density",
-      field: "MDTRHH_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        {
-          field: "MDTRHH_CY",
-          color: "#007ED6",
-          label: "Middle Income Tier Households",
-        },
-      ],
-    },
-    // Additional dot density configurations to add to initialLayerConfigurations
-  
-    // Additional Population Demographics
-    DPOPRES_CY: {
-      type: "dot-density",
-      field: "DPOPRES_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "DPOPRES_CY", color: "#36A2EB", label: "Daytime Residents" },
-      ],
-    },
-    MALES_CY: {
-      type: "dot-density",
-      field: "MALES_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "MALES_CY", color: "#4BC0C0", label: "Male Population" },
-      ],
-    },
-    FEMALES_CY: {
-      type: "dot-density",
-      field: "FEMALES_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "FEMALES_CY", color: "#FF6384", label: "Female Population" },
-      ],
-    },
-  
-    // Additional Education
-    HSGRAD_CY: {
-      type: "dot-density",
-      field: "HSGRAD_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "HSGRAD_CY", color: "#97BBCD", label: "High School Graduates" },
-      ],
-    },
-    GED_CY: {
-      type: "dot-density",
-      field: "GED_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "GED_CY",
-          color: "#B2D8B2",
-          label: "GED/Alternative Credential",
-        },
-      ],
-    },
-    SMCOLL_CY: {
-      type: "dot-density",
-      field: "SMCOLL_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "SMCOLL_CY", color: "#FFC3A0", label: "Some College" },
-      ],
-    },
-    ASSCDEG_CY: {
-      type: "dot-density",
-      field: "ASSCDEG_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "ASSCDEG_CY", color: "#A0CED9", label: "Associate's Degree" },
-      ],
-    },
-    BACHDEG_CY: {
-      type: "dot-density",
-      field: "BACHDEG_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "BACHDEG_CY", color: "#ADB9E3", label: "Bachelor's Degree" },
-      ],
-    },
-    GRADDEG_CY: {
-      type: "dot-density",
-      field: "GRADDEG_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "GRADDEG_CY",
-          color: "#B5A8E3",
-          label: "Graduate/Professional Degree",
-        },
-      ],
-    },
-  
-    // Additional Race/Ethnicity
-    NHSPPI_CY: {
-      type: "dot-density",
-      field: "NHSPPI_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPPI_CY",
-          color: "#FF9F40",
-          label: "Pacific Islander Non-Hispanic",
-        },
-      ],
-    },
-    NHSPOTH_CY: {
-      type: "dot-density",
-      field: "NHSPOTH_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPOTH_CY",
-          color: "#FFD700",
-          label: "Other Race Non-Hispanic",
-        },
-      ],
-    },
-    NHSPMLT_CY: {
-      type: "dot-density",
-      field: "NHSPMLT_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "NHSPMLT_CY",
-          color: "#C39BD3",
-          label: "Multiple Races Non-Hispanic",
-        },
-      ],
-    },
-  
-    // Additional Employment
-    EMPAICY: {
-      type: "dot-density",
-      field: "EMPAICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        {
-          field: "EMPAICY",
-          color: "#85C1E9",
-          label: "American Indian/Alaska Native Employed",
-        },
-      ],
-    },
-    EMPASNCY: {
-      type: "dot-density",
-      field: "EMPASNCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPASNCY", color: "#82E0AA", label: "Asian Employed" },
-      ],
-    },
-    EMPPICY: {
-      type: "dot-density",
-      field: "EMPPICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        {
-          field: "EMPPICY",
-          color: "#F8C471",
-          label: "Pacific Islander Employed",
-        },
-      ],
-    },
-    EMPOTHCY: {
-      type: "dot-density",
-      field: "EMPOTHCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPOTHCY", color: "#E59866", label: "Other Race Employed" },
-      ],
-    },
-    EMPMLTCY: {
-      type: "dot-density",
-      field: "EMPMLTCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPMLTCY", color: "#BB8FCE", label: "Multiple Races Employed" },
-      ],
-    },
-  
-    // Additional Housing
-    TOTHU_CY: {
-      type: "dot-density",
-      field: "TOTHU_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        { field: "TOTHU_CY", color: "#F7DC6F", label: "Total Housing Units" },
-      ],
-    },
-    VACANT_CY: {
-      type: "dot-density",
-      field: "VACANT_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "units" },
-      attributes: [
-        { field: "VACANT_CY", color: "#EC7063", label: "Vacant Housing Units" },
-      ],
-    },
-  
-    // Upper Income Tier (missing from original)
-    UPTRHH_CY: {
-      type: "dot-density",
-      field: "UPTRHH_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        {
-          field: "UPTRHH_CY",
-          color: "#5D4037",
-          label: "Upper Income Tier Households",
-        },
-      ],
-    },
-  
-    // Additional Age-specific populations (20-85+)
-    POP20_CY: {
-      type: "dot-density",
-      field: "POP20_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP20_CY", color: "#FF5E3A", label: "Population Age 20-24" },
-      ],
-    },
-    // Additional missing configurations to add
-  
-    // Remaining Age Groups
-    POP25_CY: {
-      type: "dot-density",
-      field: "POP25_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP25_CY", color: "#FF4E50", label: "Population Age 25-29" },
-      ],
-    },
-    POP30_CY: {
-      type: "dot-density",
-      field: "POP30_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP30_CY", color: "#FC913A", label: "Population Age 30-34" },
-      ],
-    },
-    // Continue through age groups...
-    POP85_CY: {
-      type: "dot-density",
-      field: "POP85_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "POP85_CY", color: "#99B898", label: "Population Age 85+" },
-      ],
-    },
-  
-    // Additional Generations
-    BABYBOOMCY: {
-      type: "dot-density",
-      field: "BABYBOOMCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "BABYBOOMCY",
-          color: "#E84A5F",
-          label: "Baby Boomer Population",
-        },
-      ],
-    },
-    OLDRGENSCY: {
-      type: "dot-density",
-      field: "OLDRGENSCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "OLDRGENSCY",
-          color: "#355C7D",
-          label: "Silent & Greatest Generations",
-        },
-      ],
-    },
-  
-    // Additional Labor Force by Age
-    EMPAGE16CY: {
-      type: "dot-density",
-      field: "EMPAGE16CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPAGE16CY", color: "#A8E6CF", label: "Employed Age 16-24" },
-      ],
-    },
-    EMPAGE25CY: {
-      type: "dot-density",
-      field: "EMPAGE25CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPAGE25CY", color: "#FFD3B6", label: "Employed Age 25-54" },
-      ],
-    },
-    EMPAGE55CY: {
-      type: "dot-density",
-      field: "EMPAGE55CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPAGE55CY", color: "#FFAAA5", label: "Employed Age 55-64" },
-      ],
-    },
-    EMPAGE65CY: {
-      type: "dot-density",
-      field: "EMPAGE65CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "workers" },
-      attributes: [
-        { field: "EMPAGE65CY", color: "#98DDCA", label: "Employed Age 65+" },
-      ],
-    },
-  
-    // Disposable Income Brackets
-    DI0_CY: {
-      type: "dot-density",
-      field: "DI0_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        {
-          field: "DI0_CY",
-          color: "#FF9A8B",
-          label: "Disposable Income < $15,000",
-        },
-      ],
-    },
-    DI15_CY: {
-      type: "dot-density",
-      field: "DI15_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "households" },
-      attributes: [
-        {
-          field: "DI15_CY",
-          color: "#FFB8B1",
-          label: "Disposable Income $15,000-$24,999",
-        },
-      ],
-    },
-    // Additional Unemployed by Race
-    UNAICY: {
-      type: "dot-density",
-      field: "UNAICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "UNAICY",
-          color: "#FFB7B2",
-          label: "American Indian/Alaska Native Unemployed",
-        },
-      ],
-    },
-    UNASNCY: {
-      type: "dot-density",
-      field: "UNASNCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "UNASNCY", color: "#FFDAC1", label: "Asian Unemployed" },
-      ],
-    },
-    UNPICY: {
-      type: "dot-density",
-      field: "UNPICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "UNPICY",
-          color: "#E2F0CB",
-          label: "Pacific Islander Unemployed",
-        },
-      ],
-    },
-    UNOTHCY: {
-      type: "dot-density",
-      field: "UNOTHCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "UNOTHCY", color: "#B5EAD7", label: "Other Race Unemployed" },
-      ],
-    },
-    UNMLTCY: {
-      type: "dot-density",
-      field: "UNMLTCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "UNMLTCY",
-          color: "#C7CEEA",
-          label: "Multiple Races Unemployed",
-        },
-      ],
-    },
-  
-    // Additional Labor Force by Race
-    CIVLFAICY: {
-      type: "dot-density",
-      field: "CIVLFAICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "CIVLFAICY",
-          color: "#E5989B",
-          label: "American Indian/Alaska Native Labor Force",
-        },
-      ],
-    },
-    CIVLFASNCY: {
-      type: "dot-density",
-      field: "CIVLFASNCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        { field: "CIVLFASNCY", color: "#B5838D", label: "Asian Labor Force" },
-      ],
-    },
-    CIVLFPICY: {
-      type: "dot-density",
-      field: "CIVLFPICY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "CIVLFPICY",
-          color: "#6D6875",
-          label: "Pacific Islander Labor Force",
-        },
-      ],
-    },
-    CIVLFOTHCY: {
-      type: "dot-density",
-      field: "CIVLFOTHCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "CIVLFOTHCY",
-          color: "#A4C3B2",
-          label: "Other Race Labor Force",
-        },
-      ],
-    },
-    CIVLFMLTCY: {
-      type: "dot-density",
-      field: "CIVLFMLTCY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: { width: 0.5, color: [50, 50, 50, 0.2] },
-      legendOptions: { unit: "people" },
-      attributes: [
-        {
-          field: "CIVLFMLTCY",
-          color: "#EAF4D3",
-          label: "Multiple Races Labor Force",
-        },
-      ],
-    },
-  };
+  // Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
+  TOTPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "TOTPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000", 
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  TOTHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "TOTHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 2000 },
+        { min: 2000, max: 4000 },
+        { min: 4000, max: 20000 }
+      ],
+      [
+        "Less than 200",
+        "200 - 400",
+        "400 - 800", 
+        "800 - 2,000",
+        "2,000 - 4,000",
+        "4,000 - 20,000"
+      ]
+    ),
+  },
+
+  AVGHHSZ_CY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHHSZ_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2.0 },
+        { min: 2.0, max: 2.5 },
+        { min: 2.5, max: 3.0 },
+        { min: 3.0, max: 3.5 },
+        { min: 3.5, max: 4.0 }
+      ],
+      [
+        "Less than 2.0",
+        "2.0 - 2.5",
+        "2.5 - 3.0",
+        "3.0 - 3.5", 
+        "3.5 - 4.0"
+      ]
+    ),
+  },
+
+  // Daytime Population - Heat Maps (SIGNIFICANTLY LOWERED)
+  DPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "DPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  DPOPWRK_CY_HEAT: {
+    type: "class-breaks",
+    field: "DPOPWRK_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  DPOPRES_CY_HEAT: {
+    type: "class-breaks", 
+    field: "DPOPRES_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  // Age - Heat Maps (SIGNIFICANTLY LOWERED)
+  MEDAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years"
+      ]
+    ),
+  },
+
+  WORKAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "WORKAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 300 },
+        { min: 300, max: 750 },
+        { min: 750, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 6000 },
+        { min: 6000, max: 30000 }
+      ],
+      [
+        "Less than 300",
+        "300 - 750",
+        "750 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 6,000",
+        "6,000 - 30,000"
+      ]
+    ),
+  },
+
+  SENIOR_CY_HEAT: {
+    type: "class-breaks",
+    field: "SENIOR_CY", 
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 75 },
+        { min: 75, max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 1500 },
+        { min: 1500, max: 7500 }
+      ],
+      [
+        "Less than 75",
+        "75 - 200",
+        "200 - 400",
+        "400 - 800",
+        "800 - 1,500",
+        "1,500 - 7,500"
+      ]
+    ),
+  },
+
+  CHILD_CY_HEAT: {
+    type: "class-breaks",
+    field: "CHILD_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1200 },
+        { min: 1200, max: 2500 },
+        { min: 2500, max: 12500 }
+      ],
+      [
+        "Less than 100",
+        "100 - 300",
+        "300 - 600",
+        "600 - 1,200",
+        "1,200 - 2,500",
+        "2,500 - 12,500"
+      ]
+    ),
+  },
+
+  // Income - Heat Maps (keeping same since these are dollar amounts, not population counts)
+  MEDHINC_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDHINC_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 },
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000",
+      ]
+    ),
+  },
+
+  AVGHINC_CY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHINC_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 },
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000",
+      ]
+    ),
+  },
+
+  // Income Brackets - Heat Maps (SIGNIFICANTLY LOWERED household counts)
+  HINC0_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC0_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households",
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households"
+      ]
+    ),
+  },
+
+  HINC15_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC15_CY", 
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households", 
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households"
+      ]
+    ),
+  },
+
+  HINC25_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households"
+      ]
+    ),
+  },
+
+  HINC35_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC35_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households"
+      ]
+    ),
+  },
+
+  HINC50_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC50_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households"
+      ]
+    ),
+  },
+
+  HINC75_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC75_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households"
+      ]
+    ),
+  },
+
+  HINC100_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC100_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 18 },
+        { min: 18, max: 42 },
+        { min: 42, max: 85 },
+        { min: 85, max: 175 },
+        { min: 175, max: 350 },
+        { min: 350, max: 1750 }
+      ],
+      [
+        "Less than 18 households",
+        "18 - 42 households",
+        "42 - 85 households",
+        "85 - 175 households",
+        "175 - 350 households",
+        "350 - 1,750 households"
+      ]
+    ),
+  },
+
+  HINC150_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC150_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10 households",
+        "10 - 25 households",
+        "25 - 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 1,000 households"
+      ]
+    ),
+  },
+
+  HINC200_CY_HEAT: {
+    type: "class-breaks",
+    field: "HINC200_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 7 },
+        { min: 7, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 }
+      ],
+      [
+        "Less than 7 households",
+        "7 - 18 households",
+        "18 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 750 households"
+      ]
+    ),
+  },
+
+  UNEMPRT_CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMPRT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 9 },
+        { min: 9, max: 12 },
+        { min: 12, max: 25 },
+
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 9%",
+        "9% - 12%",
+        "12% - 25%",
+
+      ]
+    ),
+  },
+
+  // Growth Rates - Heat Maps (keeping same since these are percentages)
+  POPGRWCYFY_HEAT: {
+    type: "class-breaks",
+    field: "POPGRWCYFY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0 },
+        { min: 0, max: 0.5 },
+        { min: 0.5, max: 1.0 },
+        { min: 1.0, max: 1.5 },
+        { min: 1.5, max: 2.0 }
+      ],
+      [
+        "Less than 0%",
+        "0% - 0.5%",
+        "0.5% - 1.0%",
+        "1.0% - 1.5%",
+        "1.5% - 2.0%"
+      ]
+    ),
+  },
+
+  HHGRWCYFY_HEAT: {
+    type: "class-breaks",
+    field: "HHGRWCYFY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0 },
+        { min: 0, max: 0.5 },
+        { min: 0.5, max: 1.0 },
+        { min: 1.0, max: 1.5 },
+        { min: 1.5, max: 2.0 }
+      ],
+      [
+        "Less than 0%",
+        "0% - 0.5%",
+        "0.5% - 1.0%",
+        "1.0% - 1.5%",
+        "1.5% - 2.0%"
+      ]
+    ),
+  },
+
+  MHIGRWCYFY_HEAT: {
+    type: "class-breaks",
+    field: "MHIGRWCYFY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 3%",
+        "3% - 4%",
+        "4% - 5%"
+      ]
+    ),
+  },
+
+  POPGRW20CY_HEAT: {
+    type: "class-breaks",
+    field: "POPGRW20CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: -1 },
+        { min: -1, max: 0 },
+        { min: 0, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 }
+      ],
+      [
+        "Less than -1%",
+        "-1% to 0%",
+        "0% to 1%",
+        "1% to 2%",
+        "2% to 3%"
+      ]
+    ),
+  },
+
+  HHGRW20CY_HEAT: {
+    type: "class-breaks",
+    field: "HHGRW20CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: -1 },
+        { min: -1, max: 0 },
+        { min: 0, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 }
+      ],
+      [
+        "Less than -1%",
+        "-1% to 0%",
+        "0% to 1%",
+        "1% to 2%",
+        "2% to 3%"
+      ]
+    ),
+  },
+
+  // Housing - Heat Maps (SIGNIFICANTLY LOWERED)
+  TOTHU_CY_HEAT: {
+    type: "class-breaks",
+    field: "TOTHU_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  OWNER_CY_HEAT: {
+    type: "class-breaks",
+    field: "OWNER_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000"
+      ]
+    ),
+  },
+
+  RENTER_CY_HEAT: {
+    type: "class-breaks",
+    field: "RENTER_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1250 },
+        { min: 1250, max: 2500 },
+        { min: 2500, max: 12500 }
+      ],
+      [
+        "Less than 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 1,250",
+        "1,250 - 2,500",
+        "2,500 - 12,500"
+      ]
+    ),
+  },
+
+  PCTHOMEOWNER_HEAT: {
+    type: "class-breaks",
+    field: "PCTHOMEOWNER",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 45 },
+        { min: 45, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 90 },
+        { min: 90, max: 100 },
+      ],
+      [
+        "Less than 30%",
+        "30% - 45%",
+        "45% - 60%",
+        "60% - 75%",
+        "75% - 85%",
+        "85% - 100%",        
+      ]
+    ),
+  },
+
+  VACANT_CY_HEAT: {
+    type: "class-breaks", 
+    field: "VACANT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 2000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 1,500"
+      ]
+    ),
+  },
+
+  VACANT_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "VACANT_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 20 },
+        { min: 20, max: 25 },
+        { min: 25, max: 50 },        
+      ],
+      [
+        "Less than 5%",
+        "5% - 10%",
+        "10% - 15%",
+        "15% - 20%",
+        "20% - 25%",
+        "25% - 50%",        
+      ]
+    ),
+  },
+
+  MEDVAL_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDVAL_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200000 },
+        { min: 200000, max: 350000 },
+        { min: 350000, max: 500000 },
+        { min: 500000, max: 750000 },
+        { min: 750000, max: 1000000 }
+      ],
+      [
+        "Less than $200,000",
+        "$200,000 - $350,000",
+        "$350,000 - $500,000",
+        "$500,000 - $750,000",
+        "$750,000 - $1,000,000"
+      ]
+    ),
+  },
+
+  AVGVAL_CY_HEAT: {
+    type: "class-breaks",
+    field: "AVGVAL_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250000 },
+        { min: 250000, max: 400000 },
+        { min: 400000, max: 600000 },
+        { min: 600000, max: 900000 },
+        { min: 900000, max: 1200000 }
+      ],
+      [
+        "Less than $250,000",
+        "$250,000 - $400,000",
+        "$400,000 - $600,000",
+        "$600,000 - $900,000",
+        "$900,000 - $1,200,000"
+      ]
+    ),
+  },
+
+  // Home Value Ranges - Heat Maps (SIGNIFICANTLY LOWERED home counts)
+  VAL0_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL0_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 25 homes",
+        "25 - 50 homes",
+        "50 - 100 homes",
+        "100 - 200 homes",
+        "200 - 1,000 homes"
+      ]
+    ),
+  },
+
+  VAL50K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL50K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 7 },
+        { min: 7, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 }
+      ],
+      [
+        "Less than 7 homes",
+        "7 - 18 homes",
+        "18 - 35 homes",
+        "35 - 75 homes",
+        "75 - 150 homes",
+        "150 - 750 homes"
+      ]
+    ),
+  },
+
+  VAL100K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL100K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 7 },
+        { min: 7, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 }
+      ],
+      [
+        "Less than 7 homes",
+        "7 - 18 homes",
+        "18 - 35 homes",
+        "35 - 75 homes",
+        "75 - 150 homes",
+        "150 - 750 homes"
+      ]
+    ),
+  },
+
+  VAL150K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL150K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL200K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL200K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL250K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL250K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL300K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL300K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL400K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL400K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL500K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL500K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 22 },
+        { min: 22, max: 45 },
+        { min: 45, max: 90 },
+        { min: 90, max: 180 },
+        { min: 180, max: 900 }
+      ],
+      [
+        "Less than 10 homes",
+        "10 - 22 homes",
+        "22 - 45 homes",
+        "45 - 90 homes",
+        "90 - 180 homes",
+        "180 - 900 homes"
+      ]
+    ),
+  },
+
+  VAL750K_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL750K_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 7 },
+        { min: 7, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 300 }
+      ],
+      [
+        "Less than 3 homes",
+        "3 - 7 homes",
+        "7 - 15 homes",
+        "15 - 30 homes",
+        "30 - 60 homes",
+        "60 - 300 homes"
+      ]
+    ),
+  },
+
+  VAL1M_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL1M_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 175 }
+      ],
+      [
+        "Less than 2 homes",
+        "2 - 4 homes",
+        "4 - 8 homes",
+        "8 - 18 homes",
+        "18 - 35 homes",
+        "35 - 175 homes"
+      ]
+    ),
+  },
+
+  VAL1PT5MCY_HEAT: {
+    type: "class-breaks",
+    field: "VAL1PT5MCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 12 },
+        { min: 12, max: 25 },
+        { min: 25, max: 125 }
+      ],
+      [
+        "Less than 1 home",
+        "1 - 2 homes",
+        "2 - 5 homes",
+        "5 - 12 homes",
+        "12 - 25 homes",
+        "25 - 125 homes"
+      ]
+    ),
+  },
+
+  VAL2M_CY_HEAT: {
+    type: "class-breaks",
+    field: "VAL2M_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 75 }
+      ],
+      [
+        "Less than 1 home",
+        "1 - 2 homes",
+        "2 - 4 homes",
+        "4 - 8 homes",
+        "8 - 15 homes",
+        "15 - 75 homes"
+      ]
+    ),
+  },
+
+  // Dot Density Configurations (UNCHANGED - these use different visualization method)
+  TOTPOP_CY: {
+    type: "dot-density",
+    field: "TOTPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "TOTPOP_CY", color: "#E60049", label: "Total Population" },
+    ],
+  },
+
+  TOTHH_CY: {
+    type: "dot-density",
+    field: "TOTHH_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "TOTHH_CY", color: "#0BB4FF", label: "Total Households" },
+    ],
+  },
+
+  DPOP_CY: {
+    type: "dot-density",
+    field: "DPOP_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "DPOP_CY", color: "#50E991", label: "Daytime Population" },
+    ],
+  },
+
+  DPOPWRK_CY: {
+    type: "dot-density",
+    field: "DPOPWRK_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "workers" },
+    attributes: [
+      { field: "DPOPWRK_CY", color: "#9B19F5", label: "Daytime Workers" },
+    ],
+  },
+
+  DPOPRES_CY: {
+    type: "dot-density",
+    field: "DPOPRES_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "DPOPRES_CY", color: "#36A2EB", label: "Daytime Residents" },
+    ],
+  },
+
+  MEDAGE_CY: {
+    type: "dot-density",
+    field: "MEDAGE_CY",
+    dotValue: 1,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "years" },
+    attributes: [
+      { field: "MEDAGE_CY", color: "#FFB400", label: "Median Age" },
+    ],
+  },
+
+  WORKAGE_CY: {
+    type: "dot-density",
+    field: "WORKAGE_CY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "WORKAGE_CY", color: "#FFB400", label: "Working Age Population" },
+    ],
+  },
+
+  SENIOR_CY: {
+    type: "dot-density",
+    field: "SENIOR_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "SENIOR_CY", color: "#007ED6", label: "Senior Population" },
+    ],
+  },
+
+  CHILD_CY: {
+    type: "dot-density",
+    field: "CHILD_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "children" },
+    attributes: [
+      { field: "CHILD_CY", color: "#FF6B6B", label: "Child Population" },
+    ],
+  },
+
+  // Income Brackets - Dot Density
+  HINC0_CY: {
+    type: "dot-density",
+    field: "HINC0_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC0_CY", color: "#E60049", label: "Income < $15,000" },
+    ],
+  },
+
+  HINC15_CY: {
+    type: "dot-density",
+    field: "HINC15_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC15_CY", color: "#0BB4FF", label: "Income $15,000-$24,999" },
+    ],
+  },
+
+  HINC25_CY: {
+    type: "dot-density",
+    field: "HINC25_CY",
+    dotValue: 20,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC25_CY", color: "#50E991", label: "Income $25,000-$34,999" },
+    ],
+  },
+
+  HINC35_CY: {
+    type: "dot-density",
+    field: "HINC35_CY",
+    dotValue: 20,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC35_CY", color: "#9B19F5", label: "Income $35,000-$49,999" },
+    ],
+  },
+
+  HINC50_CY: {
+    type: "dot-density",
+    field: "HINC50_CY",
+    dotValue: 20,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC50_CY", color: "#FFB400", label: "Income $50,000-$74,999" },
+    ],
+  },
+
+  HINC75_CY: {
+    type: "dot-density",
+    field: "HINC75_CY",
+    dotValue: 20,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC75_CY", color: "#007ED6", label: "Income $75,000-$99,999" },
+    ],
+  },
+
+  HINC100_CY: {
+    type: "dot-density",
+    field: "HINC100_CY",
+    dotValue: 20,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC100_CY", color: "#5954D6", label: "Income $100,000-$149,999" },
+    ],
+  },
+
+  HINC150_CY: {
+    type: "dot-density",
+    field: "HINC150_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC150_CY", color: "#FF6B6B", label: "Income $150,000-$199,999" },
+    ],
+  },
+
+  HINC200_CY: {
+    type: "dot-density",
+    field: "HINC200_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "HINC200_CY", color: "#4ECDC4", label: "Income $200,000+" },
+    ],
+  },
+
+  // Housing - Dot Density
+  TOTHU_CY: {
+    type: "dot-density",
+    field: "TOTHU_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "TOTHU_CY", color: "#F7DC6F", label: "Total Housing Units" },
+    ],
+  },
+
+  OWNER_CY: {
+    type: "dot-density",
+    field: "OWNER_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "OWNER_CY", color: "#0BB4FF", label: "Owner Occupied Housing" },
+    ],
+  },
+
+  RENTER_CY: {
+    type: "dot-density",
+    field: "RENTER_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "RENTER_CY", color: "#FFB400", label: "Renter Occupied Housing" },
+    ],
+  },
+
+  VACANT_CY: {
+    type: "dot-density",
+    field: "VACANT_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VACANT_CY", color: "#EC7063", label: "Vacant Housing Units" },
+    ],
+  },
+
+  // Home Values - Dot Density
+  VAL0_CY: {
+    type: "dot-density",
+    field: "VAL0_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL0_CY", color: "#50E991", label: "Home Value < $50,000" },
+    ],
+  },
+
+  VAL50K_CY: {
+    type: "dot-density",
+    field: "VAL50K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL50K_CY", color: "#9B19F5", label: "Home Value $50,000-$99,999" },
+    ],
+  },
+
+  VAL100K_CY: {
+    type: "dot-density",
+    field: "VAL100K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL100K_CY", color: "#FFB400", label: "Home Value $100,000-$149,999" },
+    ],
+  },
+
+  VAL150K_CY: {
+    type: "dot-density",
+    field: "VAL150K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL150K_CY", color: "#007ED6", label: "Home Value $150,000-$199,999" },
+    ],
+  },
+
+  VAL200K_CY: {
+    type: "dot-density",
+    field: "VAL200K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL200K_CY", color: "#5954D6", label: "Home Value $200,000-$249,999" },
+    ],
+  },
+
+  VAL250K_CY: {
+    type: "dot-density",
+    field: "VAL250K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL250K_CY", color: "#FF6B6B", label: "Home Value $250,000-$299,999" },
+    ],
+  },
+
+  VAL300K_CY: {
+    type: "dot-density",
+    field: "VAL300K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL300K_CY", color: "#4ECDC4", label: "Home Value $300,000-$399,999" },
+    ],
+  },
+
+  VAL400K_CY: {
+    type: "dot-density",
+    field: "VAL400K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL400K_CY", color: "#97BBCD", label: "Home Value $400,000-$499,999" },
+    ],
+  },
+
+  VAL500K_CY: {
+    type: "dot-density",
+    field: "VAL500K_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL500K_CY", color: "#B2D8B2", label: "Home Value $500,000-$749,999" },
+    ],
+  },
+
+  VAL750K_CY: {
+    type: "dot-density",
+    field: "VAL750K_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL750K_CY", color: "#FFC3A0", label: "Home Value $750,000-$999,999" },
+    ],
+  },
+
+  VAL1M_CY: {
+    type: "dot-density",
+    field: "VAL1M_CY",
+    dotValue: 10,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL1M_CY", color: "#A0CED9", label: "Home Value $1,000,000-$1,499,999" },
+    ],
+  },
+
+  VAL1PT5MCY: {
+    type: "dot-density",
+    field: "VAL1PT5MCY",
+    dotValue: 5,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL1PT5MCY", color: "#ADB9E3", label: "Home Value $1,500,000-$1,999,999" },
+    ],
+  },
+
+  VAL2M_CY: {
+    type: "dot-density",
+    field: "VAL2M_CY",
+    dotValue: 5,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "units" },
+    attributes: [
+      { field: "VAL2M_CY", color: "#B5A8E3", label: "Home Value $2,000,000+" },
+    ],
+  },
+
+  // Age Detail - Dot Density
+  POP0_CY: {
+    type: "dot-density",
+    field: "POP0_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP0_CY", color: "#FF9E8F", label: "Population Age 0-4" },
+    ],
+  },
+
+  POP5_CY: {
+    type: "dot-density",
+    field: "POP5_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP5_CY", color: "#FF8E72", label: "Population Age 5-9" },
+    ],
+  },
+
+  POP10_CY: {
+    type: "dot-density",
+    field: "POP10_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP10_CY", color: "#FF7E55", label: "Population Age 10-14" },
+    ],
+  },
+
+  POP15_CY: {
+    type: "dot-density",
+    field: "POP15_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP15_CY", color: "#FF6E38", label: "Population Age 15-19" },
+    ],
+  },
+
+  POP20_CY: {
+    type: "dot-density",
+    field: "POP20_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP20_CY", color: "#FF5E3A", label: "Population Age 20-24" },
+    ],
+  },
+
+  POP25_CY: {
+    type: "dot-density",
+    field: "POP25_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP25_CY", color: "#FF4E50", label: "Population Age 25-29" },
+    ],
+  },
+
+  POP30_CY: {
+    type: "dot-density",
+    field: "POP30_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP30_CY", color: "#FC913A", label: "Population Age 30-34" },
+    ],
+  },
+
+  POP35_CY: {
+    type: "dot-density",
+    field: "POP35_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP35_CY", color: "#FFF4B3", label: "Population Age 35-39" },
+    ],
+  },
+
+  POP40_CY: {
+    type: "dot-density",
+    field: "POP40_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP40_CY", color: "#B3FFB3", label: "Population Age 40-44" },
+    ],
+  },
+
+  POP45_CY: {
+    type: "dot-density",
+    field: "POP45_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP45_CY", color: "#B3D1FF", label: "Population Age 45-49" },
+    ],
+  },
+
+  POP50_CY: {
+    type: "dot-density",
+    field: "POP50_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP50_CY", color: "#FFB3E6", label: "Population Age 50-54" },
+    ],
+  },
+
+  POP55_CY: {
+    type: "dot-density",
+    field: "POP55_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP55_CY", color: "#FFE6B3", label: "Population Age 55-59" },
+    ],
+  },
+
+  POP60_CY: {
+    type: "dot-density",
+    field: "POP60_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP60_CY", color: "#E6FFB3", label: "Population Age 60-64" },
+    ],
+  },
+
+  POP65_CY: {
+    type: "dot-density",
+    field: "POP65_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP65_CY", color: "#B3FFE6", label: "Population Age 65-69" },
+    ],
+  },
+
+  POP70_CY: {
+    type: "dot-density",
+    field: "POP70_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP70_CY", color: "#B3FFFF", label: "Population Age 70-74" },
+    ],
+  },
+
+  POP75_CY: {
+    type: "dot-density",
+    field: "POP75_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP75_CY", color: "#B3B3FF", label: "Population Age 75-79" },
+    ],
+  },
+
+  POP80_CY: {
+    type: "dot-density",
+    field: "POP80_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP80_CY", color: "#E6B3FF", label: "Population Age 80-84" },
+    ],
+  },
+
+  POP85_CY: {
+    type: "dot-density",
+    field: "POP85_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "POP85_CY", color: "#99B898", label: "Population Age 85+" },
+    ],
+  },
+
+  // Generations - Dot Density
+  GENALPHACY: {
+    type: "dot-density",
+    field: "GENALPHACY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "GENALPHACY", color: "#FFB400", label: "Generation Alpha" },
+    ],
+  },
+
+  GENZ_CY: {
+    type: "dot-density",
+    field: "GENZ_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "GENZ_CY", color: "#FF6B6B", label: "Generation Z" },
+    ],
+  },
+
+  MILLENN_CY: {
+    type: "dot-density",
+    field: "MILLENN_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "MILLENN_CY", color: "#4ECDC4", label: "Millennials" },
+    ],
+  },
+
+  GENX_CY: {
+    type: "dot-density",
+    field: "GENX_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "GENX_CY", color: "#5954D6", label: "Generation X" },
+    ],
+  },
+
+  BABYBOOMCY: {
+    type: "dot-density",
+    field: "BABYBOOMCY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "BABYBOOMCY", color: "#E84A5F", label: "Baby Boomers" },
+    ],
+  },
+
+  OLDRGENSCY: {
+    type: "dot-density",
+    field: "OLDRGENSCY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "OLDRGENSCY", color: "#355C7D", label: "Silent & Greatest Generations" },
+    ],
+  },
+// Affluence & Affordability - Heat Maps
+  HAI_CY_HEAT: {
+    type: "class-breaks",
+    field: "HAI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 150 },
+        { min: 150, max: 200 }
+      ],
+      [
+        "Less than 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 150",
+        "150 - 200"
+      ]
+    ),
+  },
+
+  INCMORT_CY_HEAT: {
+    type: "class-breaks",
+    field: "INCMORT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 20 },
+        { min: 20, max: 25 },
+        { min: 25, max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 50 }
+      ],
+      [
+        "Less than 15%",
+        "15% - 20%",
+        "20% - 25%",
+        "25% - 30%",
+        "30% - 35%",
+        "35% - 50%"
+      ]
+    ),
+  },
+
+  WLTHINDXCY_HEAT: {
+    type: "class-breaks",
+    field: "WLTHINDXCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 200 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 200"
+      ]
+    ),
+  },
+
+  SEI_CY_HEAT: {
+    type: "class-breaks",
+    field: "SEI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 75 },
+        { min: 75, max: 100 },
+        { min: 100, max: 125 },
+        { min: 125, max: 200 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 75",
+        "75 - 100",
+        "100 - 125",
+        "125 - 200"
+      ]
+    ),
+  },
+
+  PCI_CY_HEAT: {
+    type: "class-breaks",
+    field: "PCI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25000 },
+        { min: 25000, max: 35000 },
+        { min: 35000, max: 45000 },
+        { min: 45000, max: 60000 },
+        { min: 60000, max: 80000 },
+        { min: 80000, max: 150000 }
+      ],
+      [
+        "Less than $25,000",
+        "$25,000 - $35,000",
+        "$35,000 - $45,000",
+        "$45,000 - $60,000",
+        "$60,000 - $80,000",
+        "$80,000 - $150,000"
+      ]
+    ),
+  },
+
+  // Race & Ethnicity Percentages - Heat Maps
+  HISPPOP_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "HISPPOP_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 50 },
+        { min: 50, max: 70 },
+        { min: 70, max: 95 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 15%",
+        "15% - 30%",
+        "30% - 50%",
+        "50% - 70%",
+        "70% - 95%"
+      ]
+    ),
+  },
+
+  NHSPWHT_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPWHT_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 }
+      ],
+      [
+        "Less than 20%",
+        "20% - 40%",
+        "40% - 60%",
+        "60% - 75%",
+        "75% - 85%",
+        "85% - 95%"
+      ]
+    ),
+  },
+
+  NHSPBLK_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPBLK_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 50 },
+        { min: 50, max: 80 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 5%",
+        "5% - 15%",
+        "15% - 30%",
+        "30% - 50%",
+        "50% - 80%"
+      ]
+    ),
+  },
+
+  NHSPAI_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPAI_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.5 },
+        { min: 0.5, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 },
+        { min: 15, max: 50 }
+      ],
+      [
+        "Less than 0.5%",
+        "0.5% - 1%",
+        "1% - 2%",
+        "2% - 5%",
+        "5% - 15%",
+        "15% - 50%"
+      ]
+    ),
+  },
+
+  NHSPASN_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPASN_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 35 },
+        { min: 35, max: 60 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 5%",
+        "5% - 10%",
+        "10% - 20%",
+        "20% - 35%",
+        "35% - 60%"
+      ]
+    ),
+  },
+
+  NHSPPI_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPPI_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.2 },
+        { min: 0.2, max: 0.5 },
+        { min: 0.5, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 15 }
+      ],
+      [
+        "Less than 0.2%",
+        "0.2% - 0.5%",
+        "0.5% - 1%",
+        "1% - 2%",
+        "2% - 5%",
+        "5% - 15%"
+      ]
+    ),
+  },
+
+  NHSPOTH_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPOTH_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 4%",
+        "4% - 8%",
+        "8% - 15%",
+        "15% - 30%"
+      ]
+    ),
+  },
+
+  NHSPMLT_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "NHSPMLT_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 7 },
+        { min: 7, max: 12 },
+        { min: 12, max: 25 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 4%",
+        "4% - 7%",
+        "7% - 12%",
+        "12% - 25%"
+      ]
+    ),
+  },
+
+  // Education Percentages - Heat Maps
+  HSGRAD_LESS_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "HSGRAD_LESS_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 50 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 10%",
+        "10% - 15%",
+        "15% - 25%",
+        "25% - 35%",
+        "35% - 50%"
+      ]
+    ),
+  },
+
+  BACHDEG_PLUS_CY_PCT_HEAT: {
+    type: "class-breaks",
+    field: "BACHDEG_PLUS_CY_PCT",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 60 },
+        { min: 60, max: 80 }
+      ],
+      [
+        "Less than 15%",
+        "15% - 25%",
+        "25% - 35%",
+        "35% - 45%",
+        "45% - 60%",
+        "60% - 80%"
+      ]
+    ),
+  },
+
+  // 2029 Future Projections - Heat Maps
+  TOTPOP_FY_HEAT: {
+    type: "class-breaks",
+    field: "TOTPOP_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  TOTHH_FY_HEAT: {
+    type: "class-breaks",
+    field: "TOTHH_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 2000 },
+        { min: 2000, max: 4000 },
+        { min: 4000, max: 20000 }
+      ],
+      [
+        "Less than 200",
+        "200 - 400",
+        "400 - 800",
+        "800 - 2,000",
+        "2,000 - 4,000",
+        "4,000 - 20,000"
+      ]
+    ),
+  },
+
+  AVGHHSZ_FY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHHSZ_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2.0 },
+        { min: 2.0, max: 2.5 },
+        { min: 2.5, max: 3.0 },
+        { min: 3.0, max: 3.5 },
+        { min: 3.5, max: 4.0 }
+      ],
+      [
+        "Less than 2.0",
+        "2.0 - 2.5",
+        "2.5 - 3.0",
+        "3.0 - 3.5",
+        "3.5 - 4.0"
+      ]
+    ),
+  },
+
+  MEDHINC_FY_HEAT: {
+    type: "class-breaks",
+    field: "MEDHINC_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000"
+      ]
+    ),
+  },
+
+  AVGHINC_FY_HEAT: {
+    type: "class-breaks",
+    field: "AVGHINC_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50000 },
+        { min: 50000, max: 75000 },
+        { min: 75000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 300000 },
+        { min: 300000, max: 500000 }
+      ],
+      [
+        "Less than $50,000",
+        "$50,000 - $75,000",
+        "$75,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $300,000",
+        "$300,000 - $500,000"
+      ]
+    ),
+  },
+
+  POPDENS_FY_HEAT: {
+    type: "class-breaks",
+    field: "POPDENS_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile"
+      ]
+    ),
+  },
+
+  // Population Density - Heat Maps
+  POPDENS_CY_HEAT: {
+    type: "class-breaks",
+    field: "POPDENS_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile"
+      ]
+    ),
+  },
+
+  DPOPDENSCY_HEAT: {
+    type: "class-breaks",
+    field: "DPOPDENSCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 100 },
+        { min: 100, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 15000 }
+      ],
+      [
+        "Less than 100 per sq. mile",
+        "100 - 500 per sq. mile",
+        "500 - 1,000 per sq. mile",
+        "1,000 - 2,500 per sq. mile",
+        "2,500 - 5,000 per sq. mile",
+        "5,000 - 15,000 per sq. mile"
+      ]
+    ),
+  },
+
+  // Dependency Ratios - Heat Maps
+  CHLDDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "CHLDDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 80 }
+      ],
+      [
+        "Less than 20",
+        "20 - 30",
+        "30 - 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 80"
+      ]
+    ),
+  },
+
+  AGEDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "AGEDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100"
+      ]
+    ),
+  },
+
+  SENRDEP_CY_HEAT: {
+    type: "class-breaks",
+    field: "SENRDEP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 55 },
+        { min: 55, max: 75 }
+      ],
+      [
+        "Less than 15",
+        "15 - 25",
+        "25 - 35",
+        "35 - 45",
+        "45 - 55",
+        "55 - 75"
+      ]
+    ),
+  },
+
+  // Additional Population - Heat Maps (SIGNIFICANTLY LOWERED)
+  HHPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "HHPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  GQPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "GQPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 1,000"
+      ]
+    ),
+  },
+
+  MALES_CY_HEAT: {
+    type: "class-breaks",
+    field: "MALES_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  MEDMAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDMAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years"
+      ]
+    ),
+  },
+
+  FEMALES_CY_HEAT: {
+    type: "class-breaks",
+    field: "FEMALES_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  MEDFAGE_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDFAGE_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 30 },
+        { min: 30, max: 35 },
+        { min: 35, max: 40 },
+        { min: 40, max: 45 },
+        { min: 45, max: 50 },
+        { min: 50, max: 55 }
+      ],
+      [
+        "Less than 30 years",
+        "30 - 35 years",
+        "35 - 40 years",
+        "40 - 45 years",
+        "45 - 50 years",
+        "50 - 55 years"
+      ]
+    ),
+  },
+
+  // Income Inequality - Heat Maps
+  GINI_CY_HEAT: {
+    type: "class-breaks",
+    field: "GINI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 0.35 },
+        { min: 0.35, max: 0.40 },
+        { min: 0.40, max: 0.45 },
+        { min: 0.45, max: 0.50 },
+        { min: 0.50, max: 0.55 },
+        { min: 0.55, max: 0.70 }
+      ],
+      [
+        "Less than 0.35",
+        "0.35 - 0.40",
+        "0.40 - 0.45",
+        "0.45 - 0.50",
+        "0.50 - 0.55",
+        "0.55 - 0.70"
+      ]
+    ),
+  },
+
+  RAT9010_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT9010_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 }
+      ],
+      [
+        "Less than 3",
+        "3 - 4",
+        "4 - 5",
+        "5 - 6",
+        "6 - 8",
+        "8 - 12"
+      ]
+    ),
+  },
+
+  RAT9050_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT9050_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.5 },
+        { min: 1.5, max: 1.8 },
+        { min: 1.8, max: 2.0 },
+        { min: 2.0, max: 2.3 },
+        { min: 2.3, max: 2.8 },
+        { min: 2.8, max: 4.0 }
+      ],
+      [
+        "Less than 1.5",
+        "1.5 - 1.8",
+        "1.8 - 2.0",
+        "2.0 - 2.3",
+        "2.3 - 2.8",
+        "2.8 - 4.0"
+      ]
+    ),
+  },
+
+  RAT5010_CY_HEAT: {
+    type: "class-breaks",
+    field: "RAT5010_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.8 },
+        { min: 1.8, max: 2.0 },
+        { min: 2.0, max: 2.2 },
+        { min: 2.2, max: 2.5 },
+        { min: 2.5, max: 3.0 },
+        { min: 3.0, max: 4.0 }
+      ],
+      [
+        "Less than 1.8",
+        "1.8 - 2.0",
+        "2.0 - 2.2",
+        "2.2 - 2.5",
+        "2.5 - 3.0",
+        "3.0 - 4.0"
+      ]
+    ),
+  },
+
+  SHR8020_CY_HEAT: {
+    type: "class-breaks",
+    field: "SHR8020_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 }
+      ],
+      [
+        "Less than 3",
+        "3 - 4",
+        "4 - 5",
+        "5 - 6",
+        "6 - 8",
+        "8 - 12"
+      ]
+    ),
+  },
+
+  SHR9040_CY_HEAT: {
+    type: "class-breaks",
+    field: "SHR9040_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1.5 },
+        { min: 1.5, max: 1.7 },
+        { min: 1.7, max: 1.9 },
+        { min: 1.9, max: 2.2 },
+        { min: 2.2, max: 2.6 },
+        { min: 2.6, max: 3.5 }
+      ],
+      [
+        "Less than 1.5",
+        "1.5 - 1.7",
+        "1.7 - 1.9",
+        "1.9 - 2.2",
+        "2.2 - 2.6",
+        "2.6 - 3.5"
+      ]
+    ),
+  },
+
+  // Income Tiers - Heat Maps (SIGNIFICANTLY LOWERED household counts)
+  LOTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "LOTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 }
+      ],
+      [
+        "Less than 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 500 households",
+        "500 - 1,000 households",
+        "1,000 - 5,000 households"
+      ]
+    ),
+  },
+
+  MDTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "MDTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 }
+      ],
+      [
+        "Less than 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 500 households",
+        "500 - 1,000 households",
+        "1,000 - 5,000 households"
+      ]
+    ),
+  },
+
+  UPTRHH_CY_HEAT: {
+    type: "class-breaks",
+    field: "UPTRHH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25 households",
+        "25 - 50 households",
+        "50 - 100 households",
+        "100 - 250 households",
+        "250 - 500 households",
+        "500 - 2,500 households"
+      ]
+    ),
+  },
+
+  // Disposable Income - Heat Maps (SIGNIFICANTLY LOWERED household counts)
+  DI0_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI0_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households",
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households"
+      ]
+    ),
+  },
+
+  DI15_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI15_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 175 },
+        { min: 175, max: 875 }
+      ],
+      [
+        "Less than 8 households",
+        "8 - 20 households",
+        "20 - 40 households",
+        "40 - 80 households",
+        "80 - 175 households",
+        "175 - 875 households"
+      ]
+    ),
+  },
+
+  DI25_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households"
+      ]
+    ),
+  },
+
+  DI35_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI35_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 125 },
+        { min: 125, max: 250 },
+        { min: 250, max: 1250 }
+      ],
+      [
+        "Less than 12 households",
+        "12 - 30 households",
+        "30 - 60 households",
+        "60 - 125 households",
+        "125 - 250 households",
+        "250 - 1,250 households"
+      ]
+    ),
+  },
+
+  DI50_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI50_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households"
+      ]
+    ),
+  },
+
+  DI75_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI75_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15 households",
+        "15 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 300 households",
+        "300 - 1,500 households"
+      ]
+    ),
+  },
+
+  DI100_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI100_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 18 },
+        { min: 18, max: 42 },
+        { min: 42, max: 85 },
+        { min: 85, max: 175 },
+        { min: 175, max: 350 },
+        { min: 350, max: 1750 }
+      ],
+      [
+        "Less than 18 households",
+        "18 - 42 households",
+        "42 - 85 households",
+        "85 - 175 households",
+        "175 - 350 households",
+        "350 - 1,750 households"
+      ]
+    ),
+  },
+
+  DI150_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI150_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10 households",
+        "10 - 25 households",
+        "25 - 50 households",
+        "50 - 100 households",
+        "100 - 200 households",
+        "200 - 1,000 households"
+      ]
+    ),
+  },
+
+  DI200_CY_HEAT: {
+    type: "class-breaks",
+    field: "DI200_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 7 },
+        { min: 7, max: 18 },
+        { min: 18, max: 35 },
+        { min: 35, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 }
+      ],
+      [
+        "Less than 7 households",
+        "7 - 18 households",
+        "18 - 35 households",
+        "35 - 75 households",
+        "75 - 150 households",
+        "150 - 750 households"
+      ]
+    ),
+  },
+
+  MEDDI_CY_HEAT: {
+    type: "class-breaks",
+    field: "MEDDI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 35000 },
+        { min: 35000, max: 50000 },
+        { min: 50000, max: 70000 },
+        { min: 70000, max: 100000 },
+        { min: 100000, max: 150000 },
+        { min: 150000, max: 250000 }
+      ],
+      [
+        "Less than $35,000",
+        "$35,000 - $50,000",
+        "$50,000 - $70,000",
+        "$70,000 - $100,000",
+        "$100,000 - $150,000",
+        "$150,000 - $250,000"
+      ]
+    ),
+  },
+
+  // Employment & Labor Force - Heat Maps (SIGNIFICANTLY LOWERED)
+  CIVLBFR_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLBFR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  EMP_CY_HEAT: {
+    type: "class-breaks",
+    field: "EMP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2500 },
+        { min: 2500, max: 5000 },
+        { min: 5000, max: 25000 }
+      ],
+      [
+        "Less than 250",
+        "250 - 500",
+        "500 - 1,000",
+        "1,000 - 2,500",
+        "2,500 - 5,000",
+        "5,000 - 25,000"
+      ]
+    ),
+  },
+
+  UNEMP_CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 1,000"
+      ]
+    ),
+  },
+
+  // Employment by Age Groups - Heat Maps
+  CIVLF16_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF16_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500"
+      ]
+    ),
+  },
+
+  EMPAGE16CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500"
+      ]
+    ),
+  },
+
+  UNAGE16CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 80 },
+        { min: 80, max: 300 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 80",
+        "80 - 300"
+      ]
+    ),
+  },
+
+  UNEMRT16CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT16CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 50 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 10%",
+        "10% - 15%",
+        "15% - 20%",
+        "20% - 30%",
+        "30% - 50%"
+      ]
+    ),
+  },
+
+  CIVLF25_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF25_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000"
+      ]
+    ),
+  },
+
+  EMPAGE25CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000"
+      ]
+    ),
+  },
+
+  UNAGE25CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 120 },
+        { min: 120, max: 500 }
+      ],
+      [
+        "Less than 8",
+        "8 - 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 120",
+        "120 - 500"
+      ]
+    ),
+  },
+
+  UNEMRT25CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT25CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%"
+      ]
+    ),
+  },
+
+  CIVLF55_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF55_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000"
+      ]
+    ),
+  },
+
+  EMPAGE55CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000"
+      ]
+    ),
+  },
+
+  UNAGE55CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 12 },
+        { min: 12, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 }
+      ],
+      [
+        "Less than 3",
+        "3 - 6",
+        "6 - 12",
+        "12 - 25",
+        "25 - 50",
+        "50 - 200"
+      ]
+    ),
+  },
+
+  UNEMRT55CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT55CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%"
+      ]
+    ),
+  },
+
+  CIVLF65_CY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLF65_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  EMPAGE65CY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAGE65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  UNAGE65CY_HEAT: {
+    type: "class-breaks",
+    field: "UNAGE65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 50 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 8",
+        "8 - 15",
+        "15 - 50"
+      ]
+    ),
+  },
+
+  UNEMRT65CY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRT65CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 6 },
+        { min: 6, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 20 }
+      ],
+      [
+        "Less than 2%",
+        "2% - 4%",
+        "4% - 6%",
+        "6% - 8%",
+        "8% - 12%",
+        "12% - 20%"
+      ]
+    ),
+  },
+
+  // Economic Dependency Ratios - Heat Maps
+  CHLDEDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "CHLDEDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 30 },
+        { min: 30, max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 80 }
+      ],
+      [
+        "Less than 20",
+        "20 - 30",
+        "30 - 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 80"
+      ]
+    ),
+  },
+
+  WRKEDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "WRKEDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100"
+      ]
+    ),
+  },
+
+  SENREDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "SENREDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 25 },
+        { min: 25, max: 35 },
+        { min: 35, max: 45 },
+        { min: 45, max: 55 },
+        { min: 55, max: 75 }
+      ],
+      [
+        "Less than 15",
+        "15 - 25",
+        "25 - 35",
+        "35 - 45",
+        "45 - 55",
+        "55 - 75"
+      ]
+    ),
+  },
+
+  EDR_CY_HEAT: {
+    type: "class-breaks",
+    field: "EDR_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 40 },
+        { min: 40, max: 50 },
+        { min: 50, max: 60 },
+        { min: 60, max: 70 },
+        { min: 70, max: 80 },
+        { min: 80, max: 100 }
+      ],
+      [
+        "Less than 40",
+        "40 - 50",
+        "50 - 60",
+        "60 - 70",
+        "70 - 80",
+        "80 - 100"
+      ]
+    ),
+  },
+
+  // Employment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  EMPWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000"
+      ]
+    ),
+  },
+
+  EMPBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500"
+      ]
+    ),
+  },
+
+  EMPAICY_HEAT: {
+    type: "class-breaks",
+    field: "EMPAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500"
+      ]
+    ),
+  },
+
+  EMPASNCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  EMPPICY_HEAT: {
+    type: "class-breaks",
+    field: "EMPPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200"
+      ]
+    ),
+  },
+
+  EMPOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000"
+      ]
+    ),
+  },
+
+  EMPMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "EMPMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000"
+      ]
+    ),
+  },
+
+  // Unemployment by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  UNWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 75 },
+        { min: 75, max: 150 },
+        { min: 150, max: 750 }
+      ],
+      [
+        "Less than 8",
+        "8 - 15",
+        "15 - 30",
+        "30 - 75",
+        "75 - 150",
+        "150 - 750"
+      ]
+    ),
+  },
+
+  UNBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "UNBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 12 },
+        { min: 12, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 300 }
+      ],
+      [
+        "Less than 3",
+        "3 - 6",
+        "6 - 12",
+        "12 - 30",
+        "30 - 60",
+        "60 - 300"
+      ]
+    ),
+  },
+
+  UNAICY_HEAT: {
+    type: "class-breaks",
+    field: "UNAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 8 },
+        { min: 8, max: 15 },
+        { min: 15, max: 75 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 8",
+        "8 - 15",
+        "15 - 75"
+      ]
+    ),
+  },
+
+  UNASNCY_HEAT: {
+    type: "class-breaks",
+    field: "UNASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 3 },
+        { min: 3, max: 6 },
+        { min: 6, max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 150 }
+      ],
+      [
+        "Less than 1",
+        "1 - 3",
+        "3 - 6",
+        "6 - 15",
+        "15 - 30",
+        "30 - 150"
+      ]
+    ),
+  },
+
+  UNPICY_HEAT: {
+    type: "class-breaks",
+    field: "UNPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 25 }
+      ],
+      [
+        "Less than 1",
+        "1",
+        "1 - 2",
+        "2 - 3",
+        "3 - 5",
+        "5 - 25"
+      ]
+    ),
+  },
+
+  UNOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "UNOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 100 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 10",
+        "10 - 20",
+        "20 - 100"
+      ]
+    ),
+  },
+
+  UNMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 4 },
+        { min: 4, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 100 }
+      ],
+      [
+        "Less than 1",
+        "1 - 2",
+        "2 - 4",
+        "4 - 10",
+        "10 - 20",
+        "20 - 100"
+      ]
+    ),
+  },
+
+  // Labor Force by Race - Heat Maps (SIGNIFICANTLY LOWERED)
+  CIVLFWHTCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFWHTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1500 },
+        { min: 1500, max: 3000 },
+        { min: 3000, max: 15000 }
+      ],
+      [
+        "Less than 150",
+        "150 - 300",
+        "300 - 600",
+        "600 - 1,500",
+        "1,500 - 3,000",
+        "3,000 - 15,000"
+      ]
+    ),
+  },
+
+  CIVLFBLKCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFBLKCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500"
+      ]
+    ),
+  },
+
+  CIVLFAICY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500"
+      ]
+    ),
+  },
+
+  CIVLFASNCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFASNCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  CIVLFPICY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200"
+      ]
+    ),
+  },
+
+  CIVLFOTHCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFOTHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000"
+      ]
+    ),
+  },
+
+  CIVLFMLTCY_HEAT: {
+    type: "class-breaks",
+    field: "CIVLFMLTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000"
+      ]
+    ),
+  },
+
+  // Unemployment Rates by Race - Heat Maps
+  UNEMRTWHCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTWHCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%"
+      ]
+    ),
+  },
+
+  UNEMRTBLCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTBLCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTAICY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTAICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTASCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTASCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 3 },
+        { min: 3, max: 5 },
+        { min: 5, max: 7 },
+        { min: 7, max: 10 },
+        { min: 10, max: 15 },
+        { min: 15, max: 25 }
+      ],
+      [
+        "Less than 3%",
+        "3% - 5%",
+        "5% - 7%",
+        "7% - 10%",
+        "10% - 15%",
+        "15% - 25%"
+      ]
+    ),
+  },
+
+  UNEMRTPICY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTPICY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTOTCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTOTCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  UNEMRTMLCY_HEAT: {
+    type: "class-breaks",
+    field: "UNEMRTMLCY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 8 },
+        { min: 8, max: 12 },
+        { min: 12, max: 18 },
+        { min: 18, max: 25 },
+        { min: 25, max: 40 }
+      ],
+      [
+        "Less than 5%",
+        "5% - 8%",
+        "8% - 12%",
+        "12% - 18%",
+        "18% - 25%",
+        "25% - 40%"
+      ]
+    ),
+  },
+
+  // Race and Ethnicity Population Counts - Heat Maps (SIGNIFICANTLY LOWERED)
+  HISPPOP_CY_HEAT: {
+    type: "class-breaks",
+    field: "HISPPOP_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 5000 }
+      ],
+      [
+        "Less than 50",
+        "50 - 100",
+        "100 - 200",
+        "200 - 500",
+        "500 - 1,000",
+        "1,000 - 5,000"
+      ]
+    ),
+  },
+
+  NHSPWHT_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPWHT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 200 },
+        { min: 200, max: 400 },
+        { min: 400, max: 800 },
+        { min: 800, max: 2000 },
+        { min: 2000, max: 4000 },
+        { min: 4000, max: 20000 }
+      ],
+      [
+        "Less than 200",
+        "200 - 400",
+        "400 - 800",
+        "800 - 2,000",
+        "2,000 - 4,000",
+        "4,000 - 20,000"
+      ]
+    ),
+  },
+
+  NHSPBLK_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPBLK_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 250 },
+        { min: 250, max: 500 },
+        { min: 500, max: 2500 }
+      ],
+      [
+        "Less than 25",
+        "25 - 50",
+        "50 - 100",
+        "100 - 250",
+        "250 - 500",
+        "500 - 2,500"
+      ]
+    ),
+  },
+
+  NHSPAI_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPAI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 50 },
+        { min: 50, max: 100 },
+        { min: 100, max: 500 }
+      ],
+      [
+        "Less than 5",
+        "5 - 10",
+        "10 - 20",
+        "20 - 50",
+        "50 - 100",
+        "100 - 500"
+      ]
+    ),
+  },
+
+  NHSPASN_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPASN_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  NHSPPI_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPPI_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 2 },
+        { min: 2, max: 5 },
+        { min: 5, max: 10 },
+        { min: 10, max: 25 },
+        { min: 25, max: 50 },
+        { min: 50, max: 200 }
+      ],
+      [
+        "Less than 2",
+        "2 - 5",
+        "5 - 10",
+        "10 - 25",
+        "25 - 50",
+        "50 - 200"
+      ]
+    ),
+  },
+
+  NHSPOTH_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPOTH_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 10 },
+        { min: 10, max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 100 },
+        { min: 100, max: 200 },
+        { min: 200, max: 1000 }
+      ],
+      [
+        "Less than 10",
+        "10 - 20",
+        "20 - 40",
+        "40 - 100",
+        "100 - 200",
+        "200 - 1,000"
+      ]
+    ),
+  },
+
+  NHSPMLT_CY_HEAT: {
+    type: "class-breaks",
+    field: "NHSPMLT_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 15 },
+        { min: 15, max: 30 },
+        { min: 30, max: 60 },
+        { min: 60, max: 150 },
+        { min: 150, max: 300 },
+        { min: 300, max: 1500 }
+      ],
+      [
+        "Less than 15",
+        "15 - 30",
+        "30 - 60",
+        "60 - 150",
+        "150 - 300",
+        "300 - 1,500"
+      ]
+    ),
+  },
+
+  DIVINDX_CY_HEAT: {
+    type: "class-breaks",
+    field: "DIVINDX_CY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 }
+      ],
+      [
+        "Less than 20",
+        "20 - 40",
+        "40 - 60",
+        "60 - 75",
+        "75 - 85",
+        "85 - 95"
+      ]
+    ),
+  },
+
+  RACEBASECY_HEAT: {
+    type: "class-breaks",
+    field: "RACEBASECY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  EDUCBASECY_HEAT: {
+    type: "class-breaks",
+    field: "EDUCBASECY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 300 },
+        { min: 300, max: 600 },
+        { min: 600, max: 1200 },
+        { min: 1200, max: 3000 },
+        { min: 3000, max: 6000 },
+        { min: 6000, max: 30000 }
+      ],
+      [
+        "Less than 300",
+        "300 - 600",
+        "600 - 1,200",
+        "1,200 - 3,000",
+        "3,000 - 6,000",
+        "6,000 - 30,000"
+      ]
+    ),
+  },
+
+  HHPOP_FY_HEAT: {
+    type: "class-breaks",
+    field: "HHPOP_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 500 },
+        { min: 500, max: 1000 },
+        { min: 1000, max: 2000 },
+        { min: 2000, max: 5000 },
+        { min: 5000, max: 10000 },
+        { min: 10000, max: 50000 }
+      ],
+      [
+        "Less than 500",
+        "500 - 1,000",
+        "1,000 - 2,000",
+        "2,000 - 5,000",
+        "5,000 - 10,000",
+        "10,000 - 50,000"
+      ]
+    ),
+  },
+
+  PCIGRWCYFY_HEAT: {
+    type: "class-breaks",
+    field: "PCIGRWCYFY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 1 },
+        { min: 1, max: 2 },
+        { min: 2, max: 3 },
+        { min: 3, max: 4 },
+        { min: 4, max: 5 },
+        { min: 5, max: 7 }
+      ],
+      [
+        "Less than 1%",
+        "1% - 2%",
+        "2% - 3%",
+        "3% - 4%",
+        "4% - 5%",
+        "5% - 7%"
+      ]
+    ),
+  },
+
+  DIVINDX_FY_HEAT: {
+    type: "class-breaks",
+    field: "DIVINDX_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 20 },
+        { min: 20, max: 40 },
+        { min: 40, max: 60 },
+        { min: 60, max: 75 },
+        { min: 75, max: 85 },
+        { min: 85, max: 95 }
+      ],
+      [
+        "Less than 20",
+        "20 - 40",
+        "40 - 60",
+        "60 - 75",
+        "75 - 85",
+        "85 - 95"
+      ]
+    ),
+  },
+
+  PCI_FY_HEAT: {
+    type: "class-breaks",
+    field: "PCI_FY",
+    classBreakInfos: createClassBreaks(
+      [
+        { max: 25000 },
+        { min: 25000, max: 35000 },
+        { min: 35000, max: 45000 },
+        { min: 45000, max: 60000 },
+        { min: 60000, max: 80000 },
+        { min: 80000, max: 150000 }
+      ],
+      [
+        "Less than $25,000",
+        "$25,000 - $35,000",
+        "$35,000 - $45,000",
+        "$45,000 - $60,000",
+        "$60,000 - $80,000",
+        "$80,000 - $150,000"
+      ]
+    ),
+  },
+
+  // Education - Dot Density
+  NOHS_CY: {
+    type: "dot-density",
+    field: "NOHS_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "NOHS_CY", color: "#E60049", label: "Population Age 25+: Less than 9th Grade" },
+    ],
+  },
+
+  SOMEHS_CY: {
+    type: "dot-density",
+    field: "SOMEHS_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "SOMEHS_CY", color: "#0BB4FF", label: "Population Age 25+: 9-12th Grade/No Diploma" },
+    ],
+  },
+
+  HSGRAD_CY: {
+    type: "dot-density",
+    field: "HSGRAD_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "HSGRAD_CY", color: "#50E991", label: "Population Age 25+: High School Diploma" },
+    ],
+  },
+
+  GED_CY: {
+    type: "dot-density",
+    field: "GED_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "GED_CY", color: "#9B19F5", label: "Population Age 25+: GED/Alternative Credential" },
+    ],
+  },
+
+  SMCOLL_CY: {
+    type: "dot-density",
+    field: "SMCOLL_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "SMCOLL_CY", color: "#FFB400", label: "Population Age 25+: Some College/No Degree" },
+    ],
+  },
+
+  ASSCDEG_CY: {
+    type: "dot-density",
+    field: "ASSCDEG_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "ASSCDEG_CY", color: "#007ED6", label: "Population Age 25+: Associate's Degree" },
+    ],
+  },
+
+  BACHDEG_CY: {
+    type: "dot-density",
+    field: "BACHDEG_CY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "BACHDEG_CY", color: "#5954D6", label: "Population Age 25+: Bachelor's Degree" },
+    ],
+  },
+
+  GRADDEG_CY: {
+    type: "dot-density",
+    field: "GRADDEG_CY",
+    dotValue: 25,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "GRADDEG_CY", color: "#FF6B6B", label: "Population Age 25+: Graduate/Professional Degree" },
+    ],
+  },
+
+  // Future Projections - Dot Density
+  TOTPOP_FY: {
+    type: "dot-density",
+    field: "TOTPOP_FY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "TOTPOP_FY", color: "#4ECDC4", label: "2029 Total Population" },
+    ],
+  },
+
+  TOTHH_FY: {
+    type: "dot-density",
+    field: "TOTHH_FY",
+    dotValue: 50,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "households" },
+    attributes: [
+      { field: "TOTHH_FY", color: "#97BBCD", label: "2029 Total Households" },
+    ],
+  },
+
+  HHPOP_FY: {
+    type: "dot-density",
+    field: "HHPOP_FY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people" },
+    attributes: [
+      { field: "HHPOP_FY", color: "#B2D8B2", label: "2029 Household Population" },
+    ],
+  },
+
+  PCI_FY: {
+    type: "dot-density",
+    field: "PCI_FY",
+    dotValue: 1000,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "dollars" },
+    attributes: [
+      { field: "PCI_FY", color: "#FFC3A0", label: "2029 Per Capita Income" },
+    ],
+  },
+
+  POPDENS_FY: {
+    type: "dot-density",
+    field: "POPDENS_FY",
+    dotValue: 100,
+    dotBlending: "additive",
+    dotSize: 2,
+    outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+    legendOptions: { unit: "people per sq. mile" },
+    attributes: [
+      { field: "POPDENS_FY", color: "#A0CED9", label: "2029 Population Density" },
+    ],
+  },
+// Add these configurations to the initialLayerConfigurations object
+
+// Employment & Labor Force - Dot Density
+CIVLBFR_CY: {
+  type: "dot-density",
+  field: "CIVLBFR_CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLBFR_CY", color: "#E60049", label: "Civilian Population Age 16+ in Labor Force" },
+  ],
+},
+
+EMP_CY: {
+  type: "dot-density",
+  field: "EMP_CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMP_CY", color: "#0BB4FF", label: "Employed Civilian Population Age 16+" },
+  ],
+},
+
+UNEMP_CY: {
+  type: "dot-density",
+  field: "UNEMP_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNEMP_CY", color: "#FF6B6B", label: "Unemployed Population Age 16+" },
+  ],
+},
+
+// Employment by Age Groups - Dot Density
+EMPAGE16CY: {
+  type: "dot-density",
+  field: "EMPAGE16CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPAGE16CY", color: "#50E991", label: "Employed Civilian Population Age 16-24" },
+  ],
+},
+
+UNAGE16CY: {
+  type: "dot-density",
+  field: "UNAGE16CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNAGE16CY", color: "#9B19F5", label: "Unemployed Population Age 16-24" },
+  ],
+},
+
+UNEMRT16CY: {
+  type: "dot-density",
+  field: "UNEMRT16CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "percent" },
+  attributes: [
+    { field: "UNEMRT16CY", color: "#FFB400", label: "Unemployment Rate: Population Age 16-24" },
+  ],
+},
+
+CIVLF25_CY: {
+  type: "dot-density",
+  field: "CIVLF25_CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLF25_CY", color: "#007ED6", label: "Civilian Population 25-54 in Labor Force" },
+  ],
+},
+
+EMPAGE25CY: {
+  type: "dot-density",
+  field: "EMPAGE25CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPAGE25CY", color: "#5954D6", label: "Employed Civilian Population Age 25-54" },
+  ],
+},
+
+UNAGE25CY: {
+  type: "dot-density",
+  field: "UNAGE25CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNAGE25CY", color: "#4ECDC4", label: "Unemployed Population Age 25-54" },
+  ],
+},
+
+UNEMRT25CY: {
+  type: "dot-density",
+  field: "UNEMRT25CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "percent" },
+  attributes: [
+    { field: "UNEMRT25CY", color: "#97BBCD", label: "Unemployment Rate: Population Age 25-54" },
+  ],
+},
+
+CIVLF55_CY: {
+  type: "dot-density",
+  field: "CIVLF55_CY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLF55_CY", color: "#B2D8B2", label: "Civilian Population 55-64 in Labor Force" },
+  ],
+},
+
+EMPAGE55CY: {
+  type: "dot-density",
+  field: "EMPAGE55CY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPAGE55CY", color: "#FFC3A0", label: "Employed Civilian Population Age 55-64" },
+  ],
+},
+
+UNAGE55CY: {
+  type: "dot-density",
+  field: "UNAGE55CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNAGE55CY", color: "#A0CED9", label: "Unemployed Population Age 55-64" },
+  ],
+},
+
+UNEMRT55CY: {
+  type: "dot-density",
+  field: "UNEMRT55CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "percent" },
+  attributes: [
+    { field: "UNEMRT55CY", color: "#ADB9E3", label: "Unemployment Rate: Population Age 55-64" },
+  ],
+},
+
+CIVLF65_CY: {
+  type: "dot-density",
+  field: "CIVLF65_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLF65_CY", color: "#B5A8E3", label: "Civilian Population 65+ in Labor Force" },
+  ],
+},
+
+EMPAGE65CY: {
+  type: "dot-density",
+  field: "EMPAGE65CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPAGE65CY", color: "#C8A8E9", label: "Employed Civilian Population Age 65+" },
+  ],
+},
+
+UNAGE65CY: {
+  type: "dot-density",
+  field: "UNAGE65CY",
+  dotValue: 2,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNAGE65CY", color: "#E6B3FF", label: "Unemployed Population Age 65+" },
+  ],
+},
+
+UNEMRT65CY: {
+  type: "dot-density",
+  field: "UNEMRT65CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "percent" },
+  attributes: [
+    { field: "UNEMRT65CY", color: "#FFD1DC", label: "Unemployment Rate: Population Age 65+" },
+  ],
+},
+
+// Economic Dependency Ratios - Dot Density
+CHLDEDR_CY: {
+  type: "dot-density",
+  field: "CHLDEDR_CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "CHLDEDR_CY", color: "#FFB6C1", label: "Child Economic Dependency Ratio" },
+  ],
+},
+
+WRKEDR_CY: {
+  type: "dot-density",
+  field: "WRKEDR_CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "WRKEDR_CY", color: "#DDA0DD", label: "Working-Age Economic Dependency Ratio" },
+  ],
+},
+
+SENREDR_CY: {
+  type: "dot-density",
+  field: "SENREDR_CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "SENREDR_CY", color: "#98FB98", label: "Senior Economic Dependency Ratio" },
+  ],
+},
+
+EDR_CY: {
+  type: "dot-density",
+  field: "EDR_CY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "EDR_CY", color: "#F0E68C", label: "Economic Dependency Ratio" },
+  ],
+},
+
+// Employment by Race - Dot Density
+EMPWHTCY: {
+  type: "dot-density",
+  field: "EMPWHTCY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPWHTCY", color: "#87CEEB", label: "White Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPBLKCY: {
+  type: "dot-density",
+  field: "EMPBLKCY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPBLKCY", color: "#DEB887", label: "Black/African American Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPAICY: {
+  type: "dot-density",
+  field: "EMPAICY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPAICY", color: "#CD853F", label: "American Indian/Alaska Native Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPASNCY: {
+  type: "dot-density",
+  field: "EMPASNCY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPASNCY", color: "#F0E68C", label: "Asian Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPPICY: {
+  type: "dot-density",
+  field: "EMPPICY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPPICY", color: "#20B2AA", label: "Pacific Islander Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPOTHCY: {
+  type: "dot-density",
+  field: "EMPOTHCY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPOTHCY", color: "#FF7F50", label: "Other Race Employed Civilian Population Age 16+" },
+  ],
+},
+
+EMPMLTCY: {
+  type: "dot-density",
+  field: "EMPMLTCY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "EMPMLTCY", color: "#DC143C", label: "Multiple Races Employed Civilian Population Age 16+" },
+  ],
+},
+
+// Unemployment by Race - Dot Density
+UNWHTCY: {
+  type: "dot-density",
+  field: "UNWHTCY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNWHTCY", color: "#B0C4DE", label: "White Unemployed Population Age 16+" },
+  ],
+},
+
+UNBLKCY: {
+  type: "dot-density",
+  field: "UNBLKCY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNBLKCY", color: "#D2B48C", label: "Black/African American Unemployed Population Age 16+" },
+  ],
+},
+
+UNAICY: {
+  type: "dot-density",
+  field: "UNAICY",
+  dotValue: 2,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNAICY", color: "#BC8F8F", label: "American Indian/Alaska Native Unemployed Population Age 16+" },
+  ],
+},
+
+UNASNCY: {
+  type: "dot-density",
+  field: "UNASNCY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNASNCY", color: "#F5DEB3", label: "Asian Unemployed Population Age 16+" },
+  ],
+},
+
+UNPICY: {
+  type: "dot-density",
+  field: "UNPICY",
+  dotValue: 2,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNPICY", color: "#48D1CC", label: "Pacific Islander Unemployed Population Age 16+" },
+  ],
+},
+
+UNOTHCY: {
+  type: "dot-density",
+  field: "UNOTHCY",
+  dotValue: 2,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNOTHCY", color: "#FA8072", label: "Other Race Unemployed Population Age 16+" },
+  ],
+},
+
+UNMLTCY: {
+  type: "dot-density",
+  field: "UNMLTCY",
+  dotValue: 2,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "UNMLTCY", color: "#FF1493", label: "Multiple Races Unemployed Population Age 16+" },
+  ],
+},
+
+// Labor Force by Race - Dot Density
+CIVLFWHTCY: {
+  type: "dot-density",
+  field: "CIVLFWHTCY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFWHTCY", color: "#E0E0E0", label: "White Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFBLKCY: {
+  type: "dot-density",
+  field: "CIVLFBLKCY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFBLKCY", color: "#8B4513", label: "Black/African American Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFAICY: {
+  type: "dot-density",
+  field: "CIVLFAICY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFAICY", color: "#A0522D", label: "American Indian/Alaska Native Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFASNCY: {
+  type: "dot-density",
+  field: "CIVLFASNCY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFASNCY", color: "#FFD700", label: "Asian Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFPICY: {
+  type: "dot-density",
+  field: "CIVLFPICY",
+  dotValue: 5,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFPICY", color: "#00CED1", label: "Pacific Islander Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFOTHCY: {
+  type: "dot-density",
+  field: "CIVLFOTHCY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFOTHCY", color: "#FF6347", label: "Other Race Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+CIVLFMLTCY: {
+  type: "dot-density",
+  field: "CIVLFMLTCY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "CIVLFMLTCY", color: "#FF69B4", label: "Multiple Races Civilian Population 16+ in Labor Force" },
+  ],
+},
+
+// Population Density - Dot Density
+POPDENS_CY: {
+  type: "dot-density",
+  field: "POPDENS_CY",
+  dotValue: 100,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people per sq. mile" },
+  attributes: [
+    { field: "POPDENS_CY", color: "#32CD32", label: "Population Density (Pop per Square Mile)" },
+  ],
+},
+
+DPOPDENSCY: {
+  type: "dot-density",
+  field: "DPOPDENSCY",
+  dotValue: 100,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people per sq. mile" },
+  attributes: [
+    { field: "DPOPDENSCY", color: "#8FBC8F", label: "Daytime Population Density (Pop per Square Mile)" },
+  ],
+},
+
+// Additional Population - Dot Density
+HHPOP_CY: {
+  type: "dot-density",
+  field: "HHPOP_CY",
+  dotValue: 100,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "HHPOP_CY", color: "#6B8E23", label: "Household Population" },
+  ],
+},
+
+GQPOP_CY: {
+  type: "dot-density",
+  field: "GQPOP_CY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "GQPOP_CY", color: "#9ACD32", label: "Group Quarters Population" },
+  ],
+},
+
+MALES_CY: {
+  type: "dot-density",
+  field: "MALES_CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "MALES_CY", color: "#4169E1", label: "Male Population" },
+  ],
+},
+
+MEDMAGE_CY: {
+  type: "dot-density",
+  field: "MEDMAGE_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "years" },
+  attributes: [
+    { field: "MEDMAGE_CY", color: "#0000CD", label: "Median Male Age" },
+  ],
+},
+
+FEMALES_CY: {
+  type: "dot-density",
+  field: "FEMALES_CY",
+  dotValue: 50,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "people" },
+  attributes: [
+    { field: "FEMALES_CY", color: "#FF1493", label: "Female Population" },
+  ],
+},
+
+MEDFAGE_CY: {
+  type: "dot-density",
+  field: "MEDFAGE_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "years" },
+  attributes: [
+    { field: "MEDFAGE_CY", color: "#FF69B4", label: "Median Female Age" },
+  ],
+},
+
+// Income Inequality - Dot Density
+GINI_CY: {
+  type: "dot-density",
+  field: "GINI_CY",
+  dotValue: 0.01,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "index" },
+  attributes: [
+    { field: "GINI_CY", color: "#800080", label: "Gini Index" },
+  ],
+},
+
+RAT9010_CY: {
+  type: "dot-density",
+  field: "RAT9010_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "RAT9010_CY", color: "#8B008B", label: "P90-P10 Ratio of Income Inequality" },
+  ],
+},
+
+RAT9050_CY: {
+  type: "dot-density",
+  field: "RAT9050_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "RAT9050_CY", color: "#9370DB", label: "P90-P50 Ratio of Income Inequality" },
+  ],
+},
+
+RAT5010_CY: {
+  type: "dot-density",
+  field: "RAT5010_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "RAT5010_CY", color: "#BA55D3", label: "P50-P10 Ratio of Income Inequality" },
+  ],
+},
+
+SHR8020_CY: {
+  type: "dot-density",
+  field: "SHR8020_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "SHR8020_CY", color: "#DA70D6", label: "80-20 Share Ratio of Income Inequality" },
+  ],
+},
+
+SHR9040_CY: {
+  type: "dot-density",
+  field: "SHR9040_CY",
+  dotValue: 1,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "ratio" },
+  attributes: [
+    { field: "SHR9040_CY", color: "#EE82EE", label: "90-40 Share Ratio of Income Inequality" },
+  ],
+},
+
+// Income Tiers - Dot Density
+LOTRHH_CY: {
+  type: "dot-density",
+  field: "LOTRHH_CY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "LOTRHH_CY", color: "#DDA0DD", label: "Households in Low Income Tier" },
+  ],
+},
+
+MDTRHH_CY: {
+  type: "dot-density",
+  field: "MDTRHH_CY",
+  dotValue: 25,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "MDTRHH_CY", color: "#D8BFD8", label: "Households in Middle Income Tier" },
+  ],
+},
+
+UPTRHH_CY: {
+  type: "dot-density",
+  field: "UPTRHH_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "UPTRHH_CY", color: "#FFE4E1", label: "Households in Upper Income Tier" },
+  ],
+},
+
+// Disposable Income - Dot Density
+DI0_CY: {
+  type: "dot-density",
+  field: "DI0_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI0_CY", color: "#2E8B57", label: "Disposable Income less than $15,000" },
+  ],
+},
+
+DI15_CY: {
+  type: "dot-density",
+  field: "DI15_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI15_CY", color: "#3CB371", label: "Disposable Income $15,000-$24,999" },
+  ],
+},
+
+DI25_CY: {
+  type: "dot-density",
+  field: "DI25_CY",
+  dotValue: 20,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI25_CY", color: "#66CDAA", label: "Disposable Income $25,000-$34,999" },
+  ],
+},
+
+DI35_CY: {
+  type: "dot-density",
+  field: "DI35_CY",
+  dotValue: 20,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI35_CY", color: "#98FB98", label: "Disposable Income $35,000-$49,999" },
+  ],
+},
+
+DI50_CY: {
+  type: "dot-density",
+  field: "DI50_CY",
+  dotValue: 20,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI50_CY", color: "#90EE90", label: "Disposable Income $50,000-$74,999" },
+  ],
+},
+
+DI75_CY: {
+  type: "dot-density",
+  field: "DI75_CY",
+  dotValue: 20,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI75_CY", color: "#ADFF2F", label: "Disposable Income $75,000-$99,999" },
+  ],
+},
+
+DI100_CY: {
+  type: "dot-density",
+  field: "DI100_CY",
+  dotValue: 20,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI100_CY", color: "#7FFF00", label: "Disposable Income $100,000-$149,999" },
+  ],
+},
+
+DI150_CY: {
+  type: "dot-density",
+  field: "DI150_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI150_CY", color: "#7CFC00", label: "Disposable Income $150,000-$199,999" },
+  ],
+},
+
+DI200_CY: {
+  type: "dot-density",
+  field: "DI200_CY",
+  dotValue: 10,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "households" },
+  attributes: [
+    { field: "DI200_CY", color: "#00FF7F", label: "Disposable Income $200,000 or greater" },
+  ],
+},
+
+MEDDI_CY: {
+  type: "dot-density",
+  field: "MEDDI_CY",
+  dotValue: 1000,
+  dotBlending: "additive",
+  dotSize: 2,
+  outline: { width: 0.5, color: [50, 50, 50, 0.2] },
+  legendOptions: { unit: "dollars" },
+  attributes: [
+    { field: "MEDDI_CY", color: "#00FA9A", label: "Median Disposable Income" },
+  ],
+},
+};
 
 // --- Visualization Options ---
 export const visualizationOptions = [
-  // Original Heat Map Options
+  // Population & Households
   {
-    value: "income_HEAT",
-    label: "Median Household Income",
+    value: "TOTPOP_CY",
+    label: "2024 Total Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "TOTPOP_CY_HEAT",
+    label: "2024 Total Population",
     type: "class-breaks",
     category: "Heat Map",
   },
   {
-    value: "growth_HEAT",
-    label: "Household Growth Rate",
+    value: "TOTHH_CY",
+    label: "2024 Total Households",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "TOTHH_CY_HEAT",
+    label: "2024 Total Households",
     type: "class-breaks",
     category: "Heat Map",
   },
   {
-    value: "affordability_HEAT",
-    label: "Housing Affordability Index",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "density_HEAT",
-    label: "Population Density",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "age_HEAT",
-    label: "Median Age",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "unemployment_HEAT",
-    label: "Unemployment Rate",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "homeValue_HEAT",
-    label: "Median Home Value",
+    value: "AVGHHSZ_CY_HEAT",
+    label: "2024 Average Household Size",
     type: "class-breaks",
     category: "Heat Map",
   },
 
-  // Income Heat Maps
+  // Daytime Population
+  {
+    value: "DPOP_CY",
+    label: "2024 Total Daytime Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOP_CY_HEAT",
+    label: "2024 Total Daytime Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DPOPWRK_CY",
+    label: "2024 Daytime Population: Workers",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOPWRK_CY_HEAT",
+    label: "2024 Daytime Population: Workers",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DPOPRES_CY",
+    label: "2024 Daytime Population: Residents",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOPRES_CY_HEAT",
+    label: "2024 Daytime Population: Residents",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Age
+  {
+    value: "MEDAGE_CY",
+    label: "2024 Median Age",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MEDAGE_CY_HEAT",
+    label: "2024 Median Age",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "WORKAGE_CY",
+    label: "2024 Working-Age Population (Age 18-64)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "WORKAGE_CY_HEAT",
+    label: "2024 Working-Age Population (Age 18-64)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SENIOR_CY",
+    label: "2024 Senior Population (Age 65+)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SENIOR_CY_HEAT",
+    label: "2024 Senior Population (Age 65+)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CHILD_CY",
+    label: "2024 Child Population (Age Less Than 18)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CHILD_CY_HEAT",
+    label: "2024 Child Population (Age Less Than 18)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Income
   {
     value: "MEDHINC_CY_HEAT",
-    label: "Median Household Income",
+    label: "2024 Median Household Income",
     type: "class-breaks",
     category: "Heat Map",
   },
   {
     value: "AVGHINC_CY_HEAT",
-    label: "Average Household Income",
+    label: "2024 Average Household Income",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC0_CY",
+    label: "2024 Household Income less than $15,000",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC0_CY_HEAT",
-    label: "Household Income < $15K",
+    label: "2024 Household Income less than $15,000",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC15_CY",
+    label: "2024 Household Income $15,000-$24,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC15_CY_HEAT",
-    label: "Household Income $15K-$25K",
+    label: "2024 Household Income $15,000-$24,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC25_CY",
+    label: "2024 Household Income $25,000-$34,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC25_CY_HEAT",
-    label: "Household Income $25K-$35K",
+    label: "2024 Household Income $25,000-$34,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC35_CY",
+    label: "2024 Household Income $35,000-$49,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC35_CY_HEAT",
-    label: "Household Income $35K-$50K",
+    label: "2024 Household Income $35,000-$49,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC50_CY",
+    label: "2024 Household Income $50,000-$74,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC50_CY_HEAT",
-    label: "Household Income $50K-$75K",
+    label: "2024 Household Income $50,000-$74,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC75_CY",
+    label: "2024 Household Income $75,000-$99,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC75_CY_HEAT",
-    label: "Household Income $75K-$100K",
+    label: "2024 Household Income $75,000-$99,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC100_CY",
+    label: "2024 Household Income $100,000-$149,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC100_CY_HEAT",
-    label: "Household Income $100K-$150K",
+    label: "2024 Household Income $100,000-$149,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC150_CY",
+    label: "2024 Household Income $150,000-$199,999",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC150_CY_HEAT",
-    label: "Household Income $150K-$200K",
+    label: "2024 Household Income $150,000-$199,999",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "HINC200_CY",
+    label: "2024 Household Income $200,000 or greater",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "HINC200_CY_HEAT",
-    label: "Household Income $200K+",
+    label: "2024 Household Income $200,000 or greater",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMPRT_CY_HEAT",
+    label: "2024 Unemployment Rate",
     type: "class-breaks",
     category: "Heat Map",
   },
 
-  // Dot Density Population Demographics
+  // Projected Growth
   {
-    value: "TOTPOP_CY",
-    label: "Total Population 2024",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "POPGRWCYFY_HEAT",
+    label: "2024-2029 Population: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
-    value: "TOTHH_CY",
-    label: "Total Households 2024",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "HHGRWCYFY_HEAT",
+    label: "2024-2029 Households: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
-    value: "DPOP_CY",
-    label: "Daytime Population 2024",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "DPOPWRK_CY",
-    label: "Daytime Workers 2024",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "WORKAGE_CY",
-    label: "Working Age Population 18-64",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "SENIOR_CY",
-    label: "Senior Population 65+",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "CHILD_CY",
-    label: "Child Population <18",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "MHIGRWCYFY_HEAT",
+    label: "2024-2029 Median Household Income: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
   },
 
-  // Detailed Age Groups
+  // Historical Growth
+  {
+    value: "POPGRW20CY_HEAT",
+    label: "2020-2024 Population: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HHGRW20CY_HEAT",
+    label: "2020-2024 Households: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Housing
+  {
+    value: "TOTHU_CY",
+    label: "2024 Total Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "TOTHU_CY_HEAT",
+    label: "2024 Total Housing Units",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "OWNER_CY",
+    label: "2024 Owner Occupied Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "OWNER_CY_HEAT",
+    label: "2024 Owner Occupied Housing Units",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "RENTER_CY",
+    label: "2024 Renter Occupied Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RENTER_CY_HEAT",
+    label: "2024 Renter Occupied Housing Units",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "PCTHOMEOWNER_HEAT",
+    label: "2024 Homeownership Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VACANT_CY",
+    label: "2024 Vacant Housing Units",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VACANT_CY_HEAT",
+    label: "2024 Vacant Housing Units",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VACANT_CY_PCT_HEAT",
+    label: "2024 Vacancy rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MEDVAL_CY_HEAT",
+    label: "2024 Median Home Value",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "AVGVAL_CY_HEAT",
+    label: "2024 Average Home Value",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Home Value Ranges
+  {
+    value: "VAL0_CY",
+    label: "2024 Home Value less than $50,000",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL0_CY_HEAT",
+    label: "2024 Home Value less than $50,000",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL50K_CY",
+    label: "2024 Home Value $50,000-$99,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL50K_CY_HEAT",
+    label: "2024 Home Value $50,000-$99,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL100K_CY",
+    label: "2024 Home Value $100,000-$149,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL100K_CY_HEAT",
+    label: "2024 Home Value $100,000-$149,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL150K_CY",
+    label: "2024 Home Value $150,000-$199,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL150K_CY_HEAT",
+    label: "2024 Home Value $150,000-$199,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL200K_CY",
+    label: "2024 Home Value $200,000-$249,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL200K_CY_HEAT",
+    label: "2024 Home Value $200,000-$249,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL250K_CY",
+    label: "2024 Home Value $250,000-$299,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL250K_CY_HEAT",
+    label: "2024 Home Value $250,000-$299,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL300K_CY",
+    label: "2024 Home Value $300,000-$399,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL300K_CY_HEAT",
+    label: "2024 Home Value $300,000-$399,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL400K_CY",
+    label: "2024 Home Value $400,000-$499,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL400K_CY_HEAT",
+    label: "2024 Home Value $400,000-$499,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL500K_CY",
+    label: "2024 Home Value $500,000-$749,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL500K_CY_HEAT",
+    label: "2024 Home Value $500,000-$749,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL750K_CY",
+    label: "2024 Home Value $750,000-$999,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL750K_CY_HEAT",
+    label: "2024 Home Value $750,000-$999,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL1M_CY",
+    label: "2024 Home Value $1,000,000-$1,499,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL1M_CY_HEAT",
+    label: "2024 Home Value $1,000,000-$1,499,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL1PT5MCY",
+    label: "2024 Home Value $1,500,000-$1,999,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL1PT5MCY_HEAT",
+    label: "2024 Home Value $1,500,000-$1,999,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "VAL2M_CY",
+    label: "2024 Home Value $2,000,000 or greater",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "VAL2M_CY_HEAT",
+    label: "2024 Home Value $2,000,000 or greater",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Age Detail
   {
     value: "POP0_CY",
-    label: "Population Age 0-4",
+    label: "2024 Total Population Age 0-4",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP5_CY",
-    label: "Population Age 5-9",
+    label: "2024 Total Population Age 5-9",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP10_CY",
-    label: "Population Age 10-14",
+    label: "2024 Total Population Age 10-14",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP15_CY",
-    label: "Population Age 15-19",
+    label: "2024 Total Population Age 15-19",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP20_CY",
-    label: "Population Age 20-24",
+    label: "2024 Total Population Age 20-24",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP25_CY",
-    label: "Population Age 25-29",
+    label: "2024 Total Population Age 25-29",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP30_CY",
-    label: "Population Age 30-34",
+    label: "2024 Total Population Age 30-34",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP35_CY",
-    label: "Population Age 35-39",
+    label: "2024 Total Population Age 35-39",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP40_CY",
-    label: "Population Age 40-44",
+    label: "2024 Total Population Age 40-44",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP45_CY",
-    label: "Population Age 45-49",
+    label: "2024 Total Population Age 45-49",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP50_CY",
-    label: "Population Age 50-54",
+    label: "2024 Total Population Age 50-54",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP55_CY",
-    label: "Population Age 55-59",
+    label: "2024 Total Population Age 55-59",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP60_CY",
-    label: "Population Age 60-64",
+    label: "2024 Total Population Age 60-64",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP65_CY",
-    label: "Population Age 65-69",
+    label: "2024 Total Population Age 65-69",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP70_CY",
-    label: "Population Age 70-74",
+    label: "2024 Total Population Age 70-74",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP75_CY",
-    label: "Population Age 75-79",
+    label: "2024 Total Population Age 75-79",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP80_CY",
-    label: "Population Age 80-84",
+    label: "2024 Total Population Age 80-84",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "POP85_CY",
-    label: "Population Age 85+",
+    label: "2024 Total Population Age 85+",
     type: "dot-density",
     category: "Dot Density Map",
   },
-
-  // Generations
   {
     value: "GENALPHACY",
-    label: "Generation Alpha (Born 2017+)",
+    label: "2024 Generation Alpha Population (Born 2017 or Later)",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "GENZ_CY",
-    label: "Generation Z (Born 1999-2016)",
+    label: "2024 Generation Z Population (Born 1999 to 2016)",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "MILLENN_CY",
-    label: "Millennials (Born 1981-1998)",
+    label: "2024 Millennial Population (Born 1981 to 1998)",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "GENX_CY",
-    label: "Generation X (Born 1965-1980)",
+    label: "2024 Generation X Population (Born 1965 to 1980)",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "BABYBOOMCY",
-    label: "Baby Boomers (Born 1946-1964)",
+    label: "2024 Baby Boomer Population (Born 1946 to 1964)",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "OLDRGENSCY",
-    label: "Silent & Greatest Gens (Born pre-1946)",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-
-  // Race and Ethnicity Percentages
-  {
-    value: "hispanic_HEAT",
-    label: "Hispanic Population Percentage",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "diversity_HEAT",
-    label: "White Non-Hispanic Percentage",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "NHSPBLK_CY_PCT_HEAT",
-    label: "Black Non-Hispanic Percentage",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "NHSPASN_CY_PCT_HEAT",
-    label: "Asian Non-Hispanic Percentage",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-
-  // Race and Ethnicity
-  {
-    value: "HISPPOP_CY",
-    label: "Hispanic Population",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPWHT_CY",
-    label: "White Non-Hispanic Population",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPBLK_CY",
-    label: "Black Non-Hispanic Population",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPASN_CY",
-    label: "Asian Non-Hispanic Population",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPAI_CY",
-    label: "American Indian/Alaska Native Non-Hispanic",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPPI_CY",
-    label: "Pacific Islander Non-Hispanic",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPOTH_CY",
-    label: "Other Race Non-Hispanic",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "NHSPMLT_CY",
-    label: "Multiple Races Non-Hispanic",
+    label: "2024 Silent & Greatest Generations Population (Born 1945/Earlier)",
     type: "dot-density",
     category: "Dot Density Map",
   },
@@ -3667,499 +6367,1263 @@ export const visualizationOptions = [
   // Education
   {
     value: "NOHS_CY",
-    label: "Less than 9th Grade Education",
+    label: "2024 Population Age 25+: Less than 9th Grade",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "SOMEHS_CY",
-    label: "Some High School",
+    label: "2024 Population Age 25+: 9-12th Grade/No Diploma",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "HSGRAD_CY",
-    label: "High School Graduates",
+    label: "2024 Population Age 25+: High School Diploma",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "GED_CY",
-    label: "GED/Alternative Credential",
+    label: "2024 Population Age 25+: GED/Alternative Credential",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "SMCOLL_CY",
-    label: "Some College",
+    label: "2024 Population Age 25+: Some College/No Degree",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "ASSCDEG_CY",
-    label: "Associate's Degree",
+    label: "2024 Population Age 25+: Associate's Degree",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "BACHDEG_CY",
-    label: "Bachelor's Degree",
+    label: "2024 Population Age 25+: Bachelor's Degree",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
     value: "GRADDEG_CY",
-    label: "Graduate/Professional Degree",
+    label: "2024 Population Age 25+: Graduate/Professional Degree",
     type: "dot-density",
     category: "Dot Density Map",
   },
-
-  // Education Percentages
   {
     value: "HSGRAD_LESS_CY_PCT_HEAT",
-    label: "Less than High School Percentage",
+    label: "2024 Percent of Population 25+ with less than a High School degree",
     type: "class-breaks",
     category: "Heat Map",
   },
   {
     value: "BACHDEG_PLUS_CY_PCT_HEAT",
-    label: "Bachelor's Degree or Higher Percentage",
+    label: "2024 Percent of Population 25+ with a Bachelor's degree or higher",
     type: "class-breaks",
     category: "Heat Map",
   },
 
-  // Home Values
+  // Future
   {
-    value: "VAL0_CY",
-    label: "Home Value < $50,000",
+    value: "TOTPOP_FY",
+    label: "2029 Total Population",
     type: "dot-density",
     category: "Dot Density Map",
   },
-  {
-    value: "VAL50K_CY",
-    label: "Home Value $50K-$99,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL100K_CY",
-    label: "Home Value $100K-$149,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL150K_CY",
-    label: "Home Value $150K-$199,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL200K_CY",
-    label: "Home Value $200K-$249,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL250K_CY",
-    label: "Home Value $250K-$299,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL300K_CY",
-    label: "Home Value $300K-$399,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL400K_CY",
-    label: "Home Value $400K-$499,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL500K_CY",
-    label: "Home Value $500K-$749,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL750K_CY",
-    label: "Home Value $750K-$999,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL1M_CY",
-    label: "Home Value $1M-$1.5M",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL1PT5MCY",
-    label: "Home Value $1.5M-$2M",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VAL2M_CY",
-    label: "Home Value $2M+",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-
-  // Home Values
-  {
-    value: "MEDVAL_CY_HEAT",
-    label: "Median Home Value",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "AVGVAL_CY_HEAT",
-    label: "Average Home Value",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-
-  // Housing
-  {
-    value: "OWNER_CY",
-    label: "Owner Occupied Housing Units",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "RENTER_CY",
-    label: "Renter Occupied Housing Units",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "TOTHU_CY",
-    label: "Total Housing Units",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "VACANT_CY",
-    label: "Vacant Housing Units",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-
-  // Housing
-  {
-    value: "PCTHOMEOWNER_HEAT",
-    label: "Homeownership Rate",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "VACANT_CY_PCT_HEAT",
-    label: "Vacancy Rate",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-
-  // Income Brackets
-  {
-    value: "HINC0_CY",
-    label: "Households < $15,000",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC15_CY",
-    label: "Households $15,000-$24,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC25_CY",
-    label: "Households $25,000-$34,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC35_CY",
-    label: "Households $35,000-$49,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC50_CY",
-    label: "Households $50,000-$74,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC75_CY",
-    label: "Households $75,000-$99,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC100_CY",
-    label: "Households $100,000-$149,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC150_CY",
-    label: "Households $150,000-$199,999",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "HINC200_CY",
-    label: "Households $200,000+",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-
-  // Additional Metrics
-  {
-    value: "POPGRWCYFY_HEAT",
-    label: "Population Growth Rate 2024-2029",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "HHGRWCYFY_HEAT",
-    label: "Household Growth Rate 2024-2029",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "MHIGRWCYFY_HEAT",
-    label: "Median Household Income Growth Rate 2024-2029",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "POPGRW20CY",
-    label: "Population Growth Rate 2020-2024",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "HHGRW20CY_HEAT",
-    label: "Household Growth Rate 2020-2024",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-
-  // Economic Indicators
-  {
-    value: "UNEMPRT_CY_HEAT",
-    label: "Unemployment Rate",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "HAI_CY_HEAT",
-    label: "Housing Affordability Index",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "INCMORT_CY_HEAT",
-    label: "Percent of Income for Mortgage",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "WLTHINDXCY_HEAT",
-    label: "Wealth Index",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "SEI_CY_HEAT",
-    label: "Socioeconomic Status Index",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-  {
-    value: "PCI_CY_HEAT",
-    label: "Per Capita Income",
-    type: "class-breaks",
-    category: "Heat Map",
-  },
-
-  // Future Projections
   {
     value: "TOTPOP_FY_HEAT",
-    label: "Projected Total Population 2029",
+    label: "2029 Total Population",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "TOTHH_FY",
+    label: "2029 Total Households",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "TOTHH_FY_HEAT",
-    label: "Projected Total Households 2029",
+    label: "2029 Total Households",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "AVGHHSZ_FY_HEAT",
+    label: "2029 Average Household Size",
     type: "class-breaks",
     category: "Heat Map",
   },
   {
     value: "MEDHINC_FY_HEAT",
-    label: "Projected Median Household Income 2029",
+    label: "2029 Median Household Income",
     type: "class-breaks",
     category: "Heat Map",
+  },
+  {
+    value: "AVGHINC_FY_HEAT",
+    label: "2029 Average Household Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "POPDENS_FY",
+    label: "2029 Population Density (Pop per Square Mile)",
+    type: "dot-density",
+    category: "Dot Density Map",
   },
   {
     value: "POPDENS_FY_HEAT",
-    label: "Projected Population Density 2029",
+    label: "2029 Population Density (Pop per Square Mile)",
     type: "class-breaks",
     category: "Heat Map",
   },
 
-  // Demographic Composition
+  // Affluence & Affordability
   {
-    value: "MALES_CY",
-    label: "Male Population",
+    value: "HAI_CY_HEAT",
+    label: "2024 Housing Affordability Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "INCMORT_CY_HEAT",
+    label: "2024 Percent of Income for Mortgage",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "WLTHINDXCY_HEAT",
+    label: "2024 Wealth Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SEI_CY_HEAT",
+    label: "2024 Socioeconomic Status Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "PCI_CY_HEAT",
+    label: "2024 Per Capita Income",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Race
+  {
+    value: "HISPPOP_CY_PCT_HEAT",
+    label: "2024 Percent Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPWHT_CY_PCT_HEAT",
+    label: "2024 Percent White Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPBLK_CY_PCT_HEAT",
+    label: "2024 Percent Black/African American Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPAI_CY_PCT_HEAT",
+    label: "2024 Percent American Indian/Alaska Native Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPASN_CY_PCT_HEAT",
+    label: "2024 Percent Asian Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPPI_CY_PCT_HEAT",
+    label: "2024 Percent Pacific Islander Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPOTH_CY_PCT_HEAT",
+    label: "2024 Percent Other Race Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPMLT_CY_PCT_HEAT",
+    label: "2024 Percent Multiple Races Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Other
+  {
+    value: "POPDENS_CY",
+    label: "2024 Population Density (Pop per Square Mile)",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "POPDENS_CY_HEAT",
+    label: "2024 Population Density (Pop per Square Mile)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DPOPDENSCY",
+    label: "2024 Daytime Population Density (Pop per Square Mile)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DPOPDENSCY_HEAT",
+    label: "2024 Daytime Population Density (Pop per Square Mile)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CHLDDEP_CY_HEAT",
+    label: "2024 Child Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "AGEDEP_CY_HEAT",
+    label: "2024 Age Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SENRDEP_CY_HEAT",
+    label: "2024 Senior Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HHPOP_CY",
+    label: "2024 Household Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HHPOP_CY_HEAT",
+    label: "2024 Household Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "GQPOP_CY",
+    label: "2024 Group Quarters Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "GQPOP_CY_HEAT",
+    label: "2024 Group Quarters Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MALES_CY",
+    label: "2024 Male Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MALES_CY_HEAT",
+    label: "2024 Male Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MEDMAGE_CY",
+    label: "2024 Median Male Age",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MEDMAGE_CY_HEAT",
+    label: "2024 Median Male Age",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "FEMALES_CY",
-    label: "Female Population",
+    label: "2024 Female Population",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "FEMALES_CY_HEAT",
+    label: "2024 Female Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MEDFAGE_CY",
+    label: "2024 Median Female Age",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MEDFAGE_CY_HEAT",
+    label: "2024 Median Female Age",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "GINI_CY_HEAT",
+    label: "2024 Gini Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "RAT9010_CY",
+    label: "2024 P90-P10 Ratio of Income Inequality",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RAT9010_CY_HEAT",
+    label: "2024 P90-P10 Ratio of Income Inequality",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "RAT9050_CY",
+    label: "2024 P90-P50 Ratio of Income Inequality",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RAT9050_CY_HEAT",
+    label: "2024 P90-P50 Ratio of Income Inequality",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "RAT5010_CY",
+    label: "2024 P50-P10 Ratio of Income Inequality",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RAT5010_CY_HEAT",
+    label: "2024 P50-P10 Ratio of Income Inequality",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SHR8020_CY",
+    label: "2024 80-20 Share Ratio of Income Inequality",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SHR8020_CY_HEAT",
+    label: "2024 80-20 Share Ratio of Income Inequality",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SHR9040_CY",
+    label: "2024 90-40 Share Ratio of Income Inequality",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "SHR9040_CY_HEAT",
+    label: "2024 90-40 Share Ratio of Income Inequality",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "LOTRHH_CY",
+    label: "2024 Households in Low Income Tier",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "LOTRHH_CY_HEAT",
+    label: "2024 Households in Low Income Tier",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MDTRHH_CY",
+    label: "2024 Households in Middle Income Tier",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MDTRHH_CY_HEAT",
+    label: "2024 Households in Middle Income Tier",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UPTRHH_CY",
+    label: "2024 Households in Upper Income Tier",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UPTRHH_CY_HEAT",
+    label: "2024 Households in Upper Income Tier",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI0_CY",
+    label: "2024 Disposable Income less than $15,000",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI0_CY_HEAT",
+    label: "2024 Disposable Income less than $15,000",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI15_CY",
+    label: "2024 Disposable Income $15,000-$24,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI15_CY_HEAT",
+    label: "2024 Disposable Income $15,000-$24,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI25_CY",
+    label: "2024 Disposable Income $25,000-$34,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI25_CY_HEAT",
+    label: "2024 Disposable Income $25,000-$34,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI35_CY",
+    label: "2024 Disposable Income $35,000-$49,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI35_CY_HEAT",
+    label: "2024 Disposable Income $35,000-$49,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI50_CY",
+    label: "2024 Disposable Income $50,000-$74,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI50_CY_HEAT",
+    label: "2024 Disposable Income $50,000-$74,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI75_CY",
+    label: "2024 Disposable Income $75,000-$99,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI75_CY_HEAT",
+    label: "2024 Disposable Income $75,000-$99,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI100_CY",
+    label: "2024 Disposable Income $100,000-$149,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI100_CY_HEAT",
+    label: "2024 Disposable Income $100,000-$149,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI150_CY",
+    label: "2024 Disposable Income $150,000-$199,999",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI150_CY_HEAT",
+    label: "2024 Disposable Income $150,000-$199,999",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DI200_CY",
+    label: "2024 Disposable Income $200,000 or greater",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "DI200_CY_HEAT",
+    label: "2024 Disposable Income $200,000 or greater",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "MEDDI_CY",
+    label: "2024 Median Disposable Income",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "MEDDI_CY_HEAT",
+    label: "2024 Median Disposable Income",
+    type: "class-breaks",
+    category: "Heat Map",
   },
 
-  // Advanced Demographic Categories
+  // Employment & Labor Force
   {
-    value: "EMPAGE16CY",
-    label: "Employed Population Age 16-24",
+    value: "CIVLBFR_CY",
+    label: "2024 Civilian Population Age 16+ in Labor Force",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
-    value: "EMPAGE25CY",
-    label: "Employed Population Age 25-54",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "CIVLBFR_CY_HEAT",
+    label: "2024 Civilian Population Age 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
   },
-  {
-    value: "EMPAGE55CY",
-    label: "Employed Population Age 55-64",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-  {
-    value: "EMPAGE65CY",
-    label: "Employed Population 65+",
-    type: "dot-density",
-    category: "Dot Density Map",
-  },
-
-  // Employment and Labor
   {
     value: "EMP_CY",
-    label: "Employed Population",
+    label: "2024 Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "EMP_CY_HEAT",
+    label: "2024 Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "UNEMP_CY",
-    label: "Unemployed Population",
+    label: "2024 Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
-    value: "CIVLBFR_CY",
-    label: "Civilian Labor Force",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "UNEMP_CY_HEAT",
+    label: "2024 Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
 
-  // Detailed Race and Employment
+  // Employment by Age Groups
   {
-    value: "EMPWHTCY",
-    label: "White Employed Population",
+    value: "CIVLF16_CY",
+    label: "2024 Civilian Population 16-24 in Labor Force",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "CIVLF16_CY_HEAT",
+    label: "2024 Civilian Population 16-24 in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EMPAGE16CY",
+    label: "2024 Employed Civilian Population Age 16-24",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE16CY_HEAT",
+    label: "2024 Employed Civilian Population Age 16-24",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNAGE16CY",
+    label: "2024 Unemployed Population Age 16-24",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNAGE16CY_HEAT",
+    label: "2024 Unemployed Population Age 16-24",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRT16CY",
+    label: "2024 Unemployment Rate: Population Age 16-24",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNEMRT16CY_HEAT",
+    label: "2024 Unemployment Rate: Population Age 16-24",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLF25_CY",
+    label: "2024 Civilian Population 25-54 in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLF25_CY_HEAT",
+    label: "2024 Civilian Population 25-54 in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EMPAGE25CY",
+    label: "2024 Employed Civilian Population Age 25-54",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE25CY_HEAT",
+    label: "2024 Employed Civilian Population Age 25-54",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNAGE25CY",
+    label: "2024 Unemployed Population Age 25-54",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNAGE25CY_HEAT",
+    label: "2024 Unemployed Population Age 25-54",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRT25CY",
+    label: "2024 Unemployment Rate: Population Age 25-54",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNEMRT25CY_HEAT",
+    label: "2024 Unemployment Rate: Population Age 25-54",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLF55_CY",
+    label: "2024 Civilian Population 55-64 in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLF55_CY_HEAT",
+    label: "2024 Civilian Population 55-64 in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EMPAGE55CY",
+    label: "2024 Employed Civilian Population Age 55-64",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE55CY_HEAT",
+    label: "2024 Employed Civilian Population Age 55-64",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNAGE55CY",
+    label: "2024 Unemployed Population Age 55-64",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNAGE55CY_HEAT",
+    label: "2024 Unemployed Population Age 55-64",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRT55CY_HEAT",
+    label: "2024 Unemployment Rate: Population Age 55-64",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLF65_CY",
+    label: "2024 Civilian Population 65+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLF65_CY_HEAT",
+    label: "2024 Civilian Population 65+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EMPAGE65CY",
+    label: "2024 Employed Civilian Population Age 65+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPAGE65CY_HEAT",
+    label: "2024 Employed Civilian Population Age 65+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNAGE65CY",
+    label: "2024 Unemployed Population Age 65+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNAGE65CY_HEAT",
+    label: "2024 Unemployed Population Age 65+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRT65CY",
+    label: "2024 Unemployment Rate: Population Age 65+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNEMRT65CY_HEAT",
+    label: "2024 Unemployment Rate: Population Age 65+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Economic Dependency Ratios
+  {
+    value: "CHLDEDR_CY",
+    label: "2024 Child Economic Dependency Ratio",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CHLDEDR_CY_HEAT",
+    label: "2024 Child Economic Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "WRKEDR_CY_HEAT",
+    label: "2024 Working-Age Economic Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "SENREDR_CY_HEAT",
+    label: "2024 Senior Economic Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EDR_CY_HEAT",
+    label: "2024 Economic Dependency Ratio",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Employment by Race
+  {
+    value: "EMPWHTCY",
+    label: "2024 White Employed Civilian Population Age 16+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPWHTCY_HEAT",
+    label: "2024 White Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "EMPBLKCY",
-    label: "Black Employed Population",
+    label: "2024 Black/African American Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
-    value: "EMPASNCY",
-    label: "Asian Employed Population",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "EMPBLKCY_HEAT",
+    label: "2024 Black/African American Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "EMPAICY",
-    label: "American Indian/Alaska Native Employed",
+    label: "2024 American Indian/Alaska Native Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "EMPAICY_HEAT",
+    label: "2024 American Indian/Alaska Native Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EMPASNCY",
+    label: "2024 Asian Employed Civilian Population Age 16+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EMPASNCY_HEAT",
+    label: "2024 Asian Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "EMPPICY",
-    label: "Pacific Islander Employed Population",
+    label: "2024 Pacific Islander Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "EMPPICY_HEAT",
+    label: "2024 Pacific Islander Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "EMPOTHCY",
-    label: "Other Race Employed Population",
+    label: "2024 Other Race Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "EMPOTHCY_HEAT",
+    label: "2024 Other Race Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "EMPMLTCY",
-    label: "Multiple Races Employed Population",
+    label: "2024 Multiple Races Employed Civilian Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
   },
+  {
+    value: "EMPMLTCY_HEAT",
+    label: "2024 Multiple Races Employed Civilian Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
 
-  // Unemployed by Race
+  // Unemployment by Race
   {
     value: "UNWHTCY",
-    label: "White Unemployed Population",
+    label: "2024 White Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "UNWHTCY_HEAT",
+    label: "2024 White Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "UNBLKCY",
-    label: "Black Unemployed Population",
+    label: "2024 Black/African American Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
-    value: "UNASNCY",
-    label: "Asian Unemployed Population",
-    type: "dot-density",
-    category: "Dot Density Map",
+    value: "UNBLKCY_HEAT",
+    label: "2024 Black/African American Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "UNAICY",
-    label: "American Indian/Alaska Native Unemployed",
+    label: "2024 American Indian/Alaska Native Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "UNAICY_HEAT",
+    label: "2024 American Indian/Alaska Native Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNASNCY",
+    label: "2024 Asian Unemployed Population Age 16+",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "UNASNCY_HEAT",
+    label: "2024 Asian Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "UNPICY",
-    label: "Pacific Islander Unemployed Population",
+    label: "2024 Pacific Islander Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "UNPICY_HEAT",
+    label: "2024 Pacific Islander Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
   },
   {
     value: "UNOTHCY",
-    label: "Other Race Unemployed Population",
+    label: "2024 Other Race Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
   },
   {
+    value: "UNOTHCY_HEAT",
+    label: "2024 Other Race Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
     value: "UNMLTCY",
-    label: "Multiple Races Unemployed Population",
+    label: "2024 Multiple Races Unemployed Population Age 16+",
     type: "dot-density",
     category: "Dot Density Map",
+  },
+  {
+    value: "UNMLTCY_HEAT",
+    label: "2024 Multiple Races Unemployed Population Age 16+",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Labor Force by Race
+  {
+    value: "CIVLFWHTCY",
+    label: "2024 White Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFWHTCY_HEAT",
+    label: "2024 White Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFBLKCY",
+    label: "2024 Black/African American Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFBLKCY_HEAT",
+    label: "2024 Black/African American Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFAICY",
+    label: "2024 American Indian/Alaska Native Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFAICY_HEAT",
+    label: "2024 American Indian/Alaska Native Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFASNCY",
+    label: "2024 Asian Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFASNCY_HEAT",
+    label: "2024 Asian Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFPICY",
+    label: "2024 Pacific Islander Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFPICY_HEAT",
+    label: "2024 Pacific Islander Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFOTHCY",
+    label: "2024 Other Race Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFOTHCY_HEAT",
+    label: "2024 Other Race Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "CIVLFMLTCY",
+    label: "2024 Multiple Races Civilian Population 16+ in Labor Force",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "CIVLFMLTCY_HEAT",
+    label: "2024 Multiple Races Civilian Population 16+ in Labor Force",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Unemployment Rates by Race
+  {
+    value: "UNEMRTWHCY_HEAT",
+    label: "2024 White Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTBLCY_HEAT",
+    label: "2024 Black/African American Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTAICY_HEAT",
+    label: "2024 American Indian/Alaska Native Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTASCY_HEAT",
+    label: "2024 Asian Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTPICY_HEAT",
+    label: "2024 Pacific Islander Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTOTCY_HEAT",
+    label: "2024 Other Race Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "UNEMRTMLCY_HEAT",
+    label: "2024 Multiple Races Unemployment Rate",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+
+  // Race and Ethnicity - Population Counts
+  {
+    value: "HISPPOP_CY",
+    label: "2024 Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HISPPOP_CY_HEAT",
+    label: "2024 Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPWHT_CY",
+    label: "2024 White Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPWHT_CY_HEAT",
+    label: "2024 White Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPBLK_CY",
+    label: "2024 Black/African American Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPBLK_CY_HEAT",
+    label: "2024 Black/African American Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPAI_CY",
+    label: "2024 American Indian/Alaska Native Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPAI_CY_HEAT",
+    label: "2024 American Indian/Alaska Native Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPASN_CY",
+    label: "2024 Asian Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPASN_CY_HEAT",
+    label: "2024 Asian Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPPI_CY",
+    label: "2024 Pacific Islander Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPPI_CY_HEAT",
+    label: "2024 Pacific Islander Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPOTH_CY",
+    label: "2024 Other Race Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPOTH_CY_HEAT",
+    label: "2024 Other Race Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "NHSPMLT_CY",
+    label: "2024 Multiple Races Non-Hispanic Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "NHSPMLT_CY_HEAT",
+    label: "2024 Multiple Races Non-Hispanic Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DIVINDX_CY_HEAT",
+    label: "2024 Diversity Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "RACEBASECY",
+    label: "2024 Population by Race Base",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "RACEBASECY_HEAT",
+    label: "2024 Population by Race Base",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "EDUCBASECY",
+    label: "2024 Educational Attainment Base (Pop 25+)",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "EDUCBASECY_HEAT",
+    label: "2024 Educational Attainment Base (Pop 25+)",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "HHPOP_FY",
+    label: "2029 Household Population",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "HHPOP_FY_HEAT",
+    label: "2029 Household Population",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "PCIGRWCYFY_HEAT",
+    label: "2024-2029 Per Capita Income: CAGR",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "DIVINDX_FY_HEAT",
+    label: "2029 Diversity Index",
+    type: "class-breaks",
+    category: "Heat Map",
+  },
+  {
+    value: "PCI_FY",
+    label: "2029 Per Capita Income",
+    type: "dot-density",
+    category: "Dot Density Map",
+  },
+  {
+    value: "PCI_FY_HEAT",
+    label: "2029 Per Capita Income",
+    type: "class-breaks",
+    category: "Heat Map",
   },
 ];
 

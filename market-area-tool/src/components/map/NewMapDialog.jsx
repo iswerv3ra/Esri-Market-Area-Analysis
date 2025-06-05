@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react'; // Added useCallback
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import chroma from 'chroma-js';
@@ -7,6 +7,26 @@ import {
   initialLayerConfigurations,
   // createClassBreaks as createClassBreaksFromConfig // Only if used for generic fallback
 } from './mapConfig'; // Adjust path as necessary
+
+// --- categorizeOption function (can be outside the component or memoized) ---
+const categorizeOption = (option) => {
+  const val = option.value.toLowerCase();
+  if (['totpop_cy', 'totpop_cy_heat', 'tothh_cy', 'tothh_cy_heat', 'avghhsz_cy_heat'].includes(val)) return 'Population & Households';
+  if (['dpop_cy', 'dpop_cy_heat', 'dpopwrk_cy', 'dpopwrk_cy_heat', 'dpopres_cy', 'dpopres_cy_heat'].includes(val)) return 'Daytime Population';
+  if (['medage_cy', 'medage_cy_heat', 'workage_cy', 'workage_cy_heat', 'senior_cy', 'senior_cy_heat', 'child_cy', 'child_cy_heat'].includes(val)) return 'Age';
+  if (val.includes('hinc') || ['medhinc_cy_heat', 'avghinc_cy_heat', 'unemprt_cy_heat'].some(p => val.startsWith(p))) return 'Income';
+  if (['popgrwcyfy_heat', 'hhgrwcyfy_heat', 'mhigrwcyfy_heat'].includes(val)) return 'Projected Growth';
+  if (['popgrw20cy_heat', 'hhgrw20cy_heat'].includes(val)) return 'Historical Growth';
+  if (val.includes('val') || ['tothu_cy', 'tothu_cy_heat', 'owner_cy', 'owner_cy_heat', 'renter_cy', 'renter_cy_heat', 'pcthomeowner_heat', 'vacant_cy', 'vacant_cy_heat', 'vacant_cy_pct_heat'].some(p=>val.startsWith(p)) ) return 'Housing';
+  if (['pop0_cy', 'pop5_cy', 'pop10_cy', 'pop15_cy', 'pop20_cy', 'pop25_cy', 'pop30_cy', 'pop35_cy', 'pop40_cy', 'pop45_cy', 'pop50_cy', 'pop55_cy', 'pop60_cy', 'pop65_cy', 'pop70_cy', 'pop75_cy', 'pop80_cy', 'pop85_cy', 'genalphacy', 'genz_cy', 'millenn_cy', 'genx_cy', 'babyboomcy', 'oldrgenscy'].includes(val)) return 'Age Detail';
+  if (['nohs_cy', 'somehs_cy', 'hsgrad_cy', 'ged_cy', 'smcoll_cy', 'asscdeg_cy', 'bachdeg_cy', 'graddeg_cy', 'hsgrad_less_cy_pct_heat', 'bachdeg_plus_cy_pct_heat', 'educbasecy', 'educbasecy_heat'].includes(val)) return 'Education';
+  if (['_fy', '_fy_heat'].some(s => val.endsWith(s)) && !['popgrwcyfy_heat', 'hhgrwcyfy_heat', 'mhigrwcyfy_heat', 'pcigrwcyfy_heat'].includes(val) ) return 'Future'; // More specific future
+  if (['hai_cy_heat', 'incmort_cy_heat', 'wlthindxcy_heat', 'sei_cy_heat', 'pci_cy_heat'].includes(val)) return 'Affluence & Affordability';
+  if (val.includes('hisp') || val.includes('wht_cy') || val.includes('blk_cy') || val.includes('ai_cy') || val.includes('asn_cy') || val.includes('pi_cy') || val.includes('oth_cy') || val.includes('mlt_cy') || ['divindx_cy_heat', 'racebasecy', 'racebasecy_heat'].includes(val) ) return 'Race';
+  if (val.includes('civlf') || val.includes('emp') || val.includes('unemp') || val.includes('edr_cy')) return 'Employment & Labor Force';
+  return 'Other';
+};
+
 
 /**
  * Intelligently rounds numbers based on their magnitude
@@ -66,7 +86,7 @@ const TCG_COLORS = {
  */
 const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
   // TCG Color palette with RGB values
-  const TCG_COLORS = {
+  const TCG_COLORS_INNER = { // Renamed to avoid conflict with outer scope if any confusion
     'TCG Red Dark': [191, 0, 0],
     'TCG Orange Dark': [255, 122, 13],
     'TCG Yellow Dark': [248, 242, 0],
@@ -101,7 +121,7 @@ const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
   
   // Default alpha value (0.8 for moderate transparency)
   const alpha = 0.8;
-  const colorArray = [...TCG_COLORS[colorName], alpha];
+  const colorArray = [...TCG_COLORS_INNER[colorName], alpha];
   
   // Return in requested format
   return returnFormat === 'string' ? formatColorForDisplay(colorArray) : colorArray;
@@ -270,7 +290,9 @@ const calculateDataDrivenBreaks = (values, breakCount) => {
   }
 
   // Ensure the last break includes the maximum value exactly
-  breaks[breaks.length - 1].max = smartRound(max);
+  if (breaks.length > 0) {
+    breaks[breaks.length - 1].max = smartRound(max);
+  }
   
   return breaks;
 };
@@ -334,7 +356,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
   const optimalBreakCount = customBreakCount !== null ? 
     customBreakCount : determineBreakCountByAreas(totalDataCount);
   
-  console.log(`Data has ${totalDataCount} points, using ${optimalBreakCount} breaks`);
+  // console.log(`Data has ${totalDataCount} points, using ${optimalBreakCount} breaks`);
   
   // Generate data-driven breaks based on the actual values
   const breakRanges = calculateDataDrivenBreaks(values, optimalBreakCount);
@@ -373,7 +395,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
     });
   }
 
-  console.log("Generated data-driven class breaks with formatted colors:", breaks);
+  // console.log("Generated data-driven class breaks with formatted colors:", breaks);
   return breaks;
 };
 
@@ -645,26 +667,51 @@ const generateSizeBreaksForPoints = (data, valueColumn, numClasses = null, minSi
     return null;
   }
 
-  // Determine optimal break count based on TOTAL data count
-  const totalDataCount = data.length;
-  const optimalBreakCount = numClasses !== null ? 
-    numClasses : determineBreakCountByAreas(totalDataCount);
+  // Extract numeric values from data
+  const values = data.map(item => {
+    const rawValue = item[valueColumn];
+    if (rawValue === null || rawValue === undefined || rawValue === '') return NaN;
+    const num = Number(rawValue);
+    return isNaN(num) ? NaN : num;
+  }).filter(val => !isNaN(val));
+
+  if (values.length === 0) {
+    console.warn(`generateSizeBreaksForPoints: No valid numeric data in '${valueColumn}'.`);
+    return null;
+  }
   
-  // Generate breaks based on predefined ranges
-  const breakRanges = getBreakRanges(optimalBreakCount);
+  // Determine optimal break count based on TOTAL data count (using values length)
+  const optimalBreakCount = numClasses !== null ? 
+    numClasses : determineBreakCountByAreas(values.length); // Use length of valid values
+  
+  // Generate breaks based on actual data distribution, not predefined ranges
+  const breakRanges = calculateDataDrivenBreaks(values, optimalBreakCount);
   const sizeBreaks = [];
   
   // Create size break objects with appropriate size progression
   for (let i = 0; i < breakRanges.length; i++) {
     const range = breakRanges[i];
     // Calculate proportional size between min and max
-    const proportion = i / (breakRanges.length - 1 || 1);
+    const proportion = breakRanges.length === 1 ? 0.5 : i / (breakRanges.length - 1);
     const currentSize = minSize + (proportion * (maxSize - minSize));
     
+    let label = '';
+    if (i === 0 && breakRanges.length > 1) {
+      label = `Less than ${range.max.toLocaleString()}`;
+    } else if (i === breakRanges.length - 1 && breakRanges.length > 1) {
+      label = `${range.min.toLocaleString()} or more`;
+    } else {
+      label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+    }
+    if (breakRanges.length === 1) { // Single break, label is just the range
+        label = `${range.min.toLocaleString()}${range.min !== range.max ? ` - ${range.max.toLocaleString()}` : ''}`;
+    }
+
+
     sizeBreaks.push({
       minValue: range.min,
       maxValue: range.max,
-      label: `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`,
+      label: label,
       size: Math.round(currentSize)
     });
   }
@@ -687,7 +734,7 @@ const formatColorForDisplay = (color) => {
       return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
     }
   }
-  return color; // Return as is if already a string
+  return String(color); // Return as is if already a string or ensure it's a string
 };
 
 
@@ -702,7 +749,7 @@ const formatColorForDisplay = (color) => {
 const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) => {
   // Determine break count
   const breakCount = determineBreakCountByAreas(dataCount);
-  console.log(`Heatmap with ${dataCount} data points, using ${breakCount} breaks`);
+  // console.log(`Heatmap with ${dataCount} data points, using ${breakCount} breaks`);
   
   // Generate sample data for distribution if no real data provided
   const values = sampleData || Array.from({ length: dataCount }, (_, i) => i);
@@ -773,11 +820,22 @@ const generateGenericDotDensityAttributes = (field) => {
   return [{ field: field || "value", color: "#8A2BE2", label: field || "Value" }];
 };
 
+// Definition of map types for the selection UI
+const MAP_TYPE_DEFINITIONS = [
+  { id: 'heatmap', name: 'Heat Map', desc: 'Color-coded gradient data.', enabled: true },
+  { id: 'dotdensity', name: 'Dot Density', desc: 'Points representing data quantity.', enabled: true },
+  { id: 'comps', name: 'Comps Map', desc: 'Comparable property data (value based color).', enabled: false },
+  { id: 'pipeline', name: 'Pipeline Map', desc: 'Status-based property data.', enabled: false },
+  { id: 'custom', name: 'Custom Points Map', desc: 'Points with color by Value1, size by Value2.', enabled: false },
+];
+
+
 // NewMapDialog Component
 const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, areaTypes }) => {
   const [step, setStep] = useState(1);
   const [mapName, setMapName] = useState('New Map');
-  const [mapType, setMapType] = useState('custom');
+  // Default to the first enabled map type, or 'heatmap' as a fallback
+  const [mapType, setMapType] = useState(MAP_TYPE_DEFINITIONS.find(mt => mt.enabled)?.id || 'heatmap');
   const [selectedVisualization, setSelectedVisualization] = useState('');
   const [selectedAreaType, setSelectedAreaType] = useState(areaTypes[0]);
   const [customData, setCustomData] = useState(null);
@@ -798,6 +856,59 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   const [labelOptions, setLabelOptions] = useState({ includeVariables: true, avoidCollisions: true, visibleAtAllZooms: false, fontSize: 10, bold: false, whiteBackground: false, showLabelConfig: false });
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const [categorizedVisualizationOptions, setCategorizedVisualizationOptions] = useState({});
+
+
+  // Determine if current map type needs configuration step
+  const isHeatmapOrDotDensity = mapType === 'heatmap' || mapType === 'dotdensity';
+  
+  // Calculate maximum steps based on map type
+  const maxSteps = isHeatmapOrDotDensity ? 2 : 3; // Heatmap/DotDensity have 2 steps (Type -> Review), others 3 (Type -> Config -> Review)
+
+  useEffect(() => {
+    if (mapType === 'heatmap' || mapType === 'dotdensity') {
+      const relevantOptions = visualizationOptions.filter(option => {
+        if (mapType === 'heatmap') {
+          return option.category === 'Heat Map';
+        } else if (mapType === 'dotdensity') {
+          return option.category === 'Dot Density Map';
+        }
+        return false;
+      });
+  
+      const grouped = relevantOptions.reduce((acc, option) => {
+        const categoryName = categorizeOption(option); // Use the globally defined function
+        if (!acc[categoryName]) {
+          acc[categoryName] = [];
+        }
+        acc[categoryName].push(option);
+        return acc;
+      }, {});
+  
+      const categoryOrder = [
+        'Population & Households', 'Daytime Population', 'Age', 'Age Detail', 'Income', 
+        'Affluence & Affordability', 'Housing', 'Education', 'Employment & Labor Force',
+        'Race', 'Projected Growth', 'Historical Growth', 'Future', 'Other'
+      ];
+      
+      const orderedGrouped = {};
+      categoryOrder.forEach(catName => {
+          if (grouped[catName]) {
+              orderedGrouped[catName] = grouped[catName];
+          }
+      });
+      Object.keys(grouped).forEach(catName => {
+          if (!orderedGrouped[catName]) { // Add any categories not in predefined order (e.g. if new ones appear)
+              orderedGrouped[catName] = grouped[catName];
+          }
+      });
+  
+      setCategorizedVisualizationOptions(orderedGrouped);
+    } else {
+      setCategorizedVisualizationOptions({}); // Clear if not heatmap/dotdensity
+    }
+  }, [visualizationOptions, mapType]);
+
 
   // Auto-generate color class breaks when data and value column change
   useEffect(() => {
@@ -805,20 +916,20 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       const baseSymbol = { style: 'circle', outline: { color: '#FFFFFF', width: 1 } };
       const breaks = generateClassBreaksForPoints(customData, valueColumn1, null, baseSymbol);
       setColorClassBreakInfos(breaks);
-    } else if (mapType !== 'custom' && mapType !== 'comps' && colorClassBreakInfos !== null) {
+    } else if (mapType !== 'custom' && mapType !== 'comps' && colorClassBreakInfos !== null) { // Clear if not custom or comps
       setColorClassBreakInfos(null);
     }
-  }, [customData, valueColumn1, mapType]);
+  }, [customData, valueColumn1, mapType]); // Removed colorClassBreakInfos from deps to avoid loops if it's set null here
 
   // Auto-generate size class breaks when data and size column change
   useEffect(() => {
     if (mapType === 'custom' && customData && valueColumn2) {
       const breaks = generateSizeBreaksForPoints(customData, valueColumn2);
       setSizeClassBreakInfos(breaks);
-    } else if (mapType !== 'custom' && sizeClassBreakInfos !== null) {
+    } else if (mapType !== 'custom' && sizeClassBreakInfos !== null) { // Clear if not custom
       setSizeClassBreakInfos(null);
     }
-  }, [customData, valueColumn2, mapType]);
+  }, [customData, valueColumn2, mapType]); // Removed sizeClassBreakInfos from deps
 
   // Auto-generate color class breaks for comps maps
   useEffect(() => {
@@ -827,16 +938,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       const breaks = generateClassBreaksForPoints(customData, valueColumn1, null, baseSymbol);
       setColorClassBreakInfos(breaks);
     } else if (mapType !== 'comps' && mapType !== 'custom' && colorClassBreakInfos !== null) {
-        // This condition was in the first useEffect, ensuring it's cleared if not custom or comps
-        // setColorClassBreakInfos(null); // Already handled by the first useEffect
+        // Already handled by the first useEffect which clears if not custom OR comps
     }
-  }, [customData, valueColumn1, mapType]);
-
-  const filteredOptions = visualizationOptions.filter(option => 
-    mapType === 'heatmap' ? option.category === 'Heat Map' : 
-    mapType === 'dotdensity' ? option.category === 'Dot Density Map' : 
-    true
-  );
+  }, [customData, valueColumn1, mapType]); // Removed colorClassBreakInfos from deps
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -890,7 +994,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         if (!worksheet) throw new Error(`Sheet '${firstSheetName}' could not be read.`);
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: null }); // raw: true tries to preserve types
         if (jsonData.length === 0) { setFileError('Excel sheet appears to have no data rows.'); return; }
-        const headers = Object.keys(jsonData[0]);
+        const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
         processFileData(jsonData, headers);
       } catch (error) {
         console.error("Excel Parsing Error:", error);
@@ -918,16 +1022,18 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       setLabelColumn(labelCol);
       const numericColumns = [], potentialLatLon = ['lat', 'lon', 'lng', 'latitude', 'longitude', 'x', 'y', 'coord', 'east', 'north'], potentialIds = ['id', 'objectid', 'fid', 'pk', 'key'];
       validFields.forEach(field => {
-        let isNumeric = false, checked = 0;
+        let isNumeric = false, checked = 0, nonNullFound = false;
         for (let i = 0; i < data.length && checked < 5; i++) { // Check up to 5 non-null/undefined values
           const value = data[i]?.[field];
-          if (value !== null && value !== undefined && value !== '') { 
+          if (value !== null && value !== undefined && String(value).trim() !== '') { // Added trim check for strings
+            nonNullFound = true;
             isNumeric = typeof value === 'number' && !isNaN(value); 
             checked++; 
             if (!isNumeric) break; 
           }
         }
-        if (isNumeric && !potentialLatLon.some(p => field.toLowerCase().includes(p)) && !potentialIds.some(p => field.toLowerCase() === p)) {
+        // Only consider it numeric if at least one non-null value was found and all checked were numeric
+        if (nonNullFound && isNumeric && !potentialLatLon.some(p => field.toLowerCase().includes(p)) && !potentialIds.some(p => field.toLowerCase() === p)) {
           numericColumns.push(field);
         }
       });
@@ -967,7 +1073,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   };
 
   const resetForm = () => {
-    setStep(1); setMapName('New Map'); setMapType('custom'); setSelectedVisualization('');
+    setStep(1); setMapName('New Map'); 
+    setMapType(MAP_TYPE_DEFINITIONS.find(mt => mt.enabled)?.id || 'heatmap'); // Reset to default enabled map type
+    setSelectedVisualization('');
     setSelectedAreaType(areaTypes[0]); setCustomData(null); setColumns([]);
     setLabelColumn(''); setVariable1Column(''); setVariable2Column('');
     setVariable1Text(''); setVariable2Text(''); setValueColumn1(''); setValueColumn2('');
@@ -978,178 +1086,179 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
   };
 
   const handleCreateMap = async () => {
-    try {
-      setIsSaving(true);
-      setFileError('');
-      
-      const formattedTitle = generateFormattedTitle();
-      const displayTitle = mapName.trim() || formattedTitle;
-      
-      const mapData = {
-        name: displayTitle,
-        type: mapType, // Original user-selected map type e.g., 'heatmap', 'comps'
-        // For heatmap/dotdensity, visualizationType holds the specific field ID like "income_HEAT"
-        // For other types, it's the same as mapType.
-        visualizationType: (mapType === 'heatmap' || mapType === 'dotdensity') ? selectedVisualization : mapType,
-      };
+    console.log("[NewMapDialog] Starting map creation process...");
     
-      const defaultBaseSymbolConfig = { type: "simple-marker", style: 'circle', color: '#CCCCCC', size: 10, outline: { color: '#FFFFFF', width: 1 } };
-  
-      if (mapType === 'custom') {
-        mapData.areaType = { value: 'custom', label: 'Custom Data', url: null };
-        // mapData.visualizationType is 'custom' from above
-        const layerConfig = {
-          title: displayTitle, type: 'custom', rendererType: 'custom-dual-value',
-          labelColumn: labelColumn === 'none' ? null : labelColumn, hasNoLabels: labelColumn === 'none', hideAllLabels: labelColumn === 'none',
-          variable1Column, variable2Column, variable1Text, variable2Text, latitudeColumn, longitudeColumn,
-          labelFormatString: formattedTitle, titleFormat: {},
-          valueColumn1, valueColumn2, symbol: defaultBaseSymbolConfig,
-          colorClassBreakInfos, value1Format: valueColumn1 ? getValueFormatForColumn(valueColumn1, getSampleValue(valueColumn1)) : null,
-          sizeInfos: sizeClassBreakInfos, value2Format: valueColumn2 ? getValueFormatForColumn(valueColumn2, getSampleValue(valueColumn2)) : null,
-          customData: { data: customData || [] }, labelOptions,
-        };
-        mapData.layerConfiguration = layerConfig;
+    try {
+      // Set saving state
+      setIsSaving(true);
+      
+      // Validate required fields based on map type
+      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
+        setFileError('Please upload a data file.');
+        setIsSaving(false);
+        return;
+      }
+      
+      if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
+        setFileError('Please select a visualization variable.');
+        setIsSaving(false);
+        return;
+      }
+      
+      // Additional validation for custom data maps
+      if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
+        if (!labelColumn && labelColumn !== 'none') {
+          setFileError('Please select a Label column or "None".');
+          setIsSaving(false);
+          return;
+        }
+        if (!latitudeColumn || !longitudeColumn) {
+          setFileError('Please select Latitude and Longitude columns.');
+          setIsSaving(false);
+          return;
+        }
+      }
 
-      } else if (mapType === 'comps' || mapType === 'pipeline') {
-        mapData.areaType = { value: 'custom', label: 'Custom Data', url: null };
-        // mapData.visualizationType is 'comps' or 'pipeline' from above
-        const layerConfig = {
-          title: displayTitle,
-          type: mapType, // "comps" or "pipeline". createLayers will normalize to "comp" or "pipe"
+      // Build map configuration based on map type
+      let mapConfiguration = {};
+      
+      if (mapType === 'heatmap' || mapType === 'dotdensity') {
+        // For standard visualizations, get config from initialLayerConfigurations
+        const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
+        if (visualizationConfig) {
+          mapConfiguration = {
+            ...visualizationConfig,
+            field: selectedVisualization,
+            visualizationKey: selectedVisualization,
+            type: mapType,
+            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+          };
+        } else {
+          console.warn(`[NewMapDialog] No configuration found for visualization: ${selectedVisualization}`);
+          mapConfiguration = {
+            field: selectedVisualization,
+            visualizationKey: selectedVisualization,
+            type: mapType,
+            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+          };
+        }
+      } else if (mapType === 'custom' || mapType === 'comps' || mapType === 'pipeline') {
+        // For custom data maps, build configuration from form data
+        mapConfiguration = {
+          type: mapType,
+          customData: {
+            data: customData,
+            nameColumn: labelColumn === 'none' ? null : labelColumn
+          },
           labelColumn: labelColumn === 'none' ? null : labelColumn,
           hasNoLabels: labelColumn === 'none',
           hideAllLabels: labelColumn === 'none',
-          variable1Column, variable2Column, variable1Text, variable2Text,
-          latitudeColumn, longitudeColumn,
-          labelFormatString: formattedTitle,
-          titleFormat: {},
-          symbol: {
-            ...defaultBaseSymbolConfig,
-            color: mapType === 'pipeline' ? '#FFA500' : '#800080',
-          },
-          customData: { data: customData || [] },
+          variable1Column: variable1Column,
+          variable2Column: variable2Column,
+          variable1Text: variable1Text,
+          variable2Text: variable2Text,
+          valueColumn: valueColumn1,
+          valueColumn1: valueColumn1,
+          valueColumn2: valueColumn2,
+          statusColumn: statusColumn,
+          latitudeColumn: latitudeColumn,
+          longitudeColumn: longitudeColumn,
           labelOptions: labelOptions,
-        };
-        if (mapType === 'comps') {
-          layerConfig.valueColumn = valueColumn1;
-          if (valueColumn1 && colorClassBreakInfos) {
-            layerConfig.classBreakInfos = colorClassBreakInfos;
-            layerConfig.rendererType = 'classBreaks';
-            layerConfig.valueFormat = getValueFormatForColumn(valueColumn1, getSampleValue(valueColumn1));
-          } else {
-            layerConfig.rendererType = 'simple';
+          titleFormat: generateFormattedTitle(),
+          
+          // Include generated class breaks for visualization
+          colorClassBreakInfos: colorClassBreakInfos,
+          sizeClassBreakInfos: sizeClassBreakInfos,
+          
+          // Symbol configuration for points
+          symbol: {
+            style: 'circle',
+            size: 10,
+            color: mapType === 'comps' ? '#800080' : '#FF0000', // Purple for comps, red for others
+            outline: {
+              color: '#FFFFFF',
+              width: 1
+            }
           }
-        } else if (mapType === 'pipeline') {
-          layerConfig.statusColumn = statusColumn;
-          layerConfig.rendererType = 'uniqueValue';
-        }
-        mapData.layerConfiguration = layerConfig;
-
-      } else { // Heatmap or Dot Density
-        mapData.areaType = selectedAreaType;
-        // mapData.visualizationType is selectedVisualization (e.g., "income_HEAT")
-        
-        const areaTypeString = convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract');
-        let specificConfig = getInitialConfigForVisualization(selectedVisualization);
-        let finalField, finalClassBreaks, finalDotAttributes, finalDotValue;
-
-        if (specificConfig) {
-            // console.log(`[NewMapDialog] Found specific config for ${selectedVisualization}:`, specificConfig);
-            finalField = specificConfig.field;
-            if (mapType === 'heatmap') {
-                finalClassBreaks = specificConfig.classBreakInfos;
-            } else { // dotdensity
-                finalDotAttributes = specificConfig.attributes || generateGenericDotDensityAttributes(finalField);
-                finalDotValue = specificConfig.dotValue || 100;
-            }
-        } else {
-            console.warn(`[NewMapDialog] No specific config for ${selectedVisualization}. Using generic.`);
-            finalField = selectedVisualization; // Fallback
-            if (mapType === 'heatmap') {
-                // Use intelligent break count for generic heatmap
-                finalClassBreaks = generateGenericHeatmapClassBreaks(100); // Assume 100 areas if no data available
-            } else { // dotdensity
-                finalDotAttributes = generateGenericDotDensityAttributes(finalField);
-                finalDotValue = 100;
-            }
-        }
-        
-        const layerConfig = {
-          title: displayTitle,
-          type: mapType === 'heatmap' ? 'class-breaks' : 'dot-density', // For createRenderer
-          visualizationType: selectedVisualization, // The ID for selection (e.g. "income_HEAT")
-          areaType: areaTypeString,
-          rendererType: mapType === 'heatmap' ? 'class-breaks' : 'dot-density',
-          field: finalField,
-          classBreakInfos: mapType === 'heatmap' ? finalClassBreaks : undefined,
-          attributes: mapType === 'dotdensity' ? finalDotAttributes : undefined,
-          dotValue: mapType === 'dotdensity' ? finalDotValue : undefined,
-          opacity: 0.8, visible: true,
-          legendInfo: { label: displayTitle, type: mapType },
-          isStatisticalVisualization: true, mapType: mapType,
-          valueFormat: getValueFormatForColumn(finalField, undefined), // Provide a generic format or infer
-          visualizationStyle: mapType, 
         };
-        if (mapType === 'dotdensity') {
-          layerConfig.backgroundFillSymbol = { type: "simple-fill", style: "none", outline: { color: [128,128,128,0.3], width: 0.5 }};
+
+        // Add type-specific configurations
+        if (mapType === 'pipeline') {
+          mapConfiguration.statusMapping = {
+            // Default status color mapping - can be customized later
+            'active': '#00FF00',
+            'pending': '#FFFF00',
+            'completed': '#0000FF',
+            'cancelled': '#FF0000'
+          };
         }
-        mapData.layerConfiguration = layerConfig;
       }
-  
-      // console.log("[NewMapDialog handleCreateMap] MapData prepared for save and creation:", JSON.stringify(mapData, (k,v) => (k === 'data' || (k === 'customData' && v?.data)) ? `[${(v.data || v).length} items]` : v, 2));
-      const saveResult = await saveMapConfiguration(mapData);
-      if (saveResult.success) {
-        // console.log("[NewMapDialog] Map config saved successfully:", saveResult);
-        if (saveResult.configId) {
-          mapData.configId = saveResult.configId;
-          if (mapData.layerConfiguration) mapData.layerConfiguration.configId = saveResult.configId;
+
+      // Create the map data object to pass to parent
+      const mapData = {
+        name: mapName.trim() || generateFormattedTitle(),
+        type: mapType,
+        visualizationType: mapType,
+        areaType: selectedAreaType,
+        layerConfiguration: mapConfiguration,
+        
+        // Include original form data for reference
+        originalFormData: {
+          mapType,
+          selectedVisualization,
+          selectedAreaType,
+          customData,
+          labelColumn,
+          variable1Column,
+          variable2Column,
+          variable1Text,
+          variable2Text,
+          valueColumn1,
+          valueColumn2,
+          statusColumn,
+          latitudeColumn,
+          longitudeColumn,
+          labelOptions
         }
-      } else console.warn("[NewMapDialog] Map config save failed, proceeding with map creation:", saveResult);
-      
-      onCreateMap(mapData);
-      resetForm();
-      onClose();
-    } catch (error) {
-      console.error("[NewMapDialog] Error during map creation and save:", error);
-      setFileError(`Map creation failed: ${error.message}`);
+      };
+
+      console.log("[NewMapDialog] Calling onCreateMap with data:", {
+        name: mapData.name,
+        type: mapData.type,
+        hasCustomData: !!customData,
+        configType: mapConfiguration.type
+      });
+
+      // Save the map configuration to database/storage
       try {
-        // Fallback map creation logic
-        const formattedTitle = generateFormattedTitle();
-        const displayTitle = mapName.trim() || formattedTitle;
-        const fallbackMapData = { 
-            name: displayTitle, 
-            type: mapType, 
-            visualizationType: (mapType === 'heatmap' || mapType === 'dotdensity') ? selectedVisualization : mapType,
-        };
-        if (mapType === 'custom' || mapType === 'comps' || mapType === 'pipeline') {
-            fallbackMapData.areaType = { value: 'custom', label: 'Custom Data', url: null };
-            fallbackMapData.layerConfiguration = {
-                title: displayTitle, type: mapType,
-                rendererType: mapType === 'comps' ? (valueColumn1 ? 'classBreaks' : 'simple') : (mapType === 'pipeline' ? 'uniqueValue' : 'simple'),
-                customData: { data: customData || [] },
-                labelColumn, latitudeColumn, longitudeColumn, valueColumn1, statusColumn,
-                symbol: defaultBaseSymbolConfig,
-                classBreakInfos: mapType === 'comps' && valueColumn1 ? colorClassBreakInfos : undefined, // Basic fallback
-            };
-        } else { // heatmap or dotdensity
-            fallbackMapData.areaType = selectedAreaType;
-            const areaTypeString = convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract');
-            fallbackMapData.layerConfiguration = {
-                title: displayTitle,
-                type: mapType === 'heatmap' ? 'class-breaks' : 'dot-density',
-                visualizationType: selectedVisualization, areaType: areaTypeString,
-                rendererType: mapType === 'heatmap' ? 'class-breaks' : 'dot-density',
-                field: selectedVisualization,
-                classBreakInfos: mapType === 'heatmap' ? generateGenericHeatmapClassBreaks(100) : undefined,
-                attributes: mapType === 'dotdensity' ? generateGenericDotDensityAttributes(selectedVisualization) : undefined,
-                dotValue: mapType === 'dotdensity' ? 100 : undefined,
-                opacity: 0.8, visible: true,
-            };
+        const saveResult = await saveMapConfiguration(mapData);
+        console.log("[NewMapDialog] Map configuration saved:", saveResult);
+        
+        // Add the configId to mapData if save was successful
+        if (saveResult.success && saveResult.configId) {
+          mapData.configId = saveResult.configId;
+          mapData.mapConfigId = saveResult.configId;
         }
-        console.log("[NewMapDialog] Creating map with fallback configuration due to error...");
-        onCreateMap(fallbackMapData);
-        resetForm(); onClose();
-      } catch (fbError) { console.error("[NewMapDialog] Fallback map creation also failed:", fbError); }
+      } catch (saveError) {
+        console.error("[NewMapDialog] Error saving map configuration:", saveError);
+        // Continue with map creation even if save fails - it will use localStorage fallback
+      }
+
+      // Call the parent's map creation handler
+      if (onCreateMap && typeof onCreateMap === 'function') {
+        await onCreateMap(mapData);
+        console.log("[NewMapDialog] Map creation completed successfully");
+        
+        // Reset form and close dialog
+        resetForm();
+        onClose();
+      } else {
+        throw new Error("onCreateMap function not provided or invalid");
+      }
+      
+    } catch (error) {
+      console.error("[NewMapDialog] Error during map creation:", error);
+      setFileError(`Failed to create map: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -1157,40 +1266,106 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
   const onCancel = () => { resetForm(); onClose(); };
 
+  /**
+   * Enhanced nextStep function that intelligently handles step navigation
+   * based on map type. For heatmap/dotdensity maps, skips configuration
+   * step and goes directly from step 1 to step 3 (review).
+   */
   const nextStep = () => {
     if (step === 1) {
-      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) { setFileError('Please upload a data file.'); return; }
-      if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) { setFileError('Please select a visualization variable.'); return; }
+      // Validate step 1 requirements for all map types
+      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) { 
+        setFileError('Please upload a data file.'); 
+        return; 
+      }
+      if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) { 
+        setFileError('Please select a visualization variable.'); 
+        return; 
+      }
+      
+      // For heatmap/dotdensity maps, skip configuration step and go directly to review
+      if (isHeatmapOrDotDensity) {
+        setStep(maxSteps); // Skip step 2 and go to review (which is now maxSteps)
+        setFileError('');
+        return;
+      }
     }
-    if (step === 2) {
+    
+    if (step === 2) { // This is the configuration step, only for non-heatmap/dotdensity
+      // Configuration step validation for custom data maps only
       if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
-          if (!labelColumn && labelColumn !== 'none') { setFileError('Please select a Label column or "None".'); return; }
-          if (!latitudeColumn || !longitudeColumn) { setFileError('Please select Latitude and Longitude columns.'); return; }
+          if (!labelColumn && labelColumn !== 'none') { 
+            setFileError('Please select a Label column or "None".'); 
+            return; 
+          }
+          if (!latitudeColumn || !longitudeColumn) { 
+            setFileError('Please select Latitude and Longitude columns.'); 
+            return; 
+          }
           if (customData && customData.length > 0) {
               let latValid = false, lonValid = false, val1Numeric = true, val2Numeric = true, checked = 0;
               for(let i = 0; i < customData.length && checked < 5; i++) {
                   const row = customData[i];
                   if (row) {
-                      if (latitudeColumn && !isNaN(Number(row[latitudeColumn]))) latValid = true;
-                      if (longitudeColumn && !isNaN(Number(row[longitudeColumn]))) lonValid = true;
+                      if (latitudeColumn && typeof row[latitudeColumn] === 'number' && !isNaN(Number(row[latitudeColumn]))) latValid = true;
+                      if (longitudeColumn && typeof row[longitudeColumn] === 'number' && !isNaN(Number(row[longitudeColumn]))) lonValid = true;
                       
-                      if (mapType === 'custom' && valueColumn1 && row[valueColumn1] !== null && row[valueColumn1] !== undefined && row[valueColumn1] !== '' && isNaN(Number(row[valueColumn1]))) val1Numeric = false;
-                      if (mapType === 'custom' && valueColumn2 && row[valueColumn2] !== null && row[valueColumn2] !== undefined && row[valueColumn2] !== '' && isNaN(Number(row[valueColumn2]))) val2Numeric = false;
-                      if (mapType === 'comps' && valueColumn1 && row[valueColumn1] !== null && row[valueColumn1] !== undefined && row[valueColumn1] !== '' && isNaN(Number(row[valueColumn1]))) val1Numeric = false;
-                      checked++;
+                      if (mapType === 'custom' && valueColumn1 && row[valueColumn1] !== null && row[valueColumn1] !== undefined && String(row[valueColumn1]).trim() !== '' && isNaN(Number(row[valueColumn1]))) val1Numeric = false;
+                      if (mapType === 'custom' && valueColumn2 && row[valueColumn2] !== null && row[valueColumn2] !== undefined && String(row[valueColumn2]).trim() !== '' && isNaN(Number(row[valueColumn2]))) val2Numeric = false;
+                      if (mapType === 'comps' && valueColumn1 && row[valueColumn1] !== null && row[valueColumn1] !== undefined && String(row[valueColumn1]).trim() !== '' && isNaN(Number(row[valueColumn1]))) val1Numeric = false;
+                      
+                      // Only increment checked if relevant columns are being validated for this row
+                      if ((latitudeColumn && row[latitudeColumn] !== undefined) || 
+                          (longitudeColumn && row[longitudeColumn] !== undefined) ||
+                          (valueColumn1 && row[valueColumn1] !== undefined) ||
+                          (valueColumn2 && row[valueColumn2] !== undefined)) {
+                        checked++;
+                      }
                   }
               }
-              if (!latValid && latitudeColumn) { setFileError(`Latitude column ('${latitudeColumn}') has non-numeric or missing data in first 5 rows.`); return; }
-              if (!lonValid && longitudeColumn) { setFileError(`Longitude column ('${longitudeColumn}') has non-numeric or missing data in first 5 rows.`); return; }
-              if (!val1Numeric && (mapType === 'custom' || mapType === 'comps') && valueColumn1) { setFileError(`Value Column 1 (Color) ('${valueColumn1}') has non-numeric data.`); setColorClassBreakInfos(null); return; } // Added return
-              if (mapType === 'custom' && !val2Numeric && valueColumn2) { setFileError(`Value Column 2 (Size) ('${valueColumn2}') has non-numeric data.`); setSizeClassBreakInfos(null); return; } // Added return
+              // Check only if a column is selected
+              if (latitudeColumn && !latValid) { 
+                setFileError(`Latitude column ('${latitudeColumn}') has non-numeric or missing data in first 5 non-empty rows.`); 
+                return; 
+              }
+              if (longitudeColumn && !lonValid) { 
+                setFileError(`Longitude column ('${longitudeColumn}') has non-numeric or missing data in first 5 non-empty rows.`); 
+                return; 
+              }
+              if ((mapType === 'custom' || mapType === 'comps') && valueColumn1 && !val1Numeric) { 
+                setFileError(`Value Column 1 (Color) ('${valueColumn1}') has non-numeric data. Class breaks cannot be generated.`); 
+                setColorClassBreakInfos(null); 
+                return; 
+              }
+              if (mapType === 'custom' && valueColumn2 && !val2Numeric) { 
+                setFileError(`Value Column 2 (Size) ('${valueColumn2}') has non-numeric data. Size breaks cannot be generated.`); 
+                setSizeClassBreakInfos(null); 
+                return; 
+              }
           }
       }
     }
-    setStep(step + 1); setFileError('');
+    
+    // Normal step progression
+    setStep(step + 1); 
+    setFileError('');
   };
 
-  const prevStep = () => { setStep(step - 1); setFileError(''); };
+  /**
+   * Enhanced prevStep function that handles backward navigation correctly
+   * for both heatmap/dotdensity (2-step) and custom data (3-step) workflows.
+   */
+  const prevStep = () => { 
+    // For heatmap/dotdensity maps on review step (maxSteps), go back to step 1
+    if (isHeatmapOrDotDensity && step === maxSteps) {
+      setStep(1);
+    } else {
+      // Normal backward progression for other cases
+      setStep(step - 1); 
+    }
+    setFileError(''); 
+  };
+  
   const toggleLabelConfig = () => setLabelOptions(prev => ({ ...prev, showLabelConfig: !prev.showLabelConfig }));
   const updateLabelOption = (option, value) => setLabelOptions(prev => ({ ...prev, [option]: value }));
 
@@ -1206,53 +1381,83 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
           </button>
         </div>
         <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
+          {/* Enhanced step indicator that adapts to map type */}
           <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
-            {[1, 2, 3].map(s => (
-              <div key={s} className={`pb-2 px-4 border-b-2 ${step >= s ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-500'}`}>
-                {s}. {s === 1 ? 'Map Type' : s === 2 ? 'Configuration' : 'Review'}
+            {/* Step 1: Map Type - Always shown */}
+            <div className={`pb-2 px-4 border-b-2 ${step >= 1 ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-500'}`}>
+              1. Map Type
+            </div>
+            
+            {/* Step 2: Configuration - Only shown for non-heatmap/dot-density maps */}
+            {!isHeatmapOrDotDensity && (
+              <div className={`pb-2 px-4 border-b-2 ${step >= 2 ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-500'}`}>
+                2. Configuration
               </div>
-            ))}
+            )}
+            
+            {/* Final Step: Review - Step number adapts based on map type */}
+            <div className={`pb-2 px-4 border-b-2 ${step >= maxSteps ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-500'}`}>
+              {isHeatmapOrDotDensity ? '2' : '3'}. Review
+            </div>
           </div>
+          
           {step === 1 && (
             <div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Map Name</label>
                 <input type="text" value={mapName} onChange={(e) => setMapName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Enter map name (or leave blank for auto-title)" disabled={isSaving} />
               </div>
+              
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Map Type</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  {[ {id: 'comps', name: 'Comps Map', desc: 'Comparable property data (value based color).'},
-                    {id: 'pipeline', name: 'Pipeline Map', desc: 'Status-based property data.'},
-                    {id: 'heatmap', name: 'Heat Map', desc: 'Color-coded gradient data.'} ].map(type => (
-                    <div key={type.id} className={`border rounded-lg p-4 cursor-pointer transition-colors ${mapType === type.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`} onClick={() => !isSaving && setMapType(type.id)}>
-                      <div className="font-medium">{type.name}</div>
+                
+                {/* Enabled Map Types */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {MAP_TYPE_DEFINITIONS.filter(type => type.enabled).map(type => (
+                    <div 
+                      key={type.id} 
+                      className={`border rounded-lg p-4 transition-colors 
+                        ${isSaving 
+                          ? 'opacity-50 cursor-not-allowed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700/50'
+                          : mapType === type.id 
+                            ? 'cursor-pointer border-blue-500 bg-blue-50 dark:bg-blue-900/30' 
+                            : 'cursor-pointer border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'
+                        }
+                      `}
+                      onClick={() => !isSaving && setMapType(type.id)}
+                    >
+                      <div className="font-medium text-gray-900 dark:text-white">{type.name}</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">{type.desc}</div>
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[ {id: 'dotdensity', name: 'Dot Density', desc: 'Points representing data quantity.'},
-                    {id: 'custom', name: 'Custom Points Map', desc: 'Points with color by Value1, size by Value2.'} ].map(type => (
-                    <div key={type.id} className={`border rounded-lg p-4 transition-colors ${
-                      type.id === 'custom' 
-                        ? 'border-gray-300 bg-gray-100 dark:bg-gray-800 dark:border-gray-600 opacity-50 cursor-not-allowed' 
-                        : `cursor-pointer ${mapType === type.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700'} ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }`} onClick={() => !isSaving && type.id !== 'custom' && setMapType(type.id)}>
-                      <div className={`font-medium ${type.id === 'custom' ? 'text-gray-400 dark:text-gray-500' : ''}`}>{type.name}</div>
-                      <div className={`text-sm ${type.id === 'custom' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{type.desc}</div>
+                {/* Disabled Map Types */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {MAP_TYPE_DEFINITIONS.filter(type => !type.enabled).map(type => (
+                    <div 
+                      key={type.id} 
+                      className="border rounded-lg p-4 transition-colors border-gray-300 bg-gray-100 dark:bg-gray-800 dark:border-gray-600 opacity-50 cursor-not-allowed"
+                    >
+                      <div className="font-medium text-gray-400 dark:text-gray-500">{type.name}</div>
+                      <div className="text-sm text-gray-400 dark:text-gray-500">{type.desc}</div>
                     </div>
                   ))}
                 </div>
               </div>
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Geography Level</label>
                 {(mapType === 'heatmap' || mapType === 'dotdensity') ? (
-                  <select value={selectedAreaType.value} onChange={(e) => setSelectedAreaType(areaTypes.find(type => type.value === parseInt(e.target.value)) || areaTypes[0])} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
+                  <select 
+                    value={selectedAreaType.value} 
+                    onChange={(e) => setSelectedAreaType(areaTypes.find(type => type.value === parseInt(e.target.value)) || areaTypes[0])} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+                    disabled={isSaving}
+                  >
                     {areaTypes.map(type => (<option key={type.value} value={type.value}>{type.label}</option>))}
                   </select>
-                ) : ( <p className="text-sm text-gray-500 dark:text-gray-400">Geography level isn't applicable for point data maps.</p> )}
+                ) : ( <p className="text-sm text-gray-500 dark:text-gray-400">Geography level isn't applicable for this map type.</p> )}
               </div>
               {(mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && (
                 <div className="mb-4">
@@ -1273,9 +1478,22 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
               {(mapType === 'heatmap' || mapType === 'dotdensity') && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Visualization Variable</label>
-                  <select value={selectedVisualization} onChange={(e) => setSelectedVisualization(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
+                  <select 
+                    value={selectedVisualization} 
+                    onChange={(e) => setSelectedVisualization(e.target.value)} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+                    disabled={isSaving}
+                  >
                     <option value="">Select a variable...</option>
-                    {filteredOptions.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
+                    {Object.entries(categorizedVisualizationOptions).map(([category, options]) => (
+                      <optgroup label={category} key={category}>
+                        {options.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
               )}
@@ -1403,11 +1621,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                                   style={{ 
                                     width: '12px', 
                                     height: '12px', 
-                                    backgroundColor: typeof breakInfo.symbol.color === 'string' 
-                                      ? breakInfo.symbol.color 
-                                      : formatColorForDisplay(breakInfo.symbol.color),
+                                    backgroundColor: formatColorForDisplay(breakInfo.symbol.color),
                                     borderRadius: '50%', 
-                                    border: `${breakInfo.symbol.outline.width}px solid ${breakInfo.symbol.outline.color}`, 
+                                    border: `${breakInfo.symbol.outline.width}px solid ${formatColorForDisplay(breakInfo.symbol.outline.color)}`, 
                                     flexShrink: 0 
                                   }} 
                                 />
@@ -1448,11 +1664,9 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                                   style={{ 
                                     width: '12px', 
                                     height: '12px', 
-                                    backgroundColor: typeof breakInfo.symbol.color === 'string' 
-                                      ? breakInfo.symbol.color 
-                                      : formatColorForDisplay(breakInfo.symbol.color),
+                                    backgroundColor: formatColorForDisplay(breakInfo.symbol.color),
                                     borderRadius: '50%', 
-                                    border: `${breakInfo.symbol.outline.width}px solid ${breakInfo.symbol.outline.color}`, 
+                                    border: `${breakInfo.symbol.outline.width}px solid ${formatColorForDisplay(breakInfo.symbol.outline.color)}`, 
                                     flexShrink: 0 
                                   }} 
                                 />
@@ -1508,25 +1722,25 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                   )}
                 </div>
               )}
-              {(mapType === 'heatmap' || mapType === 'dotdensity') && (
-                <div className="p-4 border rounded-md bg-gray-50 dark:bg-gray-700/80 dark:border-gray-600 space-y-2">
-                  <div><h3 className="font-medium text-gray-900 dark:text-white">Selected Visualization:</h3><p className="text-gray-600 dark:text-gray-300">{filteredOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}</p></div>
-                  <div><h3 className="font-medium text-gray-900 dark:text-white">Geography Level:</h3><p className="text-gray-600 dark:text-gray-300">{selectedAreaType?.label || 'None selected'}</p></div>
-                  <div><h3 className="font-medium text-gray-900 dark:text-white">Map Type:</h3><p className="text-gray-600 dark:text-gray-300">{mapType === 'heatmap' ? 'Heat Map' : 'Dot Density'}</p></div>
-                  <div><h3 className="font-medium text-gray-900 dark:text-white">Break Optimization:</h3><p className="text-gray-600 dark:text-gray-300">Breaks will be intelligently optimized based on data distribution and geography level</p></div>
-                </div>
-              )}
               {fileError && (<div className="text-red-500 mt-2 text-sm">{fileError}</div>)}
             </div>)}
-          {step === 3 && ( 
+          
+          {/* Step 3 (or 2 for Heatmap/DotDensity): Review */}
+          {step === maxSteps && ( 
             <div className="p-4 border rounded-md bg-gray-50 dark:bg-gray-700/80 dark:border-gray-600 space-y-4">
               <div><h3 className="font-medium text-gray-900 dark:text-white">Map Name:</h3><p className="text-gray-600 dark:text-gray-300">{mapName || generateFormattedTitle()}</p></div>
-              <div><h3 className="font-medium text-gray-900 dark:text-white">Map Type:</h3><p className="text-gray-600 dark:text-gray-300">{mapType.charAt(0).toUpperCase() + mapType.slice(1).replace(/([A-Z])/g, ' $1')} Map</p></div>
+              <div><h3 className="font-medium text-gray-900 dark:text-white">Map Type:</h3><p className="text-gray-600 dark:text-gray-300">{MAP_TYPE_DEFINITIONS.find(mt => mt.id === mapType)?.name || mapType}</p></div>
               {(mapType === 'heatmap' || mapType === 'dotdensity') ? (
                 <>
                   <div><h3 className="font-medium text-gray-900 dark:text-white">Geography Level:</h3><p className="text-gray-600 dark:text-gray-300">{selectedAreaType?.label || 'None selected'}</p></div>
-                  <div><h3 className="font-medium text-gray-900 dark:text-white">Visualization Variable:</h3><p className="text-gray-600 dark:text-gray-300">{filteredOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}</p></div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Visualization Variable:</h3>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      {visualizationOptions.find(opt => opt.value === selectedVisualization)?.label || 'None selected'}
+                    </p>
+                  </div>
                   <div><h3 className="font-medium text-gray-900 dark:text-white">Break Optimization:</h3><p className="text-gray-600 dark:text-gray-300">Class breaks optimized for {selectedAreaType?.label || 'selected geography'} level</p></div>
+                  <div><h3 className="font-medium text-gray-900 dark:text-white">Configuration:</h3><p className="text-gray-600 dark:text-gray-300">Pre-configured settings applied automatically - no manual configuration required</p></div>
                 </>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
@@ -1556,10 +1770,33 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
             </div>
           )}
         </div>
+        
+        {/* Enhanced footer navigation that adapts to workflow */}
         <div className="px-6 py-4 bg-gray-100 dark:bg-gray-700/60 flex justify-between rounded-b-lg">
-          <button onClick={step > 1 ? prevStep : onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md" disabled={isSaving}>{step > 1 ? 'Back' : 'Cancel'}</button>
-          <button onClick={step < 3 ? nextStep : handleCreateMap} className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm flex items-center ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`} disabled={isSaving}>
-            {isSaving ? (<><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Creating & Saving...</>) : (step < 3 ? 'Next' : 'Create Map')}
+          <button 
+            onClick={step > 1 ? prevStep : onCancel} 
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md" 
+            disabled={isSaving}
+          >
+            {step > 1 ? 'Back' : 'Cancel'}
+          </button>
+          
+          <button 
+            onClick={step < maxSteps ? nextStep : handleCreateMap} 
+            className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm flex items-center ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`} 
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Creating & Saving...
+              </>
+            ) : (
+              step < maxSteps ? 'Next' : 'Create Map'
+            )}
           </button>
         </div>
       </div>

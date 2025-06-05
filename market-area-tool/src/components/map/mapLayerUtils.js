@@ -1,8 +1,6 @@
 /**
- * Creates a comparison map layer with improved label handling
- * 
- * @param {Object} config - Configuration for the comp layer
- * @returns {GraphicsLayer} The configured comparison graphics layer
+ * Complete mapLayerUtils.js with enhanced renderer type normalization
+ * Creates comparison map layers with improved label handling and robust type support
  */
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import Point from "@arcgis/core/geometry/Point";
@@ -12,6 +10,115 @@ import Color from "@arcgis/core/Color";
 import Graphic from "@arcgis/core/Graphic";
 import PopupTemplate from "@arcgis/core/PopupTemplate";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+
+/**
+ * Utility function to normalize renderer types with comprehensive fallback detection
+ * Handles various type formats and normalizes them to expected renderer types
+ * 
+ * @param {string} type - The input type to normalize
+ * @param {Object} config - Configuration object for auto-detection fallbacks
+ * @returns {string|null} - Normalized type or null if unable to determine
+ */
+const normalizeRendererType = (type, config = {}) => {
+  if (!type) {
+    // Auto-detect type from config properties if type is missing
+    if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+      return 'class-breaks';
+    } else if (config.attributes && Array.isArray(config.attributes)) {
+      return 'dot-density';
+    } else if (config.dotValue !== undefined || config.dotSize !== undefined) {
+      return 'dot-density';
+    }
+    return null;
+  }
+  
+  const typeStr = String(type).toLowerCase().trim();
+  
+  // Normalize heatmap and class-breaks variations
+  if (typeStr === 'heatmap' || 
+      typeStr === 'heat-map' || 
+      typeStr === 'heat_map' ||
+      typeStr === 'classbreaks' || 
+      typeStr === 'class_breaks' ||
+      typeStr === 'choropleth') {
+    return 'class-breaks';
+  }
+  
+  // Normalize dot density variations
+  if (typeStr === 'dotdensity' || 
+      typeStr === 'dot_density' || 
+      typeStr === 'dot-density-map' ||
+      typeStr === 'dotdensitymap' ||
+      typeStr === 'dots') {
+    return 'dot-density';
+  }
+  
+  // Return normalized types as-is
+  if (typeStr === 'class-breaks' || typeStr === 'dot-density') {
+    return typeStr;
+  }
+  
+  // Handle field-based type detection for _HEAT fields
+  if (config.field && String(config.field).toUpperCase().endsWith('_HEAT')) {
+    return 'class-breaks';
+  }
+  
+  // Final fallback based on config properties
+  if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+    return 'class-breaks';
+  } else if (config.attributes && Array.isArray(config.attributes) || config.dotValue !== undefined) {
+    return 'dot-density';
+  }
+  
+  // Return original type if no normalization possible
+  return typeStr;
+};
+
+/**
+ * Utility function to create default class break symbols using TCG color palette
+ * 
+ * @param {number} breakCount - Number of breaks to create colors for
+ * @returns {Array} - Array of RGBA color arrays
+ */
+const createDefaultClassBreakSymbols = (breakCount) => {
+  // TCG color palette for consistent styling
+  const tcgColors = [
+    [191, 0, 0, 0.8],      // TCG Red Dark
+    [255, 122, 13, 0.8],   // TCG Orange Dark
+    [248, 242, 0, 0.8],    // TCG Yellow Dark
+    [0, 191, 44, 0.8],     // TCG Green Dark
+    [0, 155, 155, 0.8],    // TCG Cyan Dark
+    [0, 51, 128, 0.8],     // TCG Blue Dark
+    [92, 0, 184, 0.8],     // TCG Purple Dark
+    [214, 0, 158, 0.8],    // Pink Dark
+    [148, 112, 60, 0.8],   // Brown Dark
+    [174, 170, 170, 0.8]   // Carbon Gray Light
+  ];
+  
+  return tcgColors.slice(0, Math.min(breakCount, tcgColors.length));
+};
+
+/**
+ * Utility function to create default dot density colors
+ * 
+ * @param {number} attributeCount - Number of attributes to create colors for
+ * @returns {Array} - Array of RGB color arrays
+ */
+const createDefaultDotDensityColors = (attributeCount) => {
+  const dotColors = [
+    [227, 26, 28],    // Red
+    [55, 126, 184],   // Blue
+    [77, 175, 74],    // Green
+    [152, 78, 163],   // Purple
+    [255, 127, 0],    // Orange
+    [255, 255, 51],   // Yellow
+    [166, 86, 40],    // Brown
+    [247, 129, 191],  // Pink
+    [153, 153, 153]   // Gray
+  ];
+  
+  return dotColors.slice(0, Math.min(attributeCount, dotColors.length));
+};
 
 /**
  * Formats a point label with optional variable inclusions
@@ -123,6 +230,12 @@ export function generatePointTitle(item, options) {
   return title;
 }
 
+/**
+ * Creates a comparison map layer with improved label handling
+ * 
+ * @param {Object} config - Configuration for the comp layer
+ * @returns {GraphicsLayer} The configured comparison graphics layer
+ */
 export const createCompLayer = (config) => {
   console.log("[createCompLayer] Received config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
   
@@ -322,6 +435,12 @@ export const createCompLayer = (config) => {
   return graphicsLayer;
 };
 
+/**
+ * Creates a pipeline map layer with enhanced label handling
+ * 
+ * @param {Object} config - Configuration for the pipe layer
+ * @returns {GraphicsLayer} The configured pipeline graphics layer
+ */
 export const createPipeLayer = (config) => {
   console.log("[createPipeLayer] Creating Pipe Layer with config:", JSON.stringify(config, (k,v) => k === 'data' ? `[${v?.length} items]` : v));
   
@@ -534,6 +653,13 @@ export const createPipeLayer = (config) => {
   return graphicsLayer;
 };
 
+/**
+ * Creates a graphics layer from custom data with dual-value renderer support
+ * Handles complex symbol and size mappings based on multiple value columns
+ * 
+ * @param {Object} config - Configuration object for the custom layer
+ * @returns {Promise<GraphicsLayer>} The configured custom graphics layer
+ */
 export const createGraphicsLayerFromCustomData = async (config) => {
   console.log("[createGraphicsLayerFromCustomData] Received config:", JSON.stringify(config, (k, v) => 
     (k === "data" || k === "customData") ? `[${v?.data?.length || v?.length} items]` : v));
@@ -584,7 +710,6 @@ export const createGraphicsLayerFromCustomData = async (config) => {
   const colorBreaks = Array.isArray(config.colorClassBreakInfos) ? config.colorClassBreakInfos : [];
   const sizeBreaks = Array.isArray(config.sizeInfos) ? config.sizeInfos : [];
 
-  // --- MODIFICATION START ---
   // Define baseSymbolConfig based on rendererType
   let baseSymbolConfig;
   const inputSymbolConfig = config.symbol || {};
@@ -610,7 +735,6 @@ export const createGraphicsLayerFromCustomData = async (config) => {
       size: inputSymbolConfig.size || 10,         // Default size for non-dual-value
     };
   }
-  // --- MODIFICATION END ---
 
   console.log(`[createGraphicsLayerFromCustomData] Processing ${customData.length} points with:`, {
     rendererType: config.rendererType || 'simple',
@@ -653,12 +777,11 @@ export const createGraphicsLayerFromCustomData = async (config) => {
         spatialReference: { wkid: 4326 } 
       });
 
-      // --- MODIFICATION START: Default finalColorHex and finalSize ---
+      // Default finalColorHex and finalSize
       let finalColorHex = isDualValueRender ? "#808080" : (baseSymbolConfig.color || "#FF0000"); // Default grey for unmatched dual-value
       let finalSize = isDualValueRender 
         ? (baseSymbolConfig.minSize || 6) // Default to minSize for unmatched dual-value
         : (parseFloat(baseSymbolConfig.size || 10));
-      // --- MODIFICATION END ---
 
       if (isDualValueRender) {
         if (valueCol1 && colorBreaks.length > 0 && item[valueCol1] !== undefined) {
@@ -816,7 +939,246 @@ export const createGraphicsLayerFromCustomData = async (config) => {
 };
 
 /**
+ * Enhanced createRenderer function with comprehensive type handling and auto-detection
+ * Supports both class-breaks and dot-density renderers with robust fallback logic
+ * 
+ * @param {Object} config - Configuration object containing renderer settings
+ * @param {Object} areaType - Area type information for defaults (optional)
+ * @returns {Promise<Object|null>} - ArcGIS renderer instance or null if creation fails
+ */
+const createRenderer = async (config, areaType = null) => {
+  console.log("[createRenderer] Creating renderer with config:", {
+    originalType: config?.type,
+    field: config?.field,
+    hasClassBreaks: !!(config?.classBreakInfos),
+    hasAttributes: !!(config?.attributes),
+    hasDotValue: config?.dotValue !== undefined
+  });
+  
+  // Validate input config
+  if (!config || typeof config !== 'object') {
+    console.error("[createRenderer] Invalid or missing config object:", config);
+    return null;
+  }
+
+  try {
+    // Normalize the renderer type with fallback detection
+    const normalizedType = normalizeRendererType(config.type, config);
+    
+    if (!normalizedType) {
+      console.error("[createRenderer] Unable to determine renderer type from config:", config);
+      return null;
+    }
+    
+    console.log(`[createRenderer] Type normalized: '${config.type}' → '${normalizedType}'`);
+
+    // Import required ArcGIS modules dynamically
+    const [
+      { default: ClassBreaksRenderer },
+      { default: DotDensityRenderer },
+      { default: SimpleFillSymbol },
+      { default: SimpleLineSymbol },
+      { default: Color }
+    ] = await Promise.all([
+      import("@arcgis/core/renderers/ClassBreaksRenderer"),
+      import("@arcgis/core/renderers/DotDensityRenderer"),
+      import("@arcgis/core/symbols/SimpleFillSymbol"),
+      import("@arcgis/core/symbols/SimpleLineSymbol"),
+      import("@arcgis/core/Color")
+    ]);
+
+    // Create Class Breaks Renderer (for heatmaps, choropleth maps)
+    if (normalizedType === 'class-breaks') {
+      console.log("[createRenderer] Building ClassBreaksRenderer");
+      
+      // Validate required properties
+      const field = config.field || config.valueField || config.classificationField;
+      if (!field) {
+        console.error("[createRenderer] Missing required 'field' property for class-breaks renderer");
+        return null;
+      }
+
+      let classBreakInfos = config.classBreakInfos || config.breaks || config.classBreaks;
+      if (!classBreakInfos || !Array.isArray(classBreakInfos) || classBreakInfos.length === 0) {
+        console.error("[createRenderer] Missing or invalid 'classBreakInfos' for class-breaks renderer");
+        return null;
+      }
+
+      // Process and validate class break infos
+      const defaultColors = createDefaultClassBreakSymbols(classBreakInfos.length);
+      const processedBreakInfos = classBreakInfos.map((breakInfo, index) => {
+        // Ensure min/max values are properly set
+        const minValue = breakInfo.minValue ?? breakInfo.min ?? (index === 0 ? 0 : null);
+        const maxValue = breakInfo.maxValue ?? breakInfo.max ?? null;
+        
+        if (minValue === null || maxValue === null) {
+          console.warn(`[createRenderer] Break info at index ${index} missing min/max values:`, breakInfo);
+        }
+
+        // Create or process symbol
+        let symbol;
+        if (breakInfo.symbol && typeof breakInfo.symbol === 'object') {
+          // Use existing symbol structure
+          const symbolColor = breakInfo.symbol.color || defaultColors[index] || [128, 128, 128, 0.8];
+          const outlineColor = breakInfo.symbol.outline?.color || [255, 255, 255, 0.5];
+          const outlineWidth = breakInfo.symbol.outline?.width ?? 0.5;
+          
+          symbol = new SimpleFillSymbol({
+            color: new Color(symbolColor),
+            style: breakInfo.symbol.style || "solid",
+            outline: new SimpleLineSymbol({
+              color: new Color(outlineColor),
+              width: outlineWidth,
+              style: "solid"
+            })
+          });
+        } else {
+          // Create default symbol with TCG color palette
+          const colorArray = defaultColors[index] || [128, 128, 128, 0.8];
+          
+          symbol = new SimpleFillSymbol({
+            color: new Color(colorArray),
+            style: "solid",
+            outline: new SimpleLineSymbol({
+              color: new Color([255, 255, 255, 0.5]),
+              width: 0.5,
+              style: "solid"
+            })
+          });
+        }
+
+        // Generate label if not provided
+        const label = breakInfo.label || 
+                     breakInfo.description || 
+                     (minValue !== null && maxValue !== null ? 
+                       `${minValue.toLocaleString()} - ${maxValue.toLocaleString()}` : 
+                       `Class ${index + 1}`);
+
+        return {
+          minValue: minValue,
+          maxValue: maxValue,
+          symbol: symbol,
+          label: label
+        };
+      });
+
+      // Create and return the renderer
+      const renderer = new ClassBreaksRenderer({
+        field: field,
+        classBreakInfos: processedBreakInfos,
+        legendOptions: {
+          title: config.legendOptions?.title || 
+                 config.title || 
+                 config.legendTitle || 
+                 field || 
+                 "Classification"
+        }
+      });
+
+      console.log(`[createRenderer] ClassBreaksRenderer created successfully with ${processedBreakInfos.length} breaks`);
+      return renderer;
+    }
+
+    // Create Dot Density Renderer
+    else if (normalizedType === 'dot-density') {
+      console.log("[createRenderer] Building DotDensityRenderer");
+      
+      // Validate required properties
+      let attributes = config.attributes || config.fields || config.dotAttributes;
+      if (!attributes || !Array.isArray(attributes) || attributes.length === 0) {
+        console.error("[createRenderer] Missing or invalid 'attributes' array for dot-density renderer");
+        return null;
+      }
+
+      // Process attributes with default colors
+      const defaultColors = createDefaultDotDensityColors(attributes.length);
+      const processedAttributes = attributes.map((attr, index) => {
+        // Handle both object and string attribute formats
+        const field = typeof attr === 'string' ? attr : (attr.field || attr.name);
+        const label = typeof attr === 'string' ? field : (attr.label || attr.description || field);
+        const color = typeof attr === 'object' && attr.color ? attr.color : defaultColors[index];
+        
+        if (!field) {
+          console.warn(`[createRenderer] Attribute at index ${index} missing field name:`, attr);
+          return null;
+        }
+
+        return {
+          field: field,
+          color: new Color(color),
+          label: label
+        };
+      }).filter(attr => attr !== null); // Remove invalid attributes
+
+      if (processedAttributes.length === 0) {
+        console.error("[createRenderer] No valid attributes found for dot-density renderer");
+        return null;
+      }
+
+      // Set up renderer parameters with defaults
+      const dotValue = config.dotValue || config.valuePerDot || config.dotsPerUnit || 
+                      (areaType?.value === 12 ? 10 : 100); // Use area type for default
+      const dotSize = config.dotSize || config.size || 2;
+      const dotBlending = config.dotBlending || config.blendMode || "additive";
+
+      // Create outline if specified
+      let outline = null;
+      if (config.outline && typeof config.outline === 'object') {
+        outline = new SimpleLineSymbol({
+          color: new Color(config.outline.color || [128, 128, 128, 0.3]),
+          width: config.outline.width || 0.5,
+          style: config.outline.style || "solid"
+        });
+      }
+
+      // Create and return the renderer
+      const renderer = new DotDensityRenderer({
+        dotValue: dotValue,
+        dotSize: dotSize,
+        dotBlending: dotBlending,
+        attributes: processedAttributes,
+        outline: outline,
+        legendOptions: {
+          unit: config.legendOptions?.unit || 
+                config.unit || 
+                config.valueUnit || 
+                "people"
+        }
+      });
+
+      console.log(`[createRenderer] DotDensityRenderer created successfully with ${processedAttributes.length} attributes`);
+      return renderer;
+    }
+
+    // Handle unexpected renderer types
+    else {
+      console.error(`[createRenderer] Unsupported normalized renderer type: '${normalizedType}'. Expected 'class-breaks' or 'dot-density'.`);
+      
+      // Final fallback attempt - try to auto-detect and recurse
+      if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+        console.log("[createRenderer] Fallback: Attempting class-breaks based on classBreakInfos presence");
+        return createRenderer({ ...config, type: 'class-breaks' }, areaType);
+      } else if ((config.attributes && Array.isArray(config.attributes)) || config.dotValue !== undefined) {
+        console.log("[createRenderer] Fallback: Attempting dot-density based on attributes/dotValue presence");
+        return createRenderer({ ...config, type: 'dot-density' }, areaType);
+      }
+      
+      return null;
+    }
+
+  } catch (error) {
+    console.error("[createRenderer] Critical error during renderer creation:", {
+      error: error.message,
+      stack: error.stack,
+      config: config
+    });
+    return null;
+  }
+};
+
+/**
  * Creates and returns an appropriate layer based on visualization type
+ * Handles both standard feature layers and custom graphics layers
  * 
  * @param {string} visualizationType - Type of visualization to create
  * @param {Object} configOverride - Configuration overrides for the layer
@@ -856,11 +1218,14 @@ export async function createLayers(
         config.type = visualizationType;
     }
 
-    // Normalize visualization type
-    let effectiveVizType = config.type;
+    // Normalize visualization type using the enhanced normalizeRendererType function
+    let effectiveVizType = normalizeRendererType(config.type, config) || config.type;
+    
+    // Handle legacy type normalization for special graphics layer types
     if (effectiveVizType === "pipeline") effectiveVizType = "pipe";
     if (effectiveVizType === "comps") effectiveVizType = "comp";
     
+    // Handle _HEAT field suffix normalization
     if (effectiveVizType && effectiveVizType.endsWith('_HEAT')) {
         console.log(`[createLayers] Normalizing HEAT type ${effectiveVizType} to class-breaks`);
         effectiveVizType = 'class-breaks';
@@ -938,8 +1303,8 @@ export async function createLayers(
     }
 
     try {
-        // Create renderer for the feature layer
-        const renderer = createRenderer(config, selectedAreaType);
+        // Create renderer for the feature layer using the enhanced createRenderer function
+        const renderer = await createRenderer(config, selectedAreaType);
         if (!renderer) {
             console.error(`[createLayers] Failed to create renderer for ${effectiveVizType}`);
             return null;
@@ -966,84 +1331,6 @@ export async function createLayers(
         console.error(`[createLayers] Failed to create FeatureLayer:`, error);
         return null;
     }
-}
-
-/**
- * Create a renderer for feature layers based on configuration and area type
- * 
- * @param {Object} rendererConfig - Configuration for the renderer.
- *                                  `rendererConfig.type` should be 'class-breaks' or 'dot-density'.
- *                                  `rendererConfig.field` is the data field to visualize.
- * @param {Object} areaType - Area type information (used for dot-density defaults).
- * @returns {Object|null} The configured ArcGIS renderer object or null if creation fails.
- */
-function createRenderer(rendererConfig, areaType) {
-  if (!rendererConfig || !rendererConfig.type) {
-      console.warn("[createRenderer] Invalid rendererConfig provided (missing or no type)", rendererConfig);
-      return null;
-  }
-  
-  const fieldToVisualize = rendererConfig.field || rendererConfig.visualizationType;
-
-  if (!fieldToVisualize && 
-      (rendererConfig.type === "dot-density" || rendererConfig.type === "class-breaks")) {
-      console.error(`[createRenderer] Cannot create renderer for type ${rendererConfig.type}: Missing required 'field' or 'visualizationType' in config.`, rendererConfig);
-      return null;
-  }
-
-  switch (rendererConfig.type) {
-      case "dot-density":
-          const defaultDotVal = (areaType?.value === 12 || String(areaType?.value).toLowerCase() === 'tract') ? 10 : 100;
-          const currentDotValue = rendererConfig.dotValue !== undefined ? Number(rendererConfig.dotValue) : defaultDotVal;
-
-          let attributes = rendererConfig.attributes;
-          if (!Array.isArray(attributes) || attributes.length === 0) {
-              attributes = [{
-                  field: fieldToVisualize, 
-                  color: rendererConfig.color || "#E60049", 
-                  label: rendererConfig.label || fieldToVisualize || "Value",
-              }];
-              console.warn(`[createRenderer] Dot density config missing 'attributes', created default for field: ${fieldToVisualize}`);
-          } else {
-            attributes = attributes.map(attr => ({
-                field: attr.field || fieldToVisualize,
-                color: attr.color || rendererConfig.color || "#E60049",
-                label: attr.label || attr.field || fieldToVisualize,
-            }));
-          }
-
-          return {
-              type: "dot-density",
-              field: fieldToVisualize, 
-              attributes: attributes, 
-              dotValue: currentDotValue,
-              dotBlending: rendererConfig.dotBlending || "additive",
-              dotSize: rendererConfig.dotSize !== undefined ? Number(rendererConfig.dotSize) : 2,
-              outline: rendererConfig.outline || { width: 0.5, color: [50, 50, 50, 0.2] },
-              legendOptions: rendererConfig.legendOptions || { unit: "value" },
-          };
-
-      case "class-breaks":
-          const classBreakInfos = Array.isArray(rendererConfig.classBreakInfos) ? rendererConfig.classBreakInfos : [];
-          if (classBreakInfos.length === 0) {
-              console.warn(`[createRenderer] Class breaks config for field '${fieldToVisualize}' is missing 'classBreakInfos'. A default symbol will be used for all features.`);
-          }
-          return {
-              type: "class-breaks",
-              field: fieldToVisualize, 
-              defaultSymbol: rendererConfig.defaultSymbol || {
-                  type: "simple-fill", 
-                  color: [224, 224, 224, 0.6], 
-                  outline: { color: [150, 150, 150, 0.7], width: 0.5 },
-              },
-              defaultLabel: rendererConfig.defaultLabel || "No data / Other", 
-              classBreakInfos: classBreakInfos, 
-          };
-          
-      default:
-          console.error("[createRenderer] Unsupported renderer type in config:", rendererConfig.type, "Expected 'class-breaks' or 'dot-density'. Config:", rendererConfig);
-          return null;
-  }
 }
 
 /**
