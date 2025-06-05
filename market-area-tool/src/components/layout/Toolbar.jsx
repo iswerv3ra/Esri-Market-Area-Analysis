@@ -772,7 +772,7 @@ const handleExportJPEG = async () => {
             // Calculate legend positioning and sizing
             const legendPadding = 40;
             const maxLegendWidth = targetWidth * 0.25; // Max 25% of image width
-            const legendScaleFactor = 0.5; // Scale down the high-DPI legend
+            const legendScaleFactor = 0.8; // Increased from 0.5 to 0.6 (20% larger)
             
             const legendTargetWidth = Math.min(
               legendImage.width * legendScaleFactor,

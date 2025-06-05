@@ -914,13 +914,13 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2000 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 25 homes",
-        "25 - 50 homes",
-        "50 - 100 homes",
-        "100 - 200 homes",
-        "200 - 1,000 homes",
-        "1,000 - 2,000 homes"
+        "Less than 10 Homes",
+        "10 - 25 Homes",
+        "25 - 50 Homes",
+        "50 - 100 Homes",
+        "100 - 200 Homes",
+        "200 - 1,000 Homes",
+        "1,000 - 2,000 Homes"
       ]
     ),
   },
@@ -939,13 +939,13 @@ export const initialLayerConfigurations = {
         { min: 750, max: 1500 }
       ],
       [
-        "Less than 7 homes",
-        "7 - 18 homes",
-        "18 - 35 homes",
-        "35 - 75 homes",
-        "75 - 150 homes",
-        "150 - 750 homes",
-        "750 - 1,500 homes"
+        "Less than 7 Homes",
+        "7 - 18 Homes",
+        "18 - 35 Homes",
+        "35 - 75 Homes",
+        "75 - 150 Homes",
+        "150 - 750 Homes",
+        "750 - 1,500 Homes"
       ]
     ),
   },
@@ -964,13 +964,13 @@ export const initialLayerConfigurations = {
         { min: 750, max: 1500 }
       ],
       [
-        "Less than 7 homes",
-        "7 - 18 homes",
-        "18 - 35 homes",
-        "35 - 75 homes",
-        "75 - 150 homes",
-        "150 - 750 homes",
-        "750 - 1,500 homes"
+        "Less than 7 Homes",
+        "7 - 18 Homes",
+        "18 - 35 Homes",
+        "35 - 75 Homes",
+        "75 - 150 Homes",
+        "150 - 750 Homes",
+        "750 - 1,500 Homes"
       ]
     ),
   },
@@ -989,13 +989,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1014,13 +1014,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1039,13 +1039,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1064,13 +1064,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1089,13 +1089,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1114,13 +1114,13 @@ export const initialLayerConfigurations = {
         { min: 900, max: 1800 }
       ],
       [
-        "Less than 10 homes",
-        "10 - 22 homes",
-        "22 - 45 homes",
-        "45 - 90 homes",
-        "90 - 180 homes",
-        "180 - 900 homes",
-        "900 - 1,800 homes"
+        "Less than 10 Homes",
+        "10 - 22 Homes",
+        "22 - 45 Homes",
+        "45 - 90 Homes",
+        "90 - 180 Homes",
+        "180 - 900 Homes",
+        "900 - 1,800 Homes"
       ]
     ),
   },
@@ -1139,13 +1139,13 @@ export const initialLayerConfigurations = {
         { min: 300, max: 600 }
       ],
       [
-        "Less than 3 homes",
-        "3 - 7 homes",
-        "7 - 15 homes",
-        "15 - 30 homes",
-        "30 - 60 homes",
-        "60 - 300 homes",
-        "300 - 600 homes"
+        "Less than 3 Homes",
+        "3 - 7 Homes",
+        "7 - 15 Homes",
+        "15 - 30 Homes",
+        "30 - 60 Homes",
+        "60 - 300 Homes",
+        "300 - 600 Homes"
       ]
     ),
   },
@@ -1164,13 +1164,13 @@ export const initialLayerConfigurations = {
         { min: 175, max: 350 }
       ],
       [
-        "Less than 2 homes",
-        "2 - 4 homes",
-        "4 - 8 homes",
-        "8 - 18 homes",
-        "18 - 35 homes",
-        "35 - 175 homes",
-        "175 - 350 homes"
+        "Less than 2 Homes",
+        "2 - 4 Homes",
+        "4 - 8 Homes",
+        "8 - 18 Homes",
+        "18 - 35 Homes",
+        "35 - 175 Homes",
+        "175 - 350 Homes"
       ]
     ),
   },
@@ -1190,12 +1190,12 @@ export const initialLayerConfigurations = {
       ],
       [
         "Less than 1 home",
-        "1 - 2 homes",
-        "2 - 5 homes",
-        "5 - 12 homes",
-        "12 - 25 homes",
-        "25 - 125 homes",
-        "125 - 250 homes"
+        "1 - 2 Homes",
+        "2 - 5 Homes",
+        "5 - 12 Homes",
+        "12 - 25 Homes",
+        "25 - 125 Homes",
+        "125 - 250 Homes"
       ]
     ),
   },
@@ -1215,12 +1215,12 @@ export const initialLayerConfigurations = {
       ],
       [
         "Less than 1 home",
-        "1 - 2 homes",
-        "2 - 4 homes",
-        "4 - 8 homes",
-        "8 - 15 homes",
-        "15 - 75 homes",
-        "75 - 150 homes"
+        "1 - 2 Homes",
+        "2 - 4 Homes",
+        "4 - 8 Homes",
+        "8 - 15 Homes",
+        "15 - 75 Homes",
+        "75 - 150 Homes"
       ]
     ),
   },
