@@ -90,22 +90,25 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 2.0 },
-        { min: 2.0, max: 2.5 },
-        { min: 2.5, max: 3.0 },
+        { min: 2.0, max: 2.3 },
+        { min: 2.3, max: 2.6 },
+        { min: 2.6, max: 3.0 },
         { min: 3.0, max: 3.5 },
         { min: 3.5, max: 4.0 },
-        { min: 4.0, max: 4.5 }
+        { min: 4.0 }
       ],
       [
         "Less than 2.0",
-        "2.0 - 2.5",
-        "2.5 - 3.0",
-        "3.0 - 3.5", 
+        "2.0 - 2.3",
+        "2.3 - 2.6",
+        "2.6 - 3.0",
+        "3.0 - 3.5",
         "3.5 - 4.0",
-        "4.0 - 4.5"
+        "4.0 and above"
       ]
     ),
   },
+
 
   // Daytime Population - Heat Maps (SIGNIFICANTLY LOWERED)
   DPOP_CY_HEAT: {
@@ -593,19 +596,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 0 },
-        { min: 0, max: 0.5 },
-        { min: 0.5, max: 1.0 },
-        { min: 1.0, max: 1.5 },
-        { min: 1.5, max: 2.0 },
-        { min: 2.0, max: 3.0 }
+        { min: 0, max: 0.4 },
+        { min: 0.4, max: 0.8 },
+        { min: 0.8, max: 1.2 },
+        { min: 1.2, max: 1.6 },
+        { min: 1.6, max: 2.2 },
+        { min: 2.2 }
       ],
       [
         "Less than 0%",
-        "0% - 0.5%",
-        "0.5% - 1.0%",
-        "1.0% - 1.5%",
-        "1.5% - 2.0%",
-        "2.0% - 3.0%"
+        "0% - 0.4%",
+        "0.4% - 0.8%",
+        "0.8% - 1.2%",
+        "1.2% - 1.6%",
+        "1.6% - 2.2%",
+        "2.2% and above"
       ]
     ),
   },
@@ -616,19 +621,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 0 },
-        { min: 0, max: 0.5 },
-        { min: 0.5, max: 1.0 },
-        { min: 1.0, max: 1.5 },
-        { min: 1.5, max: 2.0 },
-        { min: 2.0, max: 3.0 }
+        { min: 0, max: 0.4 },
+        { min: 0.4, max: 0.8 },
+        { min: 0.8, max: 1.2 },
+        { min: 1.2, max: 1.6 },
+        { min: 1.6, max: 2.2 },
+        { min: 2.2 }
       ],
       [
         "Less than 0%",
-        "0% - 0.5%",
-        "0.5% - 1.0%",
-        "1.0% - 1.5%",
-        "1.5% - 2.0%",
-        "2.0% - 3.0%"
+        "0% - 0.4%",
+        "0.4% - 0.8%",
+        "0.8% - 1.2%",
+        "1.2% - 1.6%",
+        "1.6% - 2.2%",
+        "2.2% and above"
       ]
     ),
   },
@@ -639,19 +646,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 4 },
-        { min: 4, max: 5 },
-        { min: 5, max: 7 }
+        { min: 1, max: 1.8 },
+        { min: 1.8, max: 2.6 },
+        { min: 2.6, max: 3.4 },
+        { min: 3.4, max: 4.2 },
+        { min: 4.2, max: 5.5 },
+        { min: 5.5 }
       ],
       [
         "Less than 1%",
-        "1% - 2%",
-        "2% - 3%",
-        "3% - 4%",
-        "4% - 5%",
-        "5% - 7%"
+        "1% - 1.8%",
+        "1.8% - 2.6%",
+        "2.6% - 3.4%",
+        "3.4% - 4.2%",
+        "4.2% - 5.5%",
+        "5.5% and above"
       ]
     ),
   },
@@ -662,19 +671,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: -1 },
-        { min: -1, max: 0 },
-        { min: 0, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 5 }
+        { min: -1, max: -0.2 },
+        { min: -0.2, max: 0.5 },
+        { min: 0.5, max: 1.2 },
+        { min: 1.2, max: 2.0 },
+        { min: 2.0, max: 3.2 },
+        { min: 3.2 }
       ],
       [
         "Less than -1%",
-        "-1% to 0%",
-        "0% to 1%",
-        "1% to 2%",
-        "2% to 3%",
-        "3% to 5%"
+        "-1% to -0.2%",
+        "-0.2% to 0.5%",
+        "0.5% to 1.2%",
+        "1.2% to 2.0%",
+        "2.0% to 3.2%",
+        "3.2% and above"
       ]
     ),
   },
@@ -685,22 +696,25 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: -1 },
-        { min: -1, max: 0 },
-        { min: 0, max: 1 },
-        { min: 1, max: 2 },
-        { min: 2, max: 3 },
-        { min: 3, max: 5 }
+        { min: -1, max: -0.2 },
+        { min: -0.2, max: 0.5 },
+        { min: 0.5, max: 1.2 },
+        { min: 1.2, max: 2.0 },
+        { min: 2.0, max: 3.2 },
+        { min: 3.2 }
       ],
       [
         "Less than -1%",
-        "-1% to 0%",
-        "0% to 1%",
-        "1% to 2%",
-        "2% to 3%",
-        "3% to 5%"
+        "-1% to -0.2%",
+        "-0.2% to 0.5%",
+        "0.5% to 1.2%",
+        "1.2% to 2.0%",
+        "2.0% to 3.2%",
+        "3.2% and above"
       ]
     ),
   },
+
 
   // Housing - Heat Maps (SIGNIFICANTLY LOWERED)
   TOTHU_CY_HEAT: {
@@ -859,19 +873,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 200000 },
-        { min: 200000, max: 350000 },
-        { min: 350000, max: 500000 },
-        { min: 500000, max: 750000 },
-        { min: 750000, max: 1000000 },
-        { min: 1000000, max: 1500000 }
+        { min: 200000, max: 320000 },
+        { min: 320000, max: 450000 },
+        { min: 450000, max: 600000 },
+        { min: 600000, max: 800000 },
+        { min: 800000, max: 1100000 },
+        { min: 1100000 }
       ],
       [
         "Less than $200,000",
-        "$200,000 - $350,000",
-        "$350,000 - $500,000",
-        "$500,000 - $750,000",
-        "$750,000 - $1,000,000",
-        "$1,000,000 - $1,500,000"
+        "$200,000 - $320,000",
+        "$320,000 - $450,000",
+        "$450,000 - $600,000",
+        "$600,000 - $800,000",
+        "$800,000 - $1,100,000",
+        "$1,100,000 and above"
       ]
     ),
   },
@@ -882,19 +898,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 250000 },
-        { min: 250000, max: 400000 },
-        { min: 400000, max: 600000 },
-        { min: 600000, max: 900000 },
+        { min: 250000, max: 380000 },
+        { min: 380000, max: 530000 },
+        { min: 530000, max: 700000 },
+        { min: 700000, max: 900000 },
         { min: 900000, max: 1200000 },
-        { min: 1200000, max: 2000000 }
+        { min: 1200000 }
       ],
       [
         "Less than $250,000",
-        "$250,000 - $400,000",
-        "$400,000 - $600,000",
-        "$600,000 - $900,000",
+        "$250,000 - $380,000",
+        "$380,000 - $530,000",
+        "$530,000 - $700,000",
+        "$700,000 - $900,000",
         "$900,000 - $1,200,000",
-        "$1,200,000 - $2,000,000"
+        "$1,200,000 and above"
       ]
     ),
   },
@@ -1660,19 +1678,21 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 2.0 },
-        { min: 2.0, max: 2.5 },
-        { min: 2.5, max: 3.0 },
+        { min: 2.0, max: 2.3 },
+        { min: 2.3, max: 2.6 },
+        { min: 2.6, max: 3.0 },
         { min: 3.0, max: 3.5 },
         { min: 3.5, max: 4.0 },
-        { min: 4.0, max: 4.5 }
+        { min: 4.0 }
       ],
       [
         "Less than 2.0",
-        "2.0 - 2.5",
-        "2.5 - 3.0",
+        "2.0 - 2.3",
+        "2.3 - 2.6", 
+        "2.6 - 3.0",
         "3.0 - 3.5",
         "3.5 - 4.0",
-        "4.0 - 4.5"
+        "4.0 and above"
       ]
     ),
   },

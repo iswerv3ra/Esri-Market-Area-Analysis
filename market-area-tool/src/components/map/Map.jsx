@@ -290,6 +290,97 @@ export default function MapComponent({ onToggleLis }) {
       ),
     },
   });
+  // TCG Color palette with RGB values and custom opacity mappings
+  const TCG_COLORS_WITH_OPACITY = {
+    'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
+    'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
+    'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
+    'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
+    'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
+    'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
+    'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
+    'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
+    'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
+    'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
+  };
+
+  /**
+   * Gets the appropriate TCG color for each break with custom opacity values
+   * @param {number} index - Index of the break (0-based)
+   * @param {number} totalBreaks - Total number of breaks (1-10)
+   * @param {string} returnFormat - 'array' for [r,g,b,a] or 'string' for CSS
+   * @return {Array|string} - Color in requested format
+   */
+  const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
+    // Complete color mappings for all break levels (1-10)
+    const colorMappings = {
+      1: ['TCG Red Dark'],
+      2: ['TCG Red Dark', 'TCG Orange Dark'],
+      3: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Green Dark'],
+      4: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Cyan Dark'],
+      5: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark'],
+      6: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark'],
+      7: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark'],
+      8: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark'],
+      9: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark'],
+      10: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark', 'Carbon Gray Light']
+    };
+    
+    // Validate inputs and get appropriate color mapping
+    const validBreakCount = Math.max(1, Math.min(10, Math.floor(totalBreaks)));
+    const validIndex = Math.max(0, Math.min(validBreakCount - 1, index));
+    const colorNames = colorMappings[validBreakCount] || colorMappings[10];
+    const colorName = colorNames[validIndex];
+    
+    // Get color array with predefined opacity (RGBA format)
+    const colorArray = TCG_COLORS_WITH_OPACITY[colorName];
+    
+    // Return in requested format
+    return returnFormat === 'string' ? 
+      `rgba(${colorArray[0]}, ${colorArray[1]}, ${colorArray[2]}, ${colorArray[3]})` : 
+      colorArray;
+  };
+
+  /**
+   * Applies custom opacity values to heat map class breaks while preserving their structure
+   * @param {Array} classBreakInfos - Original class break configuration
+   * @return {Array} - Updated class breaks with custom opacity
+   */
+  const applyCustomOpacityToClassBreaks = (classBreakInfos) => {
+    if (!classBreakInfos || !Array.isArray(classBreakInfos) || classBreakInfos.length === 0) {
+      console.warn('[Map] No class breaks provided for custom opacity application');
+      return classBreakInfos;
+    }
+
+    console.log(`[Map] Applying custom opacity to ${classBreakInfos.length} class breaks`);
+
+    const updatedBreaks = classBreakInfos.map((originalBreak, index) => {
+      // Get the appropriate custom opacity color for this break index
+      const customColorArray = getBreakColor(index, classBreakInfos.length, 'array');
+      
+      // Preserve all original break properties, only update the color with custom opacity
+      const updatedBreak = {
+        ...originalBreak, // Preserve minValue, maxValue, label, etc.
+        symbol: {
+          ...originalBreak.symbol, // Preserve type, style, outline, etc.
+          color: [...customColorArray] // Only update the color with custom opacity
+        },
+        // Add metadata to preserve opacity during edits
+        preserveOpacity: true,
+        originalOpacity: customColorArray[3],
+        hasCustomOpacities: true
+      };
+      
+      const opacityPercent = Math.round(customColorArray[3] * 100);
+      console.log(`[Map] Break ${index}: ${originalBreak.label || 'Unlabeled'} -> ${opacityPercent}% opacity`);
+      
+      return updatedBreak;
+    });
+
+    console.log('[Map] Custom opacity application completed');
+    return updatedBreaks;
+  };
+
 
   const [tabs, setTabs] = useState([
     {
@@ -2994,8 +3085,6 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
-  // Update the visualization change handler
-  // Modify handleVisualizationChange to save configuration to the specific tab
   const handleVisualizationChange = (tabId, newValue) => {
     if (!newValue) {
       const newTabs = tabs.map((tab) =>
@@ -3012,27 +3101,54 @@ export default function MapComponent({ onToggleLis }) {
     }
 
     const initialConfig = initialLayerConfigurations[newValue];
-    const newTabs = tabs.map((tab) =>
-      tab.id === tabId
-        ? {
-            ...tab,
-            visualizationType: newValue,
-            layerConfiguration: initialConfig,
-          }
-        : tab
-    );
+    
+    // Check if this is a heat map visualization that needs custom opacity
+    const isHeatMap = initialConfig?.type === 'class-breaks' || 
+                    newValue.endsWith('_HEAT') ||
+                    (initialConfig?.classBreakInfos && Array.isArray(initialConfig.classBreakInfos));
 
-    setTabs(newTabs);
-    setLayerConfigurations((prev) => {
-      if (!prev[newValue]) {
-        return {
-          ...prev,
-          [newValue]: initialConfig,
-        };
-      }
-      return prev;
-    });
-  };
+    let processedConfig = { ...initialConfig };
+
+    // Apply custom opacity for heat maps
+    if (isHeatMap && processedConfig.classBreakInfos && Array.isArray(processedConfig.classBreakInfos)) {
+      console.log(`[handleVisualizationChange] Applying custom opacity to heat map: ${newValue}`);
+      
+      // Check if custom opacity has already been applied
+      const hasCustomOpacity = processedConfig.classBreakInfos.some(breakInfo => 
+        breakInfo.hasCustomOpacities === true || breakInfo.preserveOpacity === true
+      );
+
+      if (!hasCustomOpacity) {
+        console.log('[handleVisualizationChange] Custom opacity not detected, applying now');
+        processedConfig.classBreakInfos = applyCustomOpacityToClassBreaks(processedConfig.classBreakInfos);
+        processedConfig.hasCustomOpacities = true;
+      processedConfig.preserveOpacity = true;
+    } else {
+      console.log('[handleVisualizationChange] Custom opacity already applied');
+    }
+  }
+
+  const newTabs = tabs.map((tab) =>
+    tab.id === tabId
+      ? {
+          ...tab,
+          visualizationType: newValue,
+          layerConfiguration: processedConfig,
+        }
+      : tab
+  );
+
+  setTabs(newTabs);
+  setLayerConfigurations((prev) => {
+    if (!prev[newValue]) {
+      return {
+        ...prev,
+        [newValue]: processedConfig,
+      };
+    }
+    return prev;
+  });
+};
 
   // Add this to your JSX near the visualization type dropdown
   const renderAreaTypeDropdown = () => (
@@ -3241,6 +3357,7 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
+
   const handleLayerConfigChange = useCallback(
     (newConfig) => {
       console.log(
@@ -3249,31 +3366,56 @@ export default function MapComponent({ onToggleLis }) {
       );
 
       setTabs((prevTabs) => {
-        return prevTabs.map((tab) =>
-          tab.id === activeTab && tab.visualizationType
-            ? {
-                ...tab,
-                layerConfiguration: {
-                  ...newConfig,
-                  // Preserve symbol structure if not explicitly changed by newConfig
-                  symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
-                  // Ensure type is consistent
-                  type:
-                    newConfig.type ||
-                    tab.layerConfiguration?.type ||
-                    tab.visualizationType,
-                },
+        return prevTabs.map((tab) => {
+          if (tab.id === activeTab && tab.visualizationType) {
+            // Check if this is a heat map (class-breaks) configuration that needs custom opacity
+            const isHeatMap = newConfig.type === 'class-breaks' || 
+                            tab.visualizationType.endsWith('_HEAT') ||
+                            (newConfig.classBreakInfos && Array.isArray(newConfig.classBreakInfos));
+
+            let updatedConfig = {
+              ...newConfig,
+              // Preserve symbol structure if not explicitly changed by newConfig
+              symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
+              // Ensure type is consistent
+              type: newConfig.type || tab.layerConfiguration?.type || tab.visualizationType,
+            };
+
+            // Apply custom opacity for heat maps
+            if (isHeatMap && updatedConfig.classBreakInfos && Array.isArray(updatedConfig.classBreakInfos)) {
+              console.log('[ConfigChange] Detected heat map configuration, applying custom opacity');
+              
+              // Check if custom opacity has already been applied
+              const hasCustomOpacity = updatedConfig.classBreakInfos.some(breakInfo => 
+                breakInfo.hasCustomOpacities === true || breakInfo.preserveOpacity === true
+              );
+
+              if (!hasCustomOpacity) {
+                console.log('[ConfigChange] Custom opacity not detected, applying now');
+                updatedConfig.classBreakInfos = applyCustomOpacityToClassBreaks(updatedConfig.classBreakInfos);
+                updatedConfig.hasCustomOpacities = true;
+                updatedConfig.preserveOpacity = true;
+              } else {
+                console.log('[ConfigChange] Custom opacity already applied, preserving existing values');
               }
-            : tab
-        );
+            }
+
+            return {
+              ...tab,
+              layerConfiguration: updatedConfig,
+            };
+          }
+          return tab;
+        });
       });
 
       console.log(
         "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
       );
     },
-    [activeTab] // Removed tabs from dependencies as setTabs handles closure correctly
-  ); // Include dependencies for useCallback
+    [activeTab]
+  );  
+
 
   // Add this function to extract style properties consistently:
   const extractSymbolProperties = (config) => {

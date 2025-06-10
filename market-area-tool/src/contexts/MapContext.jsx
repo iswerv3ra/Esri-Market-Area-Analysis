@@ -865,6 +865,7 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         attributes.STATE_ABBR ||
         (stateFips ? STATE_ABBR_BY_FIPS[stateFips] : "Unknown");
     }
+    
     switch (type) {
       case "county":
         if (!locationName) return "Invalid Location - Missing County Name";
@@ -877,19 +878,11 @@ export const MapProvider = ({ children, marketAreas = [] }) => {
         }
         return `${locationName}, ${stateAbbr}`;
 
-        case "zip":
-          if (!attributes.ZCTA5) return "Invalid Location - Missing ZIP Code";
-          
-          // Get state info if available
-          const stateFips = getValidStateFips();
-          if (stateFips && STATE_ABBR_BY_FIPS[stateFips]) {
-            // We have valid state info, include it
-            const stateAbbr = STATE_ABBR_BY_FIPS[stateFips];
-            return `${attributes.ZCTA5}, ${stateAbbr}`;
-          }
-          
-          // Otherwise just show the ZIP code without state
-          return `${attributes.ZCTA5}`;
+      case "zip":
+        if (!attributes.ZCTA5) return "Invalid Location - Missing ZIP Code";
+        
+        // Always return only the ZIP code without state information
+        return `${attributes.ZCTA5}`;
 
       case "tract":
         return attributes.FIPS || "Invalid Tract - Missing FIPS Code";

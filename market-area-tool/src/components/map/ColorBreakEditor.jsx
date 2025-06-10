@@ -7,6 +7,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
   const [minRange, setMinRange] = useState(0);
   const [maxRange, setMaxRange] = useState(0);
   const [localBreaks, setLocalBreaks] = useState(breaks || []);
+  const [hasCustomOpacities, setHasCustomOpacities] = useState(false);
   
   // Refs for debouncing
   const transparencyTimeoutRef = useRef(null);
@@ -24,19 +25,82 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     };
   }, []);
 
-  // Normalize breaks on initial load to ensure no Infinity values
+  const detectCustomOpacities = (breaksArray) => {
+    if (!breaksArray || breaksArray.length === 0) return false;
+    
+    // Check if breaks are explicitly marked as having custom opacities (from heat maps)
+    const hasCustomMarker = breaksArray.some(breakItem => 
+      breakItem.preserveOpacity || 
+      breakItem.hasCustomOpacities || 
+      breakItem.originalOpacity !== undefined
+    );
+    
+    if (hasCustomMarker) {
+      console.log("[ColorBreakEditor] Heat map with intentional custom opacities detected");
+      return true;
+    }
+    
+    // Check opacity variation with more tolerance for intentional design
+    const opacityValues = breaksArray.map(breakItem => {
+      if (Array.isArray(breakItem.symbol?.color) && breakItem.symbol.color[3] !== undefined) {
+        return Math.round(breakItem.symbol.color[3] * 100);
+      }
+      return 35; // Default value
+    });
+    
+    // Calculate if there's significant variation in opacity values
+    const firstOpacity = opacityValues[0];
+    const hasSignificantVariation = opacityValues.some(opacity => 
+      Math.abs(opacity - firstOpacity) > 3 // Increased tolerance to 3%
+    );
+    
+    if (hasSignificantVariation) {
+      console.log("[ColorBreakEditor] Custom opacities detected in breaks:", 
+        opacityValues.map((val, i) => `${i}: ${val}%`).join(', ')
+      );
+      return true;
+    }
+    
+    // Additional check for heat map typical opacity ranges
+    const hasHeatMapPattern = opacityValues.some(opacity => 
+      [15, 20, 25, 35, 40].includes(opacity) // Common heat map opacity values
+    ) && new Set(opacityValues).size > 1; // Multiple different values
+    
+    if (hasHeatMapPattern) {
+      console.log("[ColorBreakEditor] Heat map opacity pattern detected:", opacityValues.join('%, ') + '%');
+      return true;
+    }
+    
+    return false;
+  };
+
+
   useEffect(() => {
     if (breaks && breaks.length > 0) {
       const normalizedBreaks = [...breaks];
       
       // Convert Infinity values to large numeric values
-      // This ensures all values are finite while preserving the visual effect
       const lastBreakIndex = normalizedBreaks.length - 1;
       if (normalizedBreaks[lastBreakIndex].maxValue === Infinity) {
-        // Use a large value based on the min value of the last break
         const lastMinValue = normalizedBreaks[lastBreakIndex].minValue;
         normalizedBreaks[lastBreakIndex].maxValue = lastMinValue * 2;
       }
+      
+      // Preserve any custom opacity metadata from heat maps
+      normalizedBreaks.forEach((breakItem, index) => {
+        // Ensure original opacity is preserved if it exists
+        if (breakItem.originalOpacity !== undefined && Array.isArray(breakItem.symbol.color)) {
+          breakItem.symbol.color[3] = breakItem.originalOpacity;
+        }
+        
+        // Preserve custom opacity flags
+        if (breakItem.preserveOpacity) {
+          breakItem.preserveOpacity = true;
+        }
+        if (breakItem.hasCustomOpacities) {
+          breakItem.hasCustomOpacities = true;
+        }
+      });
       
       setLocalBreaks(normalizedBreaks);
       
@@ -50,14 +114,34 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         setMaxRange(lastBreakMax || lastBreak * 2);
       }
 
-      // Sync transparency state with actual break transparency
-      const firstBreakColor = normalizedBreaks[0]?.symbol?.color;
-      if (Array.isArray(firstBreakColor) && firstBreakColor[3] !== undefined) {
-        const currentTransparency = Math.round(firstBreakColor[3] * 100);
-        setTransparency(currentTransparency);
+      // Check for custom opacity values with enhanced detection
+      const hasCustom = detectCustomOpacities(normalizedBreaks);
+      setHasCustomOpacities(hasCustom);
+
+      // Only sync transparency state if all breaks have uniform opacity
+      if (!hasCustom) {
+        const firstBreakColor = normalizedBreaks[0]?.symbol?.color;
+        if (Array.isArray(firstBreakColor) && firstBreakColor[3] !== undefined) {
+          const currentTransparency = Math.round(firstBreakColor[3] * 100);
+          setTransparency(currentTransparency);
+        }
+      } else {
+        // For custom opacities, set transparency slider to average value but don't apply it
+        const avgOpacity = normalizedBreaks.reduce((sum, breakItem) => {
+          return sum + getBreakTransparency(breakItem);
+        }, 0) / normalizedBreaks.length;
+        setTransparency(Math.round(avgOpacity));
+        
+        console.log("[ColorBreakEditor] Custom opacities preserved:", 
+          normalizedBreaks.map((b, i) => {
+            const opacity = Array.isArray(b.symbol?.color) ? Math.round(b.symbol.color[3] * 100) : 35;
+            return `${i}: ${opacity}%`;
+          }).join(', ')
+        );
       }
     }
   }, [breaks]);
+
 
   // Guard against undefined or empty breaks
   if (!localBreaks || localBreaks.length === 0) {
@@ -126,13 +210,45 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     const break_item = newLocalBreaks[index];
     
     if (field === 'color') {
-      const alpha = Array.isArray(break_item.symbol.color) ? break_item.symbol.color[3] : 0.35;
-      break_item.symbol.color = hexToRgba(value, alpha);
+      // Preserve existing alpha when changing color
+      const existingAlpha = Array.isArray(break_item.symbol.color) ? break_item.symbol.color[3] : 0.35;
+      break_item.symbol.color = hexToRgba(value, existingAlpha);
       setLocalBreaks(newLocalBreaks);
       onBreaksChange(newLocalBreaks);
       return;
     } 
     
+    // Handle individual break transparency
+    if (field === 'individualTransparency') {
+      // Clear existing timeout for this specific break
+      const timeoutKey = `${index}-transparency`;
+      if (breakTimeoutRefs.current[timeoutKey]) {
+        clearTimeout(breakTimeoutRefs.current[timeoutKey]);
+      }
+      
+      // Update local state immediately for responsive UI
+      const numValue = parseInt(value);
+      const alpha = numValue / 100;
+      
+      // Update the specific break's transparency immediately in local state
+      if (Array.isArray(break_item.symbol.color)) {
+        break_item.symbol.color[3] = alpha;
+      } else {
+        break_item.symbol.color = hexToRgba(break_item.symbol.color, alpha);
+      }
+      setLocalBreaks(newLocalBreaks);
+      
+      // Mark that we now have custom opacities
+      setHasCustomOpacities(true);
+      
+      // Debounced update to parent
+      breakTimeoutRefs.current[timeoutKey] = setTimeout(() => {
+        onBreaksChange([...newLocalBreaks]);
+      }, immediate ? 0 : 300);
+      return;
+    }
+    
+    // Handle global transparency - only apply if user explicitly wants uniform opacity
     if (field === 'transparency') {
       // Update local state immediately for responsive UI
       setTransparency(parseInt(value));
@@ -142,20 +258,23 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         clearTimeout(transparencyTimeoutRef.current);
       }
       
-      // Set debounced update
-      transparencyTimeoutRef.current = setTimeout(() => {
-        const numValue = parseInt(value);
-        const alpha = numValue / 100;
-        const updatedBreaks = [...localBreaks]; // Use localBreaks not breaks
-        updatedBreaks.forEach(breakItem => {
-          if (Array.isArray(breakItem.symbol.color)) {
-            breakItem.symbol.color[3] = alpha;
-          } else {
-            breakItem.symbol.color = hexToRgba(breakItem.symbol.color, alpha);
-          }
-        });
-        onBreaksChange(updatedBreaks);
-      }, immediate ? 0 : 1000);
+      // Only apply global transparency if we don't have custom opacities or user confirms
+      if (!hasCustomOpacities) {
+        // Set debounced update for uniform opacity
+        transparencyTimeoutRef.current = setTimeout(() => {
+          const numValue = parseInt(value);
+          const alpha = numValue / 100;
+          const updatedBreaks = [...localBreaks];
+          updatedBreaks.forEach(breakItem => {
+            if (Array.isArray(breakItem.symbol.color)) {
+              breakItem.symbol.color[3] = alpha;
+            } else {
+              breakItem.symbol.color = hexToRgba(breakItem.symbol.color, alpha);
+            }
+          });
+          onBreaksChange(updatedBreaks);
+        }, immediate ? 0 : 1000);
+      }
       return;
     }
   
@@ -175,7 +294,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
       
       // Function to process the break update with full validation
       const processBreakUpdate = () => {
-        const finalBreaks = [...localBreaks]; // Use localBreaks not breaks
+        const finalBreaks = [...localBreaks];
         const finalBreakItem = finalBreaks[index];
         
         // Parse the final value
@@ -285,11 +404,21 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     return rgba;
   };
 
-  const hexToRgba = (hex, alpha = 0.35) => {
+  const hexToRgba = (hex, alpha = null) => {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    return [r, g, b, alpha];
+    // Use provided alpha or default to 0.35 only if no alpha specified
+    const finalAlpha = alpha !== null ? alpha : 0.35;
+    return [r, g, b, finalAlpha];
+  };
+
+  // Helper to get the current transparency value for a break
+  const getBreakTransparency = (breakItem) => {
+    if (Array.isArray(breakItem?.symbol?.color) && breakItem.symbol.color[3] !== undefined) {
+      return Math.round(breakItem.symbol.color[3] * 100);
+    }
+    return 35; // Default transparency
   };
 
   const addBreak = () => {
@@ -306,14 +435,17 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     lastBreak.label = getDisplayLabel(lastBreak, localBreaks.length - 1);
     
     // Create new break with same color configuration as the last break
+    // Preserve the exact opacity from the last break
+    const lastBreakOpacity = Array.isArray(lastBreak.symbol.color) ? lastBreak.symbol.color[3] : 0.35;
+    
     const newBreak = {
       minValue: newMaxValue,
       maxValue: lastMaxValue, // Use the original max value for the new last break
       symbol: {
         type: "simple-fill",
         color: Array.isArray(lastBreak.symbol.color) 
-          ? [...lastBreak.symbol.color.slice(0, 3), lastBreak.symbol.color[3]] 
-          : hexToRgba(lastBreak.symbol.color || "#ffffff"),
+          ? [...lastBreak.symbol.color.slice(0, 3), lastBreakOpacity] 
+          : hexToRgba(lastBreak.symbol.color || "#ffffff", lastBreakOpacity),
         outline: { 
           color: [50, 50, 50, 0.2], 
           width: lastBreak.symbol.outline?.width || "0.5px" 
@@ -353,9 +485,28 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         breakItem.label = getDisplayLabel(breakItem, idx);
       });
       
+      // Re-check for custom opacities after removal
+      setHasCustomOpacities(detectCustomOpacities(newBreaks));
+      
       setLocalBreaks(newBreaks);
       onBreaksChange(newBreaks);
     }
+  };
+
+  // Function to apply uniform transparency to all breaks
+  const applyUniformTransparency = () => {
+    const alpha = transparency / 100;
+    const updatedBreaks = [...localBreaks];
+    updatedBreaks.forEach(breakItem => {
+      if (Array.isArray(breakItem.symbol.color)) {
+        breakItem.symbol.color[3] = alpha;
+      } else {
+        breakItem.symbol.color = hexToRgba(breakItem.symbol.color, alpha);
+      }
+    });
+    setHasCustomOpacities(false);
+    setLocalBreaks(updatedBreaks);
+    onBreaksChange(updatedBreaks);
   };
 
   return (
@@ -388,16 +539,34 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         </div>
       </div>
 
-      {/* Opacity Slider */}
+      {/* Opacity Slider with Custom Opacity Warning */}
       <div className="space-y-2 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Opacity
+            Global Opacity
           </label>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {transparency}%
           </span>
         </div>
+        
+        {hasCustomOpacities && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
+            <div className="flex items-start space-x-2">
+              <div className="text-yellow-600 dark:text-yellow-400 text-sm">
+                <strong>Custom Opacities Detected:</strong> Your breaks have individual transparency values. 
+                The global slider shows the average but won't override individual settings.
+              </div>
+            </div>
+            <button 
+              onClick={applyUniformTransparency}
+              className="mt-2 px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+            >
+              Apply {transparency}% to All Breaks
+            </button>
+          </div>
+        )}
+        
         <input
           type="range"
           min="0"
@@ -418,61 +587,96 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           {localBreaks.map((breakItem, index) => (
-            <div key={index} className="group flex items-center space-x-2 py-1">
-              <div className="relative">
-                <div 
-                  className="w-8 h-8 rounded overflow-hidden border border-gray-200 dark:border-gray-700"
-                  style={{
-                    backgroundColor: Array.isArray(breakItem.symbol.color) ? 
-                      `rgba(${breakItem.symbol.color[0]}, ${breakItem.symbol.color[1]}, ${breakItem.symbol.color[2]}, ${breakItem.symbol.color[3]})` :
-                      breakItem.symbol.color,
-                    backgroundImage: 'linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)',
-                    backgroundSize: '10px 10px',
-                    backgroundPosition: '0 0, 0 5px, 5px -5px, -5px 0px'
-                  }}
-                >
-                  <input
-                    type="color"
-                    value={rgbaToHex(breakItem.symbol.color)}
-                    onChange={(e) => updateBreak(index, 'color', e.target.value)}
-                    className="opacity-0 w-full h-full cursor-pointer"
-                    title="Choose color"
+            <div key={index} className="space-y-2">
+              {/* Main break row */}
+              <div className="group flex items-center space-x-2 py-1">
+                <div className="relative">
+                  <div 
+                    className="w-8 h-8 rounded overflow-hidden border border-gray-200 dark:border-gray-700"
+                    style={{
+                      backgroundColor: Array.isArray(breakItem.symbol.color) ? 
+                        `rgba(${breakItem.symbol.color[0]}, ${breakItem.symbol.color[1]}, ${breakItem.symbol.color[2]}, ${breakItem.symbol.color[3]})` :
+                        breakItem.symbol.color,
+                      backgroundImage: 'linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)',
+                      backgroundSize: '10px 10px',
+                      backgroundPosition: '0 0, 0 5px, 5px -5px, -5px 0px'
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={rgbaToHex(breakItem.symbol.color)}
+                      onChange={(e) => updateBreak(index, 'color', e.target.value)}
+                      className="opacity-0 w-full h-full cursor-pointer"
+                      title="Choose color"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 flex-1">
+                  <NumberRangeInput
+                    value={breakItem.minValue}
+                    onChange={(value) => updateBreak(index, 'minValue', value)}
+                    disabled={index === 0}
+                    placeholder="Min"
+                    formatValue={formatValue}
                   />
+                  <span className="text-gray-400 text-sm">to</span>
+                  <NumberRangeInput
+                    value={breakItem.maxValue}
+                    onChange={(value) => updateBreak(index, 'maxValue', value)}
+                    disabled={false} // Enable max input for all breaks including last one
+                    placeholder="Max"
+                    formatValue={formatValue}
+                  />
+                </div>
+
+                {index !== 0 && index !== localBreaks.length - 1 && (
+                  <button
+                    onClick={() => removeBreak(index)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                    title="Remove break"
+                  >
+                    <Minus size={16} />
+                  </button>
+                )}
+
+                <div className="text-xs text-gray-400">
+                  {getDisplayLabel(breakItem, index)}
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 flex-1">
-                <NumberRangeInput
-                  value={breakItem.minValue}
-                  onChange={(value) => updateBreak(index, 'minValue', value)}
-                  disabled={index === 0}
-                  placeholder="Min"
-                  formatValue={formatValue}
-                />
-                <span className="text-gray-400 text-sm">to</span>
-                <NumberRangeInput
-                  value={breakItem.maxValue}
-                  onChange={(value) => updateBreak(index, 'maxValue', value)}
-                  disabled={false} // Enable max input for all breaks including last one
-                  placeholder="Max"
-                  formatValue={formatValue}
-                />
-              </div>
-
-              {index !== 0 && index !== localBreaks.length - 1 && (
-                <button
-                  onClick={() => removeBreak(index)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
-                  title="Remove break"
-                >
-                  <Minus size={16} />
-                </button>
-              )}
-
-              <div className="text-xs text-gray-400">
-                {getDisplayLabel(breakItem, index)}
+              {/* Individual transparency slider for each color */}
+              <div className="pl-10 pr-4">
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 w-20">
+                    Transparency:
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={getBreakTransparency(breakItem)}
+                    onChange={(e) => updateBreak(index, 'individualTransparency', e.target.value)}
+                    className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, 
+                        ${Array.isArray(breakItem.symbol.color) 
+                          ? `rgba(${breakItem.symbol.color[0]}, ${breakItem.symbol.color[1]}, ${breakItem.symbol.color[2]}, 0)`
+                          : 'transparent'
+                        } 0%, 
+                        ${Array.isArray(breakItem.symbol.color)
+                          ? `rgb(${breakItem.symbol.color[0]}, ${breakItem.symbol.color[1]}, ${breakItem.symbol.color[2]})`
+                          : rgbaToHex(breakItem.symbol.color)
+                        } 100%)`
+                    }}
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 w-10 text-right">
+                    {getBreakTransparency(breakItem)}%
+                  </span>
+                </div>
               </div>
             </div>
           ))}

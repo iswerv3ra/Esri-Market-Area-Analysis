@@ -78,25 +78,25 @@ const TCG_COLORS = {
 };
 
 /**
- * Gets the appropriate TCG color for each break
+ * Gets the appropriate TCG color for each break with custom opacity values
  * @param {number} index - Index of the break (0-based)
  * @param {number} totalBreaks - Total number of breaks (1-10)
  * @param {string} returnFormat - 'array' for [r,g,b,a] or 'string' for CSS
  * @return {Array|string} - Color in requested format
  */
 const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
-  // TCG Color palette with RGB values
-  const TCG_COLORS_INNER = { // Renamed to avoid conflict with outer scope if any confusion
-    'TCG Red Dark': [191, 0, 0],
-    'TCG Orange Dark': [255, 122, 13],
-    'TCG Yellow Dark': [248, 242, 0],
-    'TCG Green Dark': [0, 191, 44],
-    'TCG Cyan Dark': [0, 155, 155],
-    'TCG Blue Dark': [0, 51, 128],
-    'TCG Purple Dark': [92, 0, 184],
-    'Pink Dark': [214, 0, 158],
-    'Brown Dark': [148, 112, 60],
-    'Carbon Gray Light': [174, 170, 170]
+  // TCG Color palette with RGB values and custom opacity mappings
+  const TCG_COLORS_WITH_OPACITY = {
+    'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
+    'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
+    'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
+    'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
+    'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
+    'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
+    'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
+    'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
+    'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
+    'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
   };
   
   // Complete color mappings for all break levels (1-10)
@@ -119,9 +119,8 @@ const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
   const colorNames = colorMappings[validBreakCount] || colorMappings[10];
   const colorName = colorNames[validIndex];
   
-  // Default alpha value (0.8 for moderate transparency)
-  const alpha = 0.8;
-  const colorArray = [...TCG_COLORS_INNER[colorName], alpha];
+  // Get color array with predefined opacity (RGBA format)
+  const colorArray = TCG_COLORS_WITH_OPACITY[colorName];
   
   // Return in requested format
   return returnFormat === 'string' ? formatColorForDisplay(colorArray) : colorArray;
@@ -332,7 +331,6 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
   if (values.length === 1) {
     const singleValue = smartRound(values[0]);
     const colorArray = getBreakColor(0, 1);
-    const colorString = formatColorForDisplay(colorArray);
     
     return [{
       minValue: singleValue,
@@ -341,7 +339,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
       symbol: {
         type: "simple-marker",
         style: baseSymbolStyle.style || 'circle',
-        color: colorString,
+        color: colorArray, // Store RGBA array directly, not formatted string
         size: baseSymbolStyle.size || 10,
         outline: {
           color: baseSymbolStyle.outline?.color || '#FFFFFF',
@@ -365,9 +363,8 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
   // Create break objects with appropriate colors and labels
   for (let i = 0; i < breakRanges.length; i++) {
     const range = breakRanges[i];
-    // Get color as RGB array and convert to CSS string
+    // Get color as RGBA array and preserve it as array (not string)
     const colorArray = getBreakColor(i, breakRanges.length);
-    const colorString = formatColorForDisplay(colorArray);
     
     let label = '';
     if (i === 0 && breakRanges.length > 1) {
@@ -385,7 +382,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
       symbol: {
         type: "simple-marker",
         style: baseSymbolStyle.style || 'circle',
-        color: colorString, // Use formatted color string for UI display
+        color: colorArray, // FIXED: Store RGBA array directly to preserve individual opacity values
         size: baseSymbolStyle.size || 10,
         outline: {
           color: baseSymbolStyle.outline?.color || '#FFFFFF',
@@ -395,7 +392,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
     });
   }
 
-  // console.log("Generated data-driven class breaks with formatted colors:", breaks);
+  // console.log("Generated data-driven class breaks with preserved opacity:", breaks);
   return breaks;
 };
 
@@ -738,18 +735,10 @@ const formatColorForDisplay = (color) => {
 };
 
 
-/**
- * Generates class breaks for heatmap visualizations with
- * data-driven distribution and properly formatted colors.
- * 
- * @param {number} dataCount - Number of data points
- * @param {Array} sampleData - Sample data for distribution calculation (optional)
- * @return {Array} - Array of class break objects for heatmap
- */
 const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) => {
   // Determine break count
   const breakCount = determineBreakCountByAreas(dataCount);
-  // console.log(`Heatmap with ${dataCount} data points, using ${breakCount} breaks`);
+  console.log(`[HeatMap] Generating ${breakCount} breaks with custom opacity for ${dataCount} data points`);
   
   // Generate sample data for distribution if no real data provided
   const values = sampleData || Array.from({ length: dataCount }, (_, i) => i);
@@ -757,11 +746,23 @@ const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) =
   // Get data-driven break ranges
   const breakRanges = calculateDataDrivenBreaks(values, breakCount);
   
-  // Create break objects with appropriate colors
-  return breakRanges.map((range, index) => {
-    // Get color as RGB array and convert to CSS string
-    const colorArray = getBreakColor(index, breakCount);
-    const colorString = formatColorForDisplay(colorArray);
+  // Create break objects with custom opacity colors - this is the key fix
+  const breaks = breakRanges.map((range, index) => {
+    // Get color as RGBA array with custom opacity
+    const colorArray = getBreakColor(index, breakCount, 'array');
+    
+    // Ensure we have a proper RGBA array with the custom opacity
+    let finalColorArray;
+    if (Array.isArray(colorArray) && colorArray.length >= 4) {
+      finalColorArray = [...colorArray]; // Use the custom opacity from getBreakColor
+    } else {
+      // Fallback if getBreakColor doesn't return proper array
+      finalColorArray = [255, 0, 0, 0.4]; // Default red with 40% opacity
+    }
+    
+    // Log the opacity for debugging
+    const opacityPercent = Math.round(finalColorArray[3] * 100);
+    console.log(`[HeatMap] Break ${index}: Color [${finalColorArray[0]}, ${finalColorArray[1]}, ${finalColorArray[2]}] with ${opacityPercent}% opacity`);
     
     let label = '';
     if (index === 0 && breakRanges.length > 1) {
@@ -779,14 +780,24 @@ const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) =
       symbol: { 
         type: "simple-fill", 
         style: "solid", 
-        color: colorString, // Use formatted color string for UI display
+        color: finalColorArray, // Use the custom opacity color array
         outline: { 
           color: 'rgba(255, 255, 255, 0.5)', 
           width: 0.5 
         }
-      }
+      },
+      // Add metadata to help preserve opacity during edits
+      preserveOpacity: true,
+      originalOpacity: finalColorArray[3],
+      hasCustomOpacities: true
     };
   });
+  
+  console.log('[HeatMap] Generated breaks with custom opacity values:', 
+    breaks.map((b, i) => `${i}: ${Math.round(b.symbol.color[3] * 100)}%`).join(', ')
+  );
+  
+  return breaks;
 };
 
 // Helper to infer value format
@@ -1085,184 +1096,251 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setIsSaving(false); if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleCreateMap = async () => {
-    console.log("[NewMapDialog] Starting map creation process...");
+const handleCreateMap = async () => {
+  console.log("[NewMapDialog] Starting map creation process...");
+  
+  try {
+    // Set saving state
+    setIsSaving(true);
     
-    try {
-      // Set saving state
-      setIsSaving(true);
-      
-      // Validate required fields based on map type
-      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
-        setFileError('Please upload a data file.');
+    // Validate required fields based on map type
+    if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
+      setFileError('Please upload a data file.');
+      setIsSaving(false);
+      return;
+    }
+    
+    if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
+      setFileError('Please select a visualization variable.');
+      setIsSaving(false);
+      return;
+    }
+    
+    // Additional validation for custom data maps
+    if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
+      if (!labelColumn && labelColumn !== 'none') {
+        setFileError('Please select a Label column or "None".');
         setIsSaving(false);
         return;
       }
-      
-      if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
-        setFileError('Please select a visualization variable.');
+      if (!latitudeColumn || !longitudeColumn) {
+        setFileError('Please select Latitude and Longitude columns.');
         setIsSaving(false);
         return;
       }
-      
-      // Additional validation for custom data maps
-      if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
-        if (!labelColumn && labelColumn !== 'none') {
-          setFileError('Please select a Label column or "None".');
-          setIsSaving(false);
-          return;
-        }
-        if (!latitudeColumn || !longitudeColumn) {
-          setFileError('Please select Latitude and Longitude columns.');
-          setIsSaving(false);
-          return;
-        }
-      }
+    }
 
-      // Build map configuration based on map type
-      let mapConfiguration = {};
-      
-      if (mapType === 'heatmap' || mapType === 'dotdensity') {
-        // For standard visualizations, get config from initialLayerConfigurations
+    // Build map configuration based on map type
+    let mapConfiguration = {};
+    
+    if (mapType === 'heatmap' || mapType === 'dotdensity') {
+      if (mapType === 'heatmap') {
+        console.log("[NewMapDialog] Creating heat map with custom opacity preservation");
+        
+        // Get the base configuration first
+        const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
+        
+        if (visualizationConfig) {
+          mapConfiguration = {
+            ...visualizationConfig,
+            field: selectedVisualization,
+            visualizationKey: selectedVisualization,
+            type: 'class-breaks',
+            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+          };
+          
+          // CRITICAL FIX: Only update opacity values, preserve original break count and structure
+          if (visualizationConfig.classBreakInfos && visualizationConfig.classBreakInfos.length > 0) {
+            console.log(`[NewMapDialog] Preserving original ${visualizationConfig.classBreakInfos.length} breaks, updating opacity only`);
+            
+            // Update existing breaks with custom opacity values while preserving their structure
+            const updatedBreaks = visualizationConfig.classBreakInfos.map((originalBreak, index) => {
+              // Get the appropriate custom opacity color for this break index
+              const customColorArray = getBreakColor(index, visualizationConfig.classBreakInfos.length, 'array');
+              
+              // Preserve all original break properties, only update the color with custom opacity
+              const updatedBreak = {
+                ...originalBreak, // Preserve minValue, maxValue, label, etc.
+                symbol: {
+                  ...originalBreak.symbol, // Preserve type, style, outline, etc.
+                  color: [...customColorArray] // Only update the color with custom opacity
+                },
+                // Add metadata to preserve opacity during edits
+                preserveOpacity: true,
+                originalOpacity: customColorArray[3],
+                hasCustomOpacities: true
+              };
+              
+              console.log(`[NewMapDialog] Break ${index}: ${originalBreak.label} -> ${Math.round(customColorArray[3] * 100)}% opacity`);
+              return updatedBreak;
+            });
+            
+            mapConfiguration.classBreakInfos = updatedBreaks;
+            mapConfiguration.hasCustomOpacities = true;
+            mapConfiguration.preserveOpacity = true;
+            
+            console.log("[NewMapDialog] Updated existing breaks with custom opacity, preserved original structure");
+          } else {
+            // Fallback: if no existing breaks, generate new ones (this shouldn't happen with standard visualizations)
+            console.log("[NewMapDialog] No existing breaks found, generating new ones with 7 breaks default");
+            const customBreaks = generateGenericHeatmapClassBreaks(42, null); // Use 42 to get 7 breaks
+            mapConfiguration.classBreakInfos = customBreaks;
+            mapConfiguration.hasCustomOpacities = true;
+            mapConfiguration.preserveOpacity = true;
+          }
+        } else {
+          // Fallback: create configuration with 7 breaks default
+          console.log("[NewMapDialog] No predefined config found, using 7 breaks default");
+          const customBreaks = generateGenericHeatmapClassBreaks(42, null); // Use 42 to get 7 breaks
+          
+          mapConfiguration = {
+            field: selectedVisualization,
+            visualizationKey: selectedVisualization,
+            type: 'class-breaks',
+            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract'),
+            classBreakInfos: customBreaks,
+            hasCustomOpacities: true,
+            preserveOpacity: true
+          };
+        }
+      } else {
+        // Dot density handling remains the same
         const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
         if (visualizationConfig) {
           mapConfiguration = {
             ...visualizationConfig,
             field: selectedVisualization,
             visualizationKey: selectedVisualization,
-            type: mapType,
+            type: 'dot-density',
             areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
           };
         } else {
-          console.warn(`[NewMapDialog] No configuration found for visualization: ${selectedVisualization}`);
           mapConfiguration = {
             field: selectedVisualization,
             visualizationKey: selectedVisualization,
-            type: mapType,
+            type: 'dot-density',
             areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
           };
         }
-      } else if (mapType === 'custom' || mapType === 'comps' || mapType === 'pipeline') {
-        // For custom data maps, build configuration from form data
-        mapConfiguration = {
-          type: mapType,
-          customData: {
-            data: customData,
-            nameColumn: labelColumn === 'none' ? null : labelColumn
-          },
-          labelColumn: labelColumn === 'none' ? null : labelColumn,
-          hasNoLabels: labelColumn === 'none',
-          hideAllLabels: labelColumn === 'none',
-          variable1Column: variable1Column,
-          variable2Column: variable2Column,
-          variable1Text: variable1Text,
-          variable2Text: variable2Text,
-          valueColumn: valueColumn1,
-          valueColumn1: valueColumn1,
-          valueColumn2: valueColumn2,
-          statusColumn: statusColumn,
-          latitudeColumn: latitudeColumn,
-          longitudeColumn: longitudeColumn,
-          labelOptions: labelOptions,
-          titleFormat: generateFormattedTitle(),
-          
-          // Include generated class breaks for visualization
-          colorClassBreakInfos: colorClassBreakInfos,
-          sizeClassBreakInfos: sizeClassBreakInfos,
-          
-          // Symbol configuration for points
-          symbol: {
-            style: 'circle',
-            size: 10,
-            color: mapType === 'comps' ? '#800080' : '#FF0000', // Purple for comps, red for others
-            outline: {
-              color: '#FFFFFF',
-              width: 1
-            }
-          }
-        };
-
-        // Add type-specific configurations
-        if (mapType === 'pipeline') {
-          mapConfiguration.statusMapping = {
-            // Default status color mapping - can be customized later
-            'active': '#00FF00',
-            'pending': '#FFFF00',
-            'completed': '#0000FF',
-            'cancelled': '#FF0000'
-          };
-        }
       }
-
-      // Create the map data object to pass to parent
-      const mapData = {
-        name: mapName.trim() || generateFormattedTitle(),
+    } else {
+      // Custom data maps configuration remains the same
+      mapConfiguration = {
         type: mapType,
-        visualizationType: mapType,
-        areaType: selectedAreaType,
-        layerConfiguration: mapConfiguration,
-        
-        // Include original form data for reference
-        originalFormData: {
-          mapType,
-          selectedVisualization,
-          selectedAreaType,
-          customData,
-          labelColumn,
-          variable1Column,
-          variable2Column,
-          variable1Text,
-          variable2Text,
-          valueColumn1,
-          valueColumn2,
-          statusColumn,
-          latitudeColumn,
-          longitudeColumn,
-          labelOptions
+        customData: {
+          data: customData,
+          nameColumn: labelColumn === 'none' ? null : labelColumn
+        },
+        labelColumn: labelColumn === 'none' ? null : labelColumn,
+        hasNoLabels: labelColumn === 'none',
+        hideAllLabels: labelColumn === 'none',
+        variable1Column: variable1Column,
+        variable2Column: variable2Column,
+        variable1Text: variable1Text,
+        variable2Text: variable2Text,
+        valueColumn: valueColumn1,
+        valueColumn1: valueColumn1,
+        valueColumn2: valueColumn2,
+        statusColumn: statusColumn,
+        latitudeColumn: latitudeColumn,
+        longitudeColumn: longitudeColumn,
+        labelOptions: labelOptions,
+        titleFormat: generateFormattedTitle(),
+        colorClassBreakInfos: colorClassBreakInfos,
+        sizeClassBreakInfos: sizeClassBreakInfos,
+        symbol: {
+          style: 'circle',
+          size: 10,
+          color: mapType === 'comps' ? '#800080' : '#FF0000',
+          outline: {
+            color: '#FFFFFF',
+            width: 1
+          }
         }
       };
 
-      console.log("[NewMapDialog] Calling onCreateMap with data:", {
-        name: mapData.name,
-        type: mapData.type,
-        hasCustomData: !!customData,
-        configType: mapConfiguration.type
-      });
-
-      // Save the map configuration to database/storage
-      try {
-        const saveResult = await saveMapConfiguration(mapData);
-        console.log("[NewMapDialog] Map configuration saved:", saveResult);
-        
-        // Add the configId to mapData if save was successful
-        if (saveResult.success && saveResult.configId) {
-          mapData.configId = saveResult.configId;
-          mapData.mapConfigId = saveResult.configId;
-        }
-      } catch (saveError) {
-        console.error("[NewMapDialog] Error saving map configuration:", saveError);
-        // Continue with map creation even if save fails - it will use localStorage fallback
+      // Add type-specific configurations
+      if (mapType === 'pipeline') {
+        mapConfiguration.statusMapping = {
+          'active': '#00FF00',
+          'pending': '#FFFF00',
+          'completed': '#0000FF',
+          'cancelled': '#FF0000'
+        };
       }
-
-      // Call the parent's map creation handler
-      if (onCreateMap && typeof onCreateMap === 'function') {
-        await onCreateMap(mapData);
-        console.log("[NewMapDialog] Map creation completed successfully");
-        
-        // Reset form and close dialog
-        resetForm();
-        onClose();
-      } else {
-        throw new Error("onCreateMap function not provided or invalid");
-      }
-      
-    } catch (error) {
-      console.error("[NewMapDialog] Error during map creation:", error);
-      setFileError(`Failed to create map: ${error.message}`);
-    } finally {
-      setIsSaving(false);
     }
-  };
+
+    // Create the map data object to pass to parent
+    const mapData = {
+      name: mapName.trim() || generateFormattedTitle(),
+      type: mapType,
+      visualizationType: selectedVisualization || mapType,
+      areaType: selectedAreaType,
+      layerConfiguration: mapConfiguration,
+      originalFormData: {
+        mapType,
+        selectedVisualization,
+        selectedAreaType,
+        customData,
+        labelColumn,
+        variable1Column,
+        variable2Column,
+        variable1Text,
+        variable2Text,
+        valueColumn1,
+        valueColumn2,
+        statusColumn,
+        latitudeColumn,
+        longitudeColumn,
+        labelOptions
+      }
+    };
+
+    console.log("[NewMapDialog] Saving map configuration to database...");
+
+    // Save the map configuration to database/storage
+    try {
+      const saveResult = await saveMapConfiguration(mapData);
+      console.log("[NewMapDialog] Map configuration saved:", saveResult);
+      
+      if (saveResult.success && saveResult.configId) {
+        mapData.configId = saveResult.configId;
+        mapData.mapConfigId = saveResult.configId;
+        mapData.alreadySaved = true;
+      }
+    } catch (saveError) {
+      console.error("[NewMapDialog] Error saving map configuration:", saveError);
+    }
+
+    console.log("[NewMapDialog] Calling onCreateMap with data:", {
+      name: mapData.name,
+      type: mapData.type,
+      visualizationType: mapData.visualizationType,
+      hasCustomData: !!customData,
+      configType: mapConfiguration.type,
+      configId: mapData.configId,
+      alreadySaved: mapData.alreadySaved
+    });
+
+    // Call the parent's map creation handler
+    if (onCreateMap && typeof onCreateMap === 'function') {
+      await onCreateMap(mapData);
+      console.log("[NewMapDialog] Map creation completed successfully");
+      
+      // Reset form and close dialog
+      resetForm();
+      onClose();
+    } else {
+      throw new Error("onCreateMap function not provided or invalid");
+    }
+    
+  } catch (error) {
+    console.error("[NewMapDialog] Error during map creation:", error);
+    setFileError(`Failed to create map: ${error.message}`);
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const onCancel = () => { resetForm(); onClose(); };
 
@@ -1510,44 +1588,6 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{mapType === 'custom' ? "Value Column 1 (for Color)" : "Value Column (for Color)"}</label>
                           <select value={valueColumn1} onChange={(e) => setValueColumn1(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
                             <option value="">Select column...</option>
-                            {columns.map((column) => ( <option key={column} value={column}>{column}</option> ))}
-                          </select>
-                          <p className="text-xs text-gray-500 mt-1">Numeric column to determine point color. Breaks automatically optimized based on data size.</p>
-                        </div>
-                      )}
-                      {mapType === 'custom' && (
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value Column 2 (for Size)</label>
-                          <select value={valueColumn2} onChange={(e) => setValueColumn2(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
-                            <option value="">Select column...</option>
-                            {columns.map((column) => ( <option key={column} value={column}>{column}</option> ))}
-                          </select>
-                          <p className="text-xs text-gray-500 mt-1">Numeric column to determine point size. Breaks automatically optimized based on data size.</p>
-                        </div>
-                      )}
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Latitude Column</label>
-                        <select value={latitudeColumn} onChange={(e) => setLatitudeColumn(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
-                          <option value="">Select column...</option>
-                          {columns.map((column) => (<option key={column} value={column}>{column}</option>))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">Numeric latitude values (-90 to 90).</p>
-                      </div>
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Longitude Column</label>
-                        <select value={longitudeColumn} onChange={(e) => setLongitudeColumn(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
-                          <option value="">Select column...</option>
-                          {columns.map((column) => (<option key={column} value={column}>{column}</option>))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">Numeric longitude values (-180 to 180).</p>
-                      </div>
-                    </div>
-                    <div> {/* Right Column for selects & label options */}
-                      {mapType === 'pipeline' && (
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Status Column</label>
-                          <select value={statusColumn} onChange={(e) => setStatusColumn(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={isSaving}>
-                            <option value="">Select column...</option>
                             {columns.map((column) => (<option key={column} value={column}>{column}</option>))}
                           </select>
                           <p className="text-xs text-gray-500 mt-1">Shows status for each point.</p>
@@ -1621,9 +1661,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                                   style={{ 
                                     width: '12px', 
                                     height: '12px', 
-                                    backgroundColor: formatColorForDisplay(breakInfo.symbol.color),
+                                    backgroundColor: Array.isArray(breakInfo.symbol.color) 
+                                      ? `rgba(${breakInfo.symbol.color[0]}, ${breakInfo.symbol.color[1]}, ${breakInfo.symbol.color[2]}, ${breakInfo.symbol.color[3]})` 
+                                      : breakInfo.symbol.color,
                                     borderRadius: '50%', 
-                                    border: `${breakInfo.symbol.outline.width}px solid ${formatColorForDisplay(breakInfo.symbol.outline.color)}`, 
+                                    border: `${breakInfo.symbol.outline.width}px solid ${Array.isArray(breakInfo.symbol.outline.color) ? `rgba(${breakInfo.symbol.outline.color.join(',')})` : breakInfo.symbol.outline.color}`, 
                                     flexShrink: 0 
                                   }} 
                                 />
@@ -1664,9 +1706,11 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
                                   style={{ 
                                     width: '12px', 
                                     height: '12px', 
-                                    backgroundColor: formatColorForDisplay(breakInfo.symbol.color),
+                                    backgroundColor: Array.isArray(breakInfo.symbol.color) 
+                                      ? `rgba(${breakInfo.symbol.color[0]}, ${breakInfo.symbol.color[1]}, ${breakInfo.symbol.color[2]}, ${breakInfo.symbol.color[3]})` 
+                                      : breakInfo.symbol.color,
                                     borderRadius: '50%', 
-                                    border: `${breakInfo.symbol.outline.width}px solid ${formatColorForDisplay(breakInfo.symbol.outline.color)}`, 
+                                    border: `${breakInfo.symbol.outline.width}px solid ${Array.isArray(breakInfo.symbol.outline.color) ? `rgba(${breakInfo.symbol.outline.color.join(',')})` : breakInfo.symbol.outline.color}`, 
                                     flexShrink: 0 
                                   }} 
                                 />

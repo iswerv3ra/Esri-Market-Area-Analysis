@@ -83,16 +83,16 @@ const normalizeRendererType = (type, config = {}) => {
 const createDefaultClassBreakSymbols = (breakCount) => {
   // TCG color palette for consistent styling
   const tcgColors = [
-    [191, 0, 0, 0.8],      // TCG Red Dark
-    [255, 122, 13, 0.8],   // TCG Orange Dark
-    [248, 242, 0, 0.8],    // TCG Yellow Dark
-    [0, 191, 44, 0.8],     // TCG Green Dark
-    [0, 155, 155, 0.8],    // TCG Cyan Dark
-    [0, 51, 128, 0.8],     // TCG Blue Dark
-    [92, 0, 184, 0.8],     // TCG Purple Dark
-    [214, 0, 158, 0.8],    // Pink Dark
-    [148, 112, 60, 0.8],   // Brown Dark
-    [174, 170, 170, 0.8]   // Carbon Gray Light
+    [191, 0, 0, 0.4],        // TCG Red Dark - 40% opacity
+    [255, 122, 13, 0.25],    // TCG Orange Dark - 25% opacity
+    [248, 242, 0, 0.35],     // TCG Yellow Dark - 35% opacity
+    [0, 191, 44, 0.35],      // TCG Green Dark - 35% opacity
+    [0, 155, 155, 0.35],     // TCG Cyan Dark - 35% opacity
+    [0, 51, 128, 0.15],      // TCG Blue Dark - 15% opacity
+    [92, 0, 184, 0.2],       // TCG Purple Dark - 20% opacity
+    [214, 0, 158, 0.2],      // Pink Dark - 20% opacity
+    [148, 112, 60, 0.2],     // Brown Dark - 20% opacity
+    [174, 170, 170, 0.2]     // Carbon Gray Light - 20% opacity
   ];
   
   return tcgColors.slice(0, Math.min(breakCount, tcgColors.length));
