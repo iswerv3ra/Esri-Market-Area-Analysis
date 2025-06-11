@@ -98,6 +98,7 @@ export default function MapComponent({ onToggleLis }) {
   // Modify storage keys to use a static default
   const AUTO_SAVE_KEY = "autoSavedMapConfigurations_default";
   const MANUAL_SAVE_KEY = "mapConfigurations_default";
+  const [newClassBreaksMapCreated, setNewClassBreaksMapCreated] = useState(null);
 
   const [layerConfigurations, setLayerConfigurations] = useState({
     population: {
@@ -304,7 +305,7 @@ export default function MapComponent({ onToggleLis }) {
     'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
   };
 
-  /**
+    /**
    * Gets the appropriate TCG color for each break with custom opacity values
    * @param {number} index - Index of the break (0-based)
    * @param {number} totalBreaks - Total number of breaks (1-10)
@@ -312,6 +313,20 @@ export default function MapComponent({ onToggleLis }) {
    * @return {Array|string} - Color in requested format
    */
   const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
+    // TCG Color palette with RGB values and custom opacity mappings
+    const TCG_COLORS_WITH_OPACITY = {
+      'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
+      'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
+      'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
+      'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
+      'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
+      'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
+      'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
+      'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
+      'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
+      'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
+    };
+    
     // Complete color mappings for all break levels (1-10)
     const colorMappings = {
       1: ['TCG Red Dark'],
@@ -1216,7 +1231,17 @@ export default function MapComponent({ onToggleLis }) {
       // Switch to the new tab
       setActiveTab(newTab.id);
       console.log("[Map] Set active tab to:", newTab.id);
-
+      
+      
+      if (newTab.layerConfiguration?.type === 'class-breaks' && 
+          !newTab.layerConfiguration?.dataOptimized) {
+        console.log('[Map] Triggering class breaks regeneration for new heat map');
+        setNewClassBreaksMapCreated({
+          tabId: newTab.id,
+          visualizationType: normalizedVisualizationType,
+          areaType: processedAreaType
+        });
+}
       // Update layer configurations to ensure proper rendering
       setLayerConfigurations((prev) => ({
         ...prev,
@@ -3085,6 +3110,8 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
+  // Update the visualization change handler
+  // Modify handleVisualizationChange to save configuration to the specific tab
   const handleVisualizationChange = (tabId, newValue) => {
     if (!newValue) {
       const newTabs = tabs.map((tab) =>
@@ -3101,54 +3128,27 @@ export default function MapComponent({ onToggleLis }) {
     }
 
     const initialConfig = initialLayerConfigurations[newValue];
-    
-    // Check if this is a heat map visualization that needs custom opacity
-    const isHeatMap = initialConfig?.type === 'class-breaks' || 
-                    newValue.endsWith('_HEAT') ||
-                    (initialConfig?.classBreakInfos && Array.isArray(initialConfig.classBreakInfos));
+    const newTabs = tabs.map((tab) =>
+      tab.id === tabId
+        ? {
+            ...tab,
+            visualizationType: newValue,
+            layerConfiguration: initialConfig,
+          }
+        : tab
+    );
 
-    let processedConfig = { ...initialConfig };
-
-    // Apply custom opacity for heat maps
-    if (isHeatMap && processedConfig.classBreakInfos && Array.isArray(processedConfig.classBreakInfos)) {
-      console.log(`[handleVisualizationChange] Applying custom opacity to heat map: ${newValue}`);
-      
-      // Check if custom opacity has already been applied
-      const hasCustomOpacity = processedConfig.classBreakInfos.some(breakInfo => 
-        breakInfo.hasCustomOpacities === true || breakInfo.preserveOpacity === true
-      );
-
-      if (!hasCustomOpacity) {
-        console.log('[handleVisualizationChange] Custom opacity not detected, applying now');
-        processedConfig.classBreakInfos = applyCustomOpacityToClassBreaks(processedConfig.classBreakInfos);
-        processedConfig.hasCustomOpacities = true;
-      processedConfig.preserveOpacity = true;
-    } else {
-      console.log('[handleVisualizationChange] Custom opacity already applied');
-    }
-  }
-
-  const newTabs = tabs.map((tab) =>
-    tab.id === tabId
-      ? {
-          ...tab,
-          visualizationType: newValue,
-          layerConfiguration: processedConfig,
-        }
-      : tab
-  );
-
-  setTabs(newTabs);
-  setLayerConfigurations((prev) => {
-    if (!prev[newValue]) {
-      return {
-        ...prev,
-        [newValue]: processedConfig,
-      };
-    }
-    return prev;
-  });
-};
+    setTabs(newTabs);
+    setLayerConfigurations((prev) => {
+      if (!prev[newValue]) {
+        return {
+          ...prev,
+          [newValue]: initialConfig,
+        };
+      }
+      return prev;
+    });
+  };
 
   // Add this to your JSX near the visualization type dropdown
   const renderAreaTypeDropdown = () => (
@@ -3358,34 +3358,54 @@ export default function MapComponent({ onToggleLis }) {
   };
 
 
-  const handleLayerConfigChange = useCallback(
-    (newConfig) => {
-      console.log(
-        "[ConfigChange] Updating tabs state with new config:",
-        newConfig
-      );
+const handleLayerConfigChange = useCallback(
+  (newConfig) => {
+    console.log(
+      "[ConfigChange] Updating tabs state with new config:",
+      newConfig
+    );
 
-      setTabs((prevTabs) => {
-        return prevTabs.map((tab) => {
-          if (tab.id === activeTab && tab.visualizationType) {
-            // Check if this is a heat map (class-breaks) configuration that needs custom opacity
-            const isHeatMap = newConfig.type === 'class-breaks' || 
-                            tab.visualizationType.endsWith('_HEAT') ||
-                            (newConfig.classBreakInfos && Array.isArray(newConfig.classBreakInfos));
+    setTabs((prevTabs) => {
+      return prevTabs.map((tab) => {
+        if (tab.id === activeTab && tab.visualizationType) {
+          // Check if this is a heat map (class-breaks) configuration that needs custom opacity
+          const isHeatMap = newConfig.type === 'class-breaks' || 
+                          tab.visualizationType.endsWith('_HEAT') ||
+                          (newConfig.classBreakInfos && Array.isArray(newConfig.classBreakInfos));
 
-            let updatedConfig = {
-              ...newConfig,
-              // Preserve symbol structure if not explicitly changed by newConfig
-              symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
-              // Ensure type is consistent
-              type: newConfig.type || tab.layerConfiguration?.type || tab.visualizationType,
-            };
+          let updatedConfig = {
+            ...newConfig,
+            // Preserve symbol structure if not explicitly changed by newConfig
+            symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
+            // Ensure type is consistent
+            type: newConfig.type || tab.layerConfiguration?.type || tab.visualizationType,
+          };
 
-            // Apply custom opacity for heat maps
-            if (isHeatMap && updatedConfig.classBreakInfos && Array.isArray(updatedConfig.classBreakInfos)) {
-              console.log('[ConfigChange] Detected heat map configuration, applying custom opacity');
+          // Apply custom opacity for heat maps with enhanced user override detection
+          if (isHeatMap && updatedConfig.classBreakInfos && Array.isArray(updatedConfig.classBreakInfos)) {
+            console.log('[ConfigChange] Detected heat map configuration, applying custom opacity');
+            
+            // Enhanced detection for user-initiated transparency changes
+            const isUserTransparencyOverride = detectUserTransparencyOverride(updatedConfig);
+            
+            if (isUserTransparencyOverride) {
+              console.log('[ConfigChange] User transparency override detected - allowing slider changes');
+              // User is explicitly overriding custom opacities via transparency slider
+              // Clear all preservation flags and apply the new uniform opacity
+              updatedConfig.preserveOpacity = false;
+              updatedConfig.hasCustomOpacities = false;
               
-              // Check if custom opacity has already been applied
+              // Clear preservation flags from individual breaks
+              updatedConfig.classBreakInfos = updatedConfig.classBreakInfos.map(breakInfo => ({
+                ...breakInfo,
+                preserveOpacity: false,
+                hasCustomOpacities: false,
+                // Remove originalOpacity to prevent conflicts
+                originalOpacity: undefined
+              }));
+              
+            } else {
+              // Check if custom opacity has already been applied (and not overridden by user)
               const hasCustomOpacity = updatedConfig.classBreakInfos.some(breakInfo => 
                 breakInfo.hasCustomOpacities === true || breakInfo.preserveOpacity === true
               );
@@ -3399,22 +3419,96 @@ export default function MapComponent({ onToggleLis }) {
                 console.log('[ConfigChange] Custom opacity already applied, preserving existing values');
               }
             }
-
-            return {
-              ...tab,
-              layerConfiguration: updatedConfig,
-            };
           }
-          return tab;
-        });
-      });
 
-      console.log(
-        "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
+          return {
+            ...tab,
+            layerConfiguration: updatedConfig,
+          };
+        }
+        return tab;
+      });
+    });
+
+    console.log(
+      "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
+    );
+  },
+  [activeTab]
+);
+
+// Helper function to detect user-initiated transparency overrides
+const detectUserTransparencyOverride = (config) => {
+  // Check if the configuration explicitly indicates user override
+  if (config.preserveOpacity === false && config.hasCustomOpacities === false) {
+    console.log('[ConfigChange] Explicit user override flags detected');
+    return true;
+  }
+  
+  // Check if all class breaks have identical opacity (characteristic of slider use)
+  if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+    const opacities = config.classBreakInfos
+      .map(breakInfo => {
+        if (Array.isArray(breakInfo.symbol?.color) && breakInfo.symbol.color[3] !== undefined) {
+          return Math.round(breakInfo.symbol.color[3] * 100);
+        }
+        return null;
+      })
+      .filter(opacity => opacity !== null);
+    
+    if (opacities.length > 1) {
+      const firstOpacity = opacities[0];
+      const allIdentical = opacities.every(opacity => opacity === firstOpacity);
+      
+      // Check if breaks explicitly have preservation flags cleared
+      const noPreservationFlags = config.classBreakInfos.every(breakInfo => 
+        !breakInfo.preserveOpacity && !breakInfo.hasCustomOpacities
       );
-    },
-    [activeTab]
-  );  
+      
+      if (allIdentical && noPreservationFlags) {
+        console.log('[ConfigChange] Uniform opacity with cleared flags detected - user transparency slider');
+        return true;
+      }
+      
+      // Additional check: if global config flags are cleared but opacities are uniform
+      if (allIdentical && config.preserveOpacity === false) {
+        console.log('[ConfigChange] Uniform opacity with global override detected');
+        return true;
+      }
+    }
+  }
+  
+  // Check for timestamp-based detection (recent change)
+  const currentTime = Date.now();
+  if (config.transparencyChangeTimestamp && 
+      (currentTime - config.transparencyChangeTimestamp) < 5000) {
+    console.log('[ConfigChange] Recent transparency change detected');
+    return true;
+  }
+  
+  // Check if any break has originalOpacity that differs from current opacity
+  // This indicates user has changed from the original heat map values
+  if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+    const hasOpacityChanges = config.classBreakInfos.some(breakInfo => {
+      if (breakInfo.originalOpacity !== undefined && 
+          Array.isArray(breakInfo.symbol?.color) && 
+          breakInfo.symbol.color[3] !== undefined) {
+        const currentOpacity = breakInfo.symbol.color[3];
+        const originalOpacity = breakInfo.originalOpacity;
+        // If current opacity differs significantly from original, user likely changed it
+        return Math.abs(currentOpacity - originalOpacity) > 0.05; // 5% threshold
+      }
+      return false;
+    });
+    
+    if (hasOpacityChanges) {
+      console.log('[ConfigChange] User-modified opacities detected');
+      return true;
+    }
+  }
+  
+  return false;
+};
 
 
   // Add this function to extract style properties consistently:
@@ -4578,7 +4672,7 @@ export default function MapComponent({ onToggleLis }) {
       return type;
     };
 
-    // Helper function to find visualization option by various criteria
+    // Helper function to find visualization option by various criteria - IMPROVED VERSION
     const findVisualizationOption = (config, effectiveType, tabData) => {
       console.log("🔍 [findVisualizationOption] === DETAILED DEBUG START ===");
       console.log("🔍 [findVisualizationOption] Input parameters:");
@@ -4601,15 +4695,115 @@ export default function MapComponent({ onToggleLis }) {
 
       let matchingOption = null;
 
-      // Method 1: Match by config field/attribute name
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 1: Config Field Match ==="
-      );
+      // Enhanced helper function for flexible field matching
+      const findFieldMatch = (fieldName, preferredType = null) => {
+        if (!fieldName) return null;
+        
+        console.log(`🔍   - Attempting to match field: "${fieldName}" with preferred type: ${preferredType}`);
+        
+        // Method A: Try exact match first
+        let match = visualizationOptions.find(opt => opt.value === fieldName);
+        if (match && (!preferredType || match.type === preferredType)) {
+          console.log(`🔍   - ✅ Exact match found: ${match.label} (${match.value})`);
+          return match;
+        }
+        
+        // Method B: Try with common suffixes for the preferred type
+        if (preferredType === "class-breaks") {
+          const fieldWithHeat = fieldName.endsWith("_HEAT") ? fieldName : fieldName + "_HEAT";
+          match = visualizationOptions.find(opt => opt.value === fieldWithHeat && opt.type === "class-breaks");
+          if (match) {
+            console.log(`🔍   - ✅ Heat suffix match found: ${match.label} (${match.value})`);
+            return match;
+          }
+        } else if (preferredType === "dot-density") {
+          // For dot-density, try without suffix first, then with _DOT
+          const baseField = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
+          match = visualizationOptions.find(opt => opt.value === baseField && opt.type === "dot-density");
+          if (match) {
+            console.log(`🔍   - ✅ Base field match for dot-density: ${match.label} (${match.value})`);
+            return match;
+          }
+        }
+        
+        // Method C: Try removing suffixes to find base field
+        const baseName = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
+        if (baseName !== fieldName) {
+          // Try base name with preferred type
+          if (preferredType) {
+            match = visualizationOptions.find(opt => 
+              (opt.value === baseName || opt.value === baseName + "_HEAT" || opt.value === baseName + "_DOT") && 
+              opt.type === preferredType
+            );
+            if (match) {
+              console.log(`🔍   - ✅ Base name with type match: ${match.label} (${match.value})`);
+              return match;
+            }
+          }
+          
+          // Try base name without type preference
+          match = visualizationOptions.find(opt => opt.value === baseName);
+          if (match) {
+            console.log(`🔍   - ✅ Base name match: ${match.label} (${match.value})`);
+            return match;
+          }
+        }
+        
+        // Method D: Try adding suffixes if we don't have them
+        if (!fieldName.match(/_HEAT$|_DOT$|_VIZ$|_MAP$/)) {
+          const suffixesToTry = ['_HEAT', '_DOT'];
+          for (const suffix of suffixesToTry) {
+            const fieldWithSuffix = fieldName + suffix;
+            match = visualizationOptions.find(opt => 
+              opt.value === fieldWithSuffix && 
+              (!preferredType || opt.type === preferredType)
+            );
+            if (match) {
+              console.log(`🔍   - ✅ Added suffix match: ${match.label} (${match.value}) with ${suffix}`);
+              return match;
+            }
+          }
+        }
+        
+        // Method E: Fuzzy matching - find options that contain the core field
+        const coreField = baseName.length >= 3 ? baseName : fieldName;
+        match = visualizationOptions.find(opt => {
+          const optCore = opt.value.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
+          const isMatch = (
+            opt.value.includes(coreField) || 
+            coreField.includes(optCore) ||
+            optCore === coreField
+          ) && (!preferredType || opt.type === preferredType);
+          
+          if (isMatch) {
+            console.log(`🔍   - 🎯 Fuzzy match: "${opt.value}" matches "${fieldName}" via core "${coreField}"`);
+          }
+          return isMatch;
+        });
+        
+        if (match) {
+          console.log(`🔍   - ✅ Fuzzy match found: ${match.label} (${match.value})`);
+          return match;
+        }
+        
+        console.log(`🔍   - ❌ No match found for field: "${fieldName}"`);
+        return null;
+      };
+
+      // Method 1: Enhanced Config Field Match
+      console.log("🔍 [findVisualizationOption] === METHOD 1: Enhanced Config Field Match ===");
       if (config?.field) {
         console.log("🔍   - Searching for config.field:", config.field);
-        matchingOption = visualizationOptions.find(
-          (opt) => opt.value === config.field
-        );
+        
+        // Determine preferred type based on effectiveType
+        let preferredType = null;
+        if (effectiveType === "class-breaks" || effectiveType?.endsWith("_HEAT")) {
+          preferredType = "class-breaks";
+        } else if (effectiveType === "dot-density") {
+          preferredType = "dot-density";
+        }
+        
+        matchingOption = findFieldMatch(config.field, preferredType);
         console.log(
           "🔍   - Method 1 result:",
           matchingOption
@@ -4618,18 +4812,20 @@ export default function MapComponent({ onToggleLis }) {
         );
       }
 
-      // Method 2: Match by visualization key/identifier
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 2: Visualization Key Match ==="
-      );
+      // Method 2: Enhanced Visualization Key Match
+      console.log("🔍 [findVisualizationOption] === METHOD 2: Enhanced Visualization Key Match ===");
       if (!matchingOption && config?.visualizationKey) {
-        console.log(
-          "🔍   - Searching for config.visualizationKey:",
-          config.visualizationKey
-        );
-        matchingOption = visualizationOptions.find(
-          (opt) => opt.value === config.visualizationKey
-        );
+        console.log("🔍   - Searching for config.visualizationKey:", config.visualizationKey);
+        
+        // Determine type from visualization key
+        let preferredType = null;
+        if (config.visualizationKey.includes("_HEAT") || effectiveType === "class-breaks") {
+          preferredType = "class-breaks";
+        } else if (effectiveType === "dot-density") {
+          preferredType = "dot-density";
+        }
+        
+        matchingOption = findFieldMatch(config.visualizationKey, preferredType);
         console.log(
           "🔍   - Method 2 result:",
           matchingOption
@@ -4638,56 +4834,20 @@ export default function MapComponent({ onToggleLis }) {
         );
       }
 
-      // Method 3: Match by config type and look for corresponding heat/dot density version
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 3: Type-based Match ==="
-      );
-      if (!matchingOption && effectiveType) {
-        console.log("🔍   - effectiveType:", effectiveType);
-
-        if (
-          effectiveType === "class-breaks" ||
-          effectiveType.endsWith("_HEAT")
-        ) {
-          console.log("🔍   - Looking for class-breaks/heat map matches");
-          const heatMapOptions = visualizationOptions.filter(
-            (opt) => opt.type === "class-breaks"
-          );
-          console.log(
-            "🔍   - Available class-breaks options:",
-            heatMapOptions.map((opt) => `${opt.value} (${opt.label})`)
-          );
-
-          matchingOption = visualizationOptions.find(
-            (opt) =>
-              opt.type === "class-breaks" &&
-              (config?.field
-                ? opt.value === config.field
-                : config?.attribute
-                ? opt.value === config.attribute
-                : false)
-          );
+      // Method 3: Enhanced TabData Visualization Type Match
+      console.log("🔍 [findVisualizationOption] === METHOD 3: Enhanced TabData Match ===");
+      if (!matchingOption && tabData?.visualizationType) {
+        console.log("🔍   - Searching for tabData.visualizationType:", tabData.visualizationType);
+        
+        // Determine type from visualization type name
+        let preferredType = null;
+        if (tabData.visualizationType.includes("_HEAT") || effectiveType === "class-breaks") {
+          preferredType = "class-breaks";
         } else if (effectiveType === "dot-density") {
-          console.log("🔍   - Looking for dot-density matches");
-          const dotDensityOptions = visualizationOptions.filter(
-            (opt) => opt.type === "dot-density"
-          );
-          console.log(
-            "🔍   - Available dot-density options:",
-            dotDensityOptions.map((opt) => `${opt.value} (${opt.label})`)
-          );
-
-          matchingOption = visualizationOptions.find(
-            (opt) =>
-              opt.type === "dot-density" &&
-              (config?.field
-                ? opt.value === config.field
-                : config?.dotValue
-                ? opt.value === config.dotValue
-                : false)
-          );
+          preferredType = "dot-density";
         }
-
+        
+        matchingOption = findFieldMatch(tabData.visualizationType, preferredType);
         console.log(
           "🔍   - Method 3 result:",
           matchingOption
@@ -4696,23 +4856,127 @@ export default function MapComponent({ onToggleLis }) {
         );
       }
 
-      // Method 4: Match by activeTabData properties
-      console.log(
-        "🔍 [findVisualizationOption] === METHOD 4: ActiveTabData Match ==="
-      );
-      if (!matchingOption && tabData) {
-        if (tabData.field) {
-          matchingOption = visualizationOptions.find(
-            (opt) => opt.value === tabData.field
-          );
-        } else if (tabData.visualizationKey) {
-          matchingOption = visualizationOptions.find(
-            (opt) => opt.value === tabData.visualizationKey
-          );
+      // Method 4: Type-Specific Comprehensive Search
+      console.log("🔍 [findVisualizationOption] === METHOD 4: Type-Specific Comprehensive Search ===");
+      if (!matchingOption && effectiveType) {
+        console.log("🔍   - effectiveType:", effectiveType);
+
+        // Get all possible search terms
+        const searchTerms = [
+          config?.field,
+          config?.visualizationKey,
+          tabData?.visualizationType
+        ].filter(Boolean);
+
+        if (effectiveType === "class-breaks" || effectiveType.endsWith("_HEAT")) {
+          console.log("🔍   - Looking for class-breaks/heat map matches");
+          
+          for (const searchTerm of searchTerms) {
+            // Try multiple variations for heat maps
+            const variations = [
+              searchTerm,
+              searchTerm + "_HEAT",
+              searchTerm.replace("_HEAT", "") + "_HEAT",
+              searchTerm.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "") + "_HEAT"
+            ];
+            
+            for (const variation of variations) {
+              matchingOption = visualizationOptions.find(opt => 
+                opt.type === "class-breaks" && opt.value === variation
+              );
+              
+              if (matchingOption) {
+                console.log(`🔍   - ✅ Class-breaks variation match: ${matchingOption.label} (${matchingOption.value})`);
+                break;
+              }
+            }
+            
+            if (matchingOption) break;
+          }
+        } else if (effectiveType === "dot-density") {
+          console.log("🔍   - Looking for dot-density matches");
+          
+          for (const searchTerm of searchTerms) {
+            // For dot-density, usually the base field name without suffix
+            const baseTerm = searchTerm.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "");
+            const variations = [
+              baseTerm,
+              baseTerm + "_DOT",
+              searchTerm
+            ];
+            
+            for (const variation of variations) {
+              matchingOption = visualizationOptions.find(opt => 
+                opt.type === "dot-density" && opt.value === variation
+              );
+              
+              if (matchingOption) {
+                console.log(`🔍   - ✅ Dot-density variation match: ${matchingOption.label} (${matchingOption.value})`);
+                break;
+              }
+            }
+            
+            if (matchingOption) break;
+          }
         }
 
         console.log(
           "🔍   - Method 4 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
+        );
+      }
+
+      // Method 5: Last Resort Fuzzy Matching
+      console.log("🔍 [findVisualizationOption] === METHOD 5: Last Resort Fuzzy Matching ===");
+      if (!matchingOption) {
+        const allSearchTerms = [
+          config?.field,
+          config?.visualizationKey,
+          tabData?.visualizationType
+        ].filter(Boolean);
+
+        console.log("🔍   - All search terms:", allSearchTerms);
+
+        for (const searchTerm of allSearchTerms) {
+          if (!searchTerm || searchTerm.length < 3) continue;
+          
+          // Extract core identifier (remove common suffixes and prefixes)
+          const coreIdentifier = searchTerm
+            .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '')
+            .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, '');
+          
+          if (coreIdentifier.length < 3) continue;
+          
+          // Look for any option that contains this core identifier
+          matchingOption = visualizationOptions.find(opt => {
+            const optCore = opt.value
+              .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '')
+              .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, '');
+            
+            return (
+              opt.value.includes(coreIdentifier) ||
+              coreIdentifier.includes(optCore) ||
+              optCore === coreIdentifier ||
+              // Try substring matching for longer identifiers
+              (coreIdentifier.length > 6 && (
+                opt.value.includes(coreIdentifier.substring(0, 6)) ||
+                coreIdentifier.includes(optCore.substring(0, 6))
+              ))
+            );
+          });
+          
+          if (matchingOption) {
+            console.log(
+              `🔍   - ✅ Fuzzy match found: ${matchingOption.label} (${matchingOption.value}) for search term: ${searchTerm} via core: ${coreIdentifier}`
+            );
+            break;
+          }
+        }
+        
+        console.log(
+          "🔍   - Method 5 result:",
           matchingOption
             ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
             : "❌ NOT FOUND"
@@ -5171,16 +5435,27 @@ export default function MapComponent({ onToggleLis }) {
                 const currentConfig = activeTabData?.layerConfiguration;
                 let displayTitle = newLayer.title || effectiveType; // Default title
 
-                // --- ENHANCED MODIFICATION FOR VISUALIZATION OPTIONS ---
-                // Priority 1: Use legendTitle from the layer's configuration if it exists
-                if (currentConfig && currentConfig.legendTitle) {
-                  displayTitle = currentConfig.legendTitle;
+                // --- FIX: PRIORITIZE EDITED CONFIG OVER DEFAULT LOOKUP ---
+                
+                // If decimalPlaces is explicitly set in the config, it means the user has edited it.
+                // We should trust this config and NOT perform a lookup that would overwrite it.
+                // We also check for legendTitle for backwards compatibility with other edits.
+                const isPropertyEdit =
+                  (currentConfig && typeof currentConfig.decimalPlaces !== 'undefined') ||
+                  (currentConfig && currentConfig.legendTitle);
+
+                if (isPropertyEdit) {
                   console.log(
-                    `[updateVisualizationAndLegend] Using config legendTitle: "${displayTitle}"`
+                    `[updateVisualizationAndLegend] Property edit detected. Bypassing visualization lookup.`
                   );
-                }
-                // Priority 2: Look up visualization option and use its label
-                else {
+                  // Use the title from the config if it exists, otherwise use the last known good title or a default.
+                  displayTitle = currentConfig.legendTitle || newLayer.title || effectiveType;
+                   console.log(
+                    `[updateVisualizationAndLegend] Using title from edited config: "${displayTitle}"`
+                  );
+
+                } else {
+                  // This is the original logic, which runs when it's NOT a property edit (e.g., initial load, new viz selection).
                   const matchingVisualizationOption = findVisualizationOption(
                     currentConfig,
                     effectiveType,
@@ -5195,19 +5470,7 @@ export default function MapComponent({ onToggleLis }) {
                     console.log(
                       `[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`
                     );
-                  }
-                  // Priority 3: Specific fallback cases (keep existing logic for backwards compatibility)
-                  else if (
-                    displayTitle === "2024 Renter Occupied Housing Units (Esri)"
-                  ) {
-                    displayTitle =
-                      "2024 Renter Occupied Housing Units (New Title)";
-                    console.log(
-                      `[updateVisualizationAndLegend] Using fallback title: "${displayTitle}"`
-                    );
-                  }
-                  // Priority 4: Default to layer title or effective type
-                  else {
+                  } else {
                     console.log(
                       `[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`
                     );
@@ -5421,6 +5684,247 @@ export default function MapComponent({ onToggleLis }) {
   ]);
 
   // --- CONSOLIDATED EFFECT HOOKS ---
+
+
+useEffect(() => {
+  // Skip if no new class-breaks map was created or prerequisites aren't met
+  if (!newClassBreaksMapCreated || !mapView?.map || !isLabelManagerReady) {
+    return;
+  }
+
+  const regenerateClassBreaks = async () => {
+    try {
+      const { tabId, visualizationType, areaType } = newClassBreaksMapCreated;
+      
+      console.log('[ClassBreaks Regeneration] Starting for new map:', {
+        tabId,
+        visualizationType,
+        areaType
+      });
+
+      // Find the tab data
+      const tabData = tabs.find(tab => tab.id === tabId);
+      if (!tabData || !tabData.layerConfiguration) {
+        console.warn('[ClassBreaks Regeneration] Tab or configuration not found');
+        return;
+      }
+
+      // Only process class-breaks visualizations
+      if (tabData.layerConfiguration.type !== 'class-breaks') {
+        console.log('[ClassBreaks Regeneration] Not a class-breaks map, skipping');
+        return;
+      }
+
+      // Extract the field name
+      const fieldName = tabData.layerConfiguration.field || visualizationType;
+      if (!fieldName) {
+        console.warn('[ClassBreaks Regeneration] No field name found');
+        return;
+      }
+
+      // Build the feature layer URL based on area type
+      const areaTypeString = typeof areaType === 'object' ? 
+        convertAreaTypeToString(areaType.value) : 
+        convertAreaTypeToString(areaType);
+      
+      let featureLayerUrl = '';
+      switch (areaTypeString) {
+        case 'county':
+          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Counties/FeatureServer/0';
+          break;
+        case 'tract':
+          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Census_Tracts/FeatureServer/0';
+          break;
+        case 'block_group':
+          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Block_Groups/FeatureServer/0';
+          break;
+        default:
+          console.warn('[ClassBreaks Regeneration] Unsupported area type:', areaTypeString);
+          return;
+      }
+
+      console.log('[ClassBreaks Regeneration] Querying data from:', featureLayerUrl);
+
+      // Import required modules
+      const [
+        { default: FeatureLayer },
+        { default: Query },
+        { default: StatisticDefinition }
+      ] = await Promise.all([
+        import("@arcgis/core/layers/FeatureLayer"),
+        import("@arcgis/core/rest/support/Query"),
+        import("@arcgis/core/rest/support/StatisticDefinition")
+      ]);
+
+      // Create a temporary feature layer to query the data
+      const tempLayer = new FeatureLayer({
+        url: featureLayerUrl
+      });
+
+      // Wait for layer to load
+      await tempLayer.load();
+
+      // Create a query to get statistics about the field
+      const statsQuery = new Query({
+        where: "1=1",
+        outStatistics: [
+          new StatisticDefinition({
+            statisticType: "min",
+            onStatisticField: fieldName,
+            outStatisticFieldName: "minValue"
+          }),
+          new StatisticDefinition({
+            statisticType: "max",
+            onStatisticField: fieldName,
+            outStatisticFieldName: "maxValue"
+          }),
+          new StatisticDefinition({
+            statisticType: "count",
+            onStatisticField: fieldName,
+            outStatisticFieldName: "count"
+          })
+        ]
+      });
+
+      // Execute the statistics query
+      const statsResult = await tempLayer.queryFeatures(statsQuery);
+      
+      if (!statsResult.features || statsResult.features.length === 0) {
+        console.warn('[ClassBreaks Regeneration] No statistics returned');
+        return;
+      }
+
+      const stats = statsResult.features[0].attributes;
+      const minValue = stats.minValue;
+      const maxValue = stats.maxValue;
+      const featureCount = stats.count;
+
+      console.log('[ClassBreaks Regeneration] Data statistics:', {
+        min: minValue,
+        max: maxValue,
+        count: featureCount,
+        field: fieldName
+      });
+
+      // Get the current number of breaks from the existing configuration
+      const currentBreakCount = tabData.layerConfiguration.classBreakInfos?.length || 7;
+      
+      // Calculate optimal break count based on feature count
+      const optimalBreakCount = Math.min(currentBreakCount, Math.max(2, Math.floor(Math.sqrt(featureCount))));
+
+      // Generate evenly distributed breaks with smart rounding
+      const range = maxValue - minValue;
+      const breakSize = range / optimalBreakCount;
+      
+      // Helper function for intelligent rounding based on value magnitude
+      const intelligentRound = (value) => {
+        if (Math.abs(value) < 1) return Math.round(value * 100) / 100;
+        if (Math.abs(value) < 10) return Math.round(value);
+        if (Math.abs(value) < 100) return Math.round(value / 5) * 5;
+        if (Math.abs(value) < 1000) return Math.round(value / 10) * 10;
+        if (Math.abs(value) < 10000) return Math.round(value / 100) * 100;
+        if (Math.abs(value) < 100000) return Math.round(value / 1000) * 1000;
+        return Math.round(value / 10000) * 10000;
+      };
+
+      // Generate new breaks with clean numbers
+      const newBreaks = [];
+      for (let i = 0; i < optimalBreakCount; i++) {
+        const startValue = i === 0 ? minValue : newBreaks[i - 1].maxValue;
+        const endValue = i === optimalBreakCount - 1 ? maxValue : intelligentRound(minValue + (i + 1) * breakSize);
+        
+        // Get the custom opacity color for this break index
+        const colorArray = getBreakColor(i, optimalBreakCount, 'array');
+        
+        // Format label based on position
+        let label = '';
+        if (i === 0 && optimalBreakCount > 1) {
+          label = `Less than ${endValue.toLocaleString()}`;
+        } else if (i === optimalBreakCount - 1 && optimalBreakCount > 1) {
+          label = `${intelligentRound(startValue).toLocaleString()} or more`;
+        } else {
+          label = `${intelligentRound(startValue).toLocaleString()} - ${endValue.toLocaleString()}`;
+        }
+        
+        newBreaks.push({
+          minValue: intelligentRound(startValue),
+          maxValue: endValue,
+          label: label,
+          symbol: {
+            type: "simple-fill",
+            style: "solid",
+            color: colorArray, // Use the custom opacity color
+            outline: {
+              color: 'rgba(255, 255, 255, 0.5)',
+              width: 0.5
+            }
+          },
+          preserveOpacity: true,
+          originalOpacity: colorArray[3],
+          hasCustomOpacities: true
+        });
+      }
+
+      console.log('[ClassBreaks Regeneration] Generated new breaks:', 
+        newBreaks.map((b, i) => `${i}: ${b.label} (${Math.round(b.originalOpacity * 100)}% opacity)`)
+      );
+
+      // Update the tab's layer configuration with new breaks
+      setTabs(prevTabs => {
+        return prevTabs.map(tab => {
+          if (tab.id === tabId) {
+            return {
+              ...tab,
+              layerConfiguration: {
+                ...tab.layerConfiguration,
+                classBreakInfos: newBreaks,
+                hasCustomOpacities: true,
+                preserveOpacity: true,
+                dataOptimized: true,
+                optimizationStats: {
+                  minValue,
+                  maxValue,
+                  featureCount,
+                  breakCount: optimalBreakCount,
+                  optimizedAt: new Date().toISOString()
+                }
+              }
+            };
+          }
+          return tab;
+        });
+      });
+
+      // Update layer configurations
+      setLayerConfigurations(prev => ({
+        ...prev,
+        [visualizationType]: {
+          ...prev[visualizationType],
+          classBreakInfos: newBreaks,
+          hasCustomOpacities: true,
+          preserveOpacity: true,
+          dataOptimized: true
+        }
+      }));
+
+      // Force visualization update
+      updateVisualizationAndLegend();
+
+      console.log('[ClassBreaks Regeneration] Successfully updated class breaks with data-driven values');
+
+    } catch (error) {
+      console.error('[ClassBreaks Regeneration] Error regenerating class breaks:', error);
+    } finally {
+      // Clear the trigger state
+      setNewClassBreaksMapCreated(null);
+    }
+  };
+
+  // Add a small delay to ensure the layer is created first
+  const timeoutId = setTimeout(regenerateClassBreaks, 1000);
+
+  return () => clearTimeout(timeoutId);
+}, [newClassBreaksMapCreated, tabs, mapView, isLabelManagerReady, updateVisualizationAndLegend]);
 
   // Site Location market area placement event listener
   useEffect(() => {

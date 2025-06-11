@@ -208,7 +208,7 @@ const LayerPropertiesEditor = ({
 
     const timer = setTimeout(() => {
       setIsTransitioning(false);
-    }, 150);
+    }, 650);
 
     return () => clearTimeout(timer);
   }, [layerConfig, visualizationType, effectiveType, rendererType]);
