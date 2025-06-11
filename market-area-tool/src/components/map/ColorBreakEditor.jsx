@@ -1248,18 +1248,45 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
               >
                 Apply Suffix to All Labels
               </button>
-              <button
+<button
                 onClick={() => {
                   setCustomLabelSuffix('');
-                  // Regenerate labels without suffix
+                  // FORCE regenerate ALL labels without suffix - ignore custom label detection
+                  // Generate labels inline without using getDisplayLabel to avoid state dependency
                   const updatedBreaks = [...localBreaks];
                   updatedBreaks.forEach((breakItem, idx) => {
-                    if (!hasCustomLabels || !originalLabels[idx]) {
-                      breakItem.label = getDisplayLabel(breakItem, idx);
+                    // Generate clean number formatting function
+                    const cleanNumber = (value) => {
+                      if (value === undefined || value === null) return '';
+                      if (typeof value === 'number') {
+                        if (decimalPlaces === 0) {
+                          return Math.round(value).toLocaleString();
+                        } else {
+                          return value.toFixed(decimalPlaces);
+                        }
+                      }
+                      return value;
+                    };
+
+                    const isFirst = idx === 0;
+                    const isLast = idx === updatedBreaks.length - 1;
+
+                    // Generate label WITHOUT any suffix
+                    let baseLabel = '';
+                    if (isFirst) {
+                      baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
+                    } else if (isLast) {
+                      baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
+                    } else {
+                      baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
                     }
+
+                    // DON'T append any suffix - we're explicitly removing it
+                    breakItem.label = baseLabel;
                   });
                   setLocalBreaks(updatedBreaks);
                   handleBreaksChangeWithDecimalPlaces(updatedBreaks);
+                  console.log('[ColorBreakEditor] Removed suffix and regenerated all labels without suffix');
                 }}
                 className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
               >

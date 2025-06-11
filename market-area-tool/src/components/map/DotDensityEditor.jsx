@@ -10,6 +10,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   // --- Local state for immediate UI updates ---
   const [localDotSize, setLocalDotSize] = useState(null);
   const [localDotValue, setLocalDotValue] = useState(null);
+  const [localLegendLabel, setLocalLegendLabel] = useState(null);
 
   // --- Cleanup timeouts on unmount ---
   useEffect(() => {
@@ -84,7 +85,10 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     if (localDotValue === null) {
       setLocalDotValue(safeConfig.dotValue);
     }
-  }, [safeConfig.dotSize, safeConfig.dotValue, localDotSize, localDotValue]);
+    if (localLegendLabel === null) {
+      setLocalLegendLabel(safeConfig.attributes[0]?.label || 'Data');
+    }
+  }, [safeConfig.dotSize, safeConfig.dotValue, safeConfig.attributes, localDotSize, localDotValue, localLegendLabel]);
 
   // --- End State Synchronization ---
 
@@ -190,6 +194,46 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       setTimeout(() => onPreview(updatedConfig), 100);
     }
   };
+
+  const handleLegendLabelChange = (value, immediate = false) => {
+    // Update local state immediately for UI responsiveness
+    setLocalLegendLabel(value);
+
+    // Clear existing timeout for this field
+    if (timeoutRefs.current['legendLabel']) {
+      clearTimeout(timeoutRefs.current['legendLabel']);
+    }
+
+    // Function to process the update
+    const processUpdate = () => {
+      // Create a deep clone for the update
+      const updatedConfig = JSON.parse(JSON.stringify(safeConfig));
+
+      // Update the label in the first attribute
+      if (updatedConfig.attributes && updatedConfig.attributes.length > 0) {
+        updatedConfig.attributes[0].label = value || 'Data'; // Fallback to 'Data' if empty
+      } else {
+        // Handle case where attributes might be missing (should be rare with safeConfig)
+        updatedConfig.attributes = [{ ...(safeConfig.attributes[0] || {}), label: value || 'Data' }];
+      }
+
+      console.log("DotDensityEditor: Updated legend label to", value, "Updating config:", updatedConfig);
+
+      // Propagate changes up
+      onChange(updatedConfig);
+      if (onPreview) {
+        setTimeout(() => onPreview(updatedConfig), 100);
+      }
+    };
+
+    // Execute immediately or with delay
+    if (immediate) {
+      processUpdate();
+    } else {
+      // Set debounced update
+      timeoutRefs.current['legendLabel'] = setTimeout(processUpdate, 800); // Slightly shorter delay for text inputs
+    }
+  };
   // --- End Event Handlers ---
 
   // --- Recommended Value Display ---
@@ -199,6 +243,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   // Get display values (local state if available, otherwise from config)
   const displayDotSize = localDotSize !== null ? localDotSize : safeConfig.dotSize;
   const displayDotValue = localDotValue !== null ? localDotValue : safeConfig.dotValue;
+  const displayLegendLabel = localLegendLabel !== null ? localLegendLabel : (safeConfig.attributes[0]?.label || 'Data');
 
   return (
     <div className="space-y-4">
@@ -261,32 +306,21 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
          <p className="text-xs text-gray-500 dark:text-gray-400">Choose the color for the dots.</p>
       </div>
 
-      {/* Display Field (Read-only for now) */}
-      <div className="space-y-1">
-         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-           Data Field
-         </label>
-         <input
-           type="text"
-           value={safeConfig.field || 'N/A'}
-           readOnly
-           className="w-full p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
-                    border border-gray-300 dark:border-gray-600 rounded cursor-not-allowed"
-         />
-          <p className="text-xs text-gray-500 dark:text-gray-400">The data field used for this visualization.</p>
-      </div>
-
-       {/* Legend Label (Read-only based on attribute) */}
+       {/* Legend Label (Now Editable) */}
        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          <label htmlFor="legend-label" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Legend Label
           </label>
           <input
+            id="legend-label"
             type="text"
-            value={safeConfig.attributes[0]?.label || 'N/A'}
-            readOnly
-            className="w-full p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300
-                     border border-gray-300 dark:border-gray-600 rounded cursor-not-allowed"
+            value={displayLegendLabel}
+            onChange={(e) => handleLegendLabelChange(e.target.value)}
+            onBlur={(e) => handleLegendLabelChange(e.target.value, true)} // Apply changes immediately on blur
+            placeholder="Enter legend label"
+            className="w-full p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white
+                     border border-gray-300 dark:border-gray-700 rounded
+                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400"
           />
            <p className="text-xs text-gray-500 dark:text-gray-400">Label shown in the map legend.</p>
        </div>
