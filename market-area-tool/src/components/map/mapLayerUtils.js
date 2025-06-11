@@ -952,7 +952,9 @@ const createRenderer = async (config, areaType = null) => {
     field: config?.field,
     hasClassBreaks: !!(config?.classBreakInfos),
     hasAttributes: !!(config?.attributes),
-    hasDotValue: config?.dotValue !== undefined
+    hasDotValue: config?.dotValue !== undefined,
+    configKeys: config ? Object.keys(config) : [],
+    configStructure: config ? JSON.stringify(config, null, 2).substring(0, 500) + '...' : 'null'
   });
   
   // Validate input config
@@ -998,44 +1000,131 @@ const createRenderer = async (config, areaType = null) => {
         return null;
       }
 
-      let classBreakInfos = config.classBreakInfos || config.breaks || config.classBreaks;
+      // Enhanced class break info extraction with multiple fallback paths
+      let classBreakInfos = null;
+      
+      // Method 1: Direct classBreakInfos property (array)
+      if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+        classBreakInfos = config.classBreakInfos;
+        console.log("[createRenderer] Found classBreakInfos via direct property (array)");
+      }
+      // Method 1b: Nested classBreakInfos structure (object containing classBreakInfos array)
+      else if (config.classBreakInfos && typeof config.classBreakInfos === 'object' && 
+               config.classBreakInfos.classBreakInfos && Array.isArray(config.classBreakInfos.classBreakInfos)) {
+        classBreakInfos = config.classBreakInfos.classBreakInfos;
+        console.log("[createRenderer] Found classBreakInfos via nested classBreakInfos.classBreakInfos property");
+      }
+      // Method 2: Alternative property names
+      else if (config.breaks && Array.isArray(config.breaks)) {
+        classBreakInfos = config.breaks;
+        console.log("[createRenderer] Found classBreakInfos via 'breaks' property");
+      }
+      else if (config.classBreaks && Array.isArray(config.classBreaks)) {
+        classBreakInfos = config.classBreaks;
+        console.log("[createRenderer] Found classBreakInfos via 'classBreaks' property");
+      }
+      // Method 3: Check if config itself is an array of breaks
+      else if (Array.isArray(config) && config.length > 0 && config[0].symbol) {
+        classBreakInfos = config;
+        console.log("[createRenderer] Config itself appears to be classBreakInfos array");
+      }
+      // Method 4: Check for nested structure (common in complex configs)
+      else if (config.renderer && config.renderer.classBreakInfos && Array.isArray(config.renderer.classBreakInfos)) {
+        classBreakInfos = config.renderer.classBreakInfos;
+        console.log("[createRenderer] Found classBreakInfos via nested renderer property");
+      }
+      // Method 5: Check for layerConfiguration structure
+      else if (config.layerConfiguration && config.layerConfiguration.classBreakInfos && Array.isArray(config.layerConfiguration.classBreakInfos)) {
+        classBreakInfos = config.layerConfiguration.classBreakInfos;
+        console.log("[createRenderer] Found classBreakInfos via layerConfiguration property");
+      }
+      // Method 6: Deep nested check - sometimes the structure can be deeply nested
+      else if (config.classBreakInfos && typeof config.classBreakInfos === 'object') {
+        // Try to find any array property within the classBreakInfos object
+        const possibleArrays = Object.values(config.classBreakInfos).filter(Array.isArray);
+        if (possibleArrays.length > 0 && possibleArrays[0].length > 0 && possibleArrays[0][0].symbol) {
+          classBreakInfos = possibleArrays[0];
+          console.log("[createRenderer] Found classBreakInfos via deep nested search within classBreakInfos object");
+        }
+      }
+
+      // Final validation of class break infos
       if (!classBreakInfos || !Array.isArray(classBreakInfos) || classBreakInfos.length === 0) {
-        console.error("[createRenderer] Missing or invalid 'classBreakInfos' for class-breaks renderer");
+        console.error("[createRenderer] Missing or invalid 'classBreakInfos' for class-breaks renderer", {
+          configKeys: Object.keys(config),
+          hasClassBreakInfos: !!config.classBreakInfos,
+          classBreakInfosType: typeof config.classBreakInfos,
+          classBreakInfosLength: Array.isArray(config.classBreakInfos) ? config.classBreakInfos.length : 'not array',
+          hasBreaks: !!config.breaks,
+          breaksType: typeof config.breaks,
+          breaksLength: Array.isArray(config.breaks) ? config.breaks.length : 'not array',
+          configStructureSample: JSON.stringify(config, null, 2).substring(0, 300)
+        });
         return null;
       }
+
+      console.log(`[createRenderer] Successfully extracted ${classBreakInfos.length} class break infos`);
 
       // Process and validate class break infos
       const defaultColors = createDefaultClassBreakSymbols(classBreakInfos.length);
       const processedBreakInfos = classBreakInfos.map((breakInfo, index) => {
-        // Ensure min/max values are properly set
-        const minValue = breakInfo.minValue ?? breakInfo.min ?? (index === 0 ? 0 : null);
-        const maxValue = breakInfo.maxValue ?? breakInfo.max ?? null;
+        // Handle potential data format variations
+        let processedBreak = breakInfo;
         
-        if (minValue === null || maxValue === null) {
-          console.warn(`[createRenderer] Break info at index ${index} missing min/max values:`, breakInfo);
+        // If breakInfo is not an object, try to construct one
+        if (typeof breakInfo !== 'object' || breakInfo === null) {
+          console.warn(`[createRenderer] Break info at index ${index} is not an object:`, breakInfo);
+          processedBreak = { minValue: 0, maxValue: 100, label: `Class ${index + 1}` };
         }
 
-        // Create or process symbol
+        // Ensure min/max values are properly set with enhanced fallback logic
+        let minValue = processedBreak.minValue ?? processedBreak.min ?? processedBreak.classMinValue;
+        let maxValue = processedBreak.maxValue ?? processedBreak.max ?? processedBreak.classMaxValue;
+        
+        // Handle special cases for first and last breaks
+        if (minValue === null || minValue === undefined) {
+          minValue = index === 0 ? 0 : (classBreakInfos[index - 1]?.maxValue ?? index * 10);
+        }
+        if (maxValue === null || maxValue === undefined) {
+          maxValue = minValue + 10; // Default range of 10
+        }
+
+        // Create or process symbol with enhanced error handling
         let symbol;
-        if (breakInfo.symbol && typeof breakInfo.symbol === 'object') {
-          // Use existing symbol structure
-          const symbolColor = breakInfo.symbol.color || defaultColors[index] || [128, 128, 128, 0.8];
-          const outlineColor = breakInfo.symbol.outline?.color || [255, 255, 255, 0.5];
-          const outlineWidth = breakInfo.symbol.outline?.width ?? 0.5;
-          
-          symbol = new SimpleFillSymbol({
-            color: new Color(symbolColor),
-            style: breakInfo.symbol.style || "solid",
-            outline: new SimpleLineSymbol({
-              color: new Color(outlineColor),
-              width: outlineWidth,
-              style: "solid"
-            })
-          });
-        } else {
-          // Create default symbol with TCG color palette
+        try {
+          if (processedBreak.symbol && typeof processedBreak.symbol === 'object') {
+            // Use existing symbol structure
+            const symbolColor = processedBreak.symbol.color || defaultColors[index] || [128, 128, 128, 0.8];
+            const outlineColor = processedBreak.symbol.outline?.color || [255, 255, 255, 0.5];
+            const outlineWidth = processedBreak.symbol.outline?.width ?? 0.5;
+            
+            symbol = new SimpleFillSymbol({
+              color: new Color(symbolColor),
+              style: processedBreak.symbol.style || "solid",
+              outline: new SimpleLineSymbol({
+                color: new Color(outlineColor),
+                width: outlineWidth,
+                style: "solid"
+              })
+            });
+          } else {
+            // Create default symbol with TCG color palette
+            const colorArray = defaultColors[index] || [128, 128, 128, 0.8];
+            
+            symbol = new SimpleFillSymbol({
+              color: new Color(colorArray),
+              style: "solid",
+              outline: new SimpleLineSymbol({
+                color: new Color([255, 255, 255, 0.5]),
+                width: 0.5,
+                style: "solid"
+              })
+            });
+          }
+        } catch (symbolError) {
+          console.error(`[createRenderer] Error creating symbol for break ${index}:`, symbolError);
+          // Fallback to basic symbol
           const colorArray = defaultColors[index] || [128, 128, 128, 0.8];
-          
           symbol = new SimpleFillSymbol({
             color: new Color(colorArray),
             style: "solid",
@@ -1047,12 +1136,31 @@ const createRenderer = async (config, areaType = null) => {
           });
         }
 
-        // Generate label if not provided
-        const label = breakInfo.label || 
-                     breakInfo.description || 
-                     (minValue !== null && maxValue !== null ? 
-                       `${minValue.toLocaleString()} - ${maxValue.toLocaleString()}` : 
-                       `Class ${index + 1}`);
+        // Generate label if not provided with enhanced fallback logic
+        let label = processedBreak.label || processedBreak.description || processedBreak.text;
+        if (!label) {
+          // Create a formatted label based on values
+          if (minValue !== null && maxValue !== null) {
+            // Format numbers for better readability
+            const formatNumber = (num) => {
+              if (Number.isInteger(num)) {
+                return num.toLocaleString();
+              } else {
+                return num.toFixed(1);
+              }
+            };
+            
+            if (index === 0) {
+              label = `Less than ${formatNumber(maxValue)}`;
+            } else if (index === classBreakInfos.length - 1) {
+              label = `${formatNumber(minValue)} or more`;
+            } else {
+              label = `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
+            }
+          } else {
+            label = `Class ${index + 1}`;
+          }
+        }
 
         return {
           minValue: minValue,
@@ -1062,10 +1170,24 @@ const createRenderer = async (config, areaType = null) => {
         };
       });
 
+      // Filter out any invalid break infos
+      const validBreakInfos = processedBreakInfos.filter(breakInfo => 
+        breakInfo && breakInfo.symbol && 
+        typeof breakInfo.minValue === 'number' && 
+        typeof breakInfo.maxValue === 'number'
+      );
+
+      if (validBreakInfos.length === 0) {
+        console.error("[createRenderer] No valid break infos after processing");
+        return null;
+      }
+
+      console.log(`[createRenderer] Processed ${validBreakInfos.length} valid break infos from ${classBreakInfos.length} original breaks`);
+
       // Create and return the renderer
       const renderer = new ClassBreaksRenderer({
         field: field,
-        classBreakInfos: processedBreakInfos,
+        classBreakInfos: validBreakInfos,
         legendOptions: {
           title: config.legendOptions?.title || 
                  config.title || 
@@ -1075,7 +1197,7 @@ const createRenderer = async (config, areaType = null) => {
         }
       });
 
-      console.log(`[createRenderer] ClassBreaksRenderer created successfully with ${processedBreakInfos.length} breaks`);
+      console.log(`[createRenderer] ClassBreaksRenderer created successfully with ${validBreakInfos.length} breaks`);
       return renderer;
     }
 
@@ -1083,19 +1205,35 @@ const createRenderer = async (config, areaType = null) => {
     else if (normalizedType === 'dot-density') {
       console.log("[createRenderer] Building DotDensityRenderer");
       
-      // Validate required properties
-      let attributes = config.attributes || config.fields || config.dotAttributes;
+      // Enhanced attribute extraction with multiple fallback paths
+      let attributes = null;
+      
+      if (config.attributes && Array.isArray(config.attributes)) {
+        attributes = config.attributes;
+      } else if (config.fields && Array.isArray(config.fields)) {
+        attributes = config.fields;
+      } else if (config.dotAttributes && Array.isArray(config.dotAttributes)) {
+        attributes = config.dotAttributes;
+      } else if (config.renderer && config.renderer.attributes && Array.isArray(config.renderer.attributes)) {
+        attributes = config.renderer.attributes;
+      }
+
       if (!attributes || !Array.isArray(attributes) || attributes.length === 0) {
-        console.error("[createRenderer] Missing or invalid 'attributes' array for dot-density renderer");
+        console.error("[createRenderer] Missing or invalid 'attributes' array for dot-density renderer", {
+          configKeys: Object.keys(config),
+          hasAttributes: !!config.attributes,
+          attributesType: typeof config.attributes,
+          attributesLength: Array.isArray(config.attributes) ? config.attributes.length : 'not array'
+        });
         return null;
       }
 
-      // Process attributes with default colors
+      // Process attributes with default colors and enhanced validation
       const defaultColors = createDefaultDotDensityColors(attributes.length);
       const processedAttributes = attributes.map((attr, index) => {
         // Handle both object and string attribute formats
-        const field = typeof attr === 'string' ? attr : (attr.field || attr.name);
-        const label = typeof attr === 'string' ? field : (attr.label || attr.description || field);
+        const field = typeof attr === 'string' ? attr : (attr.field || attr.name || attr.fieldName);
+        const label = typeof attr === 'string' ? field : (attr.label || attr.description || attr.displayName || field);
         const color = typeof attr === 'object' && attr.color ? attr.color : defaultColors[index];
         
         if (!field) {
@@ -1154,12 +1292,17 @@ const createRenderer = async (config, areaType = null) => {
     else {
       console.error(`[createRenderer] Unsupported normalized renderer type: '${normalizedType}'. Expected 'class-breaks' or 'dot-density'.`);
       
-      // Final fallback attempt - try to auto-detect and recurse
-      if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
-        console.log("[createRenderer] Fallback: Attempting class-breaks based on classBreakInfos presence");
+      // Final fallback attempt - try to auto-detect and recurse with better config
+      const hasBreakStructure = config.classBreakInfos || config.breaks || config.classBreaks || 
+                               (Array.isArray(config) && config[0]?.symbol);
+      const hasAttributeStructure = config.attributes || config.fields || config.dotAttributes || 
+                                   config.dotValue !== undefined;
+
+      if (hasBreakStructure) {
+        console.log("[createRenderer] Fallback: Attempting class-breaks based on break structure detection");
         return createRenderer({ ...config, type: 'class-breaks' }, areaType);
-      } else if ((config.attributes && Array.isArray(config.attributes)) || config.dotValue !== undefined) {
-        console.log("[createRenderer] Fallback: Attempting dot-density based on attributes/dotValue presence");
+      } else if (hasAttributeStructure) {
+        console.log("[createRenderer] Fallback: Attempting dot-density based on attribute structure detection");
         return createRenderer({ ...config, type: 'dot-density' }, areaType);
       }
       
@@ -1170,7 +1313,9 @@ const createRenderer = async (config, areaType = null) => {
     console.error("[createRenderer] Critical error during renderer creation:", {
       error: error.message,
       stack: error.stack,
-      config: config
+      config: config,
+      configKeys: config ? Object.keys(config) : [],
+      configType: typeof config
     });
     return null;
   }
