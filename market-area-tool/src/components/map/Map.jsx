@@ -100,197 +100,9 @@ export default function MapComponent({ onToggleLis }) {
   const MANUAL_SAVE_KEY = "mapConfigurations_default";
   const [newClassBreaksMapCreated, setNewClassBreaksMapCreated] = useState(null);
 
-  const [layerConfigurations, setLayerConfigurations] = useState({
-    population: {
-      type: "dot-density",
-      field: "TOTPOP_CY",
-      dotValue: 100,
-      dotBlending: "additive",
-      dotSize: 2,
-      outline: {
-        width: 0.5,
-        color: [50, 50, 50, 0.2],
-      },
-      legendOptions: {
-        unit: "people",
-      },
-      attributes: [
-        {
-          field: "TOTPOP_CY",
-          color: "#E60049",
-          label: "Total Population",
-        },
-      ],
-    },
-    income: {
-      type: "class-breaks",
-      field: "MEDHINC_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 35000 },
-          { min: 35000, max: 65000 },
-          { min: 65000, max: 95000 },
-          { min: 95000, max: 125000 },
-          { min: 125000, max: 155000 },
-          { min: 155000, max: 200000 },
-          { min: 200000 },
-        ],
-        [
-          "Less than $35,000",
-          "$35,000 - $65,000",
-          "$65,000 - $95,000",
-          "$95,000 - $125,000",
-          "$125,000 - $155,000",
-          "$155,000 - $200,000",
-          "$200,000 or more",
-        ]
-      ),
-    },
-    growth: {
-      type: "class-breaks",
-      field: "HHGRW20CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: -3 },
-          { min: -3, max: -2 },
-          { min: -2, max: -1 },
-          { min: -1, max: 0 },
-          { min: 0, max: 1 },
-          { min: 1, max: 2 },
-          { min: 2 },
-        ],
-        [
-          "Less than -3%",
-          "-3% to -2%",
-          "-2% to -1%",
-          "-1% to 0%",
-          "0% to 1%",
-          "1% to 2%",
-          "2% or more",
-        ]
-      ),
-    },
-    density: {
-      type: "class-breaks",
-      field: "POPDENS_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 1000 },
-          { min: 1000, max: 2500 },
-          { min: 2500, max: 5000 },
-          { min: 5000, max: 7500 },
-          { min: 7500, max: 10000 },
-          { min: 10000, max: 15000 },
-          { min: 15000 },
-        ],
-        [
-          "Less than 1,000",
-          "1,000 - 2,500",
-          "2,500 - 5,000",
-          "5,000 - 7,500",
-          "7,500 - 10,000",
-          "10,000 - 15,000",
-          "15,000 or more",
-        ]
-      ),
-    },
-    age: {
-      type: "class-breaks",
-      field: "MEDAGE_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 30 },
-          { min: 30, max: 35 },
-          { min: 35, max: 40 },
-          { min: 40, max: 45 },
-          { min: 45, max: 50 },
-          { min: 50, max: 55 },
-          { min: 55 },
-        ],
-        [
-          "Less than 30 years",
-          "30 - 35 years",
-          "35 - 40 years",
-          "40 - 45 years",
-          "45 - 50 years",
-          "50 - 55 years",
-          "55 years or more",
-        ]
-      ),
-    },
-    unemployment: {
-      type: "class-breaks",
-      field: "UNEMPRT_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 3 },
-          { min: 3, max: 5 },
-          { min: 5, max: 7 },
-          { min: 7, max: 9 },
-          { min: 9, max: 11 },
-          { min: 11, max: 13 },
-          { min: 13 },
-        ],
-        [
-          "Less than 3%",
-          "3% - 5%",
-          "5% - 7%",
-          "7% - 9%",
-          "9% - 11%",
-          "11% - 13%",
-          "13% or more",
-        ]
-      ),
-    },
-    homeValue: {
-      type: "class-breaks",
-      field: "MEDVAL_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 200000 },
-          { min: 200000, max: 350000 },
-          { min: 350000, max: 500000 },
-          { min: 500000, max: 750000 },
-          { min: 750000, max: 1000000 },
-          { min: 1000000, max: 1500000 },
-          { min: 1500000 },
-        ],
-        [
-          "Less than $200,000",
-          "$200,000 - $350,000",
-          "$350,000 - $500,000",
-          "$500,000 - $750,000",
-          "$750,000 - $1,000,000",
-          "$1,000,000 - $1,500,000",
-          "$1,500,000 or more",
-        ]
-      ),
-    },
-    affordability: {
-      type: "class-breaks",
-      field: "HAI_CY",
-      classBreakInfos: createClassBreaks(
-        [
-          { max: 50 },
-          { min: 50, max: 75 },
-          { min: 75, max: 100 },
-          { min: 100, max: 125 },
-          { min: 125, max: 150 },
-          { min: 150, max: 175 },
-          { min: 175 },
-        ],
-        [
-          "Less than 50",
-          "50 - 75",
-          "75 - 100",
-          "100 - 125",
-          "125 - 150",
-          "150 - 175",
-          "175 or more",
-        ]
-      ),
-    },
-  });
+  const [layerConfigurations, setLayerConfigurations] = useState(null);
+  const [basemapId, setBasemapId] = useState('arcgis-navigation'); // 1. ADD THIS STATE
+
   // TCG Color palette with RGB values and custom opacity mappings
   const TCG_COLORS_WITH_OPACITY = {
     'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
@@ -527,6 +339,24 @@ export default function MapComponent({ onToggleLis }) {
     },
     [mapView, siteLocationMarker]
   );
+
+
+  /**
+   * Handles changes to the basemap selection dropdown
+   * @param {Event} event - The select change event
+   */
+  const handleBasemapChange = (event) => {
+    const newBasemapId = event.target.value;
+    console.log(`[Map] Basemap change requested: ${newBasemapId}`);
+    setBasemapId(newBasemapId);
+
+    if (mapView && mapView.map) {
+      // Set the new basemap. A watcher will handle reordering layers.
+      mapView.map.basemap = newBasemapId;
+    } else {
+      console.warn('[Map] Cannot change basemap: MapView not available.');
+    }
+  };
 
   /**
    * Handles map clicks when in site location placement mode
@@ -3864,8 +3694,8 @@ const detectUserTransparencyOverride = (config) => {
       if (
         visualizationType === "heatmap" ||
         visualizationType === "dotdensity" ||
-        config.type === "class-breaks" ||
-        config.type === "dot-density"
+        normalizedConfig.type === "class-breaks" ||
+        normalizedConfig.type === "dot-density"
       ) {
         // Normalize the main field property
         if (normalizedConfig.field) {
@@ -3923,9 +3753,9 @@ const detectUserTransparencyOverride = (config) => {
 
         // Ensure proper type mapping for the renderer
         if (!normalizedConfig.type) {
-          if (visualizationType === "heatmap") {
+          if (visualizationType === "heatmap" || visualizationType?.endsWith('_HEAT')) {
             normalizedConfig.type = "class-breaks";
-          } else if (visualizationType === "dotdensity") {
+          } else if (visualizationType === "dotdensity" || visualizationType?.endsWith('_DOT')) {
             normalizedConfig.type = "dot-density";
           }
         }
@@ -4040,23 +3870,40 @@ const detectUserTransparencyOverride = (config) => {
               );
             }
           }
-
-          // Validate and normalize visualization type
+          
           let vizType = config.visualization_type;
-          if (vizType === "pipeline") vizType = "pipe"; // Normalize type
-          if (vizType === "comps") vizType = "comp"; // Normalize type
+          let rawConfig = null;
 
-          // ENHANCED: Normalize layer configuration with field name fixes
-          let normalizedLayerConfig = null;
           if (config.layer_configuration) {
             try {
-              // Parse if it's a string, otherwise use as-is
-              const rawConfig =
-                typeof config.layer_configuration === "string"
-                  ? JSON.parse(config.layer_configuration)
-                  : config.layer_configuration;
+              rawConfig = typeof config.layer_configuration === 'string'
+                ? JSON.parse(config.layer_configuration)
+                : config.layer_configuration;
+            } catch (e) {
+              console.error(`[loadMapConfigurations] Error parsing layer config for "${config.tab_name}"`, e);
+              processingErrors.push(`Failed to parse layer configuration for "${config.tab_name}": ${e.message}`);
+            }
+          }
 
-              // Apply field name normalization
+          // --- FIX: Logic to use specific key from config for generic types ---
+          // The API might store a generic type like "heatmap". The true specific type (e.g., "TOTAL_POP_HEAT")
+          // is stored in the layer configuration. We must use that for UI consistency.
+          if ((vizType === 'heatmap' || vizType === 'dotdensity') && rawConfig) {
+            const specificKey = rawConfig.visualizationKey || rawConfig.field;
+            if (specificKey) {
+                console.log(`[loadMapConfigurations] Overriding generic type "${vizType}" with specific key "${specificKey}" from layer config for tab "${config.tab_name}".`);
+                vizType = specificKey; // This is the crucial update.
+            }
+          }
+          // --- END FIX ---
+
+          // Normalize special types like 'pipeline' and 'comps'
+          if (vizType === "pipeline") vizType = "pipe";
+          if (vizType === "comps") vizType = "comp";
+
+          // ENHANCED: Normalize the layer configuration object itself
+          let normalizedLayerConfig = null;
+          if (rawConfig) {
               normalizedLayerConfig = normalizeLayerConfiguration(
                 rawConfig,
                 vizType
@@ -4065,26 +3912,6 @@ const detectUserTransparencyOverride = (config) => {
               // Ensure the configuration has the correct metadata
               normalizedLayerConfig.mapConfigId = config.id;
               normalizedLayerConfig.areaType = config.area_type;
-
-              console.log(
-                `[loadMapConfigurations] Normalized config for "${config.tab_name}":`,
-                {
-                  originalField: rawConfig?.field,
-                  normalizedField: normalizedLayerConfig?.field,
-                  visualizationKey: normalizedLayerConfig?.visualizationKey,
-                  type: normalizedLayerConfig?.type,
-                }
-              );
-            } catch (parseError) {
-              console.error(
-                `[loadMapConfigurations] Error parsing layer config for "${config.tab_name}":`,
-                parseError
-              );
-              normalizedLayerConfig = config.layer_configuration;
-              processingErrors.push(
-                `Failed to parse layer configuration for "${config.tab_name}": ${parseError.message}`
-              );
-            }
           }
 
           // Create tab object with normalized configuration
@@ -4093,7 +3920,7 @@ const detectUserTransparencyOverride = (config) => {
             configId: config.id,
             name: config.tab_name || `Map ${index + 1}`, // Fallback name if missing
             active: false, // Only Core Map will be active initially
-            visualizationType: vizType,
+            visualizationType: vizType, // Use the corrected, specific type
             areaType: areaType,
             layerConfiguration: normalizedLayerConfig, // Use normalized config
             isEditing: false,
@@ -4102,8 +3929,9 @@ const detectUserTransparencyOverride = (config) => {
           processedTabs.push(newTab);
 
           console.log(
-            `[loadMapConfigurations] Processed tab "${newTab.name}" with normalized field names`
+            `[loadMapConfigurations] Processed tab "${newTab.name}" (ID: ${newTab.id}) with visualizationType: "${newTab.visualizationType}"`
           );
+
         } catch (err) {
           processingErrors.push(
             `Error processing config at index ${index}: ${err.message}`
@@ -4131,6 +3959,7 @@ const detectUserTransparencyOverride = (config) => {
       const normalizedLayerConfigurations = {};
       processedTabs.forEach((tab) => {
         if (tab.visualizationType && tab.layerConfiguration) {
+          // Use the specific visualizationType as the key
           normalizedLayerConfigurations[tab.visualizationType] =
             tab.layerConfiguration;
         }
@@ -6043,6 +5872,7 @@ useEffect(() => {
   }, []); // Empty deps - runs once on mount
 
   // Map initialization effect
+  // Map initialization effect
   useEffect(() => {
     let isMounted = true;
     console.log("[Map] Starting map initialization...");
@@ -6055,12 +5885,13 @@ useEffect(() => {
     let labelDragEventHandlers = [];
     let localScaleBar = null; // Track scale bar instance for cleanup
     let localLegend = null; // Track legend instance for cleanup
+    let basemapWatcher = null; // ADDED: Declare watcher variable
 
     const initializeMap = async () => {
       try {
-        // Create map with reliable basemap
+        // ADDED: Create map using the basemap from state
         const map = new Map({
-          basemap: "arcgis-navigation", // Using reliable basemap to avoid AbortError
+          basemap: basemapId, 
         });
 
         // Create view with map container
@@ -6632,7 +6463,7 @@ useEffect(() => {
         }
       }
 
-      // Clean up label drag handlers
+      // Clean up label drag handlers (this will also clean up the basemapWatcher)
       if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
         try {
           labelDragEventHandlers.forEach((handler) => {
@@ -6641,10 +6472,10 @@ useEffect(() => {
             }
           });
           labelDragEventHandlers = []; // Clear the array
-          console.log("[Map] Label drag event handlers removed.");
+          console.log("[Map] Event handlers (including basemap watcher) removed.");
         } catch (dragHandlerError) {
           console.error(
-            "[Map] Error removing label drag handlers:",
+            "[Map] Error removing event handlers:",
             dragHandlerError
           );
         }
@@ -7060,13 +6891,51 @@ useEffect(() => {
     createLayers, // Added dependency
   ]);
 
+
+
   return (
     <div className="flex flex-col h-full">
       {/* Header Section */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between">
-          {/* Left Side: Tabs and New Map button */}
-          <div className="flex items-center space-x-2">
+          {/* Left Side: Basemap Selector, Tabs, and New Map button */}
+          <div className="flex items-center space-x-4">
+            {/* Basemap Selector */}
+            <div className="flex items-center space-x-2">
+              <label htmlFor="basemap-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Basemap:</label>
+              {/* UPDATED: Expanded and Categorized Basemap Selection Dropdown */}
+              <select
+                id="basemap-select"
+                value={basemapId}
+                onChange={handleBasemapChange}
+                className="block w-48 rounded-md border border-gray-300 dark:border-gray-600
+                          bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+                          text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
+                          focus:ring-blue-500 focus:border-blue-500"
+              >
+                <optgroup label="Streets & Navigation">
+                  <option value="arcgis-navigation">Navigation</option>
+                  <option value="arcgis-streets">Streets</option>
+                  <option value="osm-standard">OpenStreetMap</option>
+                </optgroup>
+                <optgroup label="Satellite & Imagery">
+                  <option value="arcgis-imagery">Satellite</option>
+                </optgroup>
+                <optgroup label="Topography & Terrain">
+                  <option value="arcgis-topographic">Topographic</option>
+                  <option value="arcgis-streets-relief">Streets with Relief</option>
+                </optgroup>
+                <optgroup label="Dark Mode & Thematic">
+                  <option value="arcgis-navigation-night">Navigation (Night)</option>
+                  <option value="arcgis-dark-gray">Dark Gray (for Data)</option>
+                  <option value="arcgis-nova">Modern Dark (Nova)</option>
+                </optgroup>
+                 <optgroup label="Light Mode & Thematic">
+                  <option value="arcgis-light-gray">Light Gray (for Data)</option>
+                </optgroup>
+              </select>
+            </div>
+
             <div className="flex space-x-2 overflow-x-auto">
               {/* Map through tabs */}
               {tabs.map((tab) => (

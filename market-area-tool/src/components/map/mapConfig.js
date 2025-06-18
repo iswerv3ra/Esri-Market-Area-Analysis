@@ -2,13 +2,13 @@
 import Color from "@arcgis/core/Color"; // May be needed by createClassBreaks
 
 const colorScheme = {
-    level1: [128, 0, 128, 0.30], // Purple
-    level2: [0, 0, 139, 0.30], // Dark blue
-    level3: [135, 206, 235, 0.30], // Sky blue
-    level4: [144, 238, 144, 0.30], // Light green
-    level5: [255, 255, 144, 0.30], // Light yellow
-    level6: [255, 165, 0, 0.30], // Orange
-    level7: [255, 99, 71, 0.30], // Salmon red
+    level1: [128, 0, 128, 0.35], // Purple
+    level2: [0, 0, 139, 0.20], // Dark blue
+    level3: [135, 206, 235, 0.35], // Sky blue
+    level4: [144, 238, 144, 0.35], // Light green
+    level5: [255, 255, 144, 0.35], // Light yellow
+    level6: [255, 165, 0, 0.15], // Orange
+    level7: [255, 99, 71, 0.15], // Salmon red
   };
 
 // Update the createClassBreaks function accordingly
@@ -33,7 +33,7 @@ export const createClassBreaks = (breakPoints, labels) => {
 export const initialLayerConfigurations = {
   // Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
 
-// Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
+  // Population & Households - Heat Maps (SIGNIFICANTLY LOWERED with higher final bounded breaks)
   TOTPOP_CY_HEAT: {
     type: "class-breaks",
     field: "TOTPOP_CY",
@@ -45,16 +45,16 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 20000 },
-        { min: 20000, max: 50000 },
+        { min: 20000 },
       ],
       [
         "Less than 500",
-        "500 - 1,000", 
+        "500 - 1,000",
         "1,000 - 2,000",
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 20,000",
-        "20,000 - 50,000",
+        "20,000 or More",
       ]
     ),
   },
@@ -70,16 +70,16 @@ export const initialLayerConfigurations = {
         { min: 800, max: 2000 },
         { min: 2000, max: 4000 },
         { min: 4000, max: 20000 },
-        { min: 20000, max: 40000 }
+        { min: 20000 },
       ],
       [
         "Less than 200",
         "200 - 400",
-        "400 - 800", 
+        "400 - 800",
         "800 - 2,000",
         "2,000 - 4,000",
         "4,000 - 20,000",
-        "20,000 - 40,000"
+        "20,000 or More",
       ]
     ),
   },
@@ -95,7 +95,7 @@ export const initialLayerConfigurations = {
         { min: 2.6, max: 3.0 },
         { min: 3.0, max: 3.5 },
         { min: 3.5, max: 4.0 },
-        { min: 4.0 }
+        { min: 4.0 },
       ],
       [
         "Less than 2.0",
@@ -104,11 +104,10 @@ export const initialLayerConfigurations = {
         "2.6 - 3.0",
         "3.0 - 3.5",
         "3.5 - 4.0",
-        "4.0 and above"
+        "4.0 or More",
       ]
     ),
   },
-
 
   // Daytime Population - Heat Maps (SIGNIFICANTLY LOWERED)
   DPOP_CY_HEAT: {
@@ -122,7 +121,7 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 50000 },
-        { min: 50000, max: 100000 }
+        { min: 50000 },
       ],
       [
         "Less than 500",
@@ -131,7 +130,7 @@ export const initialLayerConfigurations = {
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 50,000",
-        "50,000 - 100,000"
+        "50,000 or More",
       ]
     ),
   },
@@ -147,7 +146,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -156,13 +155,13 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
 
   DPOPRES_CY_HEAT: {
-    type: "class-breaks", 
+    type: "class-breaks",
     field: "DPOPRES_CY",
     classBreakInfos: createClassBreaks(
       [
@@ -172,7 +171,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -181,7 +180,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -198,7 +197,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 45 },
         { min: 45, max: 50 },
         { min: 50, max: 55 },
-        { min: 55, max: 65 }
+        { min: 55 },
       ],
       [
         "Less than 30 years",
@@ -207,7 +206,7 @@ export const initialLayerConfigurations = {
         "40 - 45 years",
         "45 - 50 years",
         "50 - 55 years",
-        "55 - 65 years"
+        "55 years or More",
       ]
     ),
   },
@@ -223,7 +222,7 @@ export const initialLayerConfigurations = {
         { min: 1500, max: 3000 },
         { min: 3000, max: 6000 },
         { min: 6000, max: 30000 },
-        { min: 30000, max: 60000 }
+        { min: 30000 },
       ],
       [
         "Less than 300",
@@ -232,14 +231,14 @@ export const initialLayerConfigurations = {
         "1,500 - 3,000",
         "3,000 - 6,000",
         "6,000 - 30,000",
-        "30,000 - 60,000"
+        "30,000 or More",
       ]
     ),
   },
 
   SENIOR_CY_HEAT: {
     type: "class-breaks",
-    field: "SENIOR_CY", 
+    field: "SENIOR_CY",
     classBreakInfos: createClassBreaks(
       [
         { max: 75 },
@@ -248,7 +247,7 @@ export const initialLayerConfigurations = {
         { min: 400, max: 800 },
         { min: 800, max: 1500 },
         { min: 1500, max: 7500 },
-        { min: 7500, max: 15000 }
+        { min: 7500 },
       ],
       [
         "Less than 75",
@@ -257,7 +256,7 @@ export const initialLayerConfigurations = {
         "400 - 800",
         "800 - 1,500",
         "1,500 - 7,500",
-        "7,500 - 15,000"
+        "7,500 or More",
       ]
     ),
   },
@@ -273,7 +272,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1200 },
         { min: 1200, max: 2500 },
         { min: 2500, max: 12500 },
-        { min: 12500, max: 25000 }
+        { min: 12500 },
       ],
       [
         "Less than 100",
@@ -282,7 +281,7 @@ export const initialLayerConfigurations = {
         "600 - 1,200",
         "1,200 - 2,500",
         "2,500 - 12,500",
-        "12,500 - 25,000"
+        "12,500 or More",
       ]
     ),
   },
@@ -299,7 +298,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
-        { min: 500000, max: 1000000 }
+        { min: 500000 },
       ],
       [
         "Less than $50,000",
@@ -308,7 +307,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
-        "$500,000 - $1,000,000"
+        "$500,000 or More",
       ]
     ),
   },
@@ -324,7 +323,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
-        { min: 500000, max: 1000000 }
+        { min: 500000 },
       ],
       [
         "Less than $50,000",
@@ -333,7 +332,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
-        "$500,000 - $1,000,000"
+        "$500,000 or More",
       ]
     ),
   },
@@ -350,7 +349,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 80 },
         { min: 80, max: 175 },
         { min: 175, max: 875 },
-        { min: 875, max: 1750 }
+        { min: 875 },
       ],
       [
         "Less than 8 households",
@@ -359,14 +358,14 @@ export const initialLayerConfigurations = {
         "40 - 80 households",
         "80 - 175 households",
         "175 - 875 households",
-        "875 - 1,750 households"
+        "875 households or More",
       ]
     ),
   },
 
   HINC15_CY_HEAT: {
     type: "class-breaks",
-    field: "HINC15_CY", 
+    field: "HINC15_CY",
     classBreakInfos: createClassBreaks(
       [
         { max: 8 },
@@ -375,16 +374,16 @@ export const initialLayerConfigurations = {
         { min: 40, max: 80 },
         { min: 80, max: 175 },
         { min: 175, max: 875 },
-        { min: 875, max: 1750 }
+        { min: 875 },
       ],
       [
         "Less than 8 households",
-        "8 - 20 households", 
+        "8 - 20 households",
         "20 - 40 households",
         "40 - 80 households",
         "80 - 175 households",
         "175 - 875 households",
-        "875 - 1,750 households"
+        "875 households or More",
       ]
     ),
   },
@@ -400,7 +399,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 125 },
         { min: 125, max: 250 },
         { min: 250, max: 1250 },
-        { min: 1250, max: 2500 }
+        { min: 1250 },
       ],
       [
         "Less than 12 households",
@@ -409,7 +408,7 @@ export const initialLayerConfigurations = {
         "60 - 125 households",
         "125 - 250 households",
         "250 - 1,250 households",
-        "1,250 - 2,500 households"
+        "1,250 households or More",
       ]
     ),
   },
@@ -425,7 +424,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 125 },
         { min: 125, max: 250 },
         { min: 250, max: 1250 },
-        { min: 1250, max: 2500 }
+        { min: 1250 },
       ],
       [
         "Less than 12 households",
@@ -434,7 +433,7 @@ export const initialLayerConfigurations = {
         "60 - 125 households",
         "125 - 250 households",
         "250 - 1,250 households",
-        "1,250 - 2,500 households"
+        "1,250 households or More",
       ]
     ),
   },
@@ -450,7 +449,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15 households",
@@ -459,7 +458,7 @@ export const initialLayerConfigurations = {
         "75 - 150 households",
         "150 - 300 households",
         "300 - 1,500 households",
-        "1,500 - 3,000 households"
+        "1,500 households or More",
       ]
     ),
   },
@@ -475,7 +474,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15 households",
@@ -484,7 +483,7 @@ export const initialLayerConfigurations = {
         "75 - 150 households",
         "150 - 300 households",
         "300 - 1,500 households",
-        "1,500 - 3,000 households"
+        "1,500 households or More",
       ]
     ),
   },
@@ -500,7 +499,7 @@ export const initialLayerConfigurations = {
         { min: 85, max: 175 },
         { min: 175, max: 350 },
         { min: 350, max: 1750 },
-        { min: 1750, max: 3500 }
+        { min: 1750 },
       ],
       [
         "Less than 18 households",
@@ -509,7 +508,7 @@ export const initialLayerConfigurations = {
         "85 - 175 households",
         "175 - 350 households",
         "350 - 1,750 households",
-        "1,750 - 3,500 households"
+        "1,750 households or More",
       ]
     ),
   },
@@ -525,7 +524,7 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10 households",
@@ -534,7 +533,7 @@ export const initialLayerConfigurations = {
         "50 - 100 households",
         "100 - 200 households",
         "200 - 1,000 households",
-        "1,000 - 2,000 households"
+        "1,000 households or More",
       ]
     ),
   },
@@ -550,7 +549,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 750 },
-        { min: 750, max: 1500 }
+        { min: 750 },
       ],
       [
         "Less than 7 households",
@@ -559,7 +558,7 @@ export const initialLayerConfigurations = {
         "35 - 75 households",
         "75 - 150 households",
         "150 - 750 households",
-        "750 - 1,500 households"
+        "750 households or More",
       ]
     ),
   },
@@ -575,7 +574,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 9 },
         { min: 9, max: 12 },
         { min: 12, max: 25 },
-        { min: 25, max: 40 }
+        { min: 25 },
       ],
       [
         "Less than 3%",
@@ -584,7 +583,7 @@ export const initialLayerConfigurations = {
         "7% - 9%",
         "9% - 12%",
         "12% - 25%",
-        "25% - 40%"
+        "25% or More",
       ]
     ),
   },
@@ -601,7 +600,7 @@ export const initialLayerConfigurations = {
         { min: 0.8, max: 1.2 },
         { min: 1.2, max: 1.6 },
         { min: 1.6, max: 2.2 },
-        { min: 2.2 }
+        { min: 2.2 },
       ],
       [
         "Less than 0%",
@@ -610,7 +609,7 @@ export const initialLayerConfigurations = {
         "0.8% - 1.2%",
         "1.2% - 1.6%",
         "1.6% - 2.2%",
-        "2.2% and above"
+        "2.2% or More",
       ]
     ),
   },
@@ -626,7 +625,7 @@ export const initialLayerConfigurations = {
         { min: 0.8, max: 1.2 },
         { min: 1.2, max: 1.6 },
         { min: 1.6, max: 2.2 },
-        { min: 2.2 }
+        { min: 2.2 },
       ],
       [
         "Less than 0%",
@@ -635,7 +634,7 @@ export const initialLayerConfigurations = {
         "0.8% - 1.2%",
         "1.2% - 1.6%",
         "1.6% - 2.2%",
-        "2.2% and above"
+        "2.2% or More",
       ]
     ),
   },
@@ -651,7 +650,7 @@ export const initialLayerConfigurations = {
         { min: 2.6, max: 3.4 },
         { min: 3.4, max: 4.2 },
         { min: 4.2, max: 5.5 },
-        { min: 5.5 }
+        { min: 5.5 },
       ],
       [
         "Less than 1%",
@@ -660,7 +659,7 @@ export const initialLayerConfigurations = {
         "2.6% - 3.4%",
         "3.4% - 4.2%",
         "4.2% - 5.5%",
-        "5.5% and above"
+        "5.5% or More",
       ]
     ),
   },
@@ -676,7 +675,7 @@ export const initialLayerConfigurations = {
         { min: 0.5, max: 1.2 },
         { min: 1.2, max: 2.0 },
         { min: 2.0, max: 3.2 },
-        { min: 3.2 }
+        { min: 3.2 },
       ],
       [
         "Less than -1%",
@@ -685,7 +684,7 @@ export const initialLayerConfigurations = {
         "0.5% to 1.2%",
         "1.2% to 2.0%",
         "2.0% to 3.2%",
-        "3.2% and above"
+        "3.2% or More",
       ]
     ),
   },
@@ -701,7 +700,7 @@ export const initialLayerConfigurations = {
         { min: 0.5, max: 1.2 },
         { min: 1.2, max: 2.0 },
         { min: 2.0, max: 3.2 },
-        { min: 3.2 }
+        { min: 3.2 },
       ],
       [
         "Less than -1%",
@@ -710,11 +709,10 @@ export const initialLayerConfigurations = {
         "0.5% to 1.2%",
         "1.2% to 2.0%",
         "2.0% to 3.2%",
-        "3.2% and above"
+        "3.2% or More",
       ]
     ),
   },
-
 
   // Housing - Heat Maps (SIGNIFICANTLY LOWERED)
   TOTHU_CY_HEAT: {
@@ -728,7 +726,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -737,7 +735,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -753,7 +751,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 150",
@@ -762,7 +760,7 @@ export const initialLayerConfigurations = {
         "600 - 1,500",
         "1,500 - 3,000",
         "3,000 - 15,000",
-        "15,000 - 30,000"
+        "15,000 or More",
       ]
     ),
   },
@@ -778,7 +776,7 @@ export const initialLayerConfigurations = {
         { min: 500, max: 1250 },
         { min: 1250, max: 2500 },
         { min: 2500, max: 12500 },
-        { min: 12500, max: 25000 }
+        { min: 12500 },
       ],
       [
         "Less than 100",
@@ -787,7 +785,7 @@ export const initialLayerConfigurations = {
         "500 - 1,250",
         "1,250 - 2,500",
         "2,500 - 12,500",
-        "12,500 - 25,000"
+        "12,500 or More",
       ]
     ),
   },
@@ -803,22 +801,22 @@ export const initialLayerConfigurations = {
         { min: 60, max: 75 },
         { min: 75, max: 90 },
         { min: 90, max: 100 },
-        { min: 100, max: 100 }
+        { min: 100 },
       ],
       [
         "Less than 30%",
         "30% - 45%",
         "45% - 60%",
         "60% - 75%",
-        "75% - 85%",
-        "85% - 100%",
-        "100%"
+        "75% - 90%",
+        "90% - 100%",
+        "100%",
       ]
     ),
   },
 
   VACANT_CY_HEAT: {
-    type: "class-breaks", 
+    type: "class-breaks",
     field: "VACANT_CY",
     classBreakInfos: createClassBreaks(
       [
@@ -828,16 +826,16 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 500 },
         { min: 500, max: 2000 },
-        { min: 2000, max: 4000 }
+        { min: 2000 },
       ],
       [
         "Less than 10",
         "10 - 25",
         "25 - 50",
         "50 - 100",
-        "100 - 250",
-        "250 - 1,500",
-        "1,500 - 4,000"
+        "100 - 500",
+        "500 - 2,000",
+        "2,000 or More",
       ]
     ),
   },
@@ -853,7 +851,7 @@ export const initialLayerConfigurations = {
         { min: 15, max: 20 },
         { min: 20, max: 25 },
         { min: 25, max: 50 },
-        { min: 50, max: 75 }
+        { min: 50 },
       ],
       [
         "Less than 5%",
@@ -862,7 +860,7 @@ export const initialLayerConfigurations = {
         "15% - 20%",
         "20% - 25%",
         "25% - 50%",
-        "50% - 75%"
+        "50% or More",
       ]
     ),
   },
@@ -878,7 +876,7 @@ export const initialLayerConfigurations = {
         { min: 450000, max: 600000 },
         { min: 600000, max: 800000 },
         { min: 800000, max: 1100000 },
-        { min: 1100000 }
+        { min: 1100000 },
       ],
       [
         "Less than $200,000",
@@ -887,7 +885,7 @@ export const initialLayerConfigurations = {
         "$450,000 - $600,000",
         "$600,000 - $800,000",
         "$800,000 - $1,100,000",
-        "$1,100,000 and above"
+        "$1,100,000 or More",
       ]
     ),
   },
@@ -903,7 +901,7 @@ export const initialLayerConfigurations = {
         { min: 530000, max: 700000 },
         { min: 700000, max: 900000 },
         { min: 900000, max: 1200000 },
-        { min: 1200000 }
+        { min: 1200000 },
       ],
       [
         "Less than $250,000",
@@ -912,7 +910,7 @@ export const initialLayerConfigurations = {
         "$530,000 - $700,000",
         "$700,000 - $900,000",
         "$900,000 - $1,200,000",
-        "$1,200,000 and above"
+        "$1,200,000 or More",
       ]
     ),
   },
@@ -929,7 +927,7 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10 Homes",
@@ -938,7 +936,7 @@ export const initialLayerConfigurations = {
         "50 - 100 Homes",
         "100 - 200 Homes",
         "200 - 1,000 Homes",
-        "1,000 - 2,000 Homes"
+        "1,000 Homes or More",
       ]
     ),
   },
@@ -954,7 +952,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 750 },
-        { min: 750, max: 1500 }
+        { min: 750 },
       ],
       [
         "Less than 7 Homes",
@@ -963,7 +961,7 @@ export const initialLayerConfigurations = {
         "35 - 75 Homes",
         "75 - 150 Homes",
         "150 - 750 Homes",
-        "750 - 1,500 Homes"
+        "750 Homes or More",
       ]
     ),
   },
@@ -979,7 +977,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 750 },
-        { min: 750, max: 1500 }
+        { min: 750 },
       ],
       [
         "Less than 7 Homes",
@@ -988,7 +986,7 @@ export const initialLayerConfigurations = {
         "35 - 75 Homes",
         "75 - 150 Homes",
         "150 - 750 Homes",
-        "750 - 1,500 Homes"
+        "750 Homes or More",
       ]
     ),
   },
@@ -1004,7 +1002,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1013,7 +1011,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1029,7 +1027,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1038,7 +1036,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1054,7 +1052,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1063,7 +1061,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1079,7 +1077,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1088,7 +1086,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1104,7 +1102,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1113,7 +1111,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1129,7 +1127,7 @@ export const initialLayerConfigurations = {
         { min: 45, max: 90 },
         { min: 90, max: 180 },
         { min: 180, max: 900 },
-        { min: 900, max: 1800 }
+        { min: 900 },
       ],
       [
         "Less than 10 Homes",
@@ -1138,7 +1136,7 @@ export const initialLayerConfigurations = {
         "45 - 90 Homes",
         "90 - 180 Homes",
         "180 - 900 Homes",
-        "900 - 1,800 Homes"
+        "900 Homes or More",
       ]
     ),
   },
@@ -1154,7 +1152,7 @@ export const initialLayerConfigurations = {
         { min: 15, max: 30 },
         { min: 30, max: 60 },
         { min: 60, max: 300 },
-        { min: 300, max: 600 }
+        { min: 300 },
       ],
       [
         "Less than 3 Homes",
@@ -1163,7 +1161,7 @@ export const initialLayerConfigurations = {
         "15 - 30 Homes",
         "30 - 60 Homes",
         "60 - 300 Homes",
-        "300 - 600 Homes"
+        "300 Homes or More",
       ]
     ),
   },
@@ -1179,7 +1177,7 @@ export const initialLayerConfigurations = {
         { min: 8, max: 18 },
         { min: 18, max: 35 },
         { min: 35, max: 175 },
-        { min: 175, max: 350 }
+        { min: 175 },
       ],
       [
         "Less than 2 Homes",
@@ -1188,7 +1186,7 @@ export const initialLayerConfigurations = {
         "8 - 18 Homes",
         "18 - 35 Homes",
         "35 - 175 Homes",
-        "175 - 350 Homes"
+        "175 Homes or More",
       ]
     ),
   },
@@ -1204,7 +1202,7 @@ export const initialLayerConfigurations = {
         { min: 5, max: 12 },
         { min: 12, max: 25 },
         { min: 25, max: 125 },
-        { min: 125, max: 250 }
+        { min: 125 },
       ],
       [
         "Less than 1 home",
@@ -1213,7 +1211,7 @@ export const initialLayerConfigurations = {
         "5 - 12 Homes",
         "12 - 25 Homes",
         "25 - 125 Homes",
-        "125 - 250 Homes"
+        "125 Homes or More",
       ]
     ),
   },
@@ -1229,7 +1227,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 8 },
         { min: 8, max: 15 },
         { min: 15, max: 75 },
-        { min: 75, max: 150 }
+        { min: 75 },
       ],
       [
         "Less than 1 home",
@@ -1238,7 +1236,7 @@ export const initialLayerConfigurations = {
         "4 - 8 Homes",
         "8 - 15 Homes",
         "15 - 75 Homes",
-        "75 - 150 Homes"
+        "75 Homes or More",
       ]
     ),
   },
@@ -1255,7 +1253,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 125 },
         { min: 125, max: 150 },
         { min: 150, max: 200 },
-        { min: 200, max: 300 }
+        { min: 200 },
       ],
       [
         "Less than 50",
@@ -1264,7 +1262,7 @@ export const initialLayerConfigurations = {
         "100 - 125",
         "125 - 150",
         "150 - 200",
-        "200 - 300"
+        "200 or More",
       ]
     ),
   },
@@ -1280,7 +1278,7 @@ export const initialLayerConfigurations = {
         { min: 25, max: 30 },
         { min: 30, max: 35 },
         { min: 35, max: 50 },
-        { min: 50, max: 70 }
+        { min: 50 },
       ],
       [
         "Less than 15%",
@@ -1289,7 +1287,7 @@ export const initialLayerConfigurations = {
         "25% - 30%",
         "30% - 35%",
         "35% - 50%",
-        "50% - 70%"
+        "50% or More",
       ]
     ),
   },
@@ -1305,7 +1303,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 100 },
         { min: 100, max: 125 },
         { min: 125, max: 200 },
-        { min: 200, max: 300 }
+        { min: 200 },
       ],
       [
         "Less than 25",
@@ -1314,7 +1312,7 @@ export const initialLayerConfigurations = {
         "75 - 100",
         "100 - 125",
         "125 - 200",
-        "200 - 300"
+        "200 or More",
       ]
     ),
   },
@@ -1330,7 +1328,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 100 },
         { min: 100, max: 125 },
         { min: 125, max: 200 },
-        { min: 200, max: 300 }
+        { min: 200 },
       ],
       [
         "Less than 25",
@@ -1339,7 +1337,7 @@ export const initialLayerConfigurations = {
         "75 - 100",
         "100 - 125",
         "125 - 200",
-        "200 - 300"
+        "200 or More",
       ]
     ),
   },
@@ -1355,7 +1353,7 @@ export const initialLayerConfigurations = {
         { min: 45000, max: 60000 },
         { min: 60000, max: 80000 },
         { min: 80000, max: 150000 },
-        { min: 150000, max: 250000 }
+        { min: 150000 },
       ],
       [
         "Less than $25,000",
@@ -1364,7 +1362,7 @@ export const initialLayerConfigurations = {
         "$45,000 - $60,000",
         "$60,000 - $80,000",
         "$80,000 - $150,000",
-        "$150,000 - $250,000"
+        "$150,000 or More",
       ]
     ),
   },
@@ -1381,7 +1379,7 @@ export const initialLayerConfigurations = {
         { min: 30, max: 50 },
         { min: 50, max: 70 },
         { min: 70, max: 95 },
-        { min: 95, max: 100 }
+        { min: 95 },
       ],
       [
         "Less than 5%",
@@ -1390,7 +1388,7 @@ export const initialLayerConfigurations = {
         "30% - 50%",
         "50% - 70%",
         "70% - 95%",
-        "95% - 100%"
+        "95% or More",
       ]
     ),
   },
@@ -1406,7 +1404,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 75 },
         { min: 75, max: 85 },
         { min: 85, max: 95 },
-        { min: 95, max: 100 }
+        { min: 95 },
       ],
       [
         "Less than 20%",
@@ -1415,7 +1413,7 @@ export const initialLayerConfigurations = {
         "60% - 75%",
         "75% - 85%",
         "85% - 95%",
-        "95% - 100%"
+        "95% or More",
       ]
     ),
   },
@@ -1431,7 +1429,7 @@ export const initialLayerConfigurations = {
         { min: 15, max: 30 },
         { min: 30, max: 50 },
         { min: 50, max: 80 },
-        { min: 80, max: 100 }
+        { min: 80 },
       ],
       [
         "Less than 2%",
@@ -1440,7 +1438,7 @@ export const initialLayerConfigurations = {
         "15% - 30%",
         "30% - 50%",
         "50% - 80%",
-        "80% - 100%"
+        "80% or More",
       ]
     ),
   },
@@ -1456,7 +1454,7 @@ export const initialLayerConfigurations = {
         { min: 2, max: 5 },
         { min: 5, max: 15 },
         { min: 15, max: 50 },
-        { min: 50, max: 100 }
+        { min: 50 },
       ],
       [
         "Less than 0.5%",
@@ -1465,7 +1463,7 @@ export const initialLayerConfigurations = {
         "2% - 5%",
         "5% - 15%",
         "15% - 50%",
-        "50% - 100%"
+        "50% or More",
       ]
     ),
   },
@@ -1481,7 +1479,7 @@ export const initialLayerConfigurations = {
         { min: 10, max: 20 },
         { min: 20, max: 35 },
         { min: 35, max: 60 },
-        { min: 60, max: 100 }
+        { min: 60 },
       ],
       [
         "Less than 2%",
@@ -1490,7 +1488,7 @@ export const initialLayerConfigurations = {
         "10% - 20%",
         "20% - 35%",
         "35% - 60%",
-        "60% - 100%"
+        "60% or More",
       ]
     ),
   },
@@ -1506,7 +1504,7 @@ export const initialLayerConfigurations = {
         { min: 1, max: 2 },
         { min: 2, max: 5 },
         { min: 5, max: 15 },
-        { min: 15, max: 50 }
+        { min: 15 },
       ],
       [
         "Less than 0.2%",
@@ -1515,7 +1513,7 @@ export const initialLayerConfigurations = {
         "1% - 2%",
         "2% - 5%",
         "5% - 15%",
-        "15% - 50%"
+        "15% or More",
       ]
     ),
   },
@@ -1531,7 +1529,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 8 },
         { min: 8, max: 15 },
         { min: 15, max: 30 },
-        { min: 30, max: 60 }
+        { min: 30 },
       ],
       [
         "Less than 1%",
@@ -1540,7 +1538,7 @@ export const initialLayerConfigurations = {
         "4% - 8%",
         "8% - 15%",
         "15% - 30%",
-        "30% - 60%"
+        "30% or More",
       ]
     ),
   },
@@ -1556,7 +1554,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 7 },
         { min: 7, max: 12 },
         { min: 12, max: 25 },
-        { min: 25, max: 50 }
+        { min: 25 },
       ],
       [
         "Less than 1%",
@@ -1565,7 +1563,7 @@ export const initialLayerConfigurations = {
         "4% - 7%",
         "7% - 12%",
         "12% - 25%",
-        "25% - 50%"
+        "25% or More",
       ]
     ),
   },
@@ -1582,7 +1580,7 @@ export const initialLayerConfigurations = {
         { min: 15, max: 25 },
         { min: 25, max: 35 },
         { min: 35, max: 50 },
-        { min: 50, max: 75 }
+        { min: 50 },
       ],
       [
         "Less than 5%",
@@ -1591,7 +1589,7 @@ export const initialLayerConfigurations = {
         "15% - 25%",
         "25% - 35%",
         "35% - 50%",
-        "50% - 75%"
+        "50% or More",
       ]
     ),
   },
@@ -1607,7 +1605,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 45 },
         { min: 45, max: 60 },
         { min: 60, max: 80 },
-        { min: 80, max: 100 }
+        { min: 80 },
       ],
       [
         "Less than 15%",
@@ -1616,7 +1614,7 @@ export const initialLayerConfigurations = {
         "35% - 45%",
         "45% - 60%",
         "60% - 80%",
-        "80% - 100%"
+        "80% or More",
       ]
     ),
   },
@@ -1633,7 +1631,7 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 50000 },
-        { min: 50000, max: 100000 }
+        { min: 50000 },
       ],
       [
         "Less than 500",
@@ -1642,7 +1640,7 @@ export const initialLayerConfigurations = {
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 50,000",
-        "50,000 - 100,000"
+        "50,000 or More",
       ]
     ),
   },
@@ -1658,7 +1656,7 @@ export const initialLayerConfigurations = {
         { min: 800, max: 2000 },
         { min: 2000, max: 4000 },
         { min: 4000, max: 20000 },
-        { min: 20000, max: 40000 }
+        { min: 20000 },
       ],
       [
         "Less than 200",
@@ -1667,7 +1665,7 @@ export const initialLayerConfigurations = {
         "800 - 2,000",
         "2,000 - 4,000",
         "4,000 - 20,000",
-        "20,000 - 40,000"
+        "20,000 or More",
       ]
     ),
   },
@@ -1683,16 +1681,16 @@ export const initialLayerConfigurations = {
         { min: 2.6, max: 3.0 },
         { min: 3.0, max: 3.5 },
         { min: 3.5, max: 4.0 },
-        { min: 4.0 }
+        { min: 4.0 },
       ],
       [
         "Less than 2.0",
         "2.0 - 2.3",
-        "2.3 - 2.6", 
+        "2.3 - 2.6",
         "2.6 - 3.0",
         "3.0 - 3.5",
         "3.5 - 4.0",
-        "4.0 and above"
+        "4.0 or More",
       ]
     ),
   },
@@ -1708,7 +1706,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
-        { min: 500000, max: 1000000 }
+        { min: 500000 },
       ],
       [
         "Less than $50,000",
@@ -1717,7 +1715,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
-        "$500,000 - $1,000,000"
+        "$500,000 or More",
       ]
     ),
   },
@@ -1733,7 +1731,7 @@ export const initialLayerConfigurations = {
         { min: 100000, max: 150000 },
         { min: 150000, max: 300000 },
         { min: 300000, max: 500000 },
-        { min: 500000, max: 1000000 }
+        { min: 500000 },
       ],
       [
         "Less than $50,000",
@@ -1742,7 +1740,7 @@ export const initialLayerConfigurations = {
         "$100,000 - $150,000",
         "$150,000 - $300,000",
         "$300,000 - $500,000",
-        "$500,000 - $1,000,000"
+        "$500,000 or More",
       ]
     ),
   },
@@ -1758,7 +1756,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 100 per sq. mile",
@@ -1767,7 +1765,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500 per sq. mile",
         "2,500 - 5,000 per sq. mile",
         "5,000 - 15,000 per sq. mile",
-        "15,000 - 30,000 per sq. mile"
+        "15,000 or More per sq. mile",
       ]
     ),
   },
@@ -1784,7 +1782,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 100 per sq. mile",
@@ -1793,7 +1791,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500 per sq. mile",
         "2,500 - 5,000 per sq. mile",
         "5,000 - 15,000 per sq. mile",
-        "15,000 - 30,000 per sq. mile"
+        "15,000 or More per sq. mile",
       ]
     ),
   },
@@ -1809,7 +1807,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 100 per sq. mile",
@@ -1818,7 +1816,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500 per sq. mile",
         "2,500 - 5,000 per sq. mile",
         "5,000 - 15,000 per sq. mile",
-        "15,000 - 30,000 per sq. mile"
+        "15,000 or More per sq. mile",
       ]
     ),
   },
@@ -1835,7 +1833,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 50 },
         { min: 50, max: 60 },
         { min: 60, max: 80 },
-        { min: 80, max: 100 }
+        { min: 80 },
       ],
       [
         "Less than 20",
@@ -1844,7 +1842,7 @@ export const initialLayerConfigurations = {
         "40 - 50",
         "50 - 60",
         "60 - 80",
-        "80 - 100"
+        "80 or More",
       ]
     ),
   },
@@ -1860,7 +1858,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 70 },
         { min: 70, max: 80 },
         { min: 80, max: 100 },
-        { min: 100, max: 120 }
+        { min: 100 },
       ],
       [
         "Less than 40",
@@ -1869,7 +1867,7 @@ export const initialLayerConfigurations = {
         "60 - 70",
         "70 - 80",
         "80 - 100",
-        "100 - 120"
+        "100 or More",
       ]
     ),
   },
@@ -1885,7 +1883,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 45 },
         { min: 45, max: 55 },
         { min: 55, max: 75 },
-        { min: 75, max: 100 }
+        { min: 75 },
       ],
       [
         "Less than 15",
@@ -1894,7 +1892,7 @@ export const initialLayerConfigurations = {
         "35 - 45",
         "45 - 55",
         "55 - 75",
-        "75 - 100"
+        "75 or More",
       ]
     ),
   },
@@ -1911,7 +1909,7 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 50000 },
-        { min: 50000, max: 100000 }
+        { min: 50000 },
       ],
       [
         "Less than 500",
@@ -1920,7 +1918,7 @@ export const initialLayerConfigurations = {
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 50,000",
-        "50,000 - 100,000"
+        "50,000 or More",
       ]
     ),
   },
@@ -1936,7 +1934,7 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 250 },
         { min: 250, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -1945,7 +1943,7 @@ export const initialLayerConfigurations = {
         "50 - 100",
         "100 - 250",
         "250 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -1961,7 +1959,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -1970,7 +1968,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -1986,7 +1984,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 45 },
         { min: 45, max: 50 },
         { min: 50, max: 55 },
-        { min: 55, max: 65 }
+        { min: 55 },
       ],
       [
         "Less than 30 years",
@@ -1995,7 +1993,7 @@ export const initialLayerConfigurations = {
         "40 - 45 years",
         "45 - 50 years",
         "50 - 55 years",
-        "55 - 65 years"
+        "55 years or More",
       ]
     ),
   },
@@ -2011,7 +2009,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -2020,7 +2018,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -2036,7 +2034,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 45 },
         { min: 45, max: 50 },
         { min: 50, max: 55 },
-        { min: 55, max: 65 }
+        { min: 55 },
       ],
       [
         "Less than 30 years",
@@ -2045,7 +2043,7 @@ export const initialLayerConfigurations = {
         "40 - 45 years",
         "45 - 50 years",
         "50 - 55 years",
-        "55 - 65 years"
+        "55 years or More",
       ]
     ),
   },
@@ -2057,12 +2055,12 @@ export const initialLayerConfigurations = {
     classBreakInfos: createClassBreaks(
       [
         { max: 0.35 },
-        { min: 0.35, max: 0.40 },
-        { min: 0.40, max: 0.45 },
-        { min: 0.45, max: 0.50 },
-        { min: 0.50, max: 0.55 },
-        { min: 0.55, max: 0.70 },
-        { min: 0.70, max: 0.85 }
+        { min: 0.35, max: 0.4 },
+        { min: 0.4, max: 0.45 },
+        { min: 0.45, max: 0.5 },
+        { min: 0.5, max: 0.55 },
+        { min: 0.55, max: 0.7 },
+        { min: 0.7 },
       ],
       [
         "Less than 0.35",
@@ -2071,7 +2069,7 @@ export const initialLayerConfigurations = {
         "0.45 - 0.50",
         "0.50 - 0.55",
         "0.55 - 0.70",
-        "0.70 - 0.85"
+        "0.70 or More",
       ]
     ),
   },
@@ -2087,7 +2085,7 @@ export const initialLayerConfigurations = {
         { min: 5, max: 6 },
         { min: 6, max: 8 },
         { min: 8, max: 12 },
-        { min: 12, max: 20 }
+        { min: 12 },
       ],
       [
         "Less than 3",
@@ -2096,7 +2094,7 @@ export const initialLayerConfigurations = {
         "5 - 6",
         "6 - 8",
         "8 - 12",
-        "12 - 20"
+        "12 or More",
       ]
     ),
   },
@@ -2112,7 +2110,7 @@ export const initialLayerConfigurations = {
         { min: 2.0, max: 2.3 },
         { min: 2.3, max: 2.8 },
         { min: 2.8, max: 4.0 },
-        { min: 4.0, max: 6.0 }
+        { min: 4.0 },
       ],
       [
         "Less than 1.5",
@@ -2121,7 +2119,7 @@ export const initialLayerConfigurations = {
         "2.0 - 2.3",
         "2.3 - 2.8",
         "2.8 - 4.0",
-        "4.0 - 6.0"
+        "4.0 or More",
       ]
     ),
   },
@@ -2137,7 +2135,7 @@ export const initialLayerConfigurations = {
         { min: 2.2, max: 2.5 },
         { min: 2.5, max: 3.0 },
         { min: 3.0, max: 4.0 },
-        { min: 4.0, max: 6.0 }
+        { min: 4.0 },
       ],
       [
         "Less than 1.8",
@@ -2146,7 +2144,7 @@ export const initialLayerConfigurations = {
         "2.2 - 2.5",
         "2.5 - 3.0",
         "3.0 - 4.0",
-        "4.0 - 6.0"
+        "4.0 or More",
       ]
     ),
   },
@@ -2162,7 +2160,7 @@ export const initialLayerConfigurations = {
         { min: 5, max: 6 },
         { min: 6, max: 8 },
         { min: 8, max: 12 },
-        { min: 12, max: 20 }
+        { min: 12 },
       ],
       [
         "Less than 3",
@@ -2171,7 +2169,7 @@ export const initialLayerConfigurations = {
         "5 - 6",
         "6 - 8",
         "8 - 12",
-        "12 - 20"
+        "12 or More",
       ]
     ),
   },
@@ -2187,7 +2185,7 @@ export const initialLayerConfigurations = {
         { min: 1.9, max: 2.2 },
         { min: 2.2, max: 2.6 },
         { min: 2.6, max: 3.5 },
-        { min: 3.5, max: 5.0 }
+        { min: 3.5 },
       ],
       [
         "Less than 1.5",
@@ -2196,7 +2194,7 @@ export const initialLayerConfigurations = {
         "1.9 - 2.2",
         "2.2 - 2.6",
         "2.6 - 3.5",
-        "3.5 - 5.0"
+        "3.5 or More",
       ]
     ),
   },
@@ -2213,7 +2211,7 @@ export const initialLayerConfigurations = {
         { min: 200, max: 500 },
         { min: 500, max: 1000 },
         { min: 1000, max: 5000 },
-        { min: 5000, max: 10000 }
+        { min: 5000 },
       ],
       [
         "Less than 50 households",
@@ -2222,7 +2220,7 @@ export const initialLayerConfigurations = {
         "200 - 500 households",
         "500 - 1,000 households",
         "1,000 - 5,000 households",
-        "5,000 - 10,000 households"
+        "5,000 households or More",
       ]
     ),
   },
@@ -2238,7 +2236,7 @@ export const initialLayerConfigurations = {
         { min: 200, max: 500 },
         { min: 500, max: 1000 },
         { min: 1000, max: 5000 },
-        { min: 5000, max: 10000 }
+        { min: 5000 },
       ],
       [
         "Less than 50 households",
@@ -2247,7 +2245,7 @@ export const initialLayerConfigurations = {
         "200 - 500 households",
         "500 - 1,000 households",
         "1,000 - 5,000 households",
-        "5,000 - 10,000 households"
+        "5,000 households or More",
       ]
     ),
   },
@@ -2263,7 +2261,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25 households",
@@ -2272,7 +2270,7 @@ export const initialLayerConfigurations = {
         "100 - 250 households",
         "250 - 500 households",
         "500 - 2,500 households",
-        "2,500 - 5,000 households"
+        "2,500 households or More",
       ]
     ),
   },
@@ -2289,7 +2287,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 80 },
         { min: 80, max: 175 },
         { min: 175, max: 875 },
-        { min: 875, max: 1750 }
+        { min: 875 },
       ],
       [
         "Less than 8 households",
@@ -2298,7 +2296,7 @@ export const initialLayerConfigurations = {
         "40 - 80 households",
         "80 - 175 households",
         "175 - 875 households",
-        "875 - 1,750 households"
+        "875 households or More",
       ]
     ),
   },
@@ -2314,7 +2312,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 80 },
         { min: 80, max: 175 },
         { min: 175, max: 875 },
-        { min: 875, max: 1750 }
+        { min: 875 },
       ],
       [
         "Less than 8 households",
@@ -2323,7 +2321,7 @@ export const initialLayerConfigurations = {
         "40 - 80 households",
         "80 - 175 households",
         "175 - 875 households",
-        "875 - 1,750 households"
+        "875 households or More",
       ]
     ),
   },
@@ -2339,7 +2337,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 125 },
         { min: 125, max: 250 },
         { min: 250, max: 1250 },
-        { min: 1250, max: 2500 }
+        { min: 1250 },
       ],
       [
         "Less than 12 households",
@@ -2348,7 +2346,7 @@ export const initialLayerConfigurations = {
         "60 - 125 households",
         "125 - 250 households",
         "250 - 1,250 households",
-        "1,250 - 2,500 households"
+        "1,250 households or More",
       ]
     ),
   },
@@ -2364,7 +2362,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 125 },
         { min: 125, max: 250 },
         { min: 250, max: 1250 },
-        { min: 1250, max: 2500 }
+        { min: 1250 },
       ],
       [
         "Less than 12 households",
@@ -2373,7 +2371,7 @@ export const initialLayerConfigurations = {
         "60 - 125 households",
         "125 - 250 households",
         "250 - 1,250 households",
-        "1,250 - 2,500 households"
+        "1,250 households or More",
       ]
     ),
   },
@@ -2389,7 +2387,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15 households",
@@ -2398,7 +2396,7 @@ export const initialLayerConfigurations = {
         "75 - 150 households",
         "150 - 300 households",
         "300 - 1,500 households",
-        "1,500 - 3,000 households"
+        "1,500 households or More",
       ]
     ),
   },
@@ -2414,7 +2412,7 @@ export const initialLayerConfigurations = {
         { min: 75, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15 households",
@@ -2423,7 +2421,7 @@ export const initialLayerConfigurations = {
         "75 - 150 households",
         "150 - 300 households",
         "300 - 1,500 households",
-        "1,500 - 3,000 households"
+        "1,500 households or More",
       ]
     ),
   },
@@ -2439,7 +2437,7 @@ export const initialLayerConfigurations = {
         { min: 85, max: 175 },
         { min: 175, max: 350 },
         { min: 350, max: 1750 },
-        { min: 1750, max: 3500 }
+        { min: 1750 },
       ],
       [
         "Less than 18 households",
@@ -2448,7 +2446,7 @@ export const initialLayerConfigurations = {
         "85 - 175 households",
         "175 - 350 households",
         "350 - 1,750 households",
-        "1,750 - 3,500 households"
+        "1,750 households or More",
       ]
     ),
   },
@@ -2464,7 +2462,7 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10 households",
@@ -2473,7 +2471,7 @@ export const initialLayerConfigurations = {
         "50 - 100 households",
         "100 - 200 households",
         "200 - 1,000 households",
-        "1,000 - 2,000 households"
+        "1,000 households or More",
       ]
     ),
   },
@@ -2489,7 +2487,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 750 },
-        { min: 750, max: 1500 }
+        { min: 750 },
       ],
       [
         "Less than 7 households",
@@ -2498,7 +2496,7 @@ export const initialLayerConfigurations = {
         "35 - 75 households",
         "75 - 150 households",
         "150 - 750 households",
-        "750 - 1,500 households"
+        "750 households or More",
       ]
     ),
   },
@@ -2514,7 +2512,7 @@ export const initialLayerConfigurations = {
         { min: 70000, max: 100000 },
         { min: 100000, max: 150000 },
         { min: 150000, max: 250000 },
-        { min: 250000, max: 500000 }
+        { min: 250000 },
       ],
       [
         "Less than $35,000",
@@ -2523,7 +2521,7 @@ export const initialLayerConfigurations = {
         "$70,000 - $100,000",
         "$100,000 - $150,000",
         "$150,000 - $250,000",
-        "$250,000 - $500,000"
+        "$250,000 or More",
       ]
     ),
   },
@@ -2540,7 +2538,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -2549,7 +2547,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -2565,7 +2563,7 @@ export const initialLayerConfigurations = {
         { min: 1000, max: 2500 },
         { min: 2500, max: 5000 },
         { min: 5000, max: 25000 },
-        { min: 25000, max: 50000 }
+        { min: 25000 },
       ],
       [
         "Less than 250",
@@ -2574,7 +2572,7 @@ export const initialLayerConfigurations = {
         "1,000 - 2,500",
         "2,500 - 5,000",
         "5,000 - 25,000",
-        "25,000 - 50,000"
+        "25,000 or More",
       ]
     ),
   },
@@ -2590,7 +2588,7 @@ export const initialLayerConfigurations = {
         { min: 50, max: 100 },
         { min: 100, max: 250 },
         { min: 250, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -2599,7 +2597,7 @@ export const initialLayerConfigurations = {
         "50 - 100",
         "100 - 250",
         "250 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -2616,7 +2614,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25",
@@ -2625,7 +2623,7 @@ export const initialLayerConfigurations = {
         "100 - 250",
         "250 - 500",
         "500 - 2,500",
-        "2,500 - 5,000"
+        "2,500 or More",
       ]
     ),
   },
@@ -2641,7 +2639,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25",
@@ -2650,7 +2648,7 @@ export const initialLayerConfigurations = {
         "100 - 250",
         "250 - 500",
         "500 - 2,500",
-        "2,500 - 5,000"
+        "2,500 or More",
       ]
     ),
   },
@@ -2666,7 +2664,7 @@ export const initialLayerConfigurations = {
         { min: 20, max: 40 },
         { min: 40, max: 80 },
         { min: 80, max: 300 },
-        { min: 300, max: 600 }
+        { min: 300 },
       ],
       [
         "Less than 5",
@@ -2675,7 +2673,7 @@ export const initialLayerConfigurations = {
         "20 - 40",
         "40 - 80",
         "80 - 300",
-        "300 - 600"
+        "300 or More",
       ]
     ),
   },
@@ -2691,7 +2689,7 @@ export const initialLayerConfigurations = {
         { min: 15, max: 20 },
         { min: 20, max: 30 },
         { min: 30, max: 50 },
-        { min: 50, max: 75 }
+        { min: 50 },
       ],
       [
         "Less than 5%",
@@ -2700,7 +2698,7 @@ export const initialLayerConfigurations = {
         "15% - 20%",
         "20% - 30%",
         "30% - 50%",
-        "50% - 75%"
+        "50% or More",
       ]
     ),
   },
@@ -2716,7 +2714,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 150",
@@ -2725,7 +2723,7 @@ export const initialLayerConfigurations = {
         "600 - 1,500",
         "1,500 - 3,000",
         "3,000 - 15,000",
-        "15,000 - 30,000"
+        "15,000 or More",
       ]
     ),
   },
@@ -2741,7 +2739,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 150",
@@ -2750,7 +2748,7 @@ export const initialLayerConfigurations = {
         "600 - 1,500",
         "1,500 - 3,000",
         "3,000 - 15,000",
-        "15,000 - 30,000"
+        "15,000 or More",
       ]
     ),
   },
@@ -2766,7 +2764,7 @@ export const initialLayerConfigurations = {
         { min: 30, max: 60 },
         { min: 60, max: 120 },
         { min: 120, max: 500 },
-        { min: 500, max: 1000 }
+        { min: 500 },
       ],
       [
         "Less than 8",
@@ -2775,7 +2773,7 @@ export const initialLayerConfigurations = {
         "30 - 60",
         "60 - 120",
         "120 - 500",
-        "500 - 1,000"
+        "500 or More",
       ]
     ),
   },
@@ -2791,7 +2789,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 10 },
         { min: 10, max: 15 },
         { min: 15, max: 25 },
-        { min: 25, max: 40 }
+        { min: 25 },
       ],
       [
         "Less than 3%",
@@ -2800,7 +2798,7 @@ export const initialLayerConfigurations = {
         "7% - 10%",
         "10% - 15%",
         "15% - 25%",
-        "25% - 40%"
+        "25% or More",
       ]
     ),
   },
@@ -2816,7 +2814,7 @@ export const initialLayerConfigurations = {
         { min: 200, max: 500 },
         { min: 500, max: 1000 },
         { min: 1000, max: 5000 },
-        { min: 5000, max: 10000 }
+        { min: 5000 },
       ],
       [
         "Less than 50",
@@ -2825,7 +2823,7 @@ export const initialLayerConfigurations = {
         "200 - 500",
         "500 - 1,000",
         "1,000 - 5,000",
-        "5,000 - 10,000"
+        "5,000 or More",
       ]
     ),
   },
@@ -2841,7 +2839,7 @@ export const initialLayerConfigurations = {
         { min: 200, max: 500 },
         { min: 500, max: 1000 },
         { min: 1000, max: 5000 },
-        { min: 5000, max: 10000 }
+        { min: 5000 },
       ],
       [
         "Less than 50",
@@ -2850,7 +2848,7 @@ export const initialLayerConfigurations = {
         "200 - 500",
         "500 - 1,000",
         "1,000 - 5,000",
-        "5,000 - 10,000"
+        "5,000 or More",
       ]
     ),
   },
@@ -2866,7 +2864,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 25 },
         { min: 25, max: 50 },
         { min: 50, max: 200 },
-        { min: 200, max: 400 }
+        { min: 200 },
       ],
       [
         "Less than 3",
@@ -2875,7 +2873,7 @@ export const initialLayerConfigurations = {
         "12 - 25",
         "25 - 50",
         "50 - 200",
-        "200 - 400"
+        "200 or More",
       ]
     ),
   },
@@ -2891,7 +2889,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 10 },
         { min: 10, max: 15 },
         { min: 15, max: 25 },
-        { min: 25, max: 40 }
+        { min: 25 },
       ],
       [
         "Less than 3%",
@@ -2900,7 +2898,7 @@ export const initialLayerConfigurations = {
         "7% - 10%",
         "10% - 15%",
         "15% - 25%",
-        "25% - 40%"
+        "25% or More",
       ]
     ),
   },
@@ -2916,7 +2914,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -2925,7 +2923,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -2941,7 +2939,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -2950,7 +2948,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -2966,7 +2964,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 8 },
         { min: 8, max: 15 },
         { min: 15, max: 50 },
-        { min: 50, max: 100 }
+        { min: 50 },
       ],
       [
         "Less than 1",
@@ -2975,7 +2973,7 @@ export const initialLayerConfigurations = {
         "4 - 8",
         "8 - 15",
         "15 - 50",
-        "50 - 100"
+        "50 or More",
       ]
     ),
   },
@@ -2991,7 +2989,7 @@ export const initialLayerConfigurations = {
         { min: 6, max: 8 },
         { min: 8, max: 12 },
         { min: 12, max: 20 },
-        { min: 20, max: 35 }
+        { min: 20 },
       ],
       [
         "Less than 2%",
@@ -3000,7 +2998,7 @@ export const initialLayerConfigurations = {
         "6% - 8%",
         "8% - 12%",
         "12% - 20%",
-        "20% - 35%"
+        "20% or More",
       ]
     ),
   },
@@ -3017,7 +3015,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 50 },
         { min: 50, max: 60 },
         { min: 60, max: 80 },
-        { min: 80, max: 100 }
+        { min: 80 },
       ],
       [
         "Less than 20",
@@ -3026,7 +3024,7 @@ export const initialLayerConfigurations = {
         "40 - 50",
         "50 - 60",
         "60 - 80",
-        "80 - 100"
+        "80 or More",
       ]
     ),
   },
@@ -3042,7 +3040,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 70 },
         { min: 70, max: 80 },
         { min: 80, max: 100 },
-        { min: 100, max: 120 }
+        { min: 100 },
       ],
       [
         "Less than 40",
@@ -3051,7 +3049,7 @@ export const initialLayerConfigurations = {
         "60 - 70",
         "70 - 80",
         "80 - 100",
-        "100 - 120"
+        "100 or More",
       ]
     ),
   },
@@ -3067,7 +3065,7 @@ export const initialLayerConfigurations = {
         { min: 35, max: 45 },
         { min: 45, max: 55 },
         { min: 55, max: 75 },
-        { min: 75, max: 100 }
+        { min: 75 },
       ],
       [
         "Less than 15",
@@ -3076,7 +3074,7 @@ export const initialLayerConfigurations = {
         "35 - 45",
         "45 - 55",
         "55 - 75",
-        "75 - 100"
+        "75 or More",
       ]
     ),
   },
@@ -3092,7 +3090,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 70 },
         { min: 70, max: 80 },
         { min: 80, max: 100 },
-        { min: 100, max: 120 }
+        { min: 100 },
       ],
       [
         "Less than 40",
@@ -3101,7 +3099,7 @@ export const initialLayerConfigurations = {
         "60 - 70",
         "70 - 80",
         "80 - 100",
-        "100 - 120"
+        "100 or More",
       ]
     ),
   },
@@ -3118,7 +3116,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 150",
@@ -3127,7 +3125,7 @@ export const initialLayerConfigurations = {
         "600 - 1,500",
         "1,500 - 3,000",
         "3,000 - 15,000",
-        "15,000 - 30,000"
+        "15,000 or More",
       ]
     ),
   },
@@ -3143,7 +3141,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25",
@@ -3152,7 +3150,7 @@ export const initialLayerConfigurations = {
         "100 - 250",
         "250 - 500",
         "500 - 2,500",
-        "2,500 - 5,000"
+        "2,500 or More",
       ]
     ),
   },
@@ -3168,7 +3166,7 @@ export const initialLayerConfigurations = {
         { min: 20, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 500 },
-        { min: 500, max: 1000 }
+        { min: 500 },
       ],
       [
         "Less than 5",
@@ -3177,7 +3175,7 @@ export const initialLayerConfigurations = {
         "20 - 50",
         "50 - 100",
         "100 - 500",
-        "500 - 1,000"
+        "500 or More",
       ]
     ),
   },
@@ -3193,7 +3191,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -3202,7 +3200,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -3218,7 +3216,7 @@ export const initialLayerConfigurations = {
         { min: 10, max: 25 },
         { min: 25, max: 50 },
         { min: 50, max: 200 },
-        { min: 200, max: 400 }
+        { min: 200 },
       ],
       [
         "Less than 2",
@@ -3227,7 +3225,7 @@ export const initialLayerConfigurations = {
         "10 - 25",
         "25 - 50",
         "50 - 200",
-        "200 - 400"
+        "200 or More",
       ]
     ),
   },
@@ -3243,7 +3241,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -3252,7 +3250,7 @@ export const initialLayerConfigurations = {
         "40 - 100",
         "100 - 200",
         "200 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -3268,7 +3266,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -3277,7 +3275,7 @@ export const initialLayerConfigurations = {
         "40 - 100",
         "100 - 200",
         "200 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -3294,7 +3292,7 @@ export const initialLayerConfigurations = {
         { min: 30, max: 75 },
         { min: 75, max: 150 },
         { min: 150, max: 750 },
-        { min: 750, max: 1500 }
+        { min: 750 },
       ],
       [
         "Less than 8",
@@ -3303,7 +3301,7 @@ export const initialLayerConfigurations = {
         "30 - 75",
         "75 - 150",
         "150 - 750",
-        "750 - 1,500"
+        "750 or More",
       ]
     ),
   },
@@ -3319,7 +3317,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 30 },
         { min: 30, max: 60 },
         { min: 60, max: 300 },
-        { min: 300, max: 600 }
+        { min: 300 },
       ],
       [
         "Less than 3",
@@ -3328,7 +3326,7 @@ export const initialLayerConfigurations = {
         "12 - 30",
         "30 - 60",
         "60 - 300",
-        "300 - 600"
+        "300 or More",
       ]
     ),
   },
@@ -3344,7 +3342,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 8 },
         { min: 8, max: 15 },
         { min: 15, max: 75 },
-        { min: 75, max: 150 }
+        { min: 75 },
       ],
       [
         "Less than 1",
@@ -3353,7 +3351,7 @@ export const initialLayerConfigurations = {
         "4 - 8",
         "8 - 15",
         "15 - 75",
-        "75 - 150"
+        "75 or More",
       ]
     ),
   },
@@ -3369,7 +3367,7 @@ export const initialLayerConfigurations = {
         { min: 6, max: 15 },
         { min: 15, max: 30 },
         { min: 30, max: 150 },
-        { min: 150, max: 300 }
+        { min: 150 },
       ],
       [
         "Less than 1",
@@ -3378,7 +3376,7 @@ export const initialLayerConfigurations = {
         "6 - 15",
         "15 - 30",
         "30 - 150",
-        "150 - 300"
+        "150 or More",
       ]
     ),
   },
@@ -3394,7 +3392,7 @@ export const initialLayerConfigurations = {
         { min: 2, max: 3 },
         { min: 3, max: 5 },
         { min: 5, max: 25 },
-        { min: 25, max: 50 }
+        { min: 25 },
       ],
       [
         "Less than 1",
@@ -3403,7 +3401,7 @@ export const initialLayerConfigurations = {
         "2 - 3",
         "3 - 5",
         "5 - 25",
-        "25 - 50"
+        "25 or More",
       ]
     ),
   },
@@ -3419,7 +3417,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 10 },
         { min: 10, max: 20 },
         { min: 20, max: 100 },
-        { min: 100, max: 200 }
+        { min: 100 },
       ],
       [
         "Less than 1",
@@ -3428,7 +3426,7 @@ export const initialLayerConfigurations = {
         "4 - 10",
         "10 - 20",
         "20 - 100",
-        "100 - 200"
+        "100 or More",
       ]
     ),
   },
@@ -3444,7 +3442,7 @@ export const initialLayerConfigurations = {
         { min: 4, max: 10 },
         { min: 10, max: 20 },
         { min: 20, max: 100 },
-        { min: 100, max: 200 }
+        { min: 100 },
       ],
       [
         "Less than 1",
@@ -3453,7 +3451,7 @@ export const initialLayerConfigurations = {
         "4 - 10",
         "10 - 20",
         "20 - 100",
-        "100 - 200"
+        "100 or More",
       ]
     ),
   },
@@ -3470,7 +3468,7 @@ export const initialLayerConfigurations = {
         { min: 600, max: 1500 },
         { min: 1500, max: 3000 },
         { min: 3000, max: 15000 },
-        { min: 15000, max: 30000 }
+        { min: 15000 },
       ],
       [
         "Less than 150",
@@ -3479,7 +3477,7 @@ export const initialLayerConfigurations = {
         "600 - 1,500",
         "1,500 - 3,000",
         "3,000 - 15,000",
-        "15,000 - 30,000"
+        "15,000 or More",
       ]
     ),
   },
@@ -3495,7 +3493,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25",
@@ -3504,7 +3502,7 @@ export const initialLayerConfigurations = {
         "100 - 250",
         "250 - 500",
         "500 - 2,500",
-        "2,500 - 5,000"
+        "2,500 or More",
       ]
     ),
   },
@@ -3520,7 +3518,7 @@ export const initialLayerConfigurations = {
         { min: 20, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 500 },
-        { min: 500, max: 1000 }
+        { min: 500 },
       ],
       [
         "Less than 5",
@@ -3529,7 +3527,7 @@ export const initialLayerConfigurations = {
         "20 - 50",
         "50 - 100",
         "100 - 500",
-        "500 - 1,000"
+        "500 or More",
       ]
     ),
   },
@@ -3545,7 +3543,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -3554,7 +3552,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -3570,7 +3568,7 @@ export const initialLayerConfigurations = {
         { min: 10, max: 25 },
         { min: 25, max: 50 },
         { min: 50, max: 200 },
-        { min: 200, max: 400 }
+        { min: 200 },
       ],
       [
         "Less than 2",
@@ -3579,7 +3577,7 @@ export const initialLayerConfigurations = {
         "10 - 25",
         "25 - 50",
         "50 - 200",
-        "200 - 400"
+        "200 or More",
       ]
     ),
   },
@@ -3595,7 +3593,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -3604,7 +3602,7 @@ export const initialLayerConfigurations = {
         "40 - 100",
         "100 - 200",
         "200 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -3620,7 +3618,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -3629,7 +3627,7 @@ export const initialLayerConfigurations = {
         "40 - 100",
         "100 - 200",
         "200 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -3646,7 +3644,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 10 },
         { min: 10, max: 15 },
         { min: 15, max: 25 },
-        { min: 25, max: 40 }
+        { min: 25 },
       ],
       [
         "Less than 3%",
@@ -3655,7 +3653,7 @@ export const initialLayerConfigurations = {
         "7% - 10%",
         "10% - 15%",
         "15% - 25%",
-        "25% - 40%"
+        "25% or More",
       ]
     ),
   },
@@ -3671,7 +3669,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 18 },
         { min: 18, max: 25 },
         { min: 25, max: 40 },
-        { min: 40, max: 60 }
+        { min: 40 },
       ],
       [
         "Less than 5%",
@@ -3680,7 +3678,7 @@ export const initialLayerConfigurations = {
         "12% - 18%",
         "18% - 25%",
         "25% - 40%",
-        "40% - 60%"
+        "40% or More",
       ]
     ),
   },
@@ -3696,7 +3694,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 18 },
         { min: 18, max: 25 },
         { min: 25, max: 40 },
-        { min: 40, max: 60 }
+        { min: 40 },
       ],
       [
         "Less than 5%",
@@ -3705,7 +3703,7 @@ export const initialLayerConfigurations = {
         "12% - 18%",
         "18% - 25%",
         "25% - 40%",
-        "40% - 60%"
+        "40% or More",
       ]
     ),
   },
@@ -3721,7 +3719,7 @@ export const initialLayerConfigurations = {
         { min: 7, max: 10 },
         { min: 10, max: 15 },
         { min: 15, max: 25 },
-        { min: 25, max: 40 }
+        { min: 25 },
       ],
       [
         "Less than 3%",
@@ -3730,7 +3728,7 @@ export const initialLayerConfigurations = {
         "7% - 10%",
         "10% - 15%",
         "15% - 25%",
-        "25% - 40%"
+        "25% or More",
       ]
     ),
   },
@@ -3746,7 +3744,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 18 },
         { min: 18, max: 25 },
         { min: 25, max: 40 },
-        { min: 40, max: 60 }
+        { min: 40 },
       ],
       [
         "Less than 5%",
@@ -3755,7 +3753,7 @@ export const initialLayerConfigurations = {
         "12% - 18%",
         "18% - 25%",
         "25% - 40%",
-        "40% - 60%"
+        "40% or More",
       ]
     ),
   },
@@ -3771,7 +3769,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 18 },
         { min: 18, max: 25 },
         { min: 25, max: 40 },
-        { min: 40, max: 60 }
+        { min: 40 },
       ],
       [
         "Less than 5%",
@@ -3780,7 +3778,7 @@ export const initialLayerConfigurations = {
         "12% - 18%",
         "18% - 25%",
         "25% - 40%",
-        "40% - 60%"
+        "40% or More",
       ]
     ),
   },
@@ -3796,7 +3794,7 @@ export const initialLayerConfigurations = {
         { min: 12, max: 18 },
         { min: 18, max: 25 },
         { min: 25, max: 40 },
-        { min: 40, max: 60 }
+        { min: 40 },
       ],
       [
         "Less than 5%",
@@ -3805,7 +3803,7 @@ export const initialLayerConfigurations = {
         "12% - 18%",
         "18% - 25%",
         "25% - 40%",
-        "40% - 60%"
+        "40% or More",
       ]
     ),
   },
@@ -3822,7 +3820,7 @@ export const initialLayerConfigurations = {
         { min: 200, max: 500 },
         { min: 500, max: 1000 },
         { min: 1000, max: 5000 },
-        { min: 5000, max: 10000 }
+        { min: 5000 },
       ],
       [
         "Less than 50",
@@ -3831,7 +3829,7 @@ export const initialLayerConfigurations = {
         "200 - 500",
         "500 - 1,000",
         "1,000 - 5,000",
-        "5,000 - 10,000"
+        "5,000 or More",
       ]
     ),
   },
@@ -3847,7 +3845,7 @@ export const initialLayerConfigurations = {
         { min: 800, max: 2000 },
         { min: 2000, max: 4000 },
         { min: 4000, max: 20000 },
-        { min: 20000, max: 40000 }
+        { min: 20000 },
       ],
       [
         "Less than 200",
@@ -3856,7 +3854,7 @@ export const initialLayerConfigurations = {
         "800 - 2,000",
         "2,000 - 4,000",
         "4,000 - 20,000",
-        "20,000 - 40,000"
+        "20,000 or More",
       ]
     ),
   },
@@ -3872,7 +3870,7 @@ export const initialLayerConfigurations = {
         { min: 100, max: 250 },
         { min: 250, max: 500 },
         { min: 500, max: 2500 },
-        { min: 2500, max: 5000 }
+        { min: 2500 },
       ],
       [
         "Less than 25",
@@ -3881,7 +3879,7 @@ export const initialLayerConfigurations = {
         "100 - 250",
         "250 - 500",
         "500 - 2,500",
-        "2,500 - 5,000"
+        "2,500 or More",
       ]
     ),
   },
@@ -3897,7 +3895,7 @@ export const initialLayerConfigurations = {
         { min: 20, max: 50 },
         { min: 50, max: 100 },
         { min: 100, max: 500 },
-        { min: 500, max: 1000 }
+        { min: 500 },
       ],
       [
         "Less than 5",
@@ -3906,7 +3904,7 @@ export const initialLayerConfigurations = {
         "20 - 50",
         "50 - 100",
         "100 - 500",
-        "500 - 1,000"
+        "500 or More",
       ]
     ),
   },
@@ -3922,7 +3920,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -3931,7 +3929,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -3947,7 +3945,7 @@ export const initialLayerConfigurations = {
         { min: 10, max: 25 },
         { min: 25, max: 50 },
         { min: 50, max: 200 },
-        { min: 200, max: 400 }
+        { min: 200 },
       ],
       [
         "Less than 2",
@@ -3956,7 +3954,7 @@ export const initialLayerConfigurations = {
         "10 - 25",
         "25 - 50",
         "50 - 200",
-        "200 - 400"
+        "200 or More",
       ]
     ),
   },
@@ -3972,7 +3970,7 @@ export const initialLayerConfigurations = {
         { min: 40, max: 100 },
         { min: 100, max: 200 },
         { min: 200, max: 1000 },
-        { min: 1000, max: 2000 }
+        { min: 1000 },
       ],
       [
         "Less than 10",
@@ -3981,7 +3979,7 @@ export const initialLayerConfigurations = {
         "40 - 100",
         "100 - 200",
         "200 - 1,000",
-        "1,000 - 2,000"
+        "1,000 or More",
       ]
     ),
   },
@@ -3997,7 +3995,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 150 },
         { min: 150, max: 300 },
         { min: 300, max: 1500 },
-        { min: 1500, max: 3000 }
+        { min: 1500 },
       ],
       [
         "Less than 15",
@@ -4006,7 +4004,7 @@ export const initialLayerConfigurations = {
         "60 - 150",
         "150 - 300",
         "300 - 1,500",
-        "1,500 - 3,000"
+        "1,500 or More",
       ]
     ),
   },
@@ -4022,7 +4020,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 75 },
         { min: 75, max: 85 },
         { min: 85, max: 95 },
-        { min: 95, max: 100 }
+        { min: 95 },
       ],
       [
         "Less than 20",
@@ -4031,7 +4029,7 @@ export const initialLayerConfigurations = {
         "60 - 75",
         "75 - 85",
         "85 - 95",
-        "95 - 100"
+        "95 or More",
       ]
     ),
   },
@@ -4047,7 +4045,7 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 50000 },
-        { min: 50000, max: 100000 }
+        { min: 50000 },
       ],
       [
         "Less than 500",
@@ -4056,7 +4054,7 @@ export const initialLayerConfigurations = {
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 50,000",
-        "50,000 - 100,000"
+        "50,000 or More",
       ]
     ),
   },
@@ -4072,7 +4070,7 @@ export const initialLayerConfigurations = {
         { min: 1200, max: 3000 },
         { min: 3000, max: 6000 },
         { min: 6000, max: 30000 },
-        { min: 30000, max: 60000 }
+        { min: 30000 },
       ],
       [
         "Less than 300",
@@ -4081,7 +4079,7 @@ export const initialLayerConfigurations = {
         "1,200 - 3,000",
         "3,000 - 6,000",
         "6,000 - 30,000",
-        "30,000 - 60,000"
+        "30,000 or More",
       ]
     ),
   },
@@ -4097,7 +4095,7 @@ export const initialLayerConfigurations = {
         { min: 2000, max: 5000 },
         { min: 5000, max: 10000 },
         { min: 10000, max: 50000 },
-        { min: 50000, max: 100000 }
+        { min: 50000 },
       ],
       [
         "Less than 500",
@@ -4106,7 +4104,7 @@ export const initialLayerConfigurations = {
         "2,000 - 5,000",
         "5,000 - 10,000",
         "10,000 - 50,000",
-        "50,000 - 100,000"
+        "50,000 or More",
       ]
     ),
   },
@@ -4122,7 +4120,7 @@ export const initialLayerConfigurations = {
         { min: 3, max: 4 },
         { min: 4, max: 5 },
         { min: 5, max: 7 },
-        { min: 7, max: 10 }
+        { min: 7 },
       ],
       [
         "Less than 1%",
@@ -4131,7 +4129,7 @@ export const initialLayerConfigurations = {
         "3% - 4%",
         "4% - 5%",
         "5% - 7%",
-        "7% - 10%"
+        "7% or More",
       ]
     ),
   },
@@ -4147,7 +4145,7 @@ export const initialLayerConfigurations = {
         { min: 60, max: 75 },
         { min: 75, max: 85 },
         { min: 85, max: 95 },
-        { min: 95, max: 100 }
+        { min: 95 },
       ],
       [
         "Less than 20",
@@ -4156,7 +4154,7 @@ export const initialLayerConfigurations = {
         "60 - 75",
         "75 - 85",
         "85 - 95",
-        "95 - 100"
+        "95 or More",
       ]
     ),
   },
@@ -4172,7 +4170,7 @@ export const initialLayerConfigurations = {
         { min: 45000, max: 60000 },
         { min: 60000, max: 80000 },
         { min: 80000, max: 150000 },
-        { min: 150000, max: 250000 }
+        { min: 150000 },
       ],
       [
         "Less than $25,000",
@@ -4181,11 +4179,10 @@ export const initialLayerConfigurations = {
         "$45,000 - $60,000",
         "$60,000 - $80,000",
         "$80,000 - $150,000",
-        "$150,000 - $250,000"
+        "$150,000 or More",
       ]
     ),
   },
-
 
   // Dot Density Configurations (UNCHANGED - these use different visualization method)
   TOTPOP_CY: {

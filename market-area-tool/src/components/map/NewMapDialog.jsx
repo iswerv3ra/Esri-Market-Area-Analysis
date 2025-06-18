@@ -77,53 +77,88 @@ const TCG_COLORS = {
   'Carbon Gray Light': [174, 170, 170]
 };
 
+
+
+// New 7-level color scheme to replace TCG colors
+const COLOR_SCHEME = {
+    level1: [128, 0, 128, 0.35], // Purple
+    level2: [0, 0, 139, 0.20], // Dark blue
+    level3: [135, 206, 235, 0.35], // Sky blue
+    level4: [144, 238, 144, 0.35], // Light green
+    level5: [255, 255, 144, 0.35], // Light yellow
+    level6: [255, 165, 0, 0.15], // Orange
+    level7: [255, 99, 71, 0.15], // Salmon red
+  };
+
 /**
- * Gets the appropriate TCG color for each break with custom opacity values
+ * Gets the appropriate color for each break using the new 7-level color scheme
  * @param {number} index - Index of the break (0-based)
  * @param {number} totalBreaks - Total number of breaks (1-10)
  * @param {string} returnFormat - 'array' for [r,g,b,a] or 'string' for CSS
  * @return {Array|string} - Color in requested format
  */
 const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
-  // TCG Color palette with RGB values and custom opacity mappings
-  const TCG_COLORS_WITH_OPACITY = {
-    'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
-    'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
-    'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
-    'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
-    'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
-    'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
-    'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
-    'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
-    'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
-    'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
-  };
-  
-  // Complete color mappings for all break levels (1-10)
+  // Define color mappings for different break counts using the 7-level scheme
   const colorMappings = {
-    1: ['TCG Red Dark'],
-    2: ['TCG Red Dark', 'TCG Orange Dark'],
-    3: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Green Dark'],
-    4: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Cyan Dark'],
-    5: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark'],
-    6: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark'],
-    7: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark'],
-    8: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark'],
-    9: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark'],
-    10: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark', 'Carbon Gray Light']
+    1: ['level1'],
+    2: ['level1', 'level7'],
+    3: ['level1', 'level4', 'level7'],
+    4: ['level1', 'level3', 'level5', 'level7'],
+    5: ['level1', 'level2', 'level4', 'level6', 'level7'],
+    6: ['level1', 'level2', 'level3', 'level5', 'level6', 'level7'],
+    7: ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7'],
+    8: ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'level1'], 
+    9: ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'level1', 'level2'], 
+    10: ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7', 'level1', 'level2', 'level3']
   };
   
   // Validate inputs and get appropriate color mapping
   const validBreakCount = Math.max(1, Math.min(10, Math.floor(totalBreaks)));
   const validIndex = Math.max(0, Math.min(validBreakCount - 1, index));
-  const colorNames = colorMappings[validBreakCount] || colorMappings[10];
-  const colorName = colorNames[validIndex];
+  const colorKeys = colorMappings[validBreakCount] || colorMappings[7];
+  const colorKey = colorKeys[validIndex];
   
-  // Get color array with predefined opacity (RGBA format)
-  const colorArray = TCG_COLORS_WITH_OPACITY[colorName];
+  // Get color array from the color scheme (RGBA format)
+  const colorArray = COLOR_SCHEME[colorKey] || COLOR_SCHEME.level1;
   
   // Return in requested format
-  return returnFormat === 'string' ? formatColorForDisplay(colorArray) : colorArray;
+  return returnFormat === 'string' ? formatColorForDisplay([...colorArray]) : [...colorArray];
+};
+
+// ===================================================================
+// 2. ADD: The createClassBreaks function (add this near other helper functions)
+// ===================================================================
+
+/**
+ * Creates class breaks for data visualization using the new 7-level color scheme
+ * @param {Array} breakPoints - Array of break point objects with min/max values
+ * @param {Array} labels - Array of labels for each break
+ * @return {Array} - Array of class break objects with new color scheme
+ */
+const createClassBreaks = (breakPoints, labels) => {
+  return breakPoints.map((point, index) => {
+    // Get color using the new color scheme
+    const colorArray = getBreakColor(index, breakPoints.length, 'array');
+    
+    return {
+      minValue: point.min === undefined ? -Infinity : point.min,
+      maxValue: point.max === undefined ? Infinity : point.max,
+      symbol: {
+        type: "simple-fill",
+        color: [...colorArray], // Use new color scheme
+        outline: {
+          color: [50, 50, 50, 0.2],
+          width: "0.5px",
+        },
+      },
+      label: labels[index],
+      // Add metadata to help preserve the new color scheme
+      preserveOpacity: true,
+      originalOpacity: colorArray[3],
+      hasCustomOpacities: true,
+      colorSchemeLevel: `level${Math.min(index + 1, 7)}` // Track which level was used
+    };
+  });
 };
 
 
@@ -296,16 +331,6 @@ const calculateDataDrivenBreaks = (values, breakCount) => {
   return breaks;
 };
 
-/**
- * Generates table-driven class breaks for data visualization
- * with automatic distribution based on actual data values.
- * 
- * @param {Array} data - Array of data objects
- * @param {string} valueColumn - Column name for values
- * @param {Object} baseSymbolStyle - Base style for symbols (optional)
- * @param {number} customBreakCount - Custom break count (optional)
- * @return {Array} - Array of class break objects
- */
 const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {}, customBreakCount = null) => {
   // Validate inputs
   if (!data || data.length === 0 || !valueColumn) {
@@ -330,7 +355,7 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
   // Handle special case with single value
   if (values.length === 1) {
     const singleValue = smartRound(values[0]);
-    const colorArray = getBreakColor(0, 1);
+    const colorArray = getBreakColor(0, 1); // Use new color scheme
     
     return [{
       minValue: singleValue,
@@ -339,13 +364,17 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
       symbol: {
         type: "simple-marker",
         style: baseSymbolStyle.style || 'circle',
-        color: colorArray, // Store RGBA array directly, not formatted string
+        color: [...colorArray], // Use new color scheme
         size: baseSymbolStyle.size || 10,
         outline: {
           color: baseSymbolStyle.outline?.color || '#FFFFFF',
           width: Number(baseSymbolStyle.outline?.width) || 1
         }
-      }
+      },
+      preserveOpacity: true,
+      originalOpacity: colorArray[3],
+      hasCustomOpacities: true,
+      colorSchemeLevel: 'level1'
     }];
   }
 
@@ -354,17 +383,18 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
   const optimalBreakCount = customBreakCount !== null ? 
     customBreakCount : determineBreakCountByAreas(totalDataCount);
   
-  // console.log(`Data has ${totalDataCount} points, using ${optimalBreakCount} breaks`);
+  console.log(`Data has ${totalDataCount} points, using ${optimalBreakCount} breaks with new 7-level color scheme`);
   
   // Generate data-driven breaks based on the actual values
   const breakRanges = calculateDataDrivenBreaks(values, optimalBreakCount);
   const breaks = [];
   
-  // Create break objects with appropriate colors and labels
+  // Create break objects with appropriate colors and labels using new color scheme
   for (let i = 0; i < breakRanges.length; i++) {
     const range = breakRanges[i];
-    // Get color as RGBA array and preserve it as array (not string)
+    // Get color as RGBA array using new color scheme
     const colorArray = getBreakColor(i, breakRanges.length);
+    const colorLevel = `level${Math.min(i + 1, 7)}`;
     
     let label = '';
     if (i === 0 && breakRanges.length > 1) {
@@ -382,17 +412,23 @@ const generateTableDrivenClassBreaks = (data, valueColumn, baseSymbolStyle = {},
       symbol: {
         type: "simple-marker",
         style: baseSymbolStyle.style || 'circle',
-        color: colorArray, // FIXED: Store RGBA array directly to preserve individual opacity values
+        color: [...colorArray], // Store RGBA array with new color scheme
         size: baseSymbolStyle.size || 10,
         outline: {
           color: baseSymbolStyle.outline?.color || '#FFFFFF',
           width: Number(baseSymbolStyle.outline?.width) || 1
         }
-      }
+      },
+      // Add metadata for new color scheme
+      preserveOpacity: true,
+      originalOpacity: colorArray[3],
+      hasCustomOpacities: true,
+      colorSchemeLevel: colorLevel
     });
   }
 
-  // console.log("Generated data-driven class breaks with preserved opacity:", breaks);
+  console.log("Generated table-driven class breaks with new 7-level color scheme:", 
+    breaks.map((b, i) => `${i}: ${b.colorSchemeLevel}`).join(', '));
   return breaks;
 };
 
@@ -738,7 +774,7 @@ const formatColorForDisplay = (color) => {
 const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) => {
   // Determine break count
   const breakCount = determineBreakCountByAreas(dataCount);
-  console.log(`[HeatMap] Generating ${breakCount} breaks with custom opacity for ${dataCount} data points`);
+  console.log(`[HeatMap] Generating ${breakCount} breaks with new 7-level color scheme for ${dataCount} data points`);
   
   // Generate sample data for distribution if no real data provided
   const values = sampleData || Array.from({ length: dataCount }, (_, i) => i);
@@ -746,23 +782,15 @@ const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) =
   // Get data-driven break ranges
   const breakRanges = calculateDataDrivenBreaks(values, breakCount);
   
-  // Create break objects with custom opacity colors - this is the key fix
+  // Create break objects with new color scheme
   const breaks = breakRanges.map((range, index) => {
-    // Get color as RGBA array with custom opacity
+    // Get color as RGBA array with new color scheme
     const colorArray = getBreakColor(index, breakCount, 'array');
+    const colorLevel = `level${Math.min(index + 1, 7)}`;
     
-    // Ensure we have a proper RGBA array with the custom opacity
-    let finalColorArray;
-    if (Array.isArray(colorArray) && colorArray.length >= 4) {
-      finalColorArray = [...colorArray]; // Use the custom opacity from getBreakColor
-    } else {
-      // Fallback if getBreakColor doesn't return proper array
-      finalColorArray = [255, 0, 0, 0.4]; // Default red with 40% opacity
-    }
-    
-    // Log the opacity for debugging
-    const opacityPercent = Math.round(finalColorArray[3] * 100);
-    console.log(`[HeatMap] Break ${index}: Color [${finalColorArray[0]}, ${finalColorArray[1]}, ${finalColorArray[2]}] with ${opacityPercent}% opacity`);
+    // Log the color and opacity for debugging
+    const opacityPercent = Math.round(colorArray[3] * 100);
+    console.log(`[HeatMap] Break ${index}: Using ${colorLevel} - RGBA[${colorArray[0]}, ${colorArray[1]}, ${colorArray[2]}, ${colorArray[3]}] with ${opacityPercent}% opacity`);
     
     let label = '';
     if (index === 0 && breakRanges.length > 1) {
@@ -780,25 +808,27 @@ const generateGenericHeatmapClassBreaks = (dataCount = 100, sampleData = null) =
       symbol: { 
         type: "simple-fill", 
         style: "solid", 
-        color: finalColorArray, // Use the custom opacity color array
+        color: [...colorArray], // Use new color scheme with preserved opacity
         outline: { 
           color: 'rgba(255, 255, 255, 0.5)', 
           width: 0.5 
         }
       },
-      // Add metadata to help preserve opacity during edits
+      // Add metadata to help preserve new color scheme during edits
       preserveOpacity: true,
-      originalOpacity: finalColorArray[3],
-      hasCustomOpacities: true
+      originalOpacity: colorArray[3],
+      hasCustomOpacities: true,
+      colorSchemeLevel: colorLevel
     };
   });
   
-  console.log('[HeatMap] Generated breaks with custom opacity values:', 
-    breaks.map((b, i) => `${i}: ${Math.round(b.symbol.color[3] * 100)}%`).join(', ')
+  console.log('[HeatMap] Generated breaks with new 7-level color scheme:', 
+    breaks.map((b, i) => `${i}: ${b.colorSchemeLevel} (${Math.round(b.symbol.color[3] * 100)}%)`).join(', ')
   );
   
   return breaks;
 };
+
 
 // Helper to infer value format
 const getValueFormatForColumn = (columnName, value) => {

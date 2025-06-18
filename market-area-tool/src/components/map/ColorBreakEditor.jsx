@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, RotateCcw } from 'lucide-react'; // Import RotateCcw for the reset icon
 import NumberRangeInput from './NumberRangeInput';
+import { initialLayerConfigurations } from './mapConfig'; // Import the true default configurations
 
 const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'income' }) => {
   const [transparency, setTransparency] = useState(40);
   const [minRange, setMinRange] = useState(0);
   const [maxRange, setMaxRange] = useState(0);
+  
   // Enhanced initial state setup with comprehensive data format handling
   const initializeBreaksState = (breaksData) => {
     if (!breaksData) return [];
@@ -36,58 +38,74 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
   const [originalLabels, setOriginalLabels] = useState({});
   const [customLabelSuffix, setCustomLabelSuffix] = useState('');
   
-  // Enhanced decimal places initialization - check for existing config value first
-  const getInitialDecimalPlaces = () => {
-    // First check if decimalPlaces exists in the breaks configuration object
-    if (breaks && typeof breaks === 'object' && breaks.decimalPlaces !== undefined) {
-      const configDecimalPlaces = parseInt(breaks.decimalPlaces);
-      if (Number.isInteger(configDecimalPlaces) && configDecimalPlaces >= 0 && configDecimalPlaces <= 4) {
-        console.log('[ColorBreakEditor] Loading decimal places from breaks config:', configDecimalPlaces);
-        return configDecimalPlaces;
+  // Enhanced number format initialization - check for existing config value first
+  const getInitialNumberFormat = () => {
+    // First check if numberFormat exists in the breaks configuration object
+    if (breaks && typeof breaks === 'object' && breaks.numberFormat !== undefined) {
+      const configNumberFormat = breaks.numberFormat;
+      if (['number', 'decimal', 'currency', 'percentage'].includes(configNumberFormat)) {
+        console.log('[ColorBreakEditor] Loading number format from breaks config:', configNumberFormat);
+        return configNumberFormat;
       }
     }
     
     // Check if breaks is an array with a parent config object
-    if (Array.isArray(breaks) && breaks.length > 0 && breaks.decimalPlaces !== undefined) {
-      const configDecimalPlaces = parseInt(breaks.decimalPlaces);
-      if (Number.isInteger(configDecimalPlaces) && configDecimalPlaces >= 0 && configDecimalPlaces <= 4) {
-        console.log('[ColorBreakEditor] Loading decimal places from breaks array config:', configDecimalPlaces);
-        return configDecimalPlaces;
+    if (Array.isArray(breaks) && breaks.length > 0 && breaks.numberFormat !== undefined) {
+      const configNumberFormat = breaks.numberFormat;
+      if (['number', 'decimal', 'currency', 'percentage'].includes(configNumberFormat)) {
+        console.log('[ColorBreakEditor] Loading number format from breaks array config:', configNumberFormat);
+        return configNumberFormat;
       }
     }
     
     // Check if passed in window context (common pattern for layer configs)
-    if (typeof window !== 'undefined' && window.currentLayerConfig && window.currentLayerConfig.decimalPlaces !== undefined) {
-      const contextDecimalPlaces = parseInt(window.currentLayerConfig.decimalPlaces);
-      if (Number.isInteger(contextDecimalPlaces) && contextDecimalPlaces >= 0 && contextDecimalPlaces <= 4) {
-        console.log('[ColorBreakEditor] Loading decimal places from window context:', contextDecimalPlaces);
-        return contextDecimalPlaces;
+    if (typeof window !== 'undefined' && window.currentLayerConfig && window.currentLayerConfig.numberFormat !== undefined) {
+      const contextNumberFormat = window.currentLayerConfig.numberFormat;
+      if (['number', 'decimal', 'currency', 'percentage'].includes(contextNumberFormat)) {
+        console.log('[ColorBreakEditor] Loading number format from window context:', contextNumberFormat);
+        return contextNumberFormat;
       }
     }
     
+    // Legacy support: check for decimalPlaces and convert to numberFormat
+    let legacyDecimalPlaces = null;
+    if (breaks && typeof breaks === 'object' && breaks.decimalPlaces !== undefined) {
+      legacyDecimalPlaces = breaks.decimalPlaces;
+    } else if (Array.isArray(breaks) && breaks.length > 0 && breaks.decimalPlaces !== undefined) {
+      legacyDecimalPlaces = breaks.decimalPlaces;
+    } else if (typeof window !== 'undefined' && window.currentLayerConfig?.decimalPlaces !== undefined) {
+      legacyDecimalPlaces = window.currentLayerConfig.decimalPlaces;
+    }
+    
+    if (legacyDecimalPlaces !== null && Number.isInteger(legacyDecimalPlaces)) {
+      const convertedFormat = legacyDecimalPlaces === 0 ? 'number' : 'decimal';
+      console.log('[ColorBreakEditor] Converting legacy decimalPlaces to numberFormat:', legacyDecimalPlaces, '→', convertedFormat);
+      return convertedFormat;
+    }
+    
     // Fallback to visualization type logic
-    const fallbackValue = visualizationType === 'income' ? 0 : 2;
-    console.log('[ColorBreakEditor] Using fallback decimal places for visualization type:', visualizationType, '→', fallbackValue);
+    const fallbackValue = visualizationType === 'income' ? 'currency' : 'number';
+    console.log('[ColorBreakEditor] Using fallback number format for visualization type:', visualizationType, '→', fallbackValue);
     return fallbackValue;
   };
   
-  const [decimalPlaces, setDecimalPlaces] = useState(getInitialDecimalPlaces());
+  const [numberFormat, setNumberFormat] = useState(getInitialNumberFormat());
   
   // Track the dropdown value separately to ensure proper synchronization
-  const [dropdownDecimalPlaces, setDropdownDecimalPlaces] = useState(decimalPlaces);
+  const [dropdownNumberFormat, setDropdownNumberFormat] = useState(numberFormat);
   
   // Refs for debouncing with extended delays
   const transparencyTimeoutRef = useRef(null);
   const breakTimeoutRefs = useRef({});
   
-  // Track user interaction with decimal places to prevent auto-override
-  const userHasChangedDecimalPlaces = useRef(false);
+  // Track user interaction with number format to prevent auto-override
+  const userHasChangedNumberFormat = useRef(false);
 
   // Extended debounce delays (4.5 seconds for most operations)
-  const EXTENDED_DEBOUNCE_DELAY = 4500; // 4.5 seconds
-  const QUICK_DEBOUNCE_DELAY = 2000; // 2 seconds for less critical operations
-  const VALUE_DEBOUNCE_DELAY = 5000; // 5 seconds for min/max value changes
-
+  const EXTENDED_DEBOUNCE_DELAY = 1000; // 4.5 seconds
+  const QUICK_DEBOUNCE_DELAY = 1000; // 2 seconds for less critical operations
+  const VALUE_DEBOUNCE_DELAY = 1000; // 5 seconds for min/max value change
+  
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -112,7 +130,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     // Extract suffix after the last number in each label
     const suffixes = labels.map(label => {
       // Find all numbers in the label (including decimals and commas)
-      const numbers = label.match(/\d+(?:,\d{3})*(?:\.\d+)?/g);
+      const numbers = label.match(/-?\d+(?:,\d{3})*(?:\.\d+)?/g);
       if (numbers && numbers.length > 0) {
         // Get the last number found
         const lastNumber = numbers[numbers.length - 1];
@@ -156,10 +174,10 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
       
       // Auto-generated patterns WITHOUT suffixes (pure numeric)
       const autoGeneratedPatterns = [
-        /^less than \d+(?:,\d{3})*(?:\.\d+)?$/,                 // "Less than 30.0" (pure numeric)
-        /^\d+(?:,\d{3})*(?:\.\d+)?\s*-\s*\d+(?:,\d{3})*(?:\.\d+)?$/,       // "30.0-35.0" (pure numeric)
-        /^\d+(?:,\d{3})*(?:\.\d+)?\s*to\s*\d+(?:,\d{3})*(?:\.\d+)?$/,      // "30.0 to 35.0" (pure numeric)
-        /^\d+(?:,\d{3})*(?:\.\d+)?\s*or more$/,                 // "65.0 or more" (pure numeric)
+        /^less than -?\d+(?:,\d{3})*(?:\.\d+)?$/,                 // "Less than 30.0" (pure numeric)
+        /^-?\d+(?:,\d{3})*(?:\.\d+)?\s*-\s*-?\d+(?:,\d{3})*(?:\.\d+)?$/,       // "30.0-35.0" (pure numeric)
+        /^-?\d+(?:,\d{3})*(?:\.\d+)?\s*to\s*-?\d+(?:,\d{3})*(?:\.\d+)?$/,      // "30.0 to 35.0" (pure numeric)
+        /^-?\d+(?:,\d{3})*(?:\.\d+)?\s*or more$/,                 // "65.0 or more" (pure numeric)
       ];
       
       // If it matches pure auto-generated patterns, it's not custom
@@ -240,294 +258,279 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     return hasSignificantVariation || hasHeatMapPattern;
   };
 
-    // Enhanced useEffect for initial data loading with improved decimal places detection
   useEffect(() => {
-    console.log('[ColorBreakEditor] Initializing with breaks data:', {
-      breaks: breaks,
-      breaksType: typeof breaks,
-      isArray: Array.isArray(breaks),
-      hasClassBreakInfos: breaks?.classBreakInfos,
-      timestamp: Date.now()
-    });
+      console.log('[ColorBreakEditor] Initializing with breaks data:', {
+        breaks: breaks,
+        breaksType: typeof breaks,
+        isArray: Array.isArray(breaks),
+        hasClassBreakInfos: breaks?.classBreakInfos,
+        timestamp: Date.now()
+      });
 
-    // Enhanced data format handling with better validation
-    let breaksArray = [];
-    let configObject = null;
-    
-    if (breaks) {
-      if (Array.isArray(breaks)) {
-        // breaks is already an array
-        breaksArray = breaks;
-        configObject = breaks; // May have additional properties
-      } else if (breaks.classBreakInfos && Array.isArray(breaks.classBreakInfos)) {
-        // breaks is a config object with classBreakInfos array
-        breaksArray = breaks.classBreakInfos;
-        configObject = breaks;
-      } else if (typeof breaks === 'object' && breaks.length === undefined) {
-        // breaks is a single object, wrap in array
-        breaksArray = [breaks];
-        configObject = { classBreakInfos: [breaks] };
-      } else {
-        console.warn('[ColorBreakEditor] Invalid breaks format, using empty array:', breaks);
-        breaksArray = [];
-        configObject = { classBreakInfos: [] };
+      // Enhanced data format handling with better validation
+      let breaksArray = [];
+      let configObject = null;
+      
+      if (breaks) {
+        if (Array.isArray(breaks)) {
+          // breaks is already an array
+          breaksArray = breaks;
+          configObject = breaks; // May have additional properties
+        } else if (breaks.classBreakInfos && Array.isArray(breaks.classBreakInfos)) {
+          // breaks is a config object with classBreakInfos array
+          breaksArray = breaks.classBreakInfos;
+          configObject = breaks;
+        } else if (typeof breaks === 'object' && breaks.length === undefined) {
+          // breaks is a single object, wrap in array
+          breaksArray = [breaks];
+          configObject = { classBreakInfos: [breaks] };
+        } else {
+          console.warn('[ColorBreakEditor] Invalid breaks format, using empty array:', breaks);
+          breaksArray = [];
+          configObject = { classBreakInfos: [] };
+        }
       }
-    }
 
-    // Early validation to prevent 50/50 loading issues
-    if (!breaksArray || breaksArray.length === 0) {
-      console.warn('[ColorBreakEditor] No breaks data available, initializing empty state');
-      setLocalBreaks([]);
-      setMinRange(0);
-      setMaxRange(100);
-      setTransparency(40);
-      setHasCustomOpacities(false);
-      setHasCustomLabels(false);
-      setCustomLabelSuffix('');
-      return;
-    }
-
-    console.log('[ColorBreakEditor] Processing breaks array:', {
-      length: breaksArray.length,
-      firstBreak: breaksArray[0],
-      lastBreak: breaksArray[breaksArray.length - 1]
-    });
-
-    try {
-      // Enhanced break normalization with comprehensive error handling
-      const normalizedBreaks = breaksArray.map((breakItem, index) => {
-        // Validate break item structure
-        if (!breakItem || typeof breakItem !== 'object') {
-          console.error(`[ColorBreakEditor] Invalid break item at index ${index}:`, breakItem);
-          return null;
-        }
-
-        // Ensure required properties exist
-        const normalizedBreak = {
-          minValue: breakItem.minValue ?? 0,
-          maxValue: breakItem.maxValue ?? 100,
-          label: breakItem.label || '',
-          symbol: breakItem.symbol || {
-            type: "simple-fill",
-            color: [128, 128, 128, 0.65],
-            outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
-          }
-        };
-
-        // Handle Infinity values more robustly
-        if (normalizedBreak.maxValue === Infinity) {
-          const prevBreak = index > 0 ? breaksArray[index - 1] : null;
-          if (prevBreak && typeof prevBreak.maxValue === 'number') {
-            normalizedBreak.maxValue = prevBreak.maxValue * 2;
-          } else {
-            normalizedBreak.maxValue = normalizedBreak.minValue * 2 || 100;
-          }
-          console.log(`[ColorBreakEditor] Converted Infinity to ${normalizedBreak.maxValue} for break ${index}`);
-        }
-
-        // Preserve any custom opacity metadata from heat maps (but allow user override)
-        if (!userOverrideCustom && breakItem.originalOpacity !== undefined && Array.isArray(breakItem.symbol.color)) {
-          normalizedBreak.symbol.color[3] = breakItem.originalOpacity;
-          normalizedBreak.preserveOpacity = true;
-        }
-        
-        // Preserve custom opacity flags only if user hasn't overridden
-        if (!userOverrideCustom) {
-          if (breakItem.preserveOpacity) {
-            normalizedBreak.preserveOpacity = true;
-          }
-          if (breakItem.hasCustomOpacities) {
-            normalizedBreak.hasCustomOpacities = true;
-          }
-        }
-
-        return normalizedBreak;
-      }).filter(Boolean); // Remove any null entries from validation failures
-
-      // Additional validation after normalization
-      if (normalizedBreaks.length === 0) {
-        console.error('[ColorBreakEditor] All breaks failed validation, initializing empty state');
+      // Early validation to prevent 50/50 loading issues
+      if (!breaksArray || breaksArray.length === 0) {
+        console.warn('[ColorBreakEditor] No breaks data available, initializing empty state');
         setLocalBreaks([]);
+        setMinRange(0);
+        setMaxRange(100);
+        setTransparency(40);
+        setHasCustomOpacities(false);
+        setHasCustomLabels(false);
+        setCustomLabelSuffix('');
         return;
       }
 
-      console.log('[ColorBreakEditor] Breaks normalized successfully:', {
-        originalLength: breaksArray.length,
-        normalizedLength: normalizedBreaks.length,
-        breaks: normalizedBreaks.map(b => ({ min: b.minValue, max: b.maxValue, label: b.label }))
+      console.log('[ColorBreakEditor] Processing breaks array:', {
+        length: breaksArray.length,
+        firstBreak: breaksArray[0],
+        lastBreak: breaksArray[breaksArray.length - 1]
       });
 
-      // Set local breaks immediately to prevent rendering delays
-      setLocalBreaks(normalizedBreaks);
-      
-      // Enhanced min/max range calculation with better error handling
       try {
-        const firstBreak = normalizedBreaks[0];
-        const lastBreak = normalizedBreaks[normalizedBreaks.length - 1];
-        
-        if (firstBreak?.maxValue !== undefined && lastBreak?.minValue !== undefined) {
-          const minRangeValue = firstBreak.maxValue;
-          const maxRangeValue = lastBreak.maxValue || lastBreak.minValue * 2;
-          
-          setMinRange(minRangeValue);
-          setMaxRange(maxRangeValue);
-          
-          console.log('[ColorBreakEditor] Range values set:', {
-            minRange: minRangeValue,
-            maxRange: maxRangeValue
-          });
-        }
-      } catch (rangeError) {
-        console.error('[ColorBreakEditor] Error setting range values:', rangeError);
-        setMinRange(0);
-        setMaxRange(100);
-      }
-
-      // Enhanced custom opacity detection with timing safeguards
-      setTimeout(() => {
-        try {
-          const hasCustom = detectCustomOpacities(normalizedBreaks);
-          setHasCustomOpacities(hasCustom);
-          console.log('[ColorBreakEditor] Custom opacities detected:', hasCustom);
-
-          if (hasCustom) {
-            console.log('[ColorBreakEditor] Custom opacity values:', 
-              normalizedBreaks.map((b, i) => {
-                const transparency = Array.isArray(b.symbol?.color) ? Math.round((1 - b.symbol.color[3]) * 100) : 35;
-                return `${i}: ${transparency}%`;
-              }).join(', ')
-            );
+        // Enhanced break normalization with comprehensive error handling
+        const normalizedBreaks = breaksArray.map((breakItem, index) => {
+          // Validate break item structure
+          if (!breakItem || typeof breakItem !== 'object') {
+            console.error(`[ColorBreakEditor] Invalid break item at index ${index}:`, breakItem);
+            return null;
           }
-        } catch (opacityError) {
-          console.error('[ColorBreakEditor] Error detecting custom opacities:', opacityError);
-          setHasCustomOpacities(false);
-        }
-      }, 50); // Small delay to ensure state is settled
 
-      // Enhanced custom labels detection with timing safeguards
-      setTimeout(() => {
-        try {
-          const hasCustomLabelsDetected = detectCustomLabels(normalizedBreaks);
-          setHasCustomLabels(hasCustomLabelsDetected);
-          console.log('[ColorBreakEditor] Custom labels detected:', hasCustomLabelsDetected);
+          // --- FIX STARTS HERE ---
+          // 1. Create the normalized object WITHOUT the aggressive `?? 100` fallback for maxValue.
+          const normalizedBreak = {
+            minValue: breakItem.minValue ?? 0,
+            maxValue: breakItem.maxValue, // Let it be null/undefined for now
+            label: breakItem.label || '',
+            symbol: breakItem.symbol || {
+              type: "simple-fill",
+              color: [128, 128, 128, 0.65],
+              outline: { color: [50, 50, 50, 0.2], width: "0.5px" }
+            }
+          };
 
-          if (hasCustomLabelsDetected) {
-            console.log('[ColorBreakEditor] Custom labels preserved:', 
-              normalizedBreaks.map((b, i) => `${i}: "${b.label}"`).join(', ')
-            );
+          // 2. Expand the check to handle Infinity, null, or undefined maxValues.
+          // This is crucial for open-ended final breaks.
+          if (normalizedBreak.maxValue === Infinity || normalizedBreak.maxValue === null || normalizedBreak.maxValue === undefined) {
+            // Calculate a sensible maximum value instead of using a hardcoded default.
+            const minVal = Number(normalizedBreak.minValue) || 0;
+            let calculatedMax = minVal + 1000; // A base fallback
+
+            // A much better approach: use the range of the previous break to estimate the range of the last one.
+            if (index > 0) {
+              const prevBreak = breaksArray[index - 1];
+              if (prevBreak && typeof prevBreak.maxValue === 'number' && typeof prevBreak.minValue === 'number') {
+                const prevRange = Math.abs(prevBreak.maxValue - prevBreak.minValue);
+                // Ensure the range is a positive number greater than 0
+                calculatedMax = minVal + (prevRange > 0 ? prevRange : 1000); 
+              }
+            }
+            normalizedBreak.maxValue = calculatedMax;
+            console.log(`[ColorBreakEditor] Calculated unbounded maxValue to ${normalizedBreak.maxValue} for break ${index}`);
           }
-        } catch (labelsError) {
-          console.error('[ColorBreakEditor] Error detecting custom labels:', labelsError);
-          setHasCustomLabels(false);
-        }
-      }, 75); // Slightly later to avoid race conditions
+          // --- FIX ENDS HERE ---
 
-      // Enhanced suffix extraction with error handling and timing
-      setTimeout(() => {
-        try {
-          const extractedSuffix = extractCommonSuffix(normalizedBreaks);
-          if (extractedSuffix) {
-            setCustomLabelSuffix(extractedSuffix);
-            console.log('[ColorBreakEditor] ✅ Extracted and set suffix from existing labels:', extractedSuffix);
-          } else if (!customLabelSuffix) {
-            // Only clear if no suffix was previously set by user
-            setCustomLabelSuffix('');
-            console.log('[ColorBreakEditor] No common suffix found in labels');
-          }
-        } catch (suffixError) {
-          console.error('[ColorBreakEditor] Error extracting suffix:', suffixError);
-          setCustomLabelSuffix('');
-        }
-      }, 100); // Latest timing to ensure all other processing is complete
-
-      // Enhanced transparency sync with better error handling
-      try {
-        const firstBreakColor = normalizedBreaks[0]?.symbol?.color;
-        if (Array.isArray(firstBreakColor) && firstBreakColor[3] !== undefined) {
-          const currentTransparency = Math.round((1 - firstBreakColor[3]) * 100);
-          setTransparency(currentTransparency);
-          console.log('[ColorBreakEditor] Transparency synced:', currentTransparency);
-        } else {
-          setTransparency(40); // Default value
-          console.log('[ColorBreakEditor] Using default transparency: 40%');
-        }
-      } catch (transparencyError) {
-        console.error('[ColorBreakEditor] Error syncing transparency:', transparencyError);
-        setTransparency(40);
-      }
-
-      // Enhanced decimal places initialization with improved config detection
-      if (!userHasChangedDecimalPlaces.current) {
-        try {
-          let configDecimalPlaces = null;
-          
-          // Check multiple sources for decimal places configuration
-          if (configObject && configObject.decimalPlaces !== undefined) {
-            configDecimalPlaces = configObject.decimalPlaces;
-          } else if (breaks && typeof breaks === 'object' && breaks.decimalPlaces !== undefined) {
-            configDecimalPlaces = breaks.decimalPlaces;
-          } else if (typeof window !== 'undefined' && window.currentLayerConfig?.decimalPlaces !== undefined) {
-            configDecimalPlaces = window.currentLayerConfig.decimalPlaces;
+          // Preserve any custom opacity metadata from heat maps (but allow user override)
+          if (!userOverrideCustom && breakItem.originalOpacity !== undefined && Array.isArray(breakItem.symbol.color)) {
+            normalizedBreak.symbol.color[3] = breakItem.originalOpacity;
+            normalizedBreak.preserveOpacity = true;
           }
           
-          if (configDecimalPlaces !== null && configDecimalPlaces !== undefined) {
-            const validDecimalPlaces = Number.isInteger(configDecimalPlaces) && configDecimalPlaces >= 0 && configDecimalPlaces <= 4 
-              ? configDecimalPlaces 
-              : getInitialDecimalPlaces();
-            
-            if (validDecimalPlaces !== decimalPlaces) {
-              console.log('[ColorBreakEditor] Updating decimal places from config during breaks load:', decimalPlaces, '→', validDecimalPlaces);
-              setDecimalPlaces(validDecimalPlaces);
-              setDropdownDecimalPlaces(validDecimalPlaces);
+          // Preserve custom opacity flags only if user hasn't overridden
+          if (!userOverrideCustom) {
+            if (breakItem.preserveOpacity) {
+              normalizedBreak.preserveOpacity = true;
+            }
+            if (breakItem.hasCustomOpacities) {
+              normalizedBreak.hasCustomOpacities = true;
             }
           }
-        } catch (decimalError) {
-          console.error('[ColorBreakEditor] Error setting decimal places from config:', decimalError);
+
+          return normalizedBreak;
+        }).filter(Boolean); // Remove any null entries from validation failures
+
+        // Additional validation after normalization
+        if (normalizedBreaks.length === 0) {
+          console.error('[ColorBreakEditor] All breaks failed validation, initializing empty state');
+          setLocalBreaks([]);
+          return;
         }
+
+        console.log('[ColorBreakEditor] Breaks normalized successfully:', {
+          originalLength: breaksArray.length,
+          normalizedLength: normalizedBreaks.length,
+          breaks: normalizedBreaks.map(b => ({ min: b.minValue, max: b.maxValue, label: b.label }))
+        });
+
+        // Set local breaks immediately to prevent rendering delays
+        setLocalBreaks(normalizedBreaks);
+        
+        // Enhanced min/max range calculation with better error handling
+        try {
+          const firstBreak = normalizedBreaks[0];
+          const lastBreak = normalizedBreaks[normalizedBreaks.length - 1];
+          
+          // Corrected the logic to check for the properties that are actually being used.
+          if (firstBreak?.maxValue !== undefined && lastBreak?.maxValue !== undefined) {
+              const minRangeValue = firstBreak.maxValue;
+              const maxRangeValue = lastBreak.maxValue; // This will now be the correctly calculated value
+              
+              setMinRange(minRangeValue);
+              setMaxRange(maxRangeValue);
+              
+              console.log('[ColorBreakEditor] Range values set:', {
+                minRange: minRangeValue,
+                maxRange: maxRangeValue
+              });
+          }
+        } catch (rangeError) {
+          console.error('[ColorBreakEditor] Error setting range values:', rangeError);
+          setMinRange(0);
+          setMaxRange(100);
+        }
+
+        // Enhanced custom opacity detection with timing safeguards
+        setTimeout(() => {
+          try {
+            const hasCustom = detectCustomOpacities(normalizedBreaks);
+            setHasCustomOpacities(hasCustom);
+          } catch (opacityError) {
+            console.error('[ColorBreakEditor] Error detecting custom opacities:', opacityError);
+            setHasCustomOpacities(false);
+          }
+        }, 50);
+
+        // Enhanced custom labels detection with timing safeguards
+        setTimeout(() => {
+          try {
+            const hasCustomLabelsDetected = detectCustomLabels(normalizedBreaks);
+            setHasCustomLabels(hasCustomLabelsDetected);
+          } catch (labelsError) {
+            console.error('[ColorBreakEditor] Error detecting custom labels:', labelsError);
+            setHasCustomLabels(false);
+          }
+        }, 75);
+
+        // Enhanced suffix extraction with error handling and timing
+        setTimeout(() => {
+          try {
+            const extractedSuffix = extractCommonSuffix(normalizedBreaks);
+            if (extractedSuffix) {
+              setCustomLabelSuffix(extractedSuffix);
+            } else if (!customLabelSuffix) {
+              setCustomLabelSuffix('');
+            }
+          } catch (suffixError) {
+            console.error('[ColorBreakEditor] Error extracting suffix:', suffixError);
+            setCustomLabelSuffix('');
+          }
+        }, 100);
+
+        // Enhanced transparency sync with better error handling
+        try {
+          const firstBreakColor = normalizedBreaks[0]?.symbol?.color;
+          if (Array.isArray(firstBreakColor) && firstBreakColor[3] !== undefined) {
+            const currentTransparency = Math.round((1 - firstBreakColor[3]) * 100);
+            setTransparency(currentTransparency);
+          } else {
+            setTransparency(40);
+          }
+        } catch (transparencyError) {
+          console.error('[ColorBreakEditor] Error syncing transparency:', transparencyError);
+          setTransparency(40);
+        }
+
+        // Enhanced number format initialization with improved config detection
+        if (!userHasChangedNumberFormat.current) {
+          try {
+            let configNumberFormat = null;
+            if (configObject?.numberFormat !== undefined) configNumberFormat = configObject.numberFormat;
+            else if (breaks?.numberFormat !== undefined) configNumberFormat = breaks.numberFormat;
+            else if (window.currentLayerConfig?.numberFormat !== undefined) configNumberFormat = window.currentLayerConfig.numberFormat;
+            if (configNumberFormat !== null) {
+              const validNumberFormat = ['number', 'decimal', 'currency', 'percentage'].includes(configNumberFormat) ? configNumberFormat : getInitialNumberFormat();
+              if (validNumberFormat !== numberFormat) {
+                setNumberFormat(validNumberFormat);
+                setDropdownNumberFormat(validNumberFormat);
+              }
+            }
+          } catch (formatError) {
+            console.error('[ColorBreakEditor] Error setting number format from config:', formatError);
+          }
+        }
+      } catch (initError) {
+        console.error('[ColorBreakEditor] Critical error during initialization:', initError);
+        setLocalBreaks([]);
+        setMinRange(0);
+        setMaxRange(100);
+        setTransparency(40);
+        setHasCustomOpacities(false);
+        setHasCustomLabels(false);
+        setCustomLabelSuffix('');
       }
-
-      console.log('[ColorBreakEditor] ✅ Initialization completed successfully');
-
-    } catch (initError) {
-      console.error('[ColorBreakEditor] Critical error during initialization:', initError);
-      // Fallback to safe default state
-      setLocalBreaks([]);
-      setMinRange(0);
-      setMaxRange(100);
-      setTransparency(40);
-      setHasCustomOpacities(false);
-      setHasCustomLabels(false);
-      setCustomLabelSuffix('');
-    }
-
   }, [breaks, userOverrideCustom]);
 
-  // Update decimal places when visualization type changes (only if user hasn't manually set it)
   const prevVisualizationTypeRef = useRef(visualizationType);
   useEffect(() => {
-    // Only auto-set decimal places if visualization type actually changed AND user hasn't manually set it
-    if (prevVisualizationTypeRef.current !== visualizationType && !userHasChangedDecimalPlaces.current) {
-      const newDecimalPlaces = visualizationType === 'income' ? 0 : 2;
-      if (decimalPlaces !== newDecimalPlaces) {
-        console.log('[ColorBreakEditor] Auto-setting decimal places for visualization type:', visualizationType, 'to:', newDecimalPlaces);
-        setDecimalPlaces(newDecimalPlaces);
-        setDropdownDecimalPlaces(newDecimalPlaces); // Sync dropdown state
+    if (prevVisualizationTypeRef.current !== visualizationType && !userHasChangedNumberFormat.current) {
+      const newNumberFormat = visualizationType === 'income' ? 'currency' : 'number';
+      if (numberFormat !== newNumberFormat) {
+        setNumberFormat(newNumberFormat);
+        setDropdownNumberFormat(newNumberFormat);
       }
       prevVisualizationTypeRef.current = visualizationType;
     }
-  }, [visualizationType, decimalPlaces]);
+  }, [visualizationType, numberFormat]);
 
-  // Sync dropdown state with main decimal places state to handle external changes
   useEffect(() => {
-    if (dropdownDecimalPlaces !== decimalPlaces) {
-      console.log('[ColorBreakEditor] Syncing dropdown state from', dropdownDecimalPlaces, 'to', decimalPlaces);
-      setDropdownDecimalPlaces(decimalPlaces);
+    if (dropdownNumberFormat !== numberFormat) {
+      setDropdownNumberFormat(numberFormat);
     }
-  }, [decimalPlaces, dropdownDecimalPlaces]);
+  }, [numberFormat, dropdownNumberFormat]);
 
-  // Enhanced guard with comprehensive type checking and fallback handling
+  const handleFocus = (event) => event.target.select();
+
+  const handleResetBreaks = () => {
+    if (window.confirm('Are you sure you want to reset all changes to their original defaults? This cannot be undone.')) {
+      console.log(`[ColorBreakEditor] Resetting to defaults for visualizationType: ${visualizationType}`);
+      
+      const defaultConfig = initialLayerConfigurations[visualizationType];
+      
+      if (!defaultConfig) {
+        console.error(`[ColorBreakEditor] Could not find default configuration for "${visualizationType}".`);
+        alert('Could not find default configuration to reset to.');
+        return;
+      }
+      
+      console.log('[ColorBreakEditor] Found default config. Calling onBreaksChange.', defaultConfig);
+      onBreaksChange(defaultConfig);
+    }
+  };
+
   if (!localBreaks || !Array.isArray(localBreaks) || localBreaks.length === 0) {
-    console.warn('[ColorBreakEditor] Invalid or empty localBreaks state:', localBreaks);
     return (
       <div className="p-4 text-gray-600 dark:text-gray-400">
         <div className="space-y-2">
@@ -543,308 +546,117 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
   }
 
   const formatValue = (value) => {
-    if (value === undefined || value === null) return '';
-    if (typeof value === 'number') {
-      if (decimalPlaces === 0) {
-        return Math.round(value).toLocaleString();
-      } else {
-        return value.toFixed(decimalPlaces);
-      }
+    if (value === undefined || value === null || typeof value !== 'number') return value || '';
+    switch (numberFormat) {
+      case 'number': return Math.round(value).toLocaleString();
+      case 'decimal': return value.toFixed(1);
+      case 'currency': return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(value));
+      case 'percentage': return `${value.toFixed(1)}%`;
+      default: return Math.round(value).toLocaleString();
     }
-    return value;
   };
 
   const getDisplayLabel = (breakItem, index) => {
     if (!breakItem) return '';
-    
-    const cleanNumber = (value) => {
-      if (value === undefined || value === null) return '';
-      if (typeof value === 'number') {
-        if (decimalPlaces === 0) {
-          return Math.round(value).toLocaleString();
-        } else {
-          return value.toFixed(decimalPlaces);
-        }
-      }
-      return value;
-    };
-
+    const cleanNumber = (value) => (value === undefined || value === null) ? '' : formatValue(value);
     const isFirst = index === 0;
     const isLast = index === localBreaks.length - 1;
-
     let baseLabel = '';
-    if (isFirst) {
-      baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
-    } else if (isLast) {
-      baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
-    } else {
-      baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
-    }
-
-    // Append custom suffix if provided
-    if (customLabelSuffix.trim()) {
-      baseLabel += ` ${customLabelSuffix.trim()}`;
-    }
-
+    if (isFirst) baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
+    else if (isLast) baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
+    else baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
+    if (customLabelSuffix.trim()) baseLabel += ` ${customLabelSuffix.trim()}`;
     return baseLabel;
   };
 
   const parseInputValue = (value) => {
-    if (value === '' || value === '-' || value === '.' || /^-?\d*\.?\d*$/.test(value)) {
-      return value;
-    }
-  
-    const cleanValue = String(value).replace(/,/g, '').trim();
-    
-    // Don't support Infinity anymore - parse as number instead
+    if (value === '' || value === '-') return value;
+    const cleanValue = String(value).replace(/[$,\s]/g, '').trim();
+    if (!/^-?\d*\.?\d*$/.test(cleanValue) || cleanValue === '.') return null;
     const numValue = parseFloat(cleanValue);
     return isNaN(numValue) ? null : numValue;
   };
 
-  // Enhanced breaks change handler that preserves decimal places in configuration
-  const handleBreaksChangeWithDecimalPlaces = (updatedBreaks, customDecimalPlaces = null) => {
-    // Ensure updatedBreaks is always an array of break objects
+  const handleBreaksChangeWithNumberFormat = (updatedBreaks, customNumberFormat = null) => {
     let breaksArray = [];
-    
-    if (Array.isArray(updatedBreaks)) {
-      breaksArray = updatedBreaks;
-    } else if (updatedBreaks && updatedBreaks.classBreakInfos && Array.isArray(updatedBreaks.classBreakInfos)) {
-      breaksArray = updatedBreaks.classBreakInfos;
-    } else if (updatedBreaks && typeof updatedBreaks === 'object') {
-      breaksArray = [updatedBreaks];
-    } else {
-      console.error('[ColorBreakEditor] Invalid breaks format in handleBreaksChangeWithDecimalPlaces:', updatedBreaks);
-      return;
-    }
-
-    // Use custom decimal places if provided, otherwise use current state
-    const currentDecimalPlaces = customDecimalPlaces !== null ? customDecimalPlaces : decimalPlaces;
-
-    // Always include the current decimal places setting in the configuration
-    // Pass the data in the format expected by the layer creation functions
-    const configWithDecimalPlaces = {
-      classBreakInfos: breaksArray,
-      decimalPlaces: currentDecimalPlaces,
-      type: 'class-breaks'
-    };
-    
-    console.log('[ColorBreakEditor] Passing config to parent:', configWithDecimalPlaces);
-    onBreaksChange(configWithDecimalPlaces);
+    if (Array.isArray(updatedBreaks)) breaksArray = updatedBreaks;
+    else if (updatedBreaks?.classBreakInfos) breaksArray = updatedBreaks.classBreakInfos;
+    else if (typeof updatedBreaks === 'object') breaksArray = [updatedBreaks];
+    else { console.error('[ColorBreakEditor] Invalid breaks format:', updatedBreaks); return; }
+    const currentNumberFormat = customNumberFormat ?? numberFormat;
+    onBreaksChange({ classBreakInfos: breaksArray, numberFormat: currentNumberFormat, type: 'class-breaks' });
   };
 
   const updateBreak = (index, field, value, immediate = false) => {
-    // Create a copy of local breaks for immediate UI updates
     const newLocalBreaks = [...localBreaks];
     const break_item = newLocalBreaks[index];
-    
+
     if (field === 'color') {
-      // Preserve existing alpha when changing color
       const existingAlpha = Array.isArray(break_item.symbol.color) ? break_item.symbol.color[3] : 0.65;
       break_item.symbol.color = hexToRgba(value, existingAlpha);
       setLocalBreaks(newLocalBreaks);
-      handleBreaksChangeWithDecimalPlaces(newLocalBreaks);
-      return;
-    } 
-    
-    // Handle individual break transparency with extended debounce
-    if (field === 'individualTransparency') {
-      // Clear existing timeout for this specific break
-      const timeoutKey = `${index}-transparency`;
-      if (breakTimeoutRefs.current[timeoutKey]) {
-        clearTimeout(breakTimeoutRefs.current[timeoutKey]);
-      }
-      
-      // Update local state immediately for responsive UI
-      const numValue = parseInt(value);
-      // Convert transparency percentage to opacity (invert the scale)
-      const alpha = (100 - numValue) / 100;
-      
-      // Update the specific break's transparency immediately in local state
-      if (Array.isArray(break_item.symbol.color)) {
-        break_item.symbol.color[3] = alpha;
-      } else {
-        break_item.symbol.color = hexToRgba(break_item.symbol.color, alpha);
-      }
-      setLocalBreaks(newLocalBreaks);
-      
-      // Mark that we now have custom opacities (unless user is deliberately making them uniform)
-      const allOpacities = newLocalBreaks.map(b => Math.round(((1 - (b.symbol?.color?.[3] || 0.35)) * 100)));
-      const allSame = allOpacities.every(o => o === allOpacities[0]);
-      setHasCustomOpacities(!allSame);
-      
-      // Extended debounced update to parent (4.5 seconds)
-      breakTimeoutRefs.current[timeoutKey] = setTimeout(() => {
-        handleBreaksChangeWithDecimalPlaces([...newLocalBreaks]);
-        console.log(`[ColorBreakEditor] Individual transparency updated after ${EXTENDED_DEBOUNCE_DELAY}ms delay`);
-      }, immediate ? 0 : EXTENDED_DEBOUNCE_DELAY);
+      handleBreaksChangeWithNumberFormat(newLocalBreaks);
       return;
     }
-    
-    // Handle global transparency with extended debounce - ALWAYS allow this to work
+
+    if (field === 'individualTransparency') {
+      const timeoutKey = `${index}-transparency`;
+      if (breakTimeoutRefs.current[timeoutKey]) clearTimeout(breakTimeoutRefs.current[timeoutKey]);
+      const numValue = parseInt(value, 10);
+      if (isNaN(numValue) || numValue < 0 || numValue > 100) return;
+      const alpha = (100 - numValue) / 100;
+      if (Array.isArray(break_item.symbol.color)) break_item.symbol.color[3] = alpha;
+      else break_item.symbol.color = hexToRgba(break_item.symbol.color, alpha);
+      setLocalBreaks(newLocalBreaks);
+      const allOpacities = newLocalBreaks.map(b => Math.round(((1 - (b.symbol?.color?.[3] || 0.35)) * 100)));
+      setHasCustomOpacities(!allOpacities.every(o => o === allOpacities[0]));
+      breakTimeoutRefs.current[timeoutKey] = setTimeout(() => handleBreaksChangeWithNumberFormat([...newLocalBreaks]), immediate ? 0 : EXTENDED_DEBOUNCE_DELAY);
+      return;
+    }
+
     if (field === 'transparency') {
-      // Update local state immediately for responsive UI
-      setTransparency(parseInt(value));
-      
-      // Clear existing timeout
-      if (transparencyTimeoutRef.current) {
-        clearTimeout(transparencyTimeoutRef.current);
-      }
-      
-      // Apply global transparency regardless of custom opacity status with extended delay
-      // This gives users control to override custom opacities using the global slider
+      const numValue = parseInt(value, 10);
+      if (isNaN(numValue) || numValue < 0 || numValue > 100) return;
+      setTransparency(numValue);
+      if (transparencyTimeoutRef.current) clearTimeout(transparencyTimeoutRef.current);
       transparencyTimeoutRef.current = setTimeout(() => {
-        const numValue = parseInt(value);
-        // Convert transparency percentage to opacity (invert the scale)
         const alpha = (100 - numValue) / 100;
-        const updatedBreaks = [...localBreaks];
-        
-        updatedBreaks.forEach(breakItem => {
-          if (Array.isArray(breakItem.symbol.color)) {
-            breakItem.symbol.color[3] = alpha;
-          } else {
-            breakItem.symbol.color = hexToRgba(breakItem.symbol.color, alpha);
-          }
-          
-          // Clear custom opacity flags when user explicitly sets global transparency
-          delete breakItem.preserveOpacity;
-          delete breakItem.hasCustomOpacities;
-          delete breakItem.originalOpacity;
+        const updatedBreaks = localBreaks.map(breakItem => {
+          const newBreak = { ...breakItem };
+          if (Array.isArray(newBreak.symbol.color)) newBreak.symbol.color[3] = alpha;
+          else newBreak.symbol.color = hexToRgba(newBreak.symbol.color, alpha);
+          delete newBreak.preserveOpacity;
+          return newBreak;
         });
-        
-        // When user uses global transparency, they're overriding custom settings
         setUserOverrideCustom(true);
         setHasCustomOpacities(false);
-        
-        handleBreaksChangeWithDecimalPlaces(updatedBreaks);
-        console.log(`[ColorBreakEditor] Global transparency updated after ${EXTENDED_DEBOUNCE_DELAY}ms delay`);
+        handleBreaksChangeWithNumberFormat(updatedBreaks);
       }, immediate ? 0 : EXTENDED_DEBOUNCE_DELAY);
       return;
     }
-  
-    // Handle min/max value updates with extended debouncing (5 seconds for value changes)
+
     if (field === 'maxValue' || field === 'minValue') {
-      const parsedValue = parseInputValue(value);
-      
-      // Update local state immediately for UI responsiveness
       break_item[field] = value;
       setLocalBreaks(newLocalBreaks);
-      
-      // Clear existing timeout for this break
       const timeoutKey = `${index}-${field}`;
-      if (breakTimeoutRefs.current[timeoutKey]) {
-        clearTimeout(breakTimeoutRefs.current[timeoutKey]);
-      }
-      
-      // Function to process the break update with full validation
-      const processBreakUpdate = () => {
-        const finalBreaks = [...localBreaks];
-        const finalBreakItem = finalBreaks[index];
-        
-        // Parse the final value
-        const finalParsedValue = parseInputValue(value);
-        if (finalParsedValue === null || typeof finalParsedValue === 'string') {
-          // If still not a valid number, try to convert or ignore
-          const numericValue = parseFloat(String(value).replace(/,/g, ''));
-          if (isNaN(numericValue)) return; // Ignore invalid input
-          finalBreakItem[field] = numericValue;
-        } else {
-          finalBreakItem[field] = finalParsedValue;
-        }
-        
-        // Function to parse break value safely
-        const parseBreakValue = (val) => {
-          return parseFloat(val);
-        };
-    
-        // Sort breaks based on their values, excluding first and last breaks
-        const sortBreaks = () => {
-          // Keep first and last breaks in place
-          const firstBreak = finalBreaks[0];
-          const lastBreak = finalBreaks[finalBreaks.length - 1];
-          
-          // Sort middle breaks
-          const middleBreaks = finalBreaks.slice(1, -1)
-            .sort((a, b) => {
-              const aVal = parseBreakValue(a.minValue);
-              const bVal = parseBreakValue(b.minValue);
-              return aVal - bVal;
-            });
-    
-          // Recombine breaks
-          return [firstBreak, ...middleBreaks, lastBreak];
-        };
-    
-        // Ensure breaks maintain proper sequence and continuity
-        const validateAndAdjustBreaks = (breaks) => {
-          // First sort the breaks
-          const sortedBreaks = sortBreaks();
-          
-          // Forward pass to ensure continuity
-          for (let i = 0; i < sortedBreaks.length - 1; i++) {
-            const current = sortedBreaks[i];
-            const next = sortedBreaks[i + 1];
-            
-            // Ensure current break's min is less than its max
-            if (parseBreakValue(current.minValue) >= parseBreakValue(current.maxValue)) {
-              current.maxValue = parseBreakValue(current.minValue) + 1;
-            }
-            
-            // Ensure current break's max equals next break's min for all except last break
-            if (i < sortedBreaks.length - 2) { // Only adjust when not dealing with last break
-              next.minValue = current.maxValue;
-            }
-          }
-          
-          // For the last break, check if max is greater than min but don't auto-adjust
-          const lastBreak = sortedBreaks[sortedBreaks.length - 1];
-          if (parseBreakValue(lastBreak.minValue) >= parseBreakValue(lastBreak.maxValue)) {
-            // Only adjust if there's an actual problem
-            if (field !== 'maxValue' || index !== sortedBreaks.length - 1) { 
-              // Don't auto-adjust if user is explicitly setting the max value of last break
-              lastBreak.maxValue = parseBreakValue(lastBreak.minValue) * 1.1;
-            }
-          }
-          
-          // Backward pass to maintain continuity for all except last break
-          for (let i = sortedBreaks.length - 2; i > 0; i--) {
-            const current = sortedBreaks[i];
-            const prev = sortedBreaks[i - 1];
-            
-            prev.maxValue = current.minValue;
-          }
-    
-          return sortedBreaks;
-        };
-    
-        // Apply validation and adjustments
-        const adjustedBreaks = validateAndAdjustBreaks(finalBreaks);
-    
-        // Update all labels
-        adjustedBreaks.forEach((breakItem, i) => {
-          breakItem.label = getDisplayLabel(breakItem, i);
-        });
-    
-        // Submit the final changes
-        handleBreaksChangeWithDecimalPlaces(adjustedBreaks);
-        console.log(`[ColorBreakEditor] Min/Max value updated after ${VALUE_DEBOUNCE_DELAY}ms delay`);
-      };
-      
-      // Execute immediately or with extended delay (5 seconds for value changes)
-      if (immediate) {
-        processBreakUpdate();
-      } else {
-        // Set extended debounced update
-        breakTimeoutRefs.current[timeoutKey] = setTimeout(processBreakUpdate, VALUE_DEBOUNCE_DELAY);
-      }
+      if (breakTimeoutRefs.current[timeoutKey]) clearTimeout(breakTimeoutRefs.current[timeoutKey]);
+      breakTimeoutRefs.current[timeoutKey] = setTimeout(() => {
+        const adjustedBreaks = [...localBreaks];
+        const targetBreak = adjustedBreaks[index];
+        const parsedVal = parseInputValue(targetBreak[field]);
+        if (parsedVal === null || isNaN(parsedVal)) return;
+        targetBreak[field] = parsedVal;
+        if (field === 'maxValue' && index < adjustedBreaks.length - 1) adjustedBreaks[index + 1].minValue = parsedVal;
+        if (field === 'minValue' && index > 0) adjustedBreaks[index - 1].maxValue = parsedVal;
+        adjustedBreaks.forEach((b, i) => { b.label = getDisplayLabel(b, i); });
+        handleBreaksChangeWithNumberFormat(adjustedBreaks);
+      }, immediate ? 0 : VALUE_DEBOUNCE_DELAY);
       return;
     }
   };
 
-  // Color conversion utilities
   const rgbaToHex = (rgba) => {
-    if (Array.isArray(rgba)) {
-      return `#${rgba[0].toString(16).padStart(2, '0')}${rgba[1].toString(16).padStart(2, '0')}${rgba[2].toString(16).padStart(2, '0')}`;
-    }
+    if (Array.isArray(rgba)) return `#${rgba[0].toString(16).padStart(2, '0')}${rgba[1].toString(16).padStart(2, '0')}${rgba[2].toString(16).padStart(2, '0')}`;
     return rgba;
   };
 
@@ -852,296 +664,109 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    // Use provided alpha or default to 0.65 (35% transparency) only if no alpha specified
     const finalAlpha = alpha !== null ? alpha : 0.65;
     return [r, g, b, finalAlpha];
   };
 
-  // Helper to get the current transparency value for a break (converted from opacity)
   const getBreakTransparency = (breakItem) => {
     if (Array.isArray(breakItem?.symbol?.color) && breakItem.symbol.color[3] !== undefined) {
-      // Convert opacity to transparency percentage
       return Math.round((1 - breakItem.symbol.color[3]) * 100);
     }
-    return 35; // Default transparency
+    return 35;
   };
 
   const addBreak = () => {
-    // Enhanced safety checks to prevent array method errors
-    if (!localBreaks || !Array.isArray(localBreaks) || localBreaks.length === 0) {
-      console.error('[ColorBreakEditor] Cannot add break: localBreaks is not a valid array:', localBreaks);
-      return;
-    }
-
+    if (!localBreaks || localBreaks.length === 0) return;
     const lastBreak = localBreaks[localBreaks.length - 1];
-    if (!lastBreak || typeof lastBreak.maxValue === 'undefined' || typeof lastBreak.minValue === 'undefined') {
-      console.error('[ColorBreakEditor] Cannot add break: last break is invalid:', lastBreak);
-      return;
-    }
-
+    if (!lastBreak) return;
     const lastMaxValue = lastBreak.maxValue;
-    
-    // Calculate new break point values
     const range = lastMaxValue - lastBreak.minValue;
-    const newMinValue = lastBreak.minValue;
-    const newMaxValue = newMinValue + (range * 0.7); // Smaller increment
-    
-    // Update last break's max value
+    const newMaxValue = lastBreak.minValue + (range * 0.7);
     lastBreak.maxValue = newMaxValue;
-    
-    // Preserve custom label for last break or auto-generate with suffix
-    if (hasCustomLabels && originalLabels[localBreaks.length - 1]) {
-      lastBreak.label = originalLabels[localBreaks.length - 1];
-    } else {
-      lastBreak.label = getDisplayLabel(lastBreak, localBreaks.length - 1);
-    }
-    
-    // Create new break with same color configuration as the last break
-    // Preserve the exact opacity from the last break
+    if (hasCustomLabels && originalLabels[localBreaks.length - 1]) lastBreak.label = originalLabels[localBreaks.length - 1];
+    else lastBreak.label = getDisplayLabel(lastBreak, localBreaks.length - 1);
     const lastBreakOpacity = Array.isArray(lastBreak.symbol?.color) ? lastBreak.symbol.color[3] : 0.65;
-    
     const newBreak = {
       minValue: newMaxValue,
-      maxValue: lastMaxValue, // Use the original max value for the new last break
+      maxValue: lastMaxValue,
       symbol: {
         type: "simple-fill",
-        color: Array.isArray(lastBreak.symbol?.color) 
-          ? [...lastBreak.symbol.color.slice(0, 3), lastBreakOpacity] 
-          : hexToRgba(lastBreak.symbol?.color || "#ffffff", lastBreakOpacity),
-        outline: { 
-          color: [50, 50, 50, 0.2], 
-          width: lastBreak.symbol?.outline?.width || "0.5px" 
-        }
+        color: Array.isArray(lastBreak.symbol?.color) ? [...lastBreak.symbol.color.slice(0, 3), lastBreakOpacity] : hexToRgba(lastBreak.symbol?.color || "#ffffff", lastBreakOpacity),
+        outline: { color: [50, 50, 50, 0.2], width: lastBreak.symbol?.outline?.width || "0.5px" }
       }
     };
-    
     const newBreaks = [...localBreaks, newBreak];
-    
-    // Update all labels - preserve custom labels where they exist
     newBreaks.forEach((breakItem, idx) => {
-      if (hasCustomLabels && originalLabels[idx]) {
-        breakItem.label = originalLabels[idx];
-      } else {
-        breakItem.label = getDisplayLabel(breakItem, idx);
-      }
+      if (hasCustomLabels && originalLabels[idx]) breakItem.label = originalLabels[idx];
+      else breakItem.label = getDisplayLabel(breakItem, idx);
     });
-
     setLocalBreaks(newBreaks);
-    handleBreaksChangeWithDecimalPlaces(newBreaks);
+    handleBreaksChangeWithNumberFormat(newBreaks);
   };
 
   const removeBreak = (index) => {
-    // Enhanced safety checks to prevent array method errors
-    if (!localBreaks || !Array.isArray(localBreaks) || localBreaks.length === 0) {
-      console.error('[ColorBreakEditor] Cannot remove break: localBreaks is not a valid array:', localBreaks);
-      return;
-    }
-
-    if (typeof index !== 'number' || index < 0 || index >= localBreaks.length) {
-      console.error('[ColorBreakEditor] Cannot remove break: invalid index:', index);
-      return;
-    }
-
-    if (localBreaks.length > 2) {
-      const newBreaks = [...localBreaks];
-      const removedBreak = newBreaks[index];
-      const lastMaxValue = newBreaks[newBreaks.length - 1].maxValue;
-      
-      newBreaks.splice(index, 1);
-      
-      // Update adjacent breaks
-      for (let i = index; i < newBreaks.length - 1; i++) {
-        newBreaks[i + 1].minValue = newBreaks[i].maxValue;
-      }
-      
-      // Preserve the last break's max value
-      if (newBreaks.length > 0) {
-        newBreaks[newBreaks.length - 1].maxValue = lastMaxValue;
-      }
-      
-      // Update labels - preserve custom labels where they exist, accounting for removed index
-      const updatedOriginalLabels = {};
-      Object.keys(originalLabels).forEach(key => {
-        const keyIndex = parseInt(key);
-        if (keyIndex < index) {
-          // Keep labels before removed index unchanged
-          updatedOriginalLabels[keyIndex] = originalLabels[key];
-        } else if (keyIndex > index) {
-          // Shift labels after removed index down by one
-          updatedOriginalLabels[keyIndex - 1] = originalLabels[key];
-        }
-        // Skip the removed index
-      });
-      setOriginalLabels(updatedOriginalLabels);
-      
-      // Update all labels - always preserve originals where they exist
-      newBreaks.forEach((breakItem, idx) => {
-        if (hasCustomLabels && updatedOriginalLabels[idx]) {
-          breakItem.label = updatedOriginalLabels[idx];
-        } else {
-          breakItem.label = getDisplayLabel(breakItem, idx);
-        }
-      });
-      
-      // Re-check for custom opacities after removal
-      setHasCustomOpacities(detectCustomOpacities(newBreaks));
-      
-      setLocalBreaks(newBreaks);
-      handleBreaksChangeWithDecimalPlaces(newBreaks);
-    } else {
-      console.warn('[ColorBreakEditor] Cannot remove break: minimum of 2 breaks required');
-    }
-  };
-
-  // Function to apply uniform transparency to all breaks with enhanced safety checks
-  const applyUniformTransparency = () => {
-    // Enhanced safety checks to prevent array method errors
-    if (!localBreaks || !Array.isArray(localBreaks) || localBreaks.length === 0) {
-      console.error('[ColorBreakEditor] Cannot apply uniform transparency: localBreaks is not a valid array:', localBreaks);
-      return;
-    }
-
-    // Convert transparency percentage to opacity (inverted scale)
-    const alpha = (100 - transparency) / 100;
-    const updatedBreaks = [...localBreaks];
-    
-    updatedBreaks.forEach((breakItem, index) => {
-      if (!breakItem || !breakItem.symbol) {
-        console.warn(`[ColorBreakEditor] Invalid break item at index ${index}:`, breakItem);
-        return;
-      }
-
-      if (Array.isArray(breakItem.symbol.color)) {
-        breakItem.symbol.color[3] = alpha;
-      } else {
-        breakItem.symbol.color = hexToRgba(breakItem.symbol.color, alpha);
-      }
-      
-      // Clear custom opacity flags
-      delete breakItem.preserveOpacity;
-      delete breakItem.hasCustomOpacities;
-      delete breakItem.originalOpacity;
+    if (!localBreaks || localBreaks.length <= 2 || index < 0 || index >= localBreaks.length) return;
+    const newBreaks = [...localBreaks];
+    const lastMaxValue = newBreaks[newBreaks.length - 1].maxValue;
+    newBreaks.splice(index, 1);
+    for (let i = index; i < newBreaks.length - 1; i++) newBreaks[i + 1].minValue = newBreaks[i].maxValue;
+    if (newBreaks.length > 0) newBreaks[newBreaks.length - 1].maxValue = lastMaxValue;
+    const updatedOriginalLabels = {};
+    Object.keys(originalLabels).forEach(key => {
+      const keyIndex = parseInt(key);
+      if (keyIndex < index) updatedOriginalLabels[keyIndex] = originalLabels[key];
+      else if (keyIndex > index) updatedOriginalLabels[keyIndex - 1] = originalLabels[key];
     });
-    
-    setHasCustomOpacities(false);
-    setUserOverrideCustom(true);
-    setLocalBreaks(updatedBreaks);
-    handleBreaksChangeWithDecimalPlaces(updatedBreaks);
-  };
-
-  // Function to apply custom suffix to all labels with enhanced safety checks
-  const applyCustomSuffixToAllLabels = () => {
-    // Enhanced safety checks to prevent array method errors
-    if (!localBreaks || !Array.isArray(localBreaks) || localBreaks.length === 0) {
-      console.error('[ColorBreakEditor] Cannot apply custom suffix: localBreaks is not a valid array:', localBreaks);
-      return;
-    }
-
-    const updatedBreaks = [...localBreaks];
-    
-    updatedBreaks.forEach((breakItem, idx) => {
-      if (!breakItem) {
-        console.warn(`[ColorBreakEditor] Invalid break item at index ${idx}:`, breakItem);
-        return;
-      }
-
-      // FORCE regenerate ALL labels with the new suffix - don't preserve original custom labels
-      // This is the key fix: remove the condition that was preserving original labels
-      breakItem.label = getDisplayLabel(breakItem, idx);
+    setOriginalLabels(updatedOriginalLabels);
+    newBreaks.forEach((breakItem, idx) => {
+      if (hasCustomLabels && updatedOriginalLabels[idx]) breakItem.label = updatedOriginalLabels[idx];
+      else breakItem.label = getDisplayLabel(breakItem, idx);
     });
-    
-    setLocalBreaks(updatedBreaks);
-    handleBreaksChangeWithDecimalPlaces(updatedBreaks);
-    
-    console.log('[ColorBreakEditor] Applied custom suffix to all labels:', customLabelSuffix);
+    setHasCustomOpacities(detectCustomOpacities(newBreaks));
+    setLocalBreaks(newBreaks);
+    handleBreaksChangeWithNumberFormat(newBreaks);
   };
 
-  // Function to detect and apply suffix from current labels - ENHANCED
-  const syncSuffixFromLabels = () => {
-    const detectedSuffix = extractCommonSuffix(localBreaks);
-    if (detectedSuffix && detectedSuffix !== customLabelSuffix) {
-      setCustomLabelSuffix(detectedSuffix);
-      console.log("[ColorBreakEditor] Synced suffix from current labels:", detectedSuffix);
-    }
-  };
-
-  // Effect to sync suffix when breaks change externally - ENHANCED
-  useEffect(() => {
-    if (localBreaks && localBreaks.length > 0) {
-      // Only sync if we don't already have a suffix set by user input
-      const currentSuffix = extractCommonSuffix(localBreaks);
-      if (currentSuffix && (!customLabelSuffix || customLabelSuffix !== currentSuffix)) {
-        setCustomLabelSuffix(currentSuffix);
-        console.log("[ColorBreakEditor] Auto-synced suffix from breaks:", currentSuffix);
-      }
-    }
-  }, [localBreaks, hasCustomLabels]);
-
-  // Function to reset custom opacity detection
-  const resetCustomOpacityDetection = () => {
-    setUserOverrideCustom(false);
-    setHasCustomOpacities(detectCustomOpacities(localBreaks));
-  };
-
-  // Handle decimal places change - improved state synchronization with robust dropdown sync
-  const handleDecimalPlacesChange = (newDecimalPlaces) => {
-    // Ensure we have a valid number
-    const validDecimalPlaces = Number.isInteger(newDecimalPlaces) && newDecimalPlaces >= 0 && newDecimalPlaces <= 4 
-      ? newDecimalPlaces 
-      : 2; // fallback to 2 if invalid
-    
-    console.log('[ColorBreakEditor] User changed decimal places from', decimalPlaces, 'to:', validDecimalPlaces);
-    
-    // Mark that user has manually changed decimal places (prevents auto-setting from visualization type)
-    userHasChangedDecimalPlaces.current = true;
-    
-    // Update both states immediately to ensure dropdown reflects the change
-    setDecimalPlaces(validDecimalPlaces);
-    setDropdownDecimalPlaces(validDecimalPlaces);
-    
-    // Update labels with new decimal formatting immediately
+  const handleNumberFormatChange = (newNumberFormat) => {
+    const validNumberFormat = ['number', 'decimal', 'currency', 'percentage'].includes(newNumberFormat) ? newNumberFormat : 'number';
+    userHasChangedNumberFormat.current = true;
+    setNumberFormat(validNumberFormat);
+    setDropdownNumberFormat(validNumberFormat);
     if (localBreaks && localBreaks.length > 0) {
       const updatedBreaks = [...localBreaks];
-      
       updatedBreaks.forEach((breakItem, idx) => {
-        // When user explicitly changes decimal places, ALWAYS regenerate labels
-        // This overrides custom label preservation since user wants new formatting
         const cleanNumber = (value) => {
           if (value === undefined || value === null) return '';
-          if (typeof value === 'number') {
-            if (validDecimalPlaces === 0) {
-              return Math.round(value).toLocaleString();
-            } else {
-              return value.toFixed(validDecimalPlaces);
-            }
+          switch (validNumberFormat) {
+            case 'number': return Math.round(value).toLocaleString();
+            case 'decimal': return value.toFixed(1);
+            case 'currency': return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(value));
+            case 'percentage': return `${value.toFixed(1)}%`;
+            default: return Math.round(value).toLocaleString();
           }
-          return value;
         };
-
         const isFirst = idx === 0;
         const isLast = idx === localBreaks.length - 1;
-
         let baseLabel = '';
-        if (isFirst) {
-          baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
-        } else if (isLast) {
-          baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
-        } else {
-          baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
-        }
-
-        // Append custom suffix if provided
-        if (customLabelSuffix.trim()) {
-          baseLabel += ` ${customLabelSuffix.trim()}`;
-        }
-
+        if (isFirst) baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
+        else if (isLast) baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
+        else baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
+        if (customLabelSuffix.trim()) baseLabel += ` ${customLabelSuffix.trim()}`;
         breakItem.label = baseLabel;
       });
-      
       setLocalBreaks(updatedBreaks);
-      // CRITICAL FIX: Pass the new decimal places value directly to avoid async state issue
-      handleBreaksChangeWithDecimalPlaces(updatedBreaks, validDecimalPlaces);
-      console.log('[ColorBreakEditor] Labels updated with new decimal places:', validDecimalPlaces);
+      handleBreaksChangeWithNumberFormat(updatedBreaks, validNumberFormat);
+    }
+  };
+
+  const getFormatPreview = (format) => {
+    const sampleValue = -12345.6789;
+    switch (format) {
+      case 'number': return Math.round(sampleValue).toLocaleString();
+      case 'decimal': return sampleValue.toFixed(1);
+      case 'currency': return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(sampleValue));
+      case 'percentage': return `${sampleValue.toFixed(1)}%`;
+      default: return Math.round(sampleValue).toLocaleString();
     }
   };
 
@@ -1154,7 +779,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
             Minimum Range
           </label>
           <NumberRangeInput
-            key={`min-range-${decimalPlaces}`}
+            key={`min-range-${numberFormat}`}
             value={localBreaks[0]?.maxValue}
             onChange={(value) => updateBreak(0, 'maxValue', value)}
             formatValue={formatValue}
@@ -1167,7 +792,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
             Maximum Range
           </label>
           <NumberRangeInput
-            key={`max-range-${decimalPlaces}`}
+            key={`max-range-${numberFormat}`}
             value={localBreaks[localBreaks.length - 1]?.maxValue}
             onChange={(value) => updateBreak(localBreaks.length - 1, 'maxValue', value)}
             formatValue={formatValue}
@@ -1177,41 +802,39 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
         </div>
       </div>
 
-      {/* Decimal Places Control Section - Enhanced with robust dropdown synchronization */}
+      {/* Number Format Control Section - Enhanced with robust dropdown synchronization */}
       <div className="space-y-2 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Decimal Places
+            Number Format
           </label>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             For value formatting in legend
           </span>
         </div>
         <select
-          key={`decimal-places-${dropdownDecimalPlaces}`} // Force re-render when dropdown state changes
-          value={String(dropdownDecimalPlaces)} // Use dropdown state for better synchronization
+          key={`number-format-${dropdownNumberFormat}`} // Force re-render when dropdown state changes
+          value={dropdownNumberFormat} // Use dropdown state for better synchronization
           onChange={(e) => {
-            const newValue = parseInt(e.target.value, 10);
-            console.log('[ColorBreakEditor] Dropdown changed to:', newValue, 'current dropdown state:', dropdownDecimalPlaces);
-            setDropdownDecimalPlaces(newValue); // Update dropdown state immediately
-            handleDecimalPlacesChange(newValue);
+            const newValue = e.target.value;
+            setDropdownNumberFormat(newValue); // Update dropdown state immediately
+            handleNumberFormatChange(newValue);
           }}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
                    bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
-          <option value="0">0 decimal places (e.g., 1,234)</option>
-          <option value="1">1 decimal place (e.g., 1,234.5)</option>
-          <option value="2">2 decimal places (e.g., 1,234.56)</option>
-          <option value="3">3 decimal places (e.g., 1,234.567)</option>
-          <option value="4">4 decimal places (e.g., 1,234.5678)</option>
+          <option value="number">1,000 - Whole numbers with commas</option>
+          <option value="decimal">1.0 - Small numbers with 1 decimal</option>
+          <option value="currency">$1,000 - Dollar amounts</option>
+          <option value="percentage">1.0% - Percentage format</option>
         </select>
         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span>Preview: {formatValue(12345.6789)}</span>
+          <span>Preview: {getFormatPreview(numberFormat)}</span>
           <span>
-            Current: {decimalPlaces} decimal places 
-            {dropdownDecimalPlaces !== decimalPlaces && (
-              <span className="text-orange-500"> (Dropdown: {dropdownDecimalPlaces})</span>
+            Current: {numberFormat} format
+            {dropdownNumberFormat !== numberFormat && (
+              <span className="text-orange-500"> (Dropdown: {dropdownNumberFormat})</span>
             )}
           </span>
         </div>
@@ -1243,50 +866,35 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
             </p>
             <div className="flex space-x-2">
               <button
-                onClick={applyCustomSuffixToAllLabels}
+                onClick={() => {
+                    const updatedBreaks = [...localBreaks];
+                    updatedBreaks.forEach((breakItem, idx) => {
+                      if (!breakItem) return;
+                      breakItem.label = getDisplayLabel(breakItem, idx);
+                    });
+                    setLocalBreaks(updatedBreaks);
+                    handleBreaksChangeWithNumberFormat(updatedBreaks);
+                  }}
                 className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
               >
                 Apply Suffix to All Labels
               </button>
-<button
+              <button
                 onClick={() => {
                   setCustomLabelSuffix('');
-                  // FORCE regenerate ALL labels without suffix - ignore custom label detection
-                  // Generate labels inline without using getDisplayLabel to avoid state dependency
                   const updatedBreaks = [...localBreaks];
                   updatedBreaks.forEach((breakItem, idx) => {
-                    // Generate clean number formatting function
-                    const cleanNumber = (value) => {
-                      if (value === undefined || value === null) return '';
-                      if (typeof value === 'number') {
-                        if (decimalPlaces === 0) {
-                          return Math.round(value).toLocaleString();
-                        } else {
-                          return value.toFixed(decimalPlaces);
-                        }
-                      }
-                      return value;
-                    };
-
+                    const cleanNumber = (value) => (value === undefined || value === null) ? '' : formatValue(value);
                     const isFirst = idx === 0;
                     const isLast = idx === updatedBreaks.length - 1;
-
-                    // Generate label WITHOUT any suffix
                     let baseLabel = '';
-                    if (isFirst) {
-                      baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
-                    } else if (isLast) {
-                      baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
-                    } else {
-                      baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
-                    }
-
-                    // DON'T append any suffix - we're explicitly removing it
+                    if (isFirst) baseLabel = `Less than ${cleanNumber(breakItem.maxValue)}`;
+                    else if (isLast) baseLabel = `${cleanNumber(breakItem.minValue)} to ${cleanNumber(breakItem.maxValue)}`;
+                    else baseLabel = `${cleanNumber(breakItem.minValue)} - ${cleanNumber(breakItem.maxValue)}`;
                     breakItem.label = baseLabel;
                   });
                   setLocalBreaks(updatedBreaks);
-                  handleBreaksChangeWithDecimalPlaces(updatedBreaks);
-                  console.log('[ColorBreakEditor] Removed suffix and regenerated all labels without suffix');
+                  handleBreaksChangeWithNumberFormat(updatedBreaks);
                 }}
                 className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
               >
@@ -1335,8 +943,8 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
 
                 <div className="flex items-center space-x-2 flex-1">
                   <NumberRangeInput
-                    key={`min-${index}-${decimalPlaces}`}
-                    value={breakItem.minValue}
+                    key={`min-${index}-${numberFormat}`}
+                    value={index === 0 ? undefined : breakItem.minValue}
                     onChange={(value) => updateBreak(index, 'minValue', value)}
                     disabled={index === 0}
                     placeholder="Min"
@@ -1344,7 +952,7 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
                   />
                   <span className="text-gray-400 text-sm">to</span>
                   <NumberRangeInput
-                    key={`max-${index}-${decimalPlaces}`}
+                    key={`max-${index}-${numberFormat}`}
                     value={breakItem.maxValue}
                     onChange={(value) => updateBreak(index, 'maxValue', value)}
                     disabled={false} // Enable max input for all breaks including last one
@@ -1395,23 +1003,48 @@ const ColorBreakEditor = ({ breaks = [], onBreaksChange, visualizationType = 'in
                         } 100%)`
                     }}
                   />
-                  <span className="text-xs text-gray-500 dark:text-gray-400 w-10 text-right">
-                    {getBreakTransparency(breakItem)}%
-                  </span>
+                  {/* Updated individual transparency input */}
+                  <div className="flex items-center space-x-1 w-20 justify-end">
+                    <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={getBreakTransparency(breakItem)}
+                        onChange={(e) => updateBreak(index, 'individualTransparency', e.target.value)}
+                        onFocus={handleFocus}
+                        className="number-input-no-spinner w-14 text-right px-1 py-0.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        aria-label={`Transparency percentage for break ${index + 1}`}
+                    />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">%</span>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
 
-          <button
-            onClick={addBreak}
-            className="w-full mt-2 py-1.5 px-4 border border-dashed border-gray-700 
-                     rounded text-gray-400 hover:text-blue-400 hover:border-blue-400 
-                     transition-colors flex items-center justify-center space-x-2 text-sm"
-          >
-            <Plus size={16} />
-            <span>Add Break</span>
-          </button>
+          {/* Action Buttons: Add and Reset */}
+          <div className="flex space-x-2 mt-2">
+            <button
+              onClick={addBreak}
+              className="w-full py-1.5 px-4 border border-dashed border-gray-700 
+                       rounded text-gray-400 hover:text-blue-400 hover:border-blue-400 
+                       transition-colors flex items-center justify-center space-x-2 text-sm"
+            >
+              <Plus size={16} />
+              <span>Add Break</span>
+            </button>
+            <button
+              onClick={handleResetBreaks}
+              className="w-full py-1.5 px-4 border border-dashed border-gray-700 
+                       rounded text-gray-400 hover:text-yellow-400 hover:border-yellow-400 
+                       transition-colors flex items-center justify-center space-x-2 text-sm
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:border-gray-700"
+              title="Reset all changes to their original default values"
+            >
+              <RotateCcw size={16} />
+              <span>Reset</span>
+            </button>
+          </div>
         </div>
       </div>
 

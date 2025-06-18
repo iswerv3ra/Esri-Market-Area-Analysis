@@ -811,12 +811,12 @@ const handleExportJPEG = async () => {
 
         // --- DRAW SCALE BAR ---
         try {
-          // Scale bar configuration
+          // Scale bar configuration - optimized proportions
           const scalePadding = 60;
           const maxBarWidthPixels = 240;
           const minBarWidthPixels = 100;
-          const barHeight = 50;
-          const lineThickness = 4;
+          const barHeight = 25; // Reduced from 50 to 25 pixels for better proportion
+          const lineThickness = 3; // Reduced from 4 to 3 pixels for cleaner appearance
           const yPosition = targetHeight - scalePadding;
 
           // Scale calculation correction factor (calibrated for accuracy)
@@ -906,25 +906,25 @@ const handleExportJPEG = async () => {
           const xPosition = finalCanvas.width - barWidthPixels - scalePadding;
           const scaleText = `${displayDistance} ${unit}`;
 
-          // Draw scale bar background
-          finalCtx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          // Draw scale bar background with optimized padding for improved proportions
+          finalCtx.fillStyle = "rgba(255, 255, 255, 0.85)";
           finalCtx.fillRect(
-            xPosition - 8,
-            yPosition - barHeight - 8,
-            barWidthPixels + 16,
-            barHeight + 16
+            xPosition - 6, // Reduced padding from 8 to 6 pixels for better visual balance
+            yPosition - barHeight - 6, // Reduced padding from 8 to 6 pixels
+            barWidthPixels + 12, // Adjusted total width for new padding (6px * 2)
+            barHeight + 12 // Adjusted total height for new padding (6px * 2)
           );
 
-          // Draw scale bar structure
+          // Draw scale bar structure with refined proportions and cleaner lines
           finalCtx.fillStyle = "rgba(0, 0, 0, 0.9)";
           
-          // Horizontal base line
+          // Horizontal base line - forms the bottom of the scale bar
           finalCtx.fillRect(xPosition, yPosition - lineThickness, barWidthPixels, lineThickness);
           
-          // Left vertical line
+          // Left vertical line - left boundary marker
           finalCtx.fillRect(xPosition, yPosition - barHeight, lineThickness, barHeight);
           
-          // Right vertical line
+          // Right vertical line - right boundary marker  
           finalCtx.fillRect(
             xPosition + barWidthPixels - lineThickness,
             yPosition - barHeight,
@@ -932,19 +932,19 @@ const handleExportJPEG = async () => {
             barHeight
           );
 
-          // Draw scale bar text
-          finalCtx.font = "bold 22px Arial";
+          // Draw scale bar text with proportional font size for improved readability
+          finalCtx.font = "bold 18px Arial"; // Reduced from 22px to 18px for better proportion with smaller bar
           finalCtx.fillStyle = "rgba(0, 0, 0, 0.9)";
           finalCtx.textAlign = "center";
           finalCtx.textBaseline = "middle";
           finalCtx.fillText(
             scaleText,
             xPosition + barWidthPixels / 2,
-            yPosition - barHeight / 2 - 2
+            yPosition - barHeight / 2 - 1 // Slightly adjusted vertical offset for optimal text positioning
           );
 
           console.log(
-            `[ExportJPEG] Scale bar rendered: ${displayDistance} ${unit} (${barWidthPixels.toFixed(1)}px wide)`
+            `[ExportJPEG] Scale bar rendered: ${displayDistance} ${unit} (${barWidthPixels.toFixed(1)}px wide, ${barHeight}px tall)`
           );
         } catch (scaleBarError) {
           console.error("[ExportJPEG] Error drawing scale bar:", scaleBarError);
