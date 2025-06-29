@@ -16,12 +16,22 @@ const ExportDialog = ({
     () => new Set(marketAreas.map((area) => area.id))
   );
 
-  // Split presets into core (Tier 1 Core) and additional variables
-  const corePresets = variablePresets.filter(preset => 
-    preset.tier === 1 || preset.name.toLowerCase().includes('tier 1 core')
-  );
+  // Enhanced logic to identify core presets - check for multiple patterns
+  const corePresets = variablePresets.filter(preset => {
+    const name = preset.name.toLowerCase();
+    return (
+      preset.tier === 1 || 
+      name.includes('core variables') ||
+      name.includes('tier 1') ||
+      name.includes('core (tier 1)') ||
+      name === 'core variables (tier 1)'
+    );
+  });
+
+  // Filter out core presets from additional presets
+  const corePresetIds = new Set(corePresets.map(preset => preset.id));
   const additionalPresets = variablePresets.filter(preset => 
-    preset.tier !== 1 && !preset.name.toLowerCase().includes('tier 1 core')
+    !corePresetIds.has(preset.id)
   );
 
   // Initialize core presets as selected by default
@@ -57,9 +67,16 @@ const ExportDialog = ({
 
   // Update selectedCorePresets when variablePresets changes
   useEffect(() => {
-    const newCorePresets = variablePresets.filter(preset => 
-      preset.tier === 1 || preset.name.toLowerCase().includes('tier 1 core')
-    );
+    const newCorePresets = variablePresets.filter(preset => {
+      const name = preset.name.toLowerCase();
+      return (
+        preset.tier === 1 || 
+        name.includes('core variables') ||
+        name.includes('tier 1') ||
+        name.includes('core (tier 1)') ||
+        name === 'core variables (tier 1)'
+      );
+    });
     setSelectedCorePresets(new Set(newCorePresets.map(preset => preset.id)));
   }, [variablePresets]);
 
@@ -114,6 +131,11 @@ const ExportDialog = ({
       const variables = variablePresets
         .filter(preset => selectedPresetIds.has(preset.id))
         .flatMap(preset => preset.variables || []);
+
+      // Log the selected variables for debugging
+      console.log('Selected variables for export:', variables);
+      console.log('Core presets selected:', Array.from(selectedCorePresets));
+      console.log('Additional presets selected:', Array.from(selectedAdditionalPresets));
   
       const baseFileName = fileName.replace(/\.(xlsx|csv)$/i, '').trim();
       const fileNameWithExt = `${baseFileName}.xlsx`;
@@ -150,6 +172,10 @@ const ExportDialog = ({
     selectedAreas.size > 50;
 
   const exportButtonText = isExporting ? 'Exporting...' : 'Export';
+
+  // Debug logging
+  console.log('Core presets identified:', corePresets.map(p => ({ id: p.id, name: p.name })));
+  console.log('Additional presets:', additionalPresets.map(p => ({ id: p.id, name: p.name })));
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
@@ -251,21 +277,27 @@ const ExportDialog = ({
                 Core Variables (Tier 1)
               </label>
               <div className="space-y-2">
-                {corePresets.map((preset) => (
-                  <label key={preset.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedCorePresets.has(preset.id)}
-                      onChange={() => handlePresetSelection(preset.id, true)}
-                      disabled={isExporting}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
-                               disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                      {preset.name} ({preset.variables?.length || 0} variables)
-                    </span>
-                  </label>
-                ))}
+                {corePresets.length > 0 ? (
+                  corePresets.map((preset) => (
+                    <label key={preset.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedCorePresets.has(preset.id)}
+                        onChange={() => handlePresetSelection(preset.id, true)}
+                        disabled={isExporting}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                        {preset.name} ({preset.variables?.length || 0} variables)
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    No core variable presets found
+                  </div>
+                )}
               </div>
             </div>
 
@@ -275,21 +307,27 @@ const ExportDialog = ({
                 Add Additional Variables
               </label>
               <div className="space-y-2">
-                {additionalPresets.map((preset) => (
-                  <label key={preset.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedAdditionalPresets.has(preset.id)}
-                      onChange={() => handlePresetSelection(preset.id, false)}
-                      disabled={isExporting}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
-                               disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
-                      {preset.name} ({preset.variables?.length || 0} variables)
-                    </span>
-                  </label>
-                ))}
+                {additionalPresets.length > 0 ? (
+                  additionalPresets.map((preset) => (
+                    <label key={preset.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedAdditionalPresets.has(preset.id)}
+                        onChange={() => handlePresetSelection(preset.id, false)}
+                        disabled={isExporting}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-100">
+                        {preset.name} ({preset.variables?.length || 0} variables)
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    No additional variable presets available
+                  </div>
+                )}
               </div>
             </div>
           </div>
