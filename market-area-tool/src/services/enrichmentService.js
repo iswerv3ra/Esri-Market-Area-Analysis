@@ -2147,7 +2147,7 @@ export class EnrichmentService {
       // This vintage contains 2023 current-year estimates and 2028 future-year projections.
       const useDataObject = {
         sourceCountry: "US",
-        hierarchy: "esri2025" // Forcing the 2024 data vintage as requested
+        hierarchy: "esri2024" // Forcing the 2024 data vintage as requested
       };
       params.append("useData", JSON.stringify(useDataObject));
       // --- End of API Parameters ---
