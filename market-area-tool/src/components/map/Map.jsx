@@ -90,74 +90,433 @@ export default function MapComponent({ onToggleLis }) {
   // Modify storage keys to use a static default
   const AUTO_SAVE_KEY = "autoSavedMapConfigurations_default";
   const MANUAL_SAVE_KEY = "mapConfigurations_default";
-  const [newClassBreaksMapCreated, setNewClassBreaksMapCreated] = useState(null);
+  const [newClassBreaksMapCreated, setNewClassBreaksMapCreated] =
+    useState(null);
 
   const [layerConfigurations, setLayerConfigurations] = useState(null);
-  const [basemapId, setBasemapId] = useState('arcgis-navigation'); // 1. ADD THIS STATE
+  const [basemapId, setBasemapId] = useState("arcgis-navigation"); // 1. ADD THIS STATE
 
   // TCG Color palette with RGB values and custom opacity mappings
   const TCG_COLORS_WITH_OPACITY = {
-    'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
-    'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
-    'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
-    'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
-    'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
-    'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
-    'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
-    'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
-    'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
-    'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
+    "TCG Red Dark": [191, 0, 0, 0.4], // 40% opacity
+    "TCG Orange Dark": [255, 122, 13, 0.25], // 25% opacity
+    "TCG Yellow Dark": [248, 242, 0, 0.35], // 35% opacity
+    "TCG Green Dark": [0, 191, 44, 0.35], // 35% opacity
+    "TCG Cyan Dark": [0, 155, 155, 0.35], // 35% opacity
+    "TCG Blue Dark": [0, 51, 128, 0.15], // 15% opacity
+    "TCG Purple Dark": [92, 0, 184, 0.2], // 20% opacity
+    "Pink Dark": [214, 0, 158, 0.2], // 20% opacity
+    "Brown Dark": [148, 112, 60, 0.2], // 20% opacity
+    "Carbon Gray Light": [174, 170, 170, 0.2], // 20% opacity
   };
 
-    /**
+  /**
    * Gets the appropriate TCG color for each break with custom opacity values
    * @param {number} index - Index of the break (0-based)
    * @param {number} totalBreaks - Total number of breaks (1-10)
    * @param {string} returnFormat - 'array' for [r,g,b,a] or 'string' for CSS
    * @return {Array|string} - Color in requested format
    */
-  const getBreakColor = (index, totalBreaks, returnFormat = 'array') => {
+  const getBreakColor = (index, totalBreaks, returnFormat = "array") => {
     // TCG Color palette with RGB values and custom opacity mappings
     const TCG_COLORS_WITH_OPACITY = {
-      'TCG Red Dark': [191, 0, 0, 0.4],        // 40% opacity
-      'TCG Orange Dark': [255, 122, 13, 0.25], // 25% opacity
-      'TCG Yellow Dark': [248, 242, 0, 0.35],  // 35% opacity
-      'TCG Green Dark': [0, 191, 44, 0.35],    // 35% opacity
-      'TCG Cyan Dark': [0, 155, 155, 0.35],    // 35% opacity
-      'TCG Blue Dark': [0, 51, 128, 0.15],     // 15% opacity
-      'TCG Purple Dark': [92, 0, 184, 0.2],    // 20% opacity
-      'Pink Dark': [214, 0, 158, 0.2],         // 20% opacity
-      'Brown Dark': [148, 112, 60, 0.2],       // 20% opacity
-      'Carbon Gray Light': [174, 170, 170, 0.2] // 20% opacity
+      "TCG Red Dark": [191, 0, 0, 0.4], // 40% opacity
+      "TCG Orange Dark": [255, 122, 13, 0.25], // 25% opacity
+      "TCG Yellow Dark": [248, 242, 0, 0.35], // 35% opacity
+      "TCG Green Dark": [0, 191, 44, 0.35], // 35% opacity
+      "TCG Cyan Dark": [0, 155, 155, 0.35], // 35% opacity
+      "TCG Blue Dark": [0, 51, 128, 0.15], // 15% opacity
+      "TCG Purple Dark": [92, 0, 184, 0.2], // 20% opacity
+      "Pink Dark": [214, 0, 158, 0.2], // 20% opacity
+      "Brown Dark": [148, 112, 60, 0.2], // 20% opacity
+      "Carbon Gray Light": [174, 170, 170, 0.2], // 20% opacity
     };
-    
+
     // Complete color mappings for all break levels (1-10)
     const colorMappings = {
-      1: ['TCG Red Dark'],
-      2: ['TCG Red Dark', 'TCG Orange Dark'],
-      3: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Green Dark'],
-      4: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Cyan Dark'],
-      5: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark'],
-      6: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark'],
-      7: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark'],
-      8: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark'],
-      9: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark'],
-      10: ['TCG Red Dark', 'TCG Orange Dark', 'TCG Yellow Dark', 'TCG Green Dark', 'TCG Cyan Dark', 'TCG Blue Dark', 'TCG Purple Dark', 'Pink Dark', 'Brown Dark', 'Carbon Gray Light']
+      1: ["TCG Red Dark"],
+      2: ["TCG Red Dark", "TCG Orange Dark"],
+      3: ["TCG Red Dark", "TCG Orange Dark", "TCG Green Dark"],
+      4: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Cyan Dark",
+      ],
+      5: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+      ],
+      6: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+        "TCG Blue Dark",
+      ],
+      7: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+        "TCG Blue Dark",
+        "TCG Purple Dark",
+      ],
+      8: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+        "TCG Blue Dark",
+        "TCG Purple Dark",
+        "Pink Dark",
+      ],
+      9: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+        "TCG Blue Dark",
+        "TCG Purple Dark",
+        "Pink Dark",
+        "Brown Dark",
+      ],
+      10: [
+        "TCG Red Dark",
+        "TCG Orange Dark",
+        "TCG Yellow Dark",
+        "TCG Green Dark",
+        "TCG Cyan Dark",
+        "TCG Blue Dark",
+        "TCG Purple Dark",
+        "Pink Dark",
+        "Brown Dark",
+        "Carbon Gray Light",
+      ],
     };
-    
+
+    /**
+     * Generate realistic generic class breaks with proper population ranges
+     * @returns {Array} - Array of 7 class break objects with realistic population ranges
+     */
+    const generateGeneric7LevelBreaks = () => {
+      console.log(`[HeatMap] Generating 7 realistic generic breaks for population data`);
+      
+      const breaks = [];
+      const breakCount = 7;
+      
+      // Realistic population ranges for census tracts
+      const populationRanges = [
+        { min: 0, max: 500 },
+        { min: 501, max: 1500 },
+        { min: 1501, max: 3000 },
+        { min: 3001, max: 5000 },
+        { min: 5001, max: 8000 },
+        { min: 8001, max: 12000 },
+        { min: 12001, max: 50000 }
+      ];
+      
+      for (let i = 0; i < breakCount; i++) {
+        const range = populationRanges[i];
+        const colorArray = getColorFromScheme(i, breakCount);
+        
+        // Generate appropriate label
+        let label = '';
+        if (i === breakCount - 1) {
+          label = `${range.min.toLocaleString()} or more`;
+        } else {
+          label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+        }
+        
+        const breakInfo = {
+          minValue: range.min,
+          maxValue: range.max,
+          label: label,
+          symbol: {
+            type: "simple-fill",
+            style: "solid",
+            color: [...colorArray],
+            outline: {
+              color: 'rgba(255, 255, 255, 0.5)',
+              width: 0.5
+            }
+          },
+          preserveOpacity: true,
+          originalOpacity: colorArray[3],
+          hasCustomOpacities: true,
+          colorSchemeLevel: `level${Math.min(i + 1, 7)}`
+        };
+        
+        breaks.push(breakInfo);
+        console.log(`[HeatMap] Generic break ${i}: ${label} using ${breakInfo.colorSchemeLevel}`);
+      }
+      
+      console.log(`[HeatMap] Generated ${breaks.length} realistic generic breaks for population data`);
+      return breaks;
+    };
+
+
+    /**
+     * Intelligently rounds a number to a "clean" value for use in legends,
+     * making them easier for users to read and understand.
+     * @param {number} num - The number to round.
+     * @returns {number} The rounded, more readable number.
+     */
+    const smartRound = (num) => {
+      if (num <= 100) return Math.round(num); // Round to nearest integer for small numbers
+      if (num < 1000) return Math.round(num / 10) * 10; // Round to nearest 10
+      if (num < 10000) return Math.round(num / 100) * 100; // Round to nearest 100
+      if (num < 100000) return Math.round(num / 1000) * 1000; // Round to nearest 1,000
+      return Math.round(num / 5000) * 5000; // Round to nearest 5,000 for large numbers
+    };
+
+
+    /**
+     * Enhanced data-driven heat map breaks that uses the URL directly from the areaType config.
+     * @param {string} fieldName - The field to analyze (e.g., "TOTPOP_CY")
+     * @param {Object} areaType - The area type object { value, label, url } from mapConfig.js
+     * @param {Object} mapView - Optional map view to limit query to current extent
+     * @return {Promise<Array>} - Promise resolving to array of class break objects
+     */
+    const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = null) => {
+      const areaTypeName = areaType?.label || 'the selected area';
+      console.log(`[DataDrivenBreaks] Starting direct analysis for ${fieldName} in ${areaTypeName}`);
+      
+      // --- CHANGE 1: Get the URL directly from the areaType object ---
+      const serviceUrl = areaType?.url;
+
+      // --- CHANGE 2: Add a guard clause to ensure the URL exists ---
+      if (!serviceUrl) {
+        console.error(`[DataDrivenBreaks] No URL defined for area type: ${areaTypeName}. Falling back to generic breaks.`);
+        return generateGeneric7LevelBreaks();
+      }
+
+      try {
+        // --- This part of the logic remains similar but no longer needs a loop ---
+        console.log(`[DataDrivenBreaks] Using configured service URL: ${serviceUrl}`);
+        
+        // Import required modules
+        const [{ default: FeatureLayer }, { default: Query }, { default: StatisticDefinition }] = await Promise.all([
+          import("@arcgis/core/layers/FeatureLayer"),
+          import("@arcgis/core/rest/support/Query"),
+          import("@arcgis/core/rest/support/StatisticDefinition")
+        ]);
+
+        // Field normalization logic (can be kept as is)
+        const normalizeFieldName = (field) => field.toUpperCase().replace(/_HEAT$/, '');
+        const normalizedFieldName = normalizeFieldName(fieldName);
+
+        const workingLayer = new FeatureLayer({
+          url: serviceUrl,
+          outFields: ["*"] 
+        });
+
+        await workingLayer.load();
+        const availableFields = workingLayer.fields.map(f => f.name);
+
+        // Field matching logic (can be kept as is, but now runs on the correct service)
+        const findBestField = (targetField, availableFields) => {
+            const target = targetField.toUpperCase();
+            const exactMatch = availableFields.find(f => f.toUpperCase() === target);
+            if (exactMatch) return exactMatch;
+            // Add more fuzzy matching if needed, but direct match is best
+            const baseName = target.replace(/_CY$/, '');
+            const fuzzyMatch = availableFields.find(f => f.toUpperCase().includes(baseName));
+            return fuzzyMatch || null;
+        };
+
+        const actualFieldName = findBestField(normalizedFieldName, availableFields);
+
+        if (!actualFieldName) {
+          console.error(`[DataDrivenBreaks] Could not find a suitable field for "${normalizedFieldName}" in the service at ${serviceUrl}.`);
+          console.log(`[DataDrivenBreaks] Available fields:`, availableFields.slice(0, 30));
+          workingLayer.destroy();
+          return generateGeneric7LevelBreaks();
+        }
+        
+        console.log(`[DataDrivenBreaks] ✅ Using matched field: ${actualFieldName}`);
+        
+        // Statistics query logic (can be kept as is)
+        const executeStatisticsQuery = async () => {
+            const statsQuery = new Query({
+                where: `${actualFieldName} IS NOT NULL AND ${actualFieldName} >= 0`,
+                returnGeometry: false,
+                outStatistics: [
+                  new StatisticDefinition({ statisticType: "min", onStatisticField: actualFieldName, outStatisticFieldName: "minValue" }),
+                  new StatisticDefinition({ statisticType: "max", onStatisticField: actualFieldName, outStatisticFieldName: "maxValue" }),
+                  new StatisticDefinition({ statisticType: "count", onStatisticField: actualFieldName, outStatisticFieldName: "totalCount" }),
+                  new StatisticDefinition({ statisticType: "avg", onStatisticField: actualFieldName, outStatisticFieldName: "avgValue" }),
+                  new StatisticDefinition({ statisticType: "stddev", onStatisticField: actualFieldName, outStatisticFieldName: "stdDev" })
+                ]
+            });
+
+            let spatiallyFiltered = false;
+            if (mapView && mapView.extent) {
+                statsQuery.geometry = mapView.extent;
+                statsQuery.spatialRelationship = "intersects";
+                spatiallyFiltered = true;
+                console.log(`[DataDrivenBreaks] Query spatially filtered to current map view extent.`);
+            }
+
+            const statsResult = await workingLayer.queryFeatures(statsQuery);
+            if (!statsResult.features || statsResult.features.length === 0) throw new Error('No statistics returned.');
+            const stats = statsResult.features[0].attributes;
+            
+            // Return a clean stats object
+            return {
+                minValue: Number(stats.minValue) || 0,
+                maxValue: Number(stats.maxValue) || 0,
+                totalCount: Number(stats.totalCount) || 0,
+                avgValue: Number(stats.avgValue) || 0,
+                stdDev: Number(stats.stdDev) || 0,
+                spatiallyFiltered,
+                actualFieldUsed: actualFieldName,
+            };
+        };
+
+        const stats = await executeStatisticsQuery();
+        
+        if (stats.totalCount < 2 || stats.minValue === stats.maxValue) {
+          console.warn(`[DataDrivenBreaks] Insufficient data variation for ${actualFieldName}.`);
+          workingLayer.destroy();
+          return generateGeneric7LevelBreaks();
+        }
+        
+
+        // Replace the existing generateOptimizedBreaks function with this one
+        const generateOptimizedBreaks = (stats, breakCount = 7) => {
+          const { minValue, maxValue } = stats;
+
+          if (maxValue <= minValue) {
+              return [{ min: minValue, max: maxValue }];
+          }
+          
+          // 1. Calculate the ideal, unrounded break points between min and max
+          const idealBreakPoints = [];
+          const interval = (maxValue - minValue) / breakCount;
+          for (let i = 1; i < breakCount; i++) {
+              idealBreakPoints.push(minValue + (i * interval));
+          }
+          
+          // 2. Round each of those break points to a "clean" number
+          const roundedBreakPoints = idealBreakPoints.map(smartRound);
+          
+          // 3. Create a final list of break points including the start and end, and remove duplicates
+          const finalBreakPoints = [...new Set([minValue, ...roundedBreakPoints, maxValue])].sort((a, b) => a - b);
+          
+          // 4. Construct the final data ranges from the clean break points
+          const finalRanges = [];
+          for (let i = 0; i < finalBreakPoints.length - 1; i++) {
+              const currentBreak = Math.floor(finalBreakPoints[i]);
+              const nextBreak = Math.floor(finalBreakPoints[i+1]);
+
+              // The start of the range is the previous break's end + 1
+              const min = (i === 0) ? currentBreak : finalRanges[i-1].max + 1;
+              // The end of the range is the next clean break point
+              let max = nextBreak;
+              
+              // If this is the last range, make sure it extends to the absolute max value
+              if (i === finalBreakPoints.length - 2) {
+                  max = maxValue;
+              }
+
+              // Avoid creating an invalid range if rounding caused overlaps
+              if(min >= max) {
+                  continue;
+              }
+              
+              finalRanges.push({ min, max });
+          }
+          
+          // If for some reason no ranges were created, return one covering the whole set
+          if(finalRanges.length === 0){
+              return [{min: Math.floor(minValue), max: Math.ceil(maxValue)}];
+          }
+
+          console.log("[DataDrivenBreaks] Generated clean, rounded break ranges:", finalRanges);
+          return finalRanges;
+        };
+
+        const breakRanges = generateOptimizedBreaks(stats, 7);
+        
+  // In NewMapDialog.jsx, inside the generateDataDrivenHeatMapBreaks function
+
+        // Class break object creation with clean labels and full metadata
+        const classBreaks = breakRanges.map((range, index) => {
+          const colorArray = getColorFromScheme(index, breakRanges.length);
+          let label = '';
+
+          // Create more readable labels for the start and end of the range
+          if (index === 0 && breakRanges.length > 1) {
+              label = `Less than ${range.max.toLocaleString()}`;
+          } else if (index === breakRanges.length - 1 && breakRanges.length > 1) {
+              label = `${range.min.toLocaleString()} or more`;
+          } else {
+              label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+          }
+
+          // Handle the case of a single break
+          if (breakRanges.length === 1) {
+              label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+          }
+          
+          return {
+            minValue: range.min,
+            maxValue: range.max,
+            label: label, // Use the new, cleaner label
+            symbol: {
+              type: "simple-fill",
+              style: "solid",
+              color: [...colorArray], // Use the dynamically generated color array
+              outline: {
+                color: 'rgba(255, 255, 255, 0.5)',
+                width: 0.5
+              }
+            },
+            // Add metadata to track how this was generated
+            dataSource: 'arcgis_query',
+            dataStats: {
+                ...stats, // Include all stats: minValue, maxValue, totalCount, etc.
+                serviceUrl: serviceUrl, // Store the URL that was successfully used
+                requestedField: fieldName, // Store the original field name requested by the user
+                generatedAt: new Date().toISOString()
+            }
+          };
+        });
+
+        // Clean up the temporary layer to free resources
+        workingLayer.destroy();
+        
+        // Return the final, well-formatted class breaks
+        return classBreaks;
+
+      } catch (error) {
+        console.error(`[DataDrivenBreaks] Critical error during analysis:`, error);
+        // Fallback to generic breaks on any failure to ensure the app doesn't crash
+        return generateGeneric7LevelBreaks(); 
+      }
+    };
+
     // Validate inputs and get appropriate color mapping
     const validBreakCount = Math.max(1, Math.min(10, Math.floor(totalBreaks)));
     const validIndex = Math.max(0, Math.min(validBreakCount - 1, index));
     const colorNames = colorMappings[validBreakCount] || colorMappings[10];
     const colorName = colorNames[validIndex];
-    
+
     // Get color array with predefined opacity (RGBA format)
     const colorArray = TCG_COLORS_WITH_OPACITY[colorName];
-    
+
     // Return in requested format
-    return returnFormat === 'string' ? 
-      `rgba(${colorArray[0]}, ${colorArray[1]}, ${colorArray[2]}, ${colorArray[3]})` : 
-      colorArray;
+    return returnFormat === "string"
+      ? `rgba(${colorArray[0]}, ${colorArray[1]}, ${colorArray[2]}, ${colorArray[3]})`
+      : colorArray;
   };
 
   /**
@@ -166,40 +525,55 @@ export default function MapComponent({ onToggleLis }) {
    * @return {Array} - Updated class breaks with custom opacity
    */
   const applyCustomOpacityToClassBreaks = (classBreakInfos) => {
-    if (!classBreakInfos || !Array.isArray(classBreakInfos) || classBreakInfos.length === 0) {
-      console.warn('[Map] No class breaks provided for custom opacity application');
+    if (
+      !classBreakInfos ||
+      !Array.isArray(classBreakInfos) ||
+      classBreakInfos.length === 0
+    ) {
+      console.warn(
+        "[Map] No class breaks provided for custom opacity application"
+      );
       return classBreakInfos;
     }
 
-    console.log(`[Map] Applying custom opacity to ${classBreakInfos.length} class breaks`);
+    console.log(
+      `[Map] Applying custom opacity to ${classBreakInfos.length} class breaks`
+    );
 
     const updatedBreaks = classBreakInfos.map((originalBreak, index) => {
       // Get the appropriate custom opacity color for this break index
-      const customColorArray = getBreakColor(index, classBreakInfos.length, 'array');
-      
+      const customColorArray = getBreakColor(
+        index,
+        classBreakInfos.length,
+        "array"
+      );
+
       // Preserve all original break properties, only update the color with custom opacity
       const updatedBreak = {
         ...originalBreak, // Preserve minValue, maxValue, label, etc.
         symbol: {
           ...originalBreak.symbol, // Preserve type, style, outline, etc.
-          color: [...customColorArray] // Only update the color with custom opacity
+          color: [...customColorArray], // Only update the color with custom opacity
         },
         // Add metadata to preserve opacity during edits
         preserveOpacity: true,
         originalOpacity: customColorArray[3],
-        hasCustomOpacities: true
+        hasCustomOpacities: true,
       };
-      
+
       const opacityPercent = Math.round(customColorArray[3] * 100);
-      console.log(`[Map] Break ${index}: ${originalBreak.label || 'Unlabeled'} -> ${opacityPercent}% opacity`);
-      
+      console.log(
+        `[Map] Break ${index}: ${
+          originalBreak.label || "Unlabeled"
+        } -> ${opacityPercent}% opacity`
+      );
+
       return updatedBreak;
     });
 
-    console.log('[Map] Custom opacity application completed');
+    console.log("[Map] Custom opacity application completed");
     return updatedBreaks;
   };
-
 
   const [tabs, setTabs] = useState([
     {
@@ -332,7 +706,6 @@ export default function MapComponent({ onToggleLis }) {
     [mapView, siteLocationMarker]
   );
 
-
   /**
    * Handles changes to the basemap selection dropdown
    * @param {Event} event - The select change event
@@ -346,7 +719,7 @@ export default function MapComponent({ onToggleLis }) {
       // Set the new basemap. A watcher will handle reordering layers.
       mapView.map.basemap = newBasemapId;
     } else {
-      console.warn('[Map] Cannot change basemap: MapView not available.');
+      console.warn("[Map] Cannot change basemap: MapView not available.");
     }
   };
 
@@ -1053,17 +1426,20 @@ export default function MapComponent({ onToggleLis }) {
       // Switch to the new tab
       setActiveTab(newTab.id);
       console.log("[Map] Set active tab to:", newTab.id);
-      
-      
-      if (newTab.layerConfiguration?.type === 'class-breaks' && 
-          !newTab.layerConfiguration?.dataOptimized) {
-        console.log('[Map] Triggering class breaks regeneration for new heat map');
+
+      if (
+        newTab.layerConfiguration?.type === "class-breaks" &&
+        !newTab.layerConfiguration?.dataOptimized
+      ) {
+        console.log(
+          "[Map] Triggering class breaks regeneration for new heat map"
+        );
         setNewClassBreaksMapCreated({
           tabId: newTab.id,
           visualizationType: normalizedVisualizationType,
-          areaType: processedAreaType
+          areaType: processedAreaType,
         });
-}
+      }
       // Update layer configurations to ensure proper rendering
       setLayerConfigurations((prev) => ({
         ...prev,
@@ -2932,44 +3308,52 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
-  // Update the visualization change handler
-  // Modify handleVisualizationChange to save configuration to the specific tab
-  const handleVisualizationChange = (tabId, newValue) => {
-    if (!newValue) {
+  const handleVisualizationChange = (tabId, newValue) => { // It now directly accepts the value
+      // The 'newValue' is now the direct value, e.g., "TOTPOP_CY_HEAT"
+      
+      if (!newValue) {
+        // Clear the visualization for the tab if the value is empty
+        const newTabs = tabs.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                visualizationType: null,
+                layerConfiguration: null,
+              }
+            : tab
+        );
+        setTabs(newTabs);
+        // Ensure the visualization update process runs to clear the layer
+        updateVisualizationAndLegend();
+        return;
+      }
+
+      // Find the corresponding configuration from your initial configs
+      const initialConfig = initialLayerConfigurations[newValue];
+      
+      // Update the specific tab with the new visualization type and its configuration
       const newTabs = tabs.map((tab) =>
         tab.id === tabId
           ? {
               ...tab,
-              visualizationType: null,
-              layerConfiguration: null,
+              visualizationType: newValue,
+              layerConfiguration: initialConfig ? { ...initialConfig } : null, // Use a copy
             }
           : tab
       );
+
       setTabs(newTabs);
-      return;
-    }
 
-    const initialConfig = initialLayerConfigurations[newValue];
-    const newTabs = tabs.map((tab) =>
-      tab.id === tabId
-        ? {
-            ...tab,
-            visualizationType: newValue,
-            layerConfiguration: initialConfig,
-          }
-        : tab
-    );
-
-    setTabs(newTabs);
-    setLayerConfigurations((prev) => {
-      if (!prev[newValue]) {
-        return {
-          ...prev,
-          [newValue]: initialConfig,
-        };
-      }
-      return prev;
-    });
+      // This part is crucial: we update the global layer configuration state
+      // so that the main useEffect hook has the correct data to create the layer.
+      setLayerConfigurations((prev) => ({
+        ...prev,
+        [newValue]: initialConfig ? { ...initialConfig } : null,
+      }));
+      
+      // The main `useEffect` that depends on `tabs` will now automatically
+      // trigger `updateVisualizationAndLegend` to render the new layer.
+      // You don't need to call it directly here, as the state change handles it.
   };
 
   // Add this to your JSX near the visualization type dropdown
@@ -3179,159 +3563,197 @@ export default function MapComponent({ onToggleLis }) {
     }
   };
 
+  const handleLayerConfigChange = useCallback(
+    (newConfig) => {
+      console.log(
+        "[ConfigChange] Updating tabs state with new config:",
+        newConfig
+      );
 
-const handleLayerConfigChange = useCallback(
-  (newConfig) => {
-    console.log(
-      "[ConfigChange] Updating tabs state with new config:",
-      newConfig
-    );
+      setTabs((prevTabs) => {
+        return prevTabs.map((tab) => {
+          if (tab.id === activeTab && tab.visualizationType) {
+            // Check if this is a heat map (class-breaks) configuration that needs custom opacity
+            const isHeatMap =
+              newConfig.type === "class-breaks" ||
+              tab.visualizationType.endsWith("_HEAT") ||
+              (newConfig.classBreakInfos &&
+                Array.isArray(newConfig.classBreakInfos));
 
-    setTabs((prevTabs) => {
-      return prevTabs.map((tab) => {
-        if (tab.id === activeTab && tab.visualizationType) {
-          // Check if this is a heat map (class-breaks) configuration that needs custom opacity
-          const isHeatMap = newConfig.type === 'class-breaks' || 
-                          tab.visualizationType.endsWith('_HEAT') ||
-                          (newConfig.classBreakInfos && Array.isArray(newConfig.classBreakInfos));
+            let updatedConfig = {
+              ...newConfig,
+              // Preserve symbol structure if not explicitly changed by newConfig
+              symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
+              // Ensure type is consistent
+              type:
+                newConfig.type ||
+                tab.layerConfiguration?.type ||
+                tab.visualizationType,
+            };
 
-          let updatedConfig = {
-            ...newConfig,
-            // Preserve symbol structure if not explicitly changed by newConfig
-            symbol: newConfig.symbol || tab.layerConfiguration?.symbol,
-            // Ensure type is consistent
-            type: newConfig.type || tab.layerConfiguration?.type || tab.visualizationType,
-          };
-
-          // Apply custom opacity for heat maps with enhanced user override detection
-          if (isHeatMap && updatedConfig.classBreakInfos && Array.isArray(updatedConfig.classBreakInfos)) {
-            console.log('[ConfigChange] Detected heat map configuration, applying custom opacity');
-            
-            // Enhanced detection for user-initiated transparency changes
-            const isUserTransparencyOverride = detectUserTransparencyOverride(updatedConfig);
-            
-            if (isUserTransparencyOverride) {
-              console.log('[ConfigChange] User transparency override detected - allowing slider changes');
-              // User is explicitly overriding custom opacities via transparency slider
-              // Clear all preservation flags and apply the new uniform opacity
-              updatedConfig.preserveOpacity = false;
-              updatedConfig.hasCustomOpacities = false;
-              
-              // Clear preservation flags from individual breaks
-              updatedConfig.classBreakInfos = updatedConfig.classBreakInfos.map(breakInfo => ({
-                ...breakInfo,
-                preserveOpacity: false,
-                hasCustomOpacities: false,
-                // Remove originalOpacity to prevent conflicts
-                originalOpacity: undefined
-              }));
-              
-            } else {
-              // Check if custom opacity has already been applied (and not overridden by user)
-              const hasCustomOpacity = updatedConfig.classBreakInfos.some(breakInfo => 
-                breakInfo.hasCustomOpacities === true || breakInfo.preserveOpacity === true
+            // Apply custom opacity for heat maps with enhanced user override detection
+            if (
+              isHeatMap &&
+              updatedConfig.classBreakInfos &&
+              Array.isArray(updatedConfig.classBreakInfos)
+            ) {
+              console.log(
+                "[ConfigChange] Detected heat map configuration, applying custom opacity"
               );
 
-              if (!hasCustomOpacity) {
-                console.log('[ConfigChange] Custom opacity not detected, applying now');
-                updatedConfig.classBreakInfos = applyCustomOpacityToClassBreaks(updatedConfig.classBreakInfos);
-                updatedConfig.hasCustomOpacities = true;
-                updatedConfig.preserveOpacity = true;
+              // Enhanced detection for user-initiated transparency changes
+              const isUserTransparencyOverride =
+                detectUserTransparencyOverride(updatedConfig);
+
+              if (isUserTransparencyOverride) {
+                console.log(
+                  "[ConfigChange] User transparency override detected - allowing slider changes"
+                );
+                // User is explicitly overriding custom opacities via transparency slider
+                // Clear all preservation flags and apply the new uniform opacity
+                updatedConfig.preserveOpacity = false;
+                updatedConfig.hasCustomOpacities = false;
+
+                // Clear preservation flags from individual breaks
+                updatedConfig.classBreakInfos =
+                  updatedConfig.classBreakInfos.map((breakInfo) => ({
+                    ...breakInfo,
+                    preserveOpacity: false,
+                    hasCustomOpacities: false,
+                    // Remove originalOpacity to prevent conflicts
+                    originalOpacity: undefined,
+                  }));
               } else {
-                console.log('[ConfigChange] Custom opacity already applied, preserving existing values');
+                // Check if custom opacity has already been applied (and not overridden by user)
+                const hasCustomOpacity = updatedConfig.classBreakInfos.some(
+                  (breakInfo) =>
+                    breakInfo.hasCustomOpacities === true ||
+                    breakInfo.preserveOpacity === true
+                );
+
+                if (!hasCustomOpacity) {
+                  console.log(
+                    "[ConfigChange] Custom opacity not detected, applying now"
+                  );
+                  updatedConfig.classBreakInfos =
+                    applyCustomOpacityToClassBreaks(
+                      updatedConfig.classBreakInfos
+                    );
+                  updatedConfig.hasCustomOpacities = true;
+                  updatedConfig.preserveOpacity = true;
+                } else {
+                  console.log(
+                    "[ConfigChange] Custom opacity already applied, preserving existing values"
+                  );
+                }
               }
             }
+
+            return {
+              ...tab,
+              layerConfiguration: updatedConfig,
+            };
           }
-
-          return {
-            ...tab,
-            layerConfiguration: updatedConfig,
-          };
-        }
-        return tab;
+          return tab;
+        });
       });
-    });
 
-    console.log(
-      "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
-    );
-  },
-  [activeTab]
-);
-
-// Helper function to detect user-initiated transparency overrides
-const detectUserTransparencyOverride = (config) => {
-  // Check if the configuration explicitly indicates user override
-  if (config.preserveOpacity === false && config.hasCustomOpacities === false) {
-    console.log('[ConfigChange] Explicit user override flags detected');
-    return true;
-  }
-  
-  // Check if all class breaks have identical opacity (characteristic of slider use)
-  if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
-    const opacities = config.classBreakInfos
-      .map(breakInfo => {
-        if (Array.isArray(breakInfo.symbol?.color) && breakInfo.symbol.color[3] !== undefined) {
-          return Math.round(breakInfo.symbol.color[3] * 100);
-        }
-        return null;
-      })
-      .filter(opacity => opacity !== null);
-    
-    if (opacities.length > 1) {
-      const firstOpacity = opacities[0];
-      const allIdentical = opacities.every(opacity => opacity === firstOpacity);
-      
-      // Check if breaks explicitly have preservation flags cleared
-      const noPreservationFlags = config.classBreakInfos.every(breakInfo => 
-        !breakInfo.preserveOpacity && !breakInfo.hasCustomOpacities
+      console.log(
+        "[ConfigChange] Tabs state update triggered. Main useEffect will handle layer update."
       );
-      
-      if (allIdentical && noPreservationFlags) {
-        console.log('[ConfigChange] Uniform opacity with cleared flags detected - user transparency slider');
-        return true;
-      }
-      
-      // Additional check: if global config flags are cleared but opacities are uniform
-      if (allIdentical && config.preserveOpacity === false) {
-        console.log('[ConfigChange] Uniform opacity with global override detected');
-        return true;
-      }
-    }
-  }
-  
-  // Check for timestamp-based detection (recent change)
-  const currentTime = Date.now();
-  if (config.transparencyChangeTimestamp && 
-      (currentTime - config.transparencyChangeTimestamp) < 5000) {
-    console.log('[ConfigChange] Recent transparency change detected');
-    return true;
-  }
-  
-  // Check if any break has originalOpacity that differs from current opacity
-  // This indicates user has changed from the original heat map values
-  if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
-    const hasOpacityChanges = config.classBreakInfos.some(breakInfo => {
-      if (breakInfo.originalOpacity !== undefined && 
-          Array.isArray(breakInfo.symbol?.color) && 
-          breakInfo.symbol.color[3] !== undefined) {
-        const currentOpacity = breakInfo.symbol.color[3];
-        const originalOpacity = breakInfo.originalOpacity;
-        // If current opacity differs significantly from original, user likely changed it
-        return Math.abs(currentOpacity - originalOpacity) > 0.05; // 5% threshold
-      }
-      return false;
-    });
-    
-    if (hasOpacityChanges) {
-      console.log('[ConfigChange] User-modified opacities detected');
+    },
+    [activeTab]
+  );
+
+  // Helper function to detect user-initiated transparency overrides
+  const detectUserTransparencyOverride = (config) => {
+    // Check if the configuration explicitly indicates user override
+    if (
+      config.preserveOpacity === false &&
+      config.hasCustomOpacities === false
+    ) {
+      console.log("[ConfigChange] Explicit user override flags detected");
       return true;
     }
-  }
-  
-  return false;
-};
 
+    // Check if all class breaks have identical opacity (characteristic of slider use)
+    if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+      const opacities = config.classBreakInfos
+        .map((breakInfo) => {
+          if (
+            Array.isArray(breakInfo.symbol?.color) &&
+            breakInfo.symbol.color[3] !== undefined
+          ) {
+            return Math.round(breakInfo.symbol.color[3] * 100);
+          }
+          return null;
+        })
+        .filter((opacity) => opacity !== null);
+
+      if (opacities.length > 1) {
+        const firstOpacity = opacities[0];
+        const allIdentical = opacities.every(
+          (opacity) => opacity === firstOpacity
+        );
+
+        // Check if breaks explicitly have preservation flags cleared
+        const noPreservationFlags = config.classBreakInfos.every(
+          (breakInfo) =>
+            !breakInfo.preserveOpacity && !breakInfo.hasCustomOpacities
+        );
+
+        if (allIdentical && noPreservationFlags) {
+          console.log(
+            "[ConfigChange] Uniform opacity with cleared flags detected - user transparency slider"
+          );
+          return true;
+        }
+
+        // Additional check: if global config flags are cleared but opacities are uniform
+        if (allIdentical && config.preserveOpacity === false) {
+          console.log(
+            "[ConfigChange] Uniform opacity with global override detected"
+          );
+          return true;
+        }
+      }
+    }
+
+    // Check for timestamp-based detection (recent change)
+    const currentTime = Date.now();
+    if (
+      config.transparencyChangeTimestamp &&
+      currentTime - config.transparencyChangeTimestamp < 5000
+    ) {
+      console.log("[ConfigChange] Recent transparency change detected");
+      return true;
+    }
+
+    // Check if any break has originalOpacity that differs from current opacity
+    // This indicates user has changed from the original heat map values
+    if (config.classBreakInfos && Array.isArray(config.classBreakInfos)) {
+      const hasOpacityChanges = config.classBreakInfos.some((breakInfo) => {
+        if (
+          breakInfo.originalOpacity !== undefined &&
+          Array.isArray(breakInfo.symbol?.color) &&
+          breakInfo.symbol.color[3] !== undefined
+        ) {
+          const currentOpacity = breakInfo.symbol.color[3];
+          const originalOpacity = breakInfo.originalOpacity;
+          // If current opacity differs significantly from original, user likely changed it
+          return Math.abs(currentOpacity - originalOpacity) > 0.05; // 5% threshold
+        }
+        return false;
+      });
+
+      if (hasOpacityChanges) {
+        console.log("[ConfigChange] User-modified opacities detected");
+        return true;
+      }
+    }
+
+    return false;
+  };
 
   // Add this function to extract style properties consistently:
   const extractSymbolProperties = (config) => {
@@ -3745,9 +4167,15 @@ const detectUserTransparencyOverride = (config) => {
 
         // Ensure proper type mapping for the renderer
         if (!normalizedConfig.type) {
-          if (visualizationType === "heatmap" || visualizationType?.endsWith('_HEAT')) {
+          if (
+            visualizationType === "heatmap" ||
+            visualizationType?.endsWith("_HEAT")
+          ) {
             normalizedConfig.type = "class-breaks";
-          } else if (visualizationType === "dotdensity" || visualizationType?.endsWith('_DOT')) {
+          } else if (
+            visualizationType === "dotdensity" ||
+            visualizationType?.endsWith("_DOT")
+          ) {
             normalizedConfig.type = "dot-density";
           }
         }
@@ -3862,29 +4290,40 @@ const detectUserTransparencyOverride = (config) => {
               );
             }
           }
-          
+
           let vizType = config.visualization_type;
           let rawConfig = null;
 
           if (config.layer_configuration) {
             try {
-              rawConfig = typeof config.layer_configuration === 'string'
-                ? JSON.parse(config.layer_configuration)
-                : config.layer_configuration;
+              rawConfig =
+                typeof config.layer_configuration === "string"
+                  ? JSON.parse(config.layer_configuration)
+                  : config.layer_configuration;
             } catch (e) {
-              console.error(`[loadMapConfigurations] Error parsing layer config for "${config.tab_name}"`, e);
-              processingErrors.push(`Failed to parse layer configuration for "${config.tab_name}": ${e.message}`);
+              console.error(
+                `[loadMapConfigurations] Error parsing layer config for "${config.tab_name}"`,
+                e
+              );
+              processingErrors.push(
+                `Failed to parse layer configuration for "${config.tab_name}": ${e.message}`
+              );
             }
           }
 
           // --- FIX: Logic to use specific key from config for generic types ---
           // The API might store a generic type like "heatmap". The true specific type (e.g., "TOTAL_POP_HEAT")
           // is stored in the layer configuration. We must use that for UI consistency.
-          if ((vizType === 'heatmap' || vizType === 'dotdensity') && rawConfig) {
+          if (
+            (vizType === "heatmap" || vizType === "dotdensity") &&
+            rawConfig
+          ) {
             const specificKey = rawConfig.visualizationKey || rawConfig.field;
             if (specificKey) {
-                console.log(`[loadMapConfigurations] Overriding generic type "${vizType}" with specific key "${specificKey}" from layer config for tab "${config.tab_name}".`);
-                vizType = specificKey; // This is the crucial update.
+              console.log(
+                `[loadMapConfigurations] Overriding generic type "${vizType}" with specific key "${specificKey}" from layer config for tab "${config.tab_name}".`
+              );
+              vizType = specificKey; // This is the crucial update.
             }
           }
           // --- END FIX ---
@@ -3896,14 +4335,14 @@ const detectUserTransparencyOverride = (config) => {
           // ENHANCED: Normalize the layer configuration object itself
           let normalizedLayerConfig = null;
           if (rawConfig) {
-              normalizedLayerConfig = normalizeLayerConfiguration(
-                rawConfig,
-                vizType
-              );
+            normalizedLayerConfig = normalizeLayerConfiguration(
+              rawConfig,
+              vizType
+            );
 
-              // Ensure the configuration has the correct metadata
-              normalizedLayerConfig.mapConfigId = config.id;
-              normalizedLayerConfig.areaType = config.area_type;
+            // Ensure the configuration has the correct metadata
+            normalizedLayerConfig.mapConfigId = config.id;
+            normalizedLayerConfig.areaType = config.area_type;
           }
 
           // Create tab object with normalized configuration
@@ -3923,7 +4362,6 @@ const detectUserTransparencyOverride = (config) => {
           console.log(
             `[loadMapConfigurations] Processed tab "${newTab.name}" (ID: ${newTab.id}) with visualizationType: "${newTab.visualizationType}"`
           );
-
         } catch (err) {
           processingErrors.push(
             `Error processing config at index ${index}: ${err.message}`
@@ -4447,908 +4885,975 @@ const detectUserTransparencyOverride = (config) => {
   }, []); // Empty dependency array
 
   const updateVisualizationAndLegend = useCallback(async () => {
-      const now = Date.now();
+    const now = Date.now();
 
-      // Prevent concurrent updates and rate limiting
-      if (updateInProgressRef.current || now - lastUpdateTimeRef.current < 500) {
+    // Prevent concurrent updates and rate limiting
+    if (updateInProgressRef.current || now - lastUpdateTimeRef.current < 500) {
+      console.log(
+        "[updateVisualizationAndLegend] Skipping: Update in progress or too frequent"
+      );
+      return null;
+    }
+
+    // Set update flags
+    updateInProgressRef.current = true;
+    lastUpdateTimeRef.current = now;
+
+    console.log(
+      "[updateVisualizationAndLegend] Starting update for Active Tab:",
+      activeTab
+    );
+    let labelLoadTimeoutId = null;
+
+    // Import required classes at the beginning of the function
+    let FeatureLayer, GraphicsLayer;
+    try {
+      const imports = await Promise.all([
+        import("@arcgis/core/layers/FeatureLayer"),
+        import("@arcgis/core/layers/GraphicsLayer"),
+      ]);
+      FeatureLayer = imports[0].default;
+      GraphicsLayer = imports[1].default;
+    } catch (importError) {
+      console.error(
+        "[updateVisualizationAndLegend] Error importing layer classes:",
+        importError
+      );
+      updateInProgressRef.current = false;
+      return null;
+    }
+
+    // Enhanced type normalization function
+    const normalizeVisualizationType = (type) => {
+      if (!type) return type;
+
+      // Convert string to lowercase for consistent comparison
+      const lowerType = String(type).toLowerCase();
+
+      // Handle all known type variations
+      if (lowerType === "pipeline") return "pipe";
+      if (lowerType === "comps") return "comp";
+      if (lowerType === "dotdensity") return "dot-density"; // KEY FIX: Handle dotdensity -> dot-density
+      if (lowerType === "classbreaks" || lowerType === "class_breaks")
+        return "class-breaks";
+      if (lowerType === "dotdensitymap") return "dot-density";
+      if (lowerType === "heatmap") return "class-breaks";
+
+      // Handle field names that end with suffixes
+      if (lowerType.endsWith("_heat")) return "class-breaks";
+      if (lowerType.endsWith("_dot")) return "dot-density";
+      if (lowerType.endsWith("_viz")) return type.replace(/_viz$/i, "");
+      if (lowerType.endsWith("_map")) return type.replace(/_map$/i, "");
+
+      // Return original if no normalization needed
+      return type;
+    };
+
+    // Helper function to find visualization option by various criteria - IMPROVED VERSION
+    const findVisualizationOption = (config, effectiveType, tabData) => {
+      console.log("🔍 [findVisualizationOption] === DETAILED DEBUG START ===");
+      console.log("🔍 [findVisualizationOption] Input parameters:");
+      console.log("🔍   - config:", JSON.stringify(config, null, 2));
+      console.log("🔍   - effectiveType:", effectiveType);
+      console.log("🔍   - tabData:", JSON.stringify(tabData, null, 2));
+
+      if (!visualizationOptions || !Array.isArray(visualizationOptions)) {
         console.log(
-          "[updateVisualizationAndLegend] Skipping: Update in progress or too frequent"
+          "🔍 [findVisualizationOption] ❌ EARLY EXIT: visualizationOptions not available or not array"
         );
         return null;
       }
-
-      // Set update flags
-      updateInProgressRef.current = true;
-      lastUpdateTimeRef.current = now;
 
       console.log(
-        "[updateVisualizationAndLegend] Starting update for Active Tab:",
-        activeTab
+        "🔍 [findVisualizationOption] ✅ visualizationOptions available with",
+        visualizationOptions.length,
+        "entries"
       );
-      let labelLoadTimeoutId = null;
 
-      // Import required classes at the beginning of the function
-      let FeatureLayer, GraphicsLayer;
-      try {
-        const imports = await Promise.all([
-          import("@arcgis/core/layers/FeatureLayer"),
-          import("@arcgis/core/layers/GraphicsLayer")
-        ]);
-        FeatureLayer = imports[0].default;
-        GraphicsLayer = imports[1].default;
-      } catch (importError) {
-        console.error("[updateVisualizationAndLegend] Error importing layer classes:", importError);
-        updateInProgressRef.current = false;
+      let matchingOption = null;
+
+      // Enhanced helper function for flexible field matching
+      const findFieldMatch = (fieldName, preferredType = null) => {
+        if (!fieldName) return null;
+
+        console.log(
+          `🔍   - Attempting to match field: "${fieldName}" with preferred type: ${preferredType}`
+        );
+
+        // Method A: Try exact match first
+        let match = visualizationOptions.find((opt) => opt.value === fieldName);
+        if (match && (!preferredType || match.type === preferredType)) {
+          console.log(
+            `🔍   - ✅ Exact match found: ${match.label} (${match.value})`
+          );
+          return match;
+        }
+
+        // Method B: Try with common suffixes for the preferred type
+        if (preferredType === "class-breaks") {
+          const fieldWithHeat = fieldName.endsWith("_HEAT")
+            ? fieldName
+            : fieldName + "_HEAT";
+          match = visualizationOptions.find(
+            (opt) => opt.value === fieldWithHeat && opt.type === "class-breaks"
+          );
+          if (match) {
+            console.log(
+              `🔍   - ✅ Heat suffix match found: ${match.label} (${match.value})`
+            );
+            return match;
+          }
+        } else if (preferredType === "dot-density") {
+          // For dot-density, try without suffix first, then with _DOT
+          const baseField = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "");
+          match = visualizationOptions.find(
+            (opt) => opt.value === baseField && opt.type === "dot-density"
+          );
+          if (match) {
+            console.log(
+              `🔍   - ✅ Base field match for dot-density: ${match.label} (${match.value})`
+            );
+            return match;
+          }
+        }
+
+        // Method C: Try removing suffixes to find base field
+        const baseName = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "");
+        if (baseName !== fieldName) {
+          // Try base name with preferred type
+          if (preferredType) {
+            match = visualizationOptions.find(
+              (opt) =>
+                (opt.value === baseName ||
+                  opt.value === baseName + "_HEAT" ||
+                  opt.value === baseName + "_DOT") &&
+                opt.type === preferredType
+            );
+            if (match) {
+              console.log(
+                `🔍   - ✅ Base name with type match: ${match.label} (${match.value})`
+              );
+              return match;
+            }
+          }
+
+          // Try base name without type preference
+          match = visualizationOptions.find((opt) => opt.value === baseName);
+          if (match) {
+            console.log(
+              `🔍   - ✅ Base name match: ${match.label} (${match.value})`
+            );
+            return match;
+          }
+        }
+
+        // Method D: Try adding suffixes if we don't have them
+        if (!fieldName.match(/_HEAT$|_DOT$|_VIZ$|_MAP$/)) {
+          const suffixesToTry = ["_HEAT", "_DOT"];
+          for (const suffix of suffixesToTry) {
+            const fieldWithSuffix = fieldName + suffix;
+            match = visualizationOptions.find(
+              (opt) =>
+                opt.value === fieldWithSuffix &&
+                (!preferredType || opt.type === preferredType)
+            );
+            if (match) {
+              console.log(
+                `🔍   - ✅ Added suffix match: ${match.label} (${match.value}) with ${suffix}`
+              );
+              return match;
+            }
+          }
+        }
+
+        // Method E: Fuzzy matching - find options that contain the core field
+        const coreField = baseName.length >= 3 ? baseName : fieldName;
+        match = visualizationOptions.find((opt) => {
+          const optCore = opt.value.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "");
+          const isMatch =
+            (opt.value.includes(coreField) ||
+              coreField.includes(optCore) ||
+              optCore === coreField) &&
+            (!preferredType || opt.type === preferredType);
+
+          if (isMatch) {
+            console.log(
+              `🔍   - 🎯 Fuzzy match: "${opt.value}" matches "${fieldName}" via core "${coreField}"`
+            );
+          }
+          return isMatch;
+        });
+
+        if (match) {
+          console.log(
+            `🔍   - ✅ Fuzzy match found: ${match.label} (${match.value})`
+          );
+          return match;
+        }
+
+        console.log(`🔍   - ❌ No match found for field: "${fieldName}"`);
         return null;
-      }
-
-      // Enhanced type normalization function
-      const normalizeVisualizationType = (type) => {
-        if (!type) return type;
-
-        // Convert string to lowercase for consistent comparison
-        const lowerType = String(type).toLowerCase();
-
-        // Handle all known type variations
-        if (lowerType === "pipeline") return "pipe";
-        if (lowerType === "comps") return "comp";
-        if (lowerType === "dotdensity") return "dot-density"; // KEY FIX: Handle dotdensity -> dot-density
-        if (lowerType === "classbreaks" || lowerType === "class_breaks")
-          return "class-breaks";
-        if (lowerType === "dotdensitymap") return "dot-density";
-        if (lowerType === "heatmap") return "class-breaks";
-
-        // Handle field names that end with suffixes
-        if (lowerType.endsWith("_heat")) return "class-breaks";
-        if (lowerType.endsWith("_dot")) return "dot-density";
-        if (lowerType.endsWith("_viz")) return type.replace(/_viz$/i, "");
-        if (lowerType.endsWith("_map")) return type.replace(/_map$/i, "");
-
-        // Return original if no normalization needed
-        return type;
       };
 
-      // Helper function to find visualization option by various criteria - IMPROVED VERSION
-      const findVisualizationOption = (config, effectiveType, tabData) => {
-        console.log("🔍 [findVisualizationOption] === DETAILED DEBUG START ===");
-        console.log("🔍 [findVisualizationOption] Input parameters:");
-        console.log("🔍   - config:", JSON.stringify(config, null, 2));
-        console.log("🔍   - effectiveType:", effectiveType);
-        console.log("🔍   - tabData:", JSON.stringify(tabData, null, 2));
+      // Method 1: Enhanced Config Field Match
+      console.log(
+        "🔍 [findVisualizationOption] === METHOD 1: Enhanced Config Field Match ==="
+      );
+      if (config?.field) {
+        console.log("🔍   - Searching for config.field:", config.field);
 
-        if (!visualizationOptions || !Array.isArray(visualizationOptions)) {
-          console.log(
-            "🔍 [findVisualizationOption] ❌ EARLY EXIT: visualizationOptions not available or not array"
-          );
-          return null;
+        // Determine preferred type based on effectiveType
+        let preferredType = null;
+        if (
+          effectiveType === "class-breaks" ||
+          effectiveType?.endsWith("_HEAT")
+        ) {
+          preferredType = "class-breaks";
+        } else if (effectiveType === "dot-density") {
+          preferredType = "dot-density";
+        }
+
+        matchingOption = findFieldMatch(config.field, preferredType);
+        console.log(
+          "🔍   - Method 1 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
+        );
+      }
+
+      // Method 2: Enhanced Visualization Key Match
+      console.log(
+        "🔍 [findVisualizationOption] === METHOD 2: Enhanced Visualization Key Match ==="
+      );
+      if (!matchingOption && config?.visualizationKey) {
+        console.log(
+          "🔍   - Searching for config.visualizationKey:",
+          config.visualizationKey
+        );
+
+        // Determine type from visualization key
+        let preferredType = null;
+        if (
+          config.visualizationKey.includes("_HEAT") ||
+          effectiveType === "class-breaks"
+        ) {
+          preferredType = "class-breaks";
+        } else if (effectiveType === "dot-density") {
+          preferredType = "dot-density";
+        }
+
+        matchingOption = findFieldMatch(config.visualizationKey, preferredType);
+        console.log(
+          "🔍   - Method 2 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
+        );
+      }
+
+      // Method 3: Enhanced TabData Visualization Type Match
+      console.log(
+        "🔍 [findVisualizationOption] === METHOD 3: Enhanced TabData Match ==="
+      );
+      if (!matchingOption && tabData?.visualizationType) {
+        console.log(
+          "🔍   - Searching for tabData.visualizationType:",
+          tabData.visualizationType
+        );
+
+        // Determine type from visualization type name
+        let preferredType = null;
+        if (
+          tabData.visualizationType.includes("_HEAT") ||
+          effectiveType === "class-breaks"
+        ) {
+          preferredType = "class-breaks";
+        } else if (effectiveType === "dot-density") {
+          preferredType = "dot-density";
+        }
+
+        matchingOption = findFieldMatch(
+          tabData.visualizationType,
+          preferredType
+        );
+        console.log(
+          "🔍   - Method 3 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
+        );
+      }
+
+      // Method 4: Type-Specific Comprehensive Search
+      console.log(
+        "🔍 [findVisualizationOption] === METHOD 4: Type-Specific Comprehensive Search ==="
+      );
+      if (!matchingOption && effectiveType) {
+        console.log("🔍   - effectiveType:", effectiveType);
+
+        // Get all possible search terms
+        const searchTerms = [
+          config?.field,
+          config?.visualizationKey,
+          tabData?.visualizationType,
+        ].filter(Boolean);
+
+        if (
+          effectiveType === "class-breaks" ||
+          effectiveType.endsWith("_HEAT")
+        ) {
+          console.log("🔍   - Looking for class-breaks/heat map matches");
+
+          for (const searchTerm of searchTerms) {
+            // Try multiple variations for heat maps
+            const variations = [
+              searchTerm,
+              searchTerm + "_HEAT",
+              searchTerm.replace("_HEAT", "") + "_HEAT",
+              searchTerm.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "") + "_HEAT",
+            ];
+
+            for (const variation of variations) {
+              matchingOption = visualizationOptions.find(
+                (opt) => opt.type === "class-breaks" && opt.value === variation
+              );
+
+              if (matchingOption) {
+                console.log(
+                  `🔍   - ✅ Class-breaks variation match: ${matchingOption.label} (${matchingOption.value})`
+                );
+                break;
+              }
+            }
+
+            if (matchingOption) break;
+          }
+        } else if (effectiveType === "dot-density") {
+          console.log("🔍   - Looking for dot-density matches");
+
+          for (const searchTerm of searchTerms) {
+            // For dot-density, usually the base field name without suffix
+            const baseTerm = searchTerm.replace(
+              /_HEAT$|_DOT$|_VIZ$|_MAP$/g,
+              ""
+            );
+            const variations = [baseTerm, baseTerm + "_DOT", searchTerm];
+
+            for (const variation of variations) {
+              matchingOption = visualizationOptions.find(
+                (opt) => opt.type === "dot-density" && opt.value === variation
+              );
+
+              if (matchingOption) {
+                console.log(
+                  `🔍   - ✅ Dot-density variation match: ${matchingOption.label} (${matchingOption.value})`
+                );
+                break;
+              }
+            }
+
+            if (matchingOption) break;
+          }
         }
 
         console.log(
-          "🔍 [findVisualizationOption] ✅ visualizationOptions available with",
-          visualizationOptions.length,
-          "entries"
+          "🔍   - Method 4 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
         );
+      }
 
-        let matchingOption = null;
+      // Method 5: Last Resort Fuzzy Matching
+      console.log(
+        "🔍 [findVisualizationOption] === METHOD 5: Last Resort Fuzzy Matching ==="
+      );
+      if (!matchingOption) {
+        const allSearchTerms = [
+          config?.field,
+          config?.visualizationKey,
+          tabData?.visualizationType,
+        ].filter(Boolean);
 
-        // Enhanced helper function for flexible field matching
-        const findFieldMatch = (fieldName, preferredType = null) => {
-          if (!fieldName) return null;
-          
-          console.log(`🔍   - Attempting to match field: "${fieldName}" with preferred type: ${preferredType}`);
-          
-          // Method A: Try exact match first
-          let match = visualizationOptions.find(opt => opt.value === fieldName);
-          if (match && (!preferredType || match.type === preferredType)) {
-            console.log(`🔍   - ✅ Exact match found: ${match.label} (${match.value})`);
-            return match;
-          }
-          
-          // Method B: Try with common suffixes for the preferred type
-          if (preferredType === "class-breaks") {
-            const fieldWithHeat = fieldName.endsWith("_HEAT") ? fieldName : fieldName + "_HEAT";
-            match = visualizationOptions.find(opt => opt.value === fieldWithHeat && opt.type === "class-breaks");
-            if (match) {
-              console.log(`🔍   - ✅ Heat suffix match found: ${match.label} (${match.value})`);
-              return match;
-            }
-          } else if (preferredType === "dot-density") {
-            // For dot-density, try without suffix first, then with _DOT
-            const baseField = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
-            match = visualizationOptions.find(opt => opt.value === baseField && opt.type === "dot-density");
-            if (match) {
-              console.log(`🔍   - ✅ Base field match for dot-density: ${match.label} (${match.value})`);
-              return match;
-            }
-          }
-          
-          // Method C: Try removing suffixes to find base field
-          const baseName = fieldName.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
-          if (baseName !== fieldName) {
-            // Try base name with preferred type
-            if (preferredType) {
-              match = visualizationOptions.find(opt => 
-                (opt.value === baseName || opt.value === baseName + "_HEAT" || opt.value === baseName + "_DOT") && 
-                opt.type === preferredType
-              );
-              if (match) {
-                console.log(`🔍   - ✅ Base name with type match: ${match.label} (${match.value})`);
-                return match;
-              }
-            }
-            
-            // Try base name without type preference
-            match = visualizationOptions.find(opt => opt.value === baseName);
-            if (match) {
-              console.log(`🔍   - ✅ Base name match: ${match.label} (${match.value})`);
-              return match;
-            }
-          }
-          
-          // Method D: Try adding suffixes if we don't have them
-          if (!fieldName.match(/_HEAT$|_DOT$|_VIZ$|_MAP$/)) {
-            const suffixesToTry = ['_HEAT', '_DOT'];
-            for (const suffix of suffixesToTry) {
-              const fieldWithSuffix = fieldName + suffix;
-              match = visualizationOptions.find(opt => 
-                opt.value === fieldWithSuffix && 
-                (!preferredType || opt.type === preferredType)
-              );
-              if (match) {
-                console.log(`🔍   - ✅ Added suffix match: ${match.label} (${match.value}) with ${suffix}`);
-                return match;
-              }
-            }
-          }
-          
-          // Method E: Fuzzy matching - find options that contain the core field
-          const coreField = baseName.length >= 3 ? baseName : fieldName;
-          match = visualizationOptions.find(opt => {
-            const optCore = opt.value.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
-            const isMatch = (
-              opt.value.includes(coreField) || 
-              coreField.includes(optCore) ||
-              optCore === coreField
-            ) && (!preferredType || opt.type === preferredType);
-            
-            if (isMatch) {
-              console.log(`🔍   - 🎯 Fuzzy match: "${opt.value}" matches "${fieldName}" via core "${coreField}"`);
-            }
-            return isMatch;
+        console.log("🔍   - All search terms:", allSearchTerms);
+
+        for (const searchTerm of allSearchTerms) {
+          if (!searchTerm || searchTerm.length < 3) continue;
+
+          // Extract core identifier (remove common suffixes and prefixes)
+          const coreIdentifier = searchTerm
+            .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "")
+            .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, "");
+
+          if (coreIdentifier.length < 3) continue;
+
+          // Look for any option that contains this core identifier
+          matchingOption = visualizationOptions.find((opt) => {
+            const optCore = opt.value
+              .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "")
+              .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, "");
+
+            return (
+              opt.value.includes(coreIdentifier) ||
+              coreIdentifier.includes(optCore) ||
+              optCore === coreIdentifier ||
+              // Try substring matching for longer identifiers
+              (coreIdentifier.length > 6 &&
+                (opt.value.includes(coreIdentifier.substring(0, 6)) ||
+                  coreIdentifier.includes(optCore.substring(0, 6))))
+            );
           });
-          
-          if (match) {
-            console.log(`🔍   - ✅ Fuzzy match found: ${match.label} (${match.value})`);
-            return match;
-          }
-          
-          console.log(`🔍   - ❌ No match found for field: "${fieldName}"`);
-          return null;
-        };
 
-        // Method 1: Enhanced Config Field Match
-        console.log("🔍 [findVisualizationOption] === METHOD 1: Enhanced Config Field Match ===");
-        if (config?.field) {
-          console.log("🔍   - Searching for config.field:", config.field);
-          
-          // Determine preferred type based on effectiveType
-          let preferredType = null;
-          if (effectiveType === "class-breaks" || effectiveType?.endsWith("_HEAT")) {
-            preferredType = "class-breaks";
-          } else if (effectiveType === "dot-density") {
-            preferredType = "dot-density";
+          if (matchingOption) {
+            console.log(
+              `🔍   - ✅ Fuzzy match found: ${matchingOption.label} (${matchingOption.value}) for search term: ${searchTerm} via core: ${coreIdentifier}`
+            );
+            break;
           }
-          
-          matchingOption = findFieldMatch(config.field, preferredType);
-          console.log(
-            "🔍   - Method 1 result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
         }
 
-        // Method 2: Enhanced Visualization Key Match
-        console.log("🔍 [findVisualizationOption] === METHOD 2: Enhanced Visualization Key Match ===");
-        if (!matchingOption && config?.visualizationKey) {
-          console.log("🔍   - Searching for config.visualizationKey:", config.visualizationKey);
-          
-          // Determine type from visualization key
-          let preferredType = null;
-          if (config.visualizationKey.includes("_HEAT") || effectiveType === "class-breaks") {
-            preferredType = "class-breaks";
-          } else if (effectiveType === "dot-density") {
-            preferredType = "dot-density";
-          }
-          
-          matchingOption = findFieldMatch(config.visualizationKey, preferredType);
-          console.log(
-            "🔍   - Method 2 result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        }
+        console.log(
+          "🔍   - Method 5 result:",
+          matchingOption
+            ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
+            : "❌ NOT FOUND"
+        );
+      }
 
-        // Method 3: Enhanced TabData Visualization Type Match
-        console.log("🔍 [findVisualizationOption] === METHOD 3: Enhanced TabData Match ===");
-        if (!matchingOption && tabData?.visualizationType) {
-          console.log("🔍   - Searching for tabData.visualizationType:", tabData.visualizationType);
-          
-          // Determine type from visualization type name
-          let preferredType = null;
-          if (tabData.visualizationType.includes("_HEAT") || effectiveType === "class-breaks") {
-            preferredType = "class-breaks";
-          } else if (effectiveType === "dot-density") {
-            preferredType = "dot-density";
-          }
-          
-          matchingOption = findFieldMatch(tabData.visualizationType, preferredType);
-          console.log(
-            "🔍   - Method 3 result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        }
+      console.log("🔍 [findVisualizationOption] === FINAL RESULT ===");
+      if (matchingOption) {
+        console.log("🔍 ✅ FINAL MATCH FOUND:", {
+          value: matchingOption.value,
+          label: matchingOption.label,
+          type: matchingOption.type,
+          category: matchingOption.category,
+        });
+      } else {
+        console.log("🔍 ❌ NO MATCH FOUND - Will use fallback title logic");
+      }
+      console.log("🔍 [findVisualizationOption] === DETAILED DEBUG END ===");
 
-        // Method 4: Type-Specific Comprehensive Search
-        console.log("🔍 [findVisualizationOption] === METHOD 4: Type-Specific Comprehensive Search ===");
-        if (!matchingOption && effectiveType) {
-          console.log("🔍   - effectiveType:", effectiveType);
+      return matchingOption;
+    };
 
-          // Get all possible search terms
-          const searchTerms = [
-            config?.field,
-            config?.visualizationKey,
-            tabData?.visualizationType
-          ].filter(Boolean);
-
-          if (effectiveType === "class-breaks" || effectiveType.endsWith("_HEAT")) {
-            console.log("🔍   - Looking for class-breaks/heat map matches");
-            
-            for (const searchTerm of searchTerms) {
-              // Try multiple variations for heat maps
-              const variations = [
-                searchTerm,
-                searchTerm + "_HEAT",
-                searchTerm.replace("_HEAT", "") + "_HEAT",
-                searchTerm.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "") + "_HEAT"
-              ];
-              
-              for (const variation of variations) {
-                matchingOption = visualizationOptions.find(opt => 
-                  opt.type === "class-breaks" && opt.value === variation
-                );
-                
-                if (matchingOption) {
-                  console.log(`🔍   - ✅ Class-breaks variation match: ${matchingOption.label} (${matchingOption.value})`);
-                  break;
-                }
-              }
-              
-              if (matchingOption) break;
-            }
-          } else if (effectiveType === "dot-density") {
-            console.log("🔍   - Looking for dot-density matches");
-            
-            for (const searchTerm of searchTerms) {
-              // For dot-density, usually the base field name without suffix
-              const baseTerm = searchTerm.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, "");
-              const variations = [
-                baseTerm,
-                baseTerm + "_DOT",
-                searchTerm
-              ];
-              
-              for (const variation of variations) {
-                matchingOption = visualizationOptions.find(opt => 
-                  opt.type === "dot-density" && opt.value === variation
-                );
-                
-                if (matchingOption) {
-                  console.log(`🔍   - ✅ Dot-density variation match: ${matchingOption.label} (${matchingOption.value})`);
-                  break;
-                }
-              }
-              
-              if (matchingOption) break;
-            }
-          }
-
-          console.log(
-            "🔍   - Method 4 result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        }
-
-        // Method 5: Last Resort Fuzzy Matching
-        console.log("🔍 [findVisualizationOption] === METHOD 5: Last Resort Fuzzy Matching ===");
-        if (!matchingOption) {
-          const allSearchTerms = [
-            config?.field,
-            config?.visualizationKey,
-            tabData?.visualizationType
-          ].filter(Boolean);
-
-          console.log("🔍   - All search terms:", allSearchTerms);
-
-          for (const searchTerm of allSearchTerms) {
-            if (!searchTerm || searchTerm.length < 3) continue;
-            
-            // Extract core identifier (remove common suffixes and prefixes)
-            const coreIdentifier = searchTerm
-              .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '')
-              .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, '');
-            
-            if (coreIdentifier.length < 3) continue;
-            
-            // Look for any option that contains this core identifier
-            matchingOption = visualizationOptions.find(opt => {
-              const optCore = opt.value
-                .replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '')
-                .replace(/^(TOTAL|MEDIAN|AVERAGE)_?/g, '');
-              
-              return (
-                opt.value.includes(coreIdentifier) ||
-                coreIdentifier.includes(optCore) ||
-                optCore === coreIdentifier ||
-                // Try substring matching for longer identifiers
-                (coreIdentifier.length > 6 && (
-                  opt.value.includes(coreIdentifier.substring(0, 6)) ||
-                  coreIdentifier.includes(optCore.substring(0, 6))
-                ))
-              );
-            });
-            
-            if (matchingOption) {
-              console.log(
-                `🔍   - ✅ Fuzzy match found: ${matchingOption.label} (${matchingOption.value}) for search term: ${searchTerm} via core: ${coreIdentifier}`
-              );
-              break;
-            }
-          }
-          
-          console.log(
-            "🔍   - Method 5 result:",
-            matchingOption
-              ? `✅ FOUND: ${matchingOption.label} (${matchingOption.value})`
-              : "❌ NOT FOUND"
-          );
-        }
-
-        console.log("🔍 [findVisualizationOption] === FINAL RESULT ===");
-        if (matchingOption) {
-          console.log("🔍 ✅ FINAL MATCH FOUND:", {
-            value: matchingOption.value,
-            label: matchingOption.label,
-            type: matchingOption.type,
-            category: matchingOption.category,
-          });
-        } else {
-          console.log("🔍 ❌ NO MATCH FOUND - Will use fallback title logic");
-        }
-        console.log("🔍 [findVisualizationOption] === DETAILED DEBUG END ===");
-
-        return matchingOption;
-      };
-
-      // Helper function for legend visibility with DOM manipulation
-      const setLegendVisibility = (legendWidget, visible) => {
-        if (!legendWidget) return;
-
-        try {
-          legendWidget.visible = visible;
-
-          if (legendWidget.container) {
-            legendWidget.container.style.display = visible ? "block" : "none";
-            legendWidget.container.style.visibility = visible
-              ? "visible"
-              : "hidden";
-
-            const parentElement = legendWidget.container.parentElement;
-            if (parentElement) {
-              parentElement.style.display = visible ? "block" : "none";
-              parentElement.style.visibility = visible ? "visible" : "hidden";
-            }
-          }
-
-          console.log(
-            `[setLegendVisibility] Legend ${
-              visible ? "shown" : "hidden"
-            } with DOM manipulations`
-          );
-        } catch (error) {
-          console.error(
-            "[setLegendVisibility] Error setting legend visibility:",
-            error
-          );
-        }
-      };
+    // Helper function for legend visibility with DOM manipulation
+    const setLegendVisibility = (legendWidget, visible) => {
+      if (!legendWidget) return;
 
       try {
-        // Prerequisites validation
-        if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
-          console.log(
-            "[updateVisualizationAndLegend] Skipping: Prerequisites not met.",
-            {
-              isConfigLoading,
-              mapReady: !!mapView?.map,
-              legendReady: !!legend,
-              labelManagerReady: isLabelManagerReady,
-            }
-          );
-          return null;
-        }
+        legendWidget.visible = visible;
 
-        // Find active tab and validate
-        const activeTabData = tabs.find((tab) => tab.id === activeTab);
+        if (legendWidget.container) {
+          legendWidget.container.style.display = visible ? "block" : "none";
+          legendWidget.container.style.visibility = visible
+            ? "visible"
+            : "hidden";
 
-        // Check for redundant processing
-        if (
-          activeTabData &&
-          lastProcessedTabRef.current === activeTabData.id &&
-          Date.now() - lastProcessedTimeRef.current < 2000
-        ) {
-          console.log(
-            `[updateVisualizationAndLegend] Tab ${activeTabData.id} already processed recently, skipping`
-          );
-          return null;
-        }
-
-        // Update tracking references
-        if (activeTabData) {
-          lastProcessedTabRef.current = activeTabData.id;
-          lastProcessedTimeRef.current = Date.now();
-        }
-
-        // Extract and establish context for label management
-        let mapConfigId = null;
-        let mapType = null;
-
-        if (activeTabData) {
-          mapConfigId =
-            activeTabData.configId ||
-            activeTabData.id ||
-            activeTabData.mapConfigId ||
-            sessionStorage.getItem("currentMapConfigId");
-
-          // ENHANCED: Apply type normalization to the raw visualization type
-          const rawVisualizationType =
-            activeTabData.visualizationType ||
-            activeTabData.type ||
-            sessionStorage.getItem("currentMapType");
-
-          mapType = normalizeVisualizationType(rawVisualizationType);
-
-          console.log(
-            `[updateVisualizationAndLegend] Type normalization: ${rawVisualizationType} -> ${mapType}`
-          );
-        }
-
-        // Establish LabelManager context before any layer operations
-        if (labelManagerRef.current && mapConfigId) {
-          try {
-            const projectId =
-              localStorage.getItem("currentProjectId") ||
-              sessionStorage.getItem("currentProjectId");
-
-            if (projectId) {
-              // Store context in session storage
-              sessionStorage.setItem("currentMapConfigId", mapConfigId);
-              sessionStorage.setItem("currentMapType", mapType);
-              sessionStorage.setItem("currentProjectId", projectId);
-
-              // Set LabelManager context
-              labelManagerRef.current.setContext(projectId, mapConfigId, mapType);
-
-              // Verify context
-              const contextVerification = {
-                success: labelManagerRef.current.mapConfigId === mapConfigId,
-                managerConfigId: labelManagerRef.current.mapConfigId,
-                expectedConfigId: mapConfigId,
-                managerType: labelManagerRef.current.mapType,
-              };
-
-              if (contextVerification.success) {
-                console.log(
-                  `[updateVisualizationAndLegend] LabelManager context established:`,
-                  {
-                    projectId,
-                    mapConfigId,
-                    mapType,
-                  }
-                );
-              } else {
-                console.error(
-                  `[updateVisualizationAndLegend] LabelManager context verification failed:`,
-                  contextVerification
-                );
-              }
-            }
-          } catch (contextError) {
-            console.error(
-              "[updateVisualizationAndLegend] Error establishing LabelManager context:",
-              contextError
-            );
+          const parentElement = legendWidget.container.parentElement;
+          if (parentElement) {
+            parentElement.style.display = visible ? "block" : "none";
+            parentElement.style.visibility = visible ? "visible" : "hidden";
           }
         }
 
-        // Save existing label positions before layer modifications
-        saveLabelPositions(true);
+        console.log(
+          `[setLegendVisibility] Legend ${
+            visible ? "shown" : "hidden"
+          } with DOM manipulations`
+        );
+      } catch (error) {
+        console.error(
+          "[setLegendVisibility] Error setting legend visibility:",
+          error
+        );
+      }
+    };
 
-        // Remove existing visualization layers
-        const layersToRemove = [];
-        mapView.map.layers.forEach((layer) => {
-          if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
-            layersToRemove.push(layer);
+    try {
+      // Prerequisites validation
+      if (!mapView?.map || isConfigLoading || !legend || !isLabelManagerReady) {
+        console.log(
+          "[updateVisualizationAndLegend] Skipping: Prerequisites not met.",
+          {
+            isConfigLoading,
+            mapReady: !!mapView?.map,
+            legendReady: !!legend,
+            labelManagerReady: isLabelManagerReady,
           }
-        });
+        );
+        return null;
+      }
 
-        if (layersToRemove.length > 0) {
-          console.log(
-            `[updateVisualizationAndLegend] Removing ${layersToRemove.length} visualization layers`
+      // Find active tab and validate
+      const activeTabData = tabs.find((tab) => tab.id === activeTab);
+
+      // Check for redundant processing
+      if (
+        activeTabData &&
+        lastProcessedTabRef.current === activeTabData.id &&
+        Date.now() - lastProcessedTimeRef.current < 2000
+      ) {
+        console.log(
+          `[updateVisualizationAndLegend] Tab ${activeTabData.id} already processed recently, skipping`
+        );
+        return null;
+      }
+
+      // Update tracking references
+      if (activeTabData) {
+        lastProcessedTabRef.current = activeTabData.id;
+        lastProcessedTimeRef.current = Date.now();
+      }
+
+      // Extract and establish context for label management
+      let mapConfigId = null;
+      let mapType = null;
+
+      if (activeTabData) {
+        mapConfigId =
+          activeTabData.configId ||
+          activeTabData.id ||
+          activeTabData.mapConfigId ||
+          sessionStorage.getItem("currentMapConfigId");
+
+        // ENHANCED: Apply type normalization to the raw visualization type
+        const rawVisualizationType =
+          activeTabData.visualizationType ||
+          activeTabData.type ||
+          sessionStorage.getItem("currentMapType");
+
+        mapType = normalizeVisualizationType(rawVisualizationType);
+
+        console.log(
+          `[updateVisualizationAndLegend] Type normalization: ${rawVisualizationType} -> ${mapType}`
+        );
+      }
+
+      // Establish LabelManager context before any layer operations
+      if (labelManagerRef.current && mapConfigId) {
+        try {
+          const projectId =
+            localStorage.getItem("currentProjectId") ||
+            sessionStorage.getItem("currentProjectId");
+
+          if (projectId) {
+            // Store context in session storage
+            sessionStorage.setItem("currentMapConfigId", mapConfigId);
+            sessionStorage.setItem("currentMapType", mapType);
+            sessionStorage.setItem("currentProjectId", projectId);
+
+            // Set LabelManager context
+            labelManagerRef.current.setContext(projectId, mapConfigId, mapType);
+
+            // Verify context
+            const contextVerification = {
+              success: labelManagerRef.current.mapConfigId === mapConfigId,
+              managerConfigId: labelManagerRef.current.mapConfigId,
+              expectedConfigId: mapConfigId,
+              managerType: labelManagerRef.current.mapType,
+            };
+
+            if (contextVerification.success) {
+              console.log(
+                `[updateVisualizationAndLegend] LabelManager context established:`,
+                {
+                  projectId,
+                  mapConfigId,
+                  mapType,
+                }
+              );
+            } else {
+              console.error(
+                `[updateVisualizationAndLegend] LabelManager context verification failed:`,
+                contextVerification
+              );
+            }
+          }
+        } catch (contextError) {
+          console.error(
+            "[updateVisualizationAndLegend] Error establishing LabelManager context:",
+            contextError
           );
-          mapView.map.removeMany(layersToRemove);
         }
+      }
 
-        // Handle Core Map (activeTab === 1)
-        if (activeTab === 1) {
-          console.log(
-            "[updateVisualizationAndLegend] Core Map detected, ensuring legend is hidden"
+      // Save existing label positions before layer modifications
+      saveLabelPositions(true);
+
+      // Remove existing visualization layers
+      const layersToRemove = [];
+      mapView.map.layers.forEach((layer) => {
+        if (layer?.isVisualizationLayer === true && !layer?._preventRemoval) {
+          layersToRemove.push(layer);
+        }
+      });
+
+      if (layersToRemove.length > 0) {
+        console.log(
+          `[updateVisualizationAndLegend] Removing ${layersToRemove.length} visualization layers`
+        );
+        mapView.map.removeMany(layersToRemove);
+      }
+
+      // Handle Core Map (activeTab === 1)
+      if (activeTab === 1) {
+        console.log(
+          "[updateVisualizationAndLegend] Core Map detected, ensuring legend is hidden"
+        );
+        setLegendVisibility(legend, false);
+        setCustomLegendContent(null);
+        return null;
+      }
+
+      // Process visualization for active tab
+      if (activeTabData?.visualizationType) {
+        // ENHANCED: Apply comprehensive type normalization
+        let vizType = normalizeVisualizationType(
+          activeTabData.visualizationType
+        );
+
+        // Additional normalization for site_location
+        if (vizType === "site_location") vizType = "site_location";
+
+        const config = activeTabData.layerConfiguration;
+        const areaType = activeTabData.areaType;
+
+        console.log(
+          `[updateVisualizationAndLegend] Preparing layer creation for normalized type: ${vizType} (original: ${activeTabData.visualizationType})`
+        );
+
+        const effectiveType = vizType || config?.type;
+        if (!effectiveType) {
+          console.error(
+            "[updateVisualizationAndLegend] Cannot create layer: Missing visualization type"
           );
           setLegendVisibility(legend, false);
           setCustomLegendContent(null);
           return null;
         }
 
-        // Process visualization for active tab
-        if (activeTabData?.visualizationType) {
-          // ENHANCED: Apply comprehensive type normalization
-          let vizType = normalizeVisualizationType(
-            activeTabData.visualizationType
-          );
+        let newLayer = null;
+        try {
+          // Determine visualization category with normalized types
+          const specialTypes = ["pipe", "comp", "custom", "site_location"];
+          const isSpecialType =
+            specialTypes.includes(effectiveType) ||
+            (config?.customData &&
+              !["class-breaks", "dot-density"].includes(effectiveType));
 
-          // Additional normalization for site_location
-          if (vizType === "site_location") vizType = "site_location";
+          const standardTypes = ["class-breaks", "dot-density"];
+          const isStandardViz =
+            standardTypes.includes(effectiveType) ||
+            (config?.type && standardTypes.includes(config.type)) ||
+            config?.dotValue !== undefined ||
+            config?.classBreakInfos !== undefined ||
+            effectiveType.endsWith("_HEAT");
 
-          const config = activeTabData.layerConfiguration;
-          const areaType = activeTabData.areaType;
+          // Create layer with proper context metadata
+          if (isSpecialType) {
+            const configForCreator = {
+              ...(config || {}),
+              type: effectiveType,
+              configId: mapConfigId,
+              mapConfigId: mapConfigId,
+              // Add context metadata for label management
+              contextMetadata: {
+                mapConfigId: mapConfigId,
+                mapType: effectiveType,
+                projectId: localStorage.getItem("currentProjectId"),
+                createdAt: Date.now(),
+              },
+            };
 
-          console.log(
-            `[updateVisualizationAndLegend] Preparing layer creation for normalized type: ${vizType} (original: ${activeTabData.visualizationType})`
-          );
-
-          const effectiveType = vizType || config?.type;
-          if (!effectiveType) {
-            console.error(
-              "[updateVisualizationAndLegend] Cannot create layer: Missing visualization type"
+            switch (effectiveType) {
+              case "pipe":
+                newLayer = await createPipeLayer(configForCreator);
+                break;
+              case "comp":
+                newLayer = await createCompLayer(configForCreator);
+                break;
+              case "site_location":
+                newLayer = new GraphicsLayer({
+                  title: "Site Location",
+                  visualizationType: "site_location",
+                  isVisualizationLayer: true,
+                  listMode: "hide",
+                  mapConfigId: mapConfigId,
+                  mapType: "site_location",
+                });
+                break;
+              default:
+                newLayer = await createGraphicsLayerFromCustomData(
+                  configForCreator
+                );
+                break;
+            }
+          } else {
+            // Create standard feature layers with normalized type
+            newLayer = await createLayers(
+              effectiveType,
+              config,
+              initialLayerConfigurations,
+              areaType
             );
-            setLegendVisibility(legend, false);
-            setCustomLegendContent(null);
-            return null;
           }
 
-          let newLayer = null;
-          try {
-            // Determine visualization category with normalized types
-            const specialTypes = ["pipe", "comp", "custom", "site_location"];
-            const isSpecialType =
-              specialTypes.includes(effectiveType) ||
-              (config?.customData &&
-                !["class-breaks", "dot-density"].includes(effectiveType));
+          // Configure layer with context metadata
+          if (
+            newLayer &&
+            (newLayer instanceof FeatureLayer ||
+              newLayer instanceof GraphicsLayer)
+          ) {
+            // Set visualization properties with normalized type
+            newLayer.isVisualizationLayer = true;
+            newLayer.visualizationType = effectiveType; // Use normalized type
+            newLayer._updateId = `update-${Date.now()}`;
 
-            const standardTypes = ["class-breaks", "dot-density"];
-            const isStandardViz =
-              standardTypes.includes(effectiveType) ||
-              (config?.type && standardTypes.includes(config.type)) ||
-              config?.dotValue !== undefined ||
-              config?.classBreakInfos !== undefined ||
-              effectiveType.endsWith("_HEAT");
+            // Set context metadata for label management
+            newLayer.mapConfigId = mapConfigId;
+            newLayer.mapType = effectiveType; // Use normalized type
+            newLayer.projectId = localStorage.getItem("currentProjectId");
 
-            // Create layer with proper context metadata
-            if (isSpecialType) {
-              const configForCreator = {
-                ...(config || {}),
-                type: effectiveType,
-                configId: mapConfigId,
-                mapConfigId: mapConfigId,
-                // Add context metadata for label management
-                contextMetadata: {
-                  mapConfigId: mapConfigId,
-                  mapType: effectiveType,
-                  projectId: localStorage.getItem("currentProjectId"),
-                  createdAt: Date.now(),
-                },
-              };
+            // Ensure labelFormatInfo has context
+            newLayer.labelFormatInfo = {
+              ...newLayer.labelFormatInfo,
+              mapConfigId: mapConfigId,
+              mapType: effectiveType, // Use normalized type
+            };
 
-              switch (effectiveType) {
-                case "pipe":
-                  newLayer = await createPipeLayer(configForCreator);
-                  break;
-                case "comp":
-                  newLayer = await createCompLayer(configForCreator);
-                  break;
-                case "site_location":
-                  newLayer = new GraphicsLayer({
-                    title: "Site Location",
-                    visualizationType: "site_location",
-                    isVisualizationLayer: true,
-                    listMode: "hide",
-                    mapConfigId: mapConfigId,
-                    mapType: "site_location",
-                  });
-                  break;
-                default:
-                  newLayer = await createGraphicsLayerFromCustomData(
-                    configForCreator
-                  );
-                  break;
-              }
-            } else {
-              // Create standard feature layers with normalized type
-              newLayer = await createLayers(
-                effectiveType,
-                config,
-                initialLayerConfigurations,
-                areaType
-              );
-            }
+            // Apply context metadata to all graphics
+            if (newLayer.graphics && newLayer.graphics.length > 0) {
+              newLayer.graphics.forEach((graphic) => {
+                if (graphic.attributes) {
+                  graphic.attributes.mapConfigId = mapConfigId;
+                  graphic.attributes.mapType = effectiveType; // Use normalized type
 
-            // Configure layer with context metadata
-            if (
-              newLayer &&
-              (newLayer instanceof FeatureLayer ||
-                newLayer instanceof GraphicsLayer)
-            ) {
-              // Set visualization properties with normalized type
-              newLayer.isVisualizationLayer = true;
-              newLayer.visualizationType = effectiveType; // Use normalized type
-              newLayer._updateId = `update-${Date.now()}`;
-
-              // Set context metadata for label management
-              newLayer.mapConfigId = mapConfigId;
-              newLayer.mapType = effectiveType; // Use normalized type
-              newLayer.projectId = localStorage.getItem("currentProjectId");
-
-              // Ensure labelFormatInfo has context
-              newLayer.labelFormatInfo = {
-                ...newLayer.labelFormatInfo,
-                mapConfigId: mapConfigId,
-                mapType: effectiveType, // Use normalized type
-              };
-
-              // Apply context metadata to all graphics
-              if (newLayer.graphics && newLayer.graphics.length > 0) {
-                newLayer.graphics.forEach((graphic) => {
-                  if (graphic.attributes) {
-                    graphic.attributes.mapConfigId = mapConfigId;
-                    graphic.attributes.mapType = effectiveType; // Use normalized type
-
-                    if (graphic.symbol?.type === "text") {
-                      graphic.attributes.isLabel = true;
-                    }
-                  }
-                });
-              }
-
-              // Add layer to map
-              mapView.map.add(newLayer, 0);
-              console.log(
-                `[updateVisualizationAndLegend] Added layer "${
-                  newLayer.title || newLayer.id
-                }" to map with normalized type: ${effectiveType}`
-              );
-
-              // Store layer reference
-              if (activeLayersRef.current) {
-                activeLayersRef.current[activeTab] = newLayer;
-              }
-
-              // Wait for layer to be ready
-              await newLayer.when();
-              console.log(
-                `[updateVisualizationAndLegend] Layer "${
-                  newLayer.title || newLayer.id
-                }" is ready`
-              );
-
-              // Handle legend and label processing
-              const showStandardLegend =
-                isStandardViz &&
-                !isSpecialType &&
-                !isEditorOpen &&
-                !isLabelEditorOpen;
-
-              if (isSpecialType && activeTabData.layerConfiguration) {
-                // Handle custom legend for special types
-                console.log(
-                  `[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`
-                );
-                setCustomLegendContent({
-                  type: effectiveType,
-                  config: activeTabData.layerConfiguration,
-                });
-
-                setLegendVisibility(legend, false);
-
-                // Notify label manager about layer
-                await notifyLabelManagerAboutLayer(
-                  newLayer,
-                  effectiveType,
-                  activeTabData.layerConfiguration?.labelOptions
-                );
-
-                // Process labels with enhanced context management
-                if (labelManagerRef.current) {
-                  console.log(
-                    `[updateVisualizationAndLegend] Processing layer ${newLayer.id} with Label Manager`
-                  );
-
-                  newLayer._isBeingProcessed = true;
-
-                  try {
-                    // Ensure context is correct before processing
-                    if (labelManagerRef.current.mapConfigId !== mapConfigId) {
-                      console.warn(
-                        "[updateVisualizationAndLegend] Context mismatch detected, correcting..."
-                      );
-                      const projectId = localStorage.getItem("currentProjectId");
-                      labelManagerRef.current.setContext(
-                        projectId,
-                        mapConfigId,
-                        effectiveType
-                      );
-                    }
-
-                    // Process layer with temporary auto-save disable
-                    const originalSaveMethod =
-                      labelManagerRef.current.savePositions;
-                    if (typeof originalSaveMethod === "function") {
-                      labelManagerRef.current.savePositions = () => ({
-                        count: 0,
-                        skipped: true,
-                      });
-                      const processedLabels =
-                        labelManagerRef.current.processLayer(newLayer);
-                      labelManagerRef.current.savePositions = originalSaveMethod;
-
-                      console.log(
-                        `[updateVisualizationAndLegend] Processed ${
-                          Array.isArray(processedLabels)
-                            ? processedLabels.length
-                            : 0
-                        } labels`
-                      );
-                    } else {
-                      labelManagerRef.current.processLayer(newLayer);
-                    }
-                  } catch (processingError) {
-                    console.error(
-                      "[updateVisualizationAndLegend] Error processing layer with LabelManager:",
-                      processingError
-                    );
-                  } finally {
-                    // Clear processing flag
-                    setTimeout(() => {
-                      if (newLayer) newLayer._isBeingProcessed = false;
-                    }, 500);
-                  }
-
-                  // Schedule label refresh
-                  if (
-                    typeof labelManagerRef.current.refreshLabels === "function"
-                  ) {
-                    labelLoadTimeoutId = setTimeout(() => {
-                      if (updateInProgressRef.current) {
-                        console.log(
-                          "[updateVisualizationAndLegend] Skipping scheduled refresh - update in progress"
-                        );
-                        return;
-                      }
-
-                      if (
-                        labelManagerRef.current &&
-                        typeof labelManagerRef.current.refreshLabels ===
-                          "function"
-                      ) {
-                        labelManagerRef.current.refreshLabels();
-                        console.log(
-                          `[updateVisualizationAndLegend] Refreshed labels after processing ${effectiveType} layer`
-                        );
-                      }
-                    }, 800);
+                  if (graphic.symbol?.type === "text") {
+                    graphic.attributes.isLabel = true;
                   }
                 }
-              } else if (showStandardLegend || isStandardViz) {
-                // Handle standard legend for feature layers
+              });
+            }
+
+            // Add layer to map
+            mapView.map.add(newLayer, 0);
+            console.log(
+              `[updateVisualizationAndLegend] Added layer "${
+                newLayer.title || newLayer.id
+              }" to map with normalized type: ${effectiveType}`
+            );
+
+            // Store layer reference
+            if (activeLayersRef.current) {
+              activeLayersRef.current[activeTab] = newLayer;
+            }
+
+            // Wait for layer to be ready
+            await newLayer.when();
+            console.log(
+              `[updateVisualizationAndLegend] Layer "${
+                newLayer.title || newLayer.id
+              }" is ready`
+            );
+
+            // Handle legend and label processing
+            const showStandardLegend =
+              isStandardViz &&
+              !isSpecialType &&
+              !isEditorOpen &&
+              !isLabelEditorOpen;
+
+            if (isSpecialType && activeTabData.layerConfiguration) {
+              // Handle custom legend for special types
+              console.log(
+                `[updateVisualizationAndLegend] Setting custom legend for type: ${effectiveType}`
+              );
+              setCustomLegendContent({
+                type: effectiveType,
+                config: activeTabData.layerConfiguration,
+              });
+
+              setLegendVisibility(legend, false);
+
+              // Notify label manager about layer
+              await notifyLabelManagerAboutLayer(
+                newLayer,
+                effectiveType,
+                activeTabData.layerConfiguration?.labelOptions
+              );
+
+              // Process labels with enhanced context management
+              if (labelManagerRef.current) {
+                console.log(
+                  `[updateVisualizationAndLegend] Processing layer ${newLayer.id} with Label Manager`
+                );
+
+                newLayer._isBeingProcessed = true;
+
                 try {
-                  const currentConfig = activeTabData?.layerConfiguration;
-                  let displayTitle = newLayer.title || effectiveType; // Default title
-
-                  // --- FIX: PRIORITIZE EDITED CONFIG OVER DEFAULT LOOKUP ---
-                  
-                  // If decimalPlaces is explicitly set in the config, it means the user has edited it.
-                  // We should trust this config and NOT perform a lookup that would overwrite it.
-                  // We also check for legendTitle for backwards compatibility with other edits.
-                  const isPropertyEdit =
-                    (currentConfig && typeof currentConfig.decimalPlaces !== 'undefined') ||
-                    (currentConfig && currentConfig.legendTitle);
-
-                  if (isPropertyEdit) {
-                    console.log(
-                      `[updateVisualizationAndLegend] Property edit detected. Bypassing visualization lookup.`
+                  // Ensure context is correct before processing
+                  if (labelManagerRef.current.mapConfigId !== mapConfigId) {
+                    console.warn(
+                      "[updateVisualizationAndLegend] Context mismatch detected, correcting..."
                     );
-                    // Use the title from the config if it exists, otherwise use the last known good title or a default.
-                    displayTitle = currentConfig.legendTitle || newLayer.title || effectiveType;
-                    console.log(
-                      `[updateVisualizationAndLegend] Using title from edited config: "${displayTitle}"`
+                    const projectId = localStorage.getItem("currentProjectId");
+                    labelManagerRef.current.setContext(
+                      projectId,
+                      mapConfigId,
+                      effectiveType
                     );
+                  }
 
+                  // Process layer with temporary auto-save disable
+                  const originalSaveMethod =
+                    labelManagerRef.current.savePositions;
+                  if (typeof originalSaveMethod === "function") {
+                    labelManagerRef.current.savePositions = () => ({
+                      count: 0,
+                      skipped: true,
+                    });
+                    const processedLabels =
+                      labelManagerRef.current.processLayer(newLayer);
+                    labelManagerRef.current.savePositions = originalSaveMethod;
+
+                    console.log(
+                      `[updateVisualizationAndLegend] Processed ${
+                        Array.isArray(processedLabels)
+                          ? processedLabels.length
+                          : 0
+                      } labels`
+                    );
                   } else {
-                    // This is the original logic, which runs when it's NOT a property edit (e.g., initial load, new viz selection).
-                    const matchingVisualizationOption = findVisualizationOption(
-                      currentConfig,
-                      effectiveType,
-                      activeTabData
-                    );
+                    labelManagerRef.current.processLayer(newLayer);
+                  }
+                } catch (processingError) {
+                  console.error(
+                    "[updateVisualizationAndLegend] Error processing layer with LabelManager:",
+                    processingError
+                  );
+                } finally {
+                  // Clear processing flag
+                  setTimeout(() => {
+                    if (newLayer) newLayer._isBeingProcessed = false;
+                  }, 500);
+                }
+
+                // Schedule label refresh
+                if (
+                  typeof labelManagerRef.current.refreshLabels === "function"
+                ) {
+                  labelLoadTimeoutId = setTimeout(() => {
+                    if (updateInProgressRef.current) {
+                      console.log(
+                        "[updateVisualizationAndLegend] Skipping scheduled refresh - update in progress"
+                      );
+                      return;
+                    }
 
                     if (
-                      matchingVisualizationOption &&
-                      matchingVisualizationOption.label
+                      labelManagerRef.current &&
+                      typeof labelManagerRef.current.refreshLabels ===
+                        "function"
                     ) {
-                      displayTitle = matchingVisualizationOption.label;
+                      labelManagerRef.current.refreshLabels();
                       console.log(
-                        `[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`
-                      );
-                    } else {
-                      console.log(
-                        `[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`
+                        `[updateVisualizationAndLegend] Refreshed labels after processing ${effectiveType} layer`
                       );
                     }
-                  }
-                  // --- END ENHANCED MODIFICATION ---
+                  }, 800);
+                }
+              }
+            } else if (showStandardLegend || isStandardViz) {
+              // Handle standard legend for feature layers
+              try {
+                const currentConfig = activeTabData?.layerConfiguration;
+                let displayTitle = newLayer.title || effectiveType; // Default title
 
+                // --- FIX: PRIORITIZE EDITED CONFIG OVER DEFAULT LOOKUP ---
+
+                // If decimalPlaces is explicitly set in the config, it means the user has edited it.
+                // We should trust this config and NOT perform a lookup that would overwrite it.
+                // We also check for legendTitle for backwards compatibility with other edits.
+                const isPropertyEdit =
+                  (currentConfig &&
+                    typeof currentConfig.decimalPlaces !== "undefined") ||
+                  (currentConfig && currentConfig.legendTitle);
+
+                if (isPropertyEdit) {
                   console.log(
-                    `[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${
-                      newLayer.title || effectiveType
-                    }" (displaying as: "${displayTitle}")`
+                    `[updateVisualizationAndLegend] Property edit detected. Bypassing visualization lookup.`
+                  );
+                  // Use the title from the config if it exists, otherwise use the last known good title or a default.
+                  displayTitle =
+                    currentConfig.legendTitle ||
+                    newLayer.title ||
+                    effectiveType;
+                  console.log(
+                    `[updateVisualizationAndLegend] Using title from edited config: "${displayTitle}"`
+                  );
+                } else {
+                  // This is the original logic, which runs when it's NOT a property edit (e.g., initial load, new viz selection).
+                  const matchingVisualizationOption = findVisualizationOption(
+                    currentConfig,
+                    effectiveType,
+                    activeTabData
                   );
 
-                  // Set the layer's title property directly - this is crucial for the legend widget
-                  newLayer.title = displayTitle;
-                  console.log(
-                    `[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`
-                  );
-
-                  // Also set the legend layerInfos for additional control
-                  legend.layerInfos = [
-                    {
-                      layer: newLayer,
-                      title: displayTitle, // Use the determined title
-                      hideLayersNotInCurrentView: false,
-                    },
-                  ];
-
-                  // Force legend refresh to pick up the new title
-                  if (legend.refresh && typeof legend.refresh === "function") {
-                    legend.refresh();
+                  if (
+                    matchingVisualizationOption &&
+                    matchingVisualizationOption.label
+                  ) {
+                    displayTitle = matchingVisualizationOption.label;
                     console.log(
-                      `[updateVisualizationAndLegend] Forced legend refresh`
+                      `[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`
+                    );
+                  } else {
+                    console.log(
+                      `[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`
                     );
                   }
+                }
+                // --- END ENHANCED MODIFICATION ---
 
-                  setLegendVisibility(legend, true);
+                console.log(
+                  `[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${
+                    newLayer.title || effectiveType
+                  }" (displaying as: "${displayTitle}")`
+                );
 
-                  // Apply custom styling to hide layer subtitle and clean up legend appearance
-                  if (legend.container) {
-                    styleLegend(legend.container);
+                // Set the layer's title property directly - this is crucial for the legend widget
+                newLayer.title = displayTitle;
+                console.log(
+                  `[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`
+                );
 
-                    // Add CSS to hide the layer subtitle and remove extra white space
-                    const style = document.createElement("style");
-                    style.textContent = `
+                // Also set the legend layerInfos for additional control
+                legend.layerInfos = [
+                  {
+                    layer: newLayer,
+                    title: displayTitle, // Use the determined title
+                    hideLayersNotInCurrentView: false,
+                  },
+                ];
+
+                // Force legend refresh to pick up the new title
+                if (legend.refresh && typeof legend.refresh === "function") {
+                  legend.refresh();
+                  console.log(
+                    `[updateVisualizationAndLegend] Forced legend refresh`
+                  );
+                }
+
+                setLegendVisibility(legend, true);
+
+                // Apply custom styling to hide layer subtitle and clean up legend appearance
+                if (legend.container) {
+                  styleLegend(legend.container);
+
+                  // Add CSS to hide the layer subtitle and remove extra white space
+                  const style = document.createElement("style");
+                  style.textContent = `
                           .esri-legend__layer-caption,
                           .esri-legend__layer-title,
                           .esri-legend__layer-child-title {
@@ -5405,359 +5910,397 @@ const detectUserTransparencyOverride = (config) => {
                           }
                         `;
 
-                    // Remove any existing legend subtitle styles first
-                    const existingStyle = legend.container.querySelector(
-                      "#legend-subtitle-hide-style"
-                    );
-                    if (existingStyle) {
-                      existingStyle.remove();
-                    }
-
-                    // Add the new style with ID for future removal
-                    style.id = "legend-subtitle-hide-style";
-                    legend.container.appendChild(style);
-
-                    console.log(
-                      `[updateVisualizationAndLegend] Applied CSS to hide legend subtitle and remove extra white space`
-                    );
+                  // Remove any existing legend subtitle styles first
+                  const existingStyle = legend.container.querySelector(
+                    "#legend-subtitle-hide-style"
+                  );
+                  if (existingStyle) {
+                    existingStyle.remove();
                   }
-                  setCustomLegendContent(null);
+
+                  // Add the new style with ID for future removal
+                  style.id = "legend-subtitle-hide-style";
+                  legend.container.appendChild(style);
 
                   console.log(
-                    `[updateVisualizationAndLegend] Successfully displayed standard legend for ${effectiveType} with title "${displayTitle}"`
+                    `[updateVisualizationAndLegend] Applied CSS to hide legend subtitle and remove extra white space`
                   );
-                } catch (layerError) {
-                  console.error(
-                    "[updateVisualizationAndLegend] Error updating legend:",
-                    layerError
-                  );
-                  setLegendVisibility(legend, false);
                 }
-              } else {
-                // Hide legend for other cases
+                setCustomLegendContent(null);
+
                 console.log(
-                  "[updateVisualizationAndLegend] Hiding standard Esri legend"
+                  `[updateVisualizationAndLegend] Successfully displayed standard legend for ${effectiveType} with title "${displayTitle}"`
+                );
+              } catch (layerError) {
+                console.error(
+                  "[updateVisualizationAndLegend] Error updating legend:",
+                  layerError
                 );
                 setLegendVisibility(legend, false);
-                setCustomLegendContent(null);
-              }
-
-              // Handle type-specific post-processing with guards (using normalized types)
-              if (effectiveType === "pipe" && !newLayer._pipeHandled) {
-                newLayer._pipeHandled = true;
-                setTimeout(
-                  () => handlePipeVisualization(activeTabData, newLayer),
-                  100
-                );
-              } else if (effectiveType === "comp" && !newLayer._compHandled) {
-                newLayer._compHandled = true;
-                setTimeout(
-                  () => handleCompVisualization(activeTabData, newLayer),
-                  100
-                );
-              } else if (effectiveType === "custom" && !newLayer._customHandled) {
-                newLayer._customHandled = true;
-                setTimeout(
-                  () => handleCustomDataVisualization(activeTabData, newLayer),
-                  100
-                );
               }
             } else {
-              console.error(
-                `[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`
+              // Hide legend for other cases
+              console.log(
+                "[updateVisualizationAndLegend] Hiding standard Esri legend"
               );
               setLegendVisibility(legend, false);
               setCustomLegendContent(null);
             }
-          } catch (error) {
+
+            // Handle type-specific post-processing with guards (using normalized types)
+            if (effectiveType === "pipe" && !newLayer._pipeHandled) {
+              newLayer._pipeHandled = true;
+              setTimeout(
+                () => handlePipeVisualization(activeTabData, newLayer),
+                100
+              );
+            } else if (effectiveType === "comp" && !newLayer._compHandled) {
+              newLayer._compHandled = true;
+              setTimeout(
+                () => handleCompVisualization(activeTabData, newLayer),
+                100
+              );
+            } else if (effectiveType === "custom" && !newLayer._customHandled) {
+              newLayer._customHandled = true;
+              setTimeout(
+                () => handleCustomDataVisualization(activeTabData, newLayer),
+                100
+              );
+            }
+          } else {
             console.error(
-              `[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`,
-              error
+              `[updateVisualizationAndLegend] Failed to create layer for type: ${effectiveType}`
             );
             setLegendVisibility(legend, false);
             setCustomLegendContent(null);
           }
-        } else {
-          console.log(
-            `[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`
+        } catch (error) {
+          console.error(
+            `[updateVisualizationAndLegend] Error during layer creation for type ${effectiveType}:`,
+            error
           );
           setLegendVisibility(legend, false);
           setCustomLegendContent(null);
         }
-      } catch (error) {
-        console.error("[updateVisualizationAndLegend] Critical error:", error);
+      } else {
+        console.log(
+          `[updateVisualizationAndLegend] No visualization to display for tab ${activeTab}`
+        );
         setLegendVisibility(legend, false);
         setCustomLegendContent(null);
-      } finally {
-        // Reset update flag with delay
-        setTimeout(() => {
-          updateInProgressRef.current = false;
-          console.log("[updateVisualizationAndLegend] Update lock released");
-        }, 500);
       }
+    } catch (error) {
+      console.error("[updateVisualizationAndLegend] Critical error:", error);
+      setLegendVisibility(legend, false);
+      setCustomLegendContent(null);
+    } finally {
+      // Reset update flag with delay
+      setTimeout(() => {
+        updateInProgressRef.current = false;
+        console.log("[updateVisualizationAndLegend] Update lock released");
+      }, 500);
+    }
 
-      return labelLoadTimeoutId;
-    }, [
-      activeTab,
-      tabs,
-      mapView,
-      legend,
-      isEditorOpen,
-      isLabelEditorOpen,
-      isConfigLoading,
-      isLabelManagerReady,
-      initialLayerConfigurations,
-      saveLabelPositions,
-      notifyLabelManagerAboutLayer,
-      setCustomLegendContent,
-      styleLegend,
-      handlePipeVisualization,
-      handleCompVisualization,
-      handleCustomDataVisualization,
-    ]);
+    return labelLoadTimeoutId;
+  }, [
+    activeTab,
+    tabs,
+    mapView,
+    legend,
+    isEditorOpen,
+    isLabelEditorOpen,
+    isConfigLoading,
+    isLabelManagerReady,
+    initialLayerConfigurations,
+    saveLabelPositions,
+    notifyLabelManagerAboutLayer,
+    setCustomLegendContent,
+    styleLegend,
+    handlePipeVisualization,
+    handleCompVisualization,
+    handleCustomDataVisualization,
+  ]);
 
   // --- CONSOLIDATED EFFECT HOOKS ---
 
-
-useEffect(() => {
-  // Skip if no new class-breaks map was created or prerequisites aren't met
-  if (!newClassBreaksMapCreated || !mapView?.map || !isLabelManagerReady) {
-    return;
-  }
-
-  const regenerateClassBreaks = async () => {
-    try {
-      const { tabId, visualizationType, areaType } = newClassBreaksMapCreated;
-      
-      console.log('[ClassBreaks Regeneration] Starting for new map:', {
-        tabId,
-        visualizationType,
-        areaType
-      });
-
-      // Find the tab data
-      const tabData = tabs.find(tab => tab.id === tabId);
-      if (!tabData || !tabData.layerConfiguration) {
-        console.warn('[ClassBreaks Regeneration] Tab or configuration not found');
-        return;
-      }
-
-      // Only process class-breaks visualizations
-      if (tabData.layerConfiguration.type !== 'class-breaks') {
-        console.log('[ClassBreaks Regeneration] Not a class-breaks map, skipping');
-        return;
-      }
-
-      // Extract the field name
-      const fieldName = tabData.layerConfiguration.field || visualizationType;
-      if (!fieldName) {
-        console.warn('[ClassBreaks Regeneration] No field name found');
-        return;
-      }
-
-      // Build the feature layer URL based on area type
-      const areaTypeString = typeof areaType === 'object' ? 
-        convertAreaTypeToString(areaType.value) : 
-        convertAreaTypeToString(areaType);
-      
-      let featureLayerUrl = '';
-      switch (areaTypeString) {
-        case 'county':
-          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Counties/FeatureServer/0';
-          break;
-        case 'tract':
-          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Census_Tracts/FeatureServer/0';
-          break;
-        case 'block_group':
-          featureLayerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Block_Groups/FeatureServer/0';
-          break;
-        default:
-          console.warn('[ClassBreaks Regeneration] Unsupported area type:', areaTypeString);
-          return;
-      }
-
-      console.log('[ClassBreaks Regeneration] Querying data from:', featureLayerUrl);
-
-      // Import required modules
-      const [
-        { default: FeatureLayer },
-        { default: Query },
-        { default: StatisticDefinition }
-      ] = await Promise.all([
-        import("@arcgis/core/layers/FeatureLayer"),
-        import("@arcgis/core/rest/support/Query"),
-        import("@arcgis/core/rest/support/StatisticDefinition")
-      ]);
-
-      // Create a temporary feature layer to query the data
-      const tempLayer = new FeatureLayer({
-        url: featureLayerUrl
-      });
-
-      // Wait for layer to load
-      await tempLayer.load();
-
-      // Create a query to get statistics about the field
-      const statsQuery = new Query({
-        where: "1=1",
-        outStatistics: [
-          new StatisticDefinition({
-            statisticType: "min",
-            onStatisticField: fieldName,
-            outStatisticFieldName: "minValue"
-          }),
-          new StatisticDefinition({
-            statisticType: "max",
-            onStatisticField: fieldName,
-            outStatisticFieldName: "maxValue"
-          }),
-          new StatisticDefinition({
-            statisticType: "count",
-            onStatisticField: fieldName,
-            outStatisticFieldName: "count"
-          })
-        ]
-      });
-
-      // Execute the statistics query
-      const statsResult = await tempLayer.queryFeatures(statsQuery);
-      
-      if (!statsResult.features || statsResult.features.length === 0) {
-        console.warn('[ClassBreaks Regeneration] No statistics returned');
-        return;
-      }
-
-      const stats = statsResult.features[0].attributes;
-      const minValue = stats.minValue;
-      const maxValue = stats.maxValue;
-      const featureCount = stats.count;
-
-      console.log('[ClassBreaks Regeneration] Data statistics:', {
-        min: minValue,
-        max: maxValue,
-        count: featureCount,
-        field: fieldName
-      });
-
-      // Get the current number of breaks from the existing configuration
-      const currentBreakCount = tabData.layerConfiguration.classBreakInfos?.length || 7;
-      
-      // Calculate optimal break count based on feature count
-      const optimalBreakCount = Math.min(currentBreakCount, Math.max(2, Math.floor(Math.sqrt(featureCount))));
-
-      // Generate evenly distributed breaks with smart rounding
-      const range = maxValue - minValue;
-      const breakSize = range / optimalBreakCount;
-      
-      // Helper function for intelligent rounding based on value magnitude
-      const intelligentRound = (value) => {
-        if (Math.abs(value) < 1) return Math.round(value * 100) / 100;
-        if (Math.abs(value) < 10) return Math.round(value);
-        if (Math.abs(value) < 100) return Math.round(value / 5) * 5;
-        if (Math.abs(value) < 1000) return Math.round(value / 10) * 10;
-        if (Math.abs(value) < 10000) return Math.round(value / 100) * 100;
-        if (Math.abs(value) < 100000) return Math.round(value / 1000) * 1000;
-        return Math.round(value / 10000) * 10000;
-      };
-
-      // Generate new breaks with clean numbers
-      const newBreaks = [];
-      for (let i = 0; i < optimalBreakCount; i++) {
-        const startValue = i === 0 ? minValue : newBreaks[i - 1].maxValue;
-        const endValue = i === optimalBreakCount - 1 ? maxValue : intelligentRound(minValue + (i + 1) * breakSize);
-        
-        // Get the custom opacity color for this break index
-        const colorArray = getBreakColor(i, optimalBreakCount, 'array');
-        
-        // Format label based on position
-        let label = '';
-        if (i === 0 && optimalBreakCount > 1) {
-          label = `Less than ${endValue.toLocaleString()}`;
-        } else if (i === optimalBreakCount - 1 && optimalBreakCount > 1) {
-          label = `${intelligentRound(startValue).toLocaleString()} or more`;
-        } else {
-          label = `${intelligentRound(startValue).toLocaleString()} - ${endValue.toLocaleString()}`;
-        }
-        
-        newBreaks.push({
-          minValue: intelligentRound(startValue),
-          maxValue: endValue,
-          label: label,
-          symbol: {
-            type: "simple-fill",
-            style: "solid",
-            color: colorArray, // Use the custom opacity color
-            outline: {
-              color: 'rgba(255, 255, 255, 0.5)',
-              width: 0.5
-            }
-          },
-          preserveOpacity: true,
-          originalOpacity: colorArray[3],
-          hasCustomOpacities: true
-        });
-      }
-
-      console.log('[ClassBreaks Regeneration] Generated new breaks:', 
-        newBreaks.map((b, i) => `${i}: ${b.label} (${Math.round(b.originalOpacity * 100)}% opacity)`)
-      );
-
-      // Update the tab's layer configuration with new breaks
-      setTabs(prevTabs => {
-        return prevTabs.map(tab => {
-          if (tab.id === tabId) {
-            return {
-              ...tab,
-              layerConfiguration: {
-                ...tab.layerConfiguration,
-                classBreakInfos: newBreaks,
-                hasCustomOpacities: true,
-                preserveOpacity: true,
-                dataOptimized: true,
-                optimizationStats: {
-                  minValue,
-                  maxValue,
-                  featureCount,
-                  breakCount: optimalBreakCount,
-                  optimizedAt: new Date().toISOString()
-                }
-              }
-            };
-          }
-          return tab;
-        });
-      });
-
-      // Update layer configurations
-      setLayerConfigurations(prev => ({
-        ...prev,
-        [visualizationType]: {
-          ...prev[visualizationType],
-          classBreakInfos: newBreaks,
-          hasCustomOpacities: true,
-          preserveOpacity: true,
-          dataOptimized: true
-        }
-      }));
-
-      // Force visualization update
-      updateVisualizationAndLegend();
-
-      console.log('[ClassBreaks Regeneration] Successfully updated class breaks with data-driven values');
-
-    } catch (error) {
-      console.error('[ClassBreaks Regeneration] Error regenerating class breaks:', error);
-    } finally {
-      // Clear the trigger state
-      setNewClassBreaksMapCreated(null);
+  useEffect(() => {
+    // Skip if no new class-breaks map was created or prerequisites aren't met
+    if (!newClassBreaksMapCreated || !mapView?.map || !isLabelManagerReady) {
+      return;
     }
-  };
 
-  // Add a small delay to ensure the layer is created first
-  const timeoutId = setTimeout(regenerateClassBreaks, 1000);
+    const regenerateClassBreaks = async () => {
+      try {
+        const { tabId, visualizationType, areaType } = newClassBreaksMapCreated;
 
-  return () => clearTimeout(timeoutId);
-}, [newClassBreaksMapCreated, tabs, mapView, isLabelManagerReady, updateVisualizationAndLegend]);
+        console.log("[ClassBreaks Regeneration] Starting for new map:", {
+          tabId,
+          visualizationType,
+          areaType,
+        });
+
+        // Find the tab data
+        const tabData = tabs.find((tab) => tab.id === tabId);
+        if (!tabData || !tabData.layerConfiguration) {
+          console.warn(
+            "[ClassBreaks Regeneration] Tab or configuration not found"
+          );
+          return;
+        }
+
+        // Only process class-breaks visualizations
+        if (tabData.layerConfiguration.type !== "class-breaks") {
+          console.log(
+            "[ClassBreaks Regeneration] Not a class-breaks map, skipping"
+          );
+          return;
+        }
+
+        // Extract the field name
+        const fieldName = tabData.layerConfiguration.field || visualizationType;
+        if (!fieldName) {
+          console.warn("[ClassBreaks Regeneration] No field name found");
+          return;
+        }
+
+        // Build the feature layer URL based on area type
+        const areaTypeString =
+          typeof areaType === "object"
+            ? convertAreaTypeToString(areaType.value)
+            : convertAreaTypeToString(areaType);
+
+        let featureLayerUrl = "";
+        switch (areaTypeString) {
+          case "county":
+            featureLayerUrl =
+              "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Counties/FeatureServer/0";
+            break;
+          case "tract":
+            featureLayerUrl =
+              "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Census_Tracts/FeatureServer/0";
+            break;
+          case "block_group":
+            featureLayerUrl =
+              "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Block_Groups/FeatureServer/0";
+            break;
+          default:
+            console.warn(
+              "[ClassBreaks Regeneration] Unsupported area type:",
+              areaTypeString
+            );
+            return;
+        }
+
+        console.log(
+          "[ClassBreaks Regeneration] Querying data from:",
+          featureLayerUrl
+        );
+
+        // Import required modules
+        const [
+          { default: FeatureLayer },
+          { default: Query },
+          { default: StatisticDefinition },
+        ] = await Promise.all([
+          import("@arcgis/core/layers/FeatureLayer"),
+          import("@arcgis/core/rest/support/Query"),
+          import("@arcgis/core/rest/support/StatisticDefinition"),
+        ]);
+
+        // Create a temporary feature layer to query the data
+        const tempLayer = new FeatureLayer({
+          url: featureLayerUrl,
+        });
+
+        // Wait for layer to load
+        await tempLayer.load();
+
+        // Create a query to get statistics about the field
+        const statsQuery = new Query({
+          where: "1=1",
+          outStatistics: [
+            new StatisticDefinition({
+              statisticType: "min",
+              onStatisticField: fieldName,
+              outStatisticFieldName: "minValue",
+            }),
+            new StatisticDefinition({
+              statisticType: "max",
+              onStatisticField: fieldName,
+              outStatisticFieldName: "maxValue",
+            }),
+            new StatisticDefinition({
+              statisticType: "count",
+              onStatisticField: fieldName,
+              outStatisticFieldName: "count",
+            }),
+          ],
+        });
+
+        // Execute the statistics query
+        const statsResult = await tempLayer.queryFeatures(statsQuery);
+
+        if (!statsResult.features || statsResult.features.length === 0) {
+          console.warn("[ClassBreaks Regeneration] No statistics returned");
+          return;
+        }
+
+        const stats = statsResult.features[0].attributes;
+        const minValue = stats.minValue;
+        const maxValue = stats.maxValue;
+        const featureCount = stats.count;
+
+        console.log("[ClassBreaks Regeneration] Data statistics:", {
+          min: minValue,
+          max: maxValue,
+          count: featureCount,
+          field: fieldName,
+        });
+
+        // Get the current number of breaks from the existing configuration
+        const currentBreakCount =
+          tabData.layerConfiguration.classBreakInfos?.length || 7;
+
+        // Calculate optimal break count based on feature count
+        const optimalBreakCount = Math.min(
+          currentBreakCount,
+          Math.max(2, Math.floor(Math.sqrt(featureCount)))
+        );
+
+        // Generate evenly distributed breaks with smart rounding
+        const range = maxValue - minValue;
+        const breakSize = range / optimalBreakCount;
+
+        // Helper function for intelligent rounding based on value magnitude
+        const intelligentRound = (value) => {
+          if (Math.abs(value) < 1) return Math.round(value * 100) / 100;
+          if (Math.abs(value) < 10) return Math.round(value);
+          if (Math.abs(value) < 100) return Math.round(value / 5) * 5;
+          if (Math.abs(value) < 1000) return Math.round(value / 10) * 10;
+          if (Math.abs(value) < 10000) return Math.round(value / 100) * 100;
+          if (Math.abs(value) < 100000) return Math.round(value / 1000) * 1000;
+          return Math.round(value / 10000) * 10000;
+        };
+
+        // Generate new breaks with clean numbers
+        const newBreaks = [];
+        for (let i = 0; i < optimalBreakCount; i++) {
+          const startValue = i === 0 ? minValue : newBreaks[i - 1].maxValue;
+          const endValue =
+            i === optimalBreakCount - 1
+              ? maxValue
+              : intelligentRound(minValue + (i + 1) * breakSize);
+
+          // Get the custom opacity color for this break index
+          const colorArray = getBreakColor(i, optimalBreakCount, "array");
+
+          // Format label based on position
+          let label = "";
+          if (i === 0 && optimalBreakCount > 1) {
+            label = `Less than ${endValue.toLocaleString()}`;
+          } else if (i === optimalBreakCount - 1 && optimalBreakCount > 1) {
+            label = `${intelligentRound(startValue).toLocaleString()} or more`;
+          } else {
+            label = `${intelligentRound(
+              startValue
+            ).toLocaleString()} - ${endValue.toLocaleString()}`;
+          }
+
+          newBreaks.push({
+            minValue: intelligentRound(startValue),
+            maxValue: endValue,
+            label: label,
+            symbol: {
+              type: "simple-fill",
+              style: "solid",
+              color: colorArray, // Use the custom opacity color
+              outline: {
+                color: "rgba(255, 255, 255, 0.5)",
+                width: 0.5,
+              },
+            },
+            preserveOpacity: true,
+            originalOpacity: colorArray[3],
+            hasCustomOpacities: true,
+          });
+        }
+
+        console.log(
+          "[ClassBreaks Regeneration] Generated new breaks:",
+          newBreaks.map(
+            (b, i) =>
+              `${i}: ${b.label} (${Math.round(
+                b.originalOpacity * 100
+              )}% opacity)`
+          )
+        );
+
+        // Update the tab's layer configuration with new breaks
+        setTabs((prevTabs) => {
+          return prevTabs.map((tab) => {
+            if (tab.id === tabId) {
+              return {
+                ...tab,
+                layerConfiguration: {
+                  ...tab.layerConfiguration,
+                  classBreakInfos: newBreaks,
+                  hasCustomOpacities: true,
+                  preserveOpacity: true,
+                  dataOptimized: true,
+                  optimizationStats: {
+                    minValue,
+                    maxValue,
+                    featureCount,
+                    breakCount: optimalBreakCount,
+                    optimizedAt: new Date().toISOString(),
+                  },
+                },
+              };
+            }
+            return tab;
+          });
+        });
+
+        // Update layer configurations
+        setLayerConfigurations((prev) => ({
+          ...prev,
+          [visualizationType]: {
+            ...prev[visualizationType],
+            classBreakInfos: newBreaks,
+            hasCustomOpacities: true,
+            preserveOpacity: true,
+            dataOptimized: true,
+          },
+        }));
+
+        // Force visualization update
+        updateVisualizationAndLegend();
+
+        console.log(
+          "[ClassBreaks Regeneration] Successfully updated class breaks with data-driven values"
+        );
+      } catch (error) {
+        console.error(
+          "[ClassBreaks Regeneration] Error regenerating class breaks:",
+          error
+        );
+      } finally {
+        // Clear the trigger state
+        setNewClassBreaksMapCreated(null);
+      }
+    };
+
+    // Add a small delay to ensure the layer is created first
+    const timeoutId = setTimeout(regenerateClassBreaks, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    newClassBreaksMapCreated,
+    tabs,
+    mapView,
+    isLabelManagerReady,
+    updateVisualizationAndLegend,
+  ]);
 
   // Site Location market area placement event listener
   useEffect(() => {
@@ -5852,8 +6395,6 @@ useEffect(() => {
           esriConfig.request.corsEnabledServers.push(server);
         }
       });
-
-
     } catch (error) {
       console.error("ArcGIS Configuration Error:", {
         message: error.message,
@@ -5864,440 +6405,789 @@ useEffect(() => {
   }, []); // Empty deps - runs once on mount
 
   useEffect(() => {
-      let isMounted = true;
-      console.log("[Map] Starting map initialization...");
+    let isMounted = true;
+    let initializationComplete = false;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-      // Use local variables within this effect's scope for instances
-      // that need to be accessed in the cleanup function
-      let localMapView = null;
-      let localZoomToolButtonRoot = null;
-      let siteLocationClickHandler = null;
-      let labelDragEventHandlers = [];
-      let localScaleBar = null; // Track scale bar instance for cleanup
-      let localLegend = null; // Track legend instance for cleanup
+    console.log("[Map] Starting map initialization...");
 
-      const initializeMap = async () => {
-        try {
-          // --- CORRECTED DYNAMIC IMPORTS ---
-          // This syntax correctly imports the default export (the constructor) from each module.
-          const Map = (await import("@arcgis/core/Map")).default;
-          const MapView = (await import("@arcgis/core/views/MapView")).default;
-          const Basemap = (await import("@arcgis/core/Basemap")).default;
-          const VectorTileLayer = (await import("@arcgis/core/layers/VectorTileLayer")).default;
-          const ScaleBar = (await import("@arcgis/core/widgets/ScaleBar")).default;
-          const Legend = (await import("@arcgis/core/widgets/Legend")).default;
+    // Store refs for cleanup - using more descriptive names for better tracking
+    let localMapView = null;
+    let localZoomToolButtonRoot = null;
+    let siteLocationClickHandler = null;
+    let labelDragEventHandlers = [];
+    let localScaleBar = null;
+    let localLegend = null;
+    let mouseWheelHandler = null;
+    let initializationTimeoutId = null;
 
-          // 1. Define the URL for your custom vector tile style.
-          const customBasemapUrl = "https://www.arcgis.com/sharing/rest/content/items/7b937cc5c7d249439c804d38cf8eb56d/resources/styles/root.json";
-          
-          // 2. Create a new VectorTileLayer for your custom basemap.
-          const customVectorTileLayer = new VectorTileLayer({
-            url: customBasemapUrl
-          });
-          
-          // 3. Create the labels-only layer.
-          const labelLayer = new VectorTileLayer({
-              portalItem: {
-                  id: "694a31f545d4430fb9ad57813ffff64f" // World Reference Overlay
-              },
-              title: "Reference Labels"
-          });
-
-          // 4. Create a Basemap object, including the reference label layer.
-          const customBasemap = new Basemap({
-            baseLayers: [customVectorTileLayer],
-            referenceLayers: [labelLayer], // This ensures labels are always on top
-            title: "Custom Basemap",
-            id: "custom-basemap"
-          });
-
-          // 5. Create the Map instance with your custom basemap.
-          const map = new Map({
-            basemap: customBasemap,
-          });
-
-          // Create view with map container
-          const view = new MapView({
-            container: mapRef.current,
-            map: map,
-            center: [-98, 39], // Default center on US
-            zoom: 4, // Default zoom
-            constraints: {
-              rotationEnabled: false,
-              minZoom: 2,
-              maxZoom: 20,
-            },
-            navigation: {
-              actionMap: { mouseWheel: { enabled: false } }, // Disable default wheel
-              browserTouchPanEnabled: true,
-              momentumEnabled: true,
-              keyboardNavigation: true,
-            },
-          });
-
-          // Store view for cleanup
-          localMapView = view;
-
-          console.log("[Map] Waiting for view to be ready...");
-          await view.when();
-          console.log("[Map] View is now ready!");
-          
-          if (view.map.basemap) {
-            await view.map.basemap.when();
-            console.log("[Map] Your custom basemap is ready.");
-          }
-
-          // Custom mouse wheel zoom handler (code unchanged)
-          view.constraints.snapToZoom = false; 
-          const scrollHandler = view.on("mouse-wheel", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const state = scrollStateRef.current;
-            const now = Date.now();
-            const timeDiff = now - (state.lastScrollTime || now);
-            const scrollDeltaY = event.native.deltaY;
-            const currentDirection = scrollDeltaY < 0 ? 1 : -1; 
-            const resetThreshold = 250,
-              accelerateThreshold = 120; 
-
-            if (state.timeoutId) clearTimeout(state.timeoutId);
-
-            if (
-              timeDiff < resetThreshold &&
-              currentDirection === state.lastScrollDirection &&
-              state.lastScrollDirection !== 0 
-            ) {
-              if (timeDiff < accelerateThreshold) state.scrollStreak++;
-            } else {
-              state.scrollStreak = 1; 
-            }
-
-            const baseZoomDelta = 0.08; 
-            const streakBonus = 0.2;
-            const maxAccelerationFactor = 5.0;
-            const accelerationFactor = Math.min(
-              1 + streakBonus * Math.max(0, state.scrollStreak - 1),
-              maxAccelerationFactor
-            );
-            const finalZoomDelta =
-              baseZoomDelta * accelerationFactor * currentDirection;
-            const currentZoom = view.zoom;
-            let newZoom = Math.min(
-              Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
-              view.constraints.maxZoom
-            );
-
-            if (Math.abs(newZoom - currentZoom) > 0.001) {
-              view
-                .goTo(
-                  { zoom: newZoom, center: view.center },
-                  { duration: 60, easing: "linear", animate: true }
-                )
-                .catch((error) => {
-                  if (error.name !== "AbortError")
-                    console.error("[Map] goTo Error:", error);
-                });
-            }
-
-            state.lastScrollTime = now;
-            state.lastScrollDirection = currentDirection;
-            state.timeoutId = setTimeout(() => {
-              state.scrollStreak = 0;
-              state.lastScrollDirection = 0;
-              state.timeoutId = null;
-            }, resetThreshold);
-          });
-
-          if (typeof scrollHandler?.remove === "function") {
-            labelDragEventHandlers.push(scrollHandler);
-          }
-
-          // IMPORTANT: Create and add ScaleBar AFTER view is ready
-          try {
-            const scaleBar = new ScaleBar({
-              view: view,
-              unit: "imperial",
-              style: "ruler",
-              anchor: "bottom-right",
-              visible: true,
-            });
-
-            view.ui.add(scaleBar, "bottom-right");
-            localScaleBar = scaleBar;
-            console.log("[Map] Scale bar successfully added to bottom-right of map");
-
-            // Apply custom styling (code unchanged)
-            setTimeout(() => {
-              if (!isMounted) return;
-              const scaleBarContainer = document.querySelector(".esri-scale-bar__container");
-              if (scaleBarContainer) {
-                scaleBarContainer.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
-                scaleBarContainer.style.padding = "4px";
-                scaleBarContainer.style.border = "1px solid rgba(0, 0, 0, 0.2)";
-                scaleBarContainer.style.borderRadius = "4px";
-                scaleBarContainer.style.marginBottom = "10px";
-                scaleBarContainer.style.marginRight = "10px";
-                console.log("[Map] Applied custom styling to scale bar");
-              } else {
-                console.warn("[Map] Scale bar container not found for styling");
-              }
-            }, 500);
-          } catch (scaleBarError) {
-            console.error("[Map] Error creating scale bar:", scaleBarError);
-          }
-
-          // Site location placement click handler
-          siteLocationClickHandler = view.on("click", handleSiteLocationPlacement);
-
-          // Setup label drag handling (code unchanged)
-          try {
-            const setupLabelDragHandlingFixed = (view) => {
-              if (!view || !view.map) return [];
-              console.log("[Map] Setting up enhanced label drag handling");
-              let isDraggingLabel = false, draggedLabel = null, dragStartPoint = null, originalOffset = null, originalNavState = null;
-              const handlers = [];
-
-              const pointerDownHandler = view.on("pointer-down", (event) => {
-                if (isDraggingLabel || isZoomToolActive) return;
-                view.hitTest(event.screenPoint).then((response) => {
-                  const labelHit = response.results.find(
-                    (result) => result.graphic && (result.graphic.symbol?.type === "text" || result.graphic.attributes?.isLabel === true)
-                  );
-                  if (labelHit) {
-                    isDraggingLabel = true;
-                    draggedLabel = labelHit.graphic;
-                    dragStartPoint = event.screenPoint;
-                    originalOffset = { x: draggedLabel.symbol.xoffset || 0, y: draggedLabel.symbol.yoffset || 0 };
-                    originalNavState = { browserTouchPanEnabled: view.navigation?.browserTouchPanEnabled || true, keyboardNavigation: view.navigation?.keyboardNavigation || true };
-                    if (view.navigation) {
-                      view.navigation.browserTouchPanEnabled = false;
-                      if (typeof view.navigation.keyboardNavigation !== "undefined") view.navigation.keyboardNavigation = false;
-                    }
-                    if (view.container) view.container.style.cursor = "move";
-                    event.stopPropagation();
-                  }
-                }).catch((error) => console.error("[Map] Error during label hit test:", error));
-              });
-              handlers.push(pointerDownHandler);
-
-              const pointerMoveHandler = view.on("pointer-move", (event) => {
-                if (!isDraggingLabel || !draggedLabel || !dragStartPoint || !originalOffset) return;
-                event.stopPropagation();
-                const dx = event.x - dragStartPoint.x;
-                const dy = event.y - dragStartPoint.y;
-                const newPosition = { x: originalOffset.x + dx, y: originalOffset.y - dy };
-                try {
-                  if (draggedLabel.symbol) {
-                    const newSymbol = draggedLabel.symbol.clone();
-                    newSymbol.xoffset = newPosition.x;
-                    newSymbol.yoffset = newPosition.y;
-                    draggedLabel.symbol = newSymbol;
-                    if (typeof view.graphics?.refresh === "function") view.graphics.refresh();
-                  }
-                } catch (error) { console.error("[Map] Error updating label position during drag:", error); }
-              });
-              handlers.push(pointerMoveHandler);
-
-              const pointerUpHandler = view.on("pointer-up", (event) => {
-                if (!isDraggingLabel) return;
-                event.stopPropagation();
-                try {
-                  if (window.labelManagerInstance) {
-                    if (typeof window.labelManagerInstance.updateLabelPosition === "function" && draggedLabel) {
-                      const finalPosition = { x: draggedLabel.symbol?.xoffset || 0, y: draggedLabel.symbol?.yoffset || 0 };
-                      window.labelManagerInstance.updateLabelPosition(draggedLabel, finalPosition);
-                    }
-                    if (typeof window.labelManagerInstance.savePositions === "function") window.labelManagerInstance.savePositions(true);
-                  }
-                  if (view.container) view.container.style.cursor = "default";
-                  if (view.navigation && originalNavState) {
-                    view.navigation.browserTouchPanEnabled = originalNavState.browserTouchPanEnabled;
-                    if (originalNavState.keyboardNavigation !== undefined) view.navigation.keyboardNavigation = originalNavState.keyboardNavigation;
-                  }
-                } catch (error) { console.error("[Map] Error finishing label drag operation:", error); } 
-                finally { isDraggingLabel = false; draggedLabel = null; dragStartPoint = null; originalOffset = null; originalNavState = null; }
-              });
-              handlers.push(pointerUpHandler);
-
-              const pointerLeaveHandler = view.on("pointer-leave", (event) => {
-                if (!isDraggingLabel) return;
-                try {
-                  if (view.container) view.container.style.cursor = "default";
-                  if (view.navigation && originalNavState) {
-                    view.navigation.browserTouchPanEnabled = originalNavState.browserTouchPanEnabled;
-                    if (originalNavState.keyboardNavigation !== undefined) view.navigation.keyboardNavigation = originalNavState.keyboardNavigation;
-                  }
-                } catch (error) { console.error("[Map] Error handling pointer leave during label drag:", error); } 
-                finally { isDraggingLabel = false; draggedLabel = null; dragStartPoint = null; originalOffset = null; originalNavState = null; }
-              });
-              handlers.push(pointerLeaveHandler);
-
-              view.labelDragHandlers = handlers;
-              console.log("[Map] Label drag handling initialized with", handlers.length, "handlers");
-              if (labelManagerRef.current) {
-                window.labelManagerInstance = labelManagerRef.current;
-                console.log("[Map] Exposed label manager instance globally");
-              }
-              return handlers;
-            };
-            labelDragEventHandlers = setupLabelDragHandlingFixed(view);
-          } catch (labelDragError) {
-            console.error("[Map] Error setting up label drag handling:", labelDragError);
-            labelDragEventHandlers = [];
-          }
-
-          // Zoom Tool Button Integration (code unchanged)
-          try {
-            const zoomToolButtonContainer = document.createElement("div");
-            view.ui.add(zoomToolButtonContainer, "top-left");
-            if (isMounted) {
-              const root = ReactDOM.createRoot(zoomToolButtonContainer);
-              localZoomToolButtonRoot = root;
-              setZoomToolButtonRoot(root);
-            }
-          } catch (buttonError) {
-            console.error("[Map] Error creating zoom tool button:", buttonError);
-          }
-
-          // Initialize Legend widget (code unchanged)
-          try {
-            const legendWidget = new Legend({
-              view,
-              container: document.createElement("div"),
-              layerInfos: [],
-              visible: false,
-            });
-            view.ui.add(legendWidget, "bottom-left");
-            localLegend = legendWidget;
-            if (isMounted) {
-              setLegend(legendWidget);
-              setTimeout(() => {
-                if (isMounted && legendWidget.container) styleLegend(legendWidget.container);
-              }, 500);
-              console.log("[Map] Legend widget initialized in bottom-left position");
-            }
-          } catch (legendError) {
-            console.error("[Map] Error initializing legend widget:", legendError);
-          }
-
-          if (isMounted) {
-            setMapView(view);
-          }
-        } catch (error) {
-          console.error("[Map] Critical error during map initialization:", error);
-        }
-      };
-
-      // Start initialization only if map container is available
-      if (mapRef.current) {
-        initializeMap();
-      } else {
+    // Enhanced validation function
+    const validatePrerequisites = () => {
+      if (!mapRef.current) {
         console.error(
-          "[Map] mapRef.current is not available for initialization."
+          "[Map] mapRef.current is not available for initialization"
         );
+        return false;
       }
 
-      // --- Cleanup Function (unchanged) ---
-      return () => {
+      if (!isMounted) {
+        console.log("[Map] Component unmounted before initialization");
+        return false;
+      }
+
+      return true;
+    };
+
+    // Enhanced error recovery function
+    const handleInitializationError = (error, context = "unknown") => {
+      console.error(`[Map] Error during ${context}:`, error);
+
+      // If we haven't exceeded retry limit and component is still mounted
+      if (retryCount < maxRetries && isMounted) {
+        retryCount++;
         console.log(
-          "[Map] Component unmounting or re-running effect, performing cleanup..."
+          `[Map] Retrying initialization (attempt ${retryCount}/${maxRetries}) after error in ${context}`
         );
-        isMounted = false; // Prevent state updates after unmount/during cleanup
 
-        // Cleanup Scale Bar instance
-        if (localScaleBar && typeof localScaleBar.destroy === "function") {
-          try {
-            localScaleBar.destroy();
-            console.log("[Map] Scale bar destroyed during cleanup");
-          } catch (scaleBarError) {
-            console.error("[Map] Error destroying scale bar:", scaleBarError);
+        // Clean up any partial initialization
+        performCleanup();
+
+        // Retry with exponential backoff
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+        initializationTimeoutId = setTimeout(() => {
+          if (isMounted) {
+            initializeMap();
           }
+        }, retryDelay);
+      } else {
+        console.error(
+          `[Map] Failed to initialize map after ${maxRetries} attempts or component unmounted`
+        );
+        // Final cleanup on complete failure
+        performCleanup();
+      }
+    };
+
+    // Sequential module import with better error handling
+    const importArcGISModules = async () => {
+      try {
+        console.log("[Map] Importing ArcGIS modules...");
+
+        // Import core modules first
+        const coreModules = await Promise.all([
+          import("@arcgis/core/Map"),
+          import("@arcgis/core/views/MapView"),
+          import("@arcgis/core/Basemap"),
+          import("@arcgis/core/layers/VectorTileLayer"),
+        ]);
+
+        // Import widget modules separately to isolate potential failures
+        const widgetModules = await Promise.all([
+          import("@arcgis/core/widgets/ScaleBar"),
+          import("@arcgis/core/widgets/Legend"),
+        ]);
+
+        return {
+          Map: coreModules[0].default,
+          MapView: coreModules[1].default,
+          Basemap: coreModules[2].default,
+          VectorTileLayer: coreModules[3].default,
+          ScaleBar: widgetModules[0].default,
+          Legend: widgetModules[1].default,
+        };
+      } catch (error) {
+        throw new Error(`Failed to import ArcGIS modules: ${error.message}`);
+      }
+    };
+
+    // Enhanced basemap creation with validation
+    const createBasemap = async (VectorTileLayer, Basemap) => {
+      try {
+        console.log("[Map] Creating custom basemap...");
+
+        const customBasemapUrl =
+          "https://www.arcgis.com/sharing/rest/content/items/7b937cc5c7d249439c804d38cf8eb56d/resources/styles/root.json";
+
+        // Create custom vector tile layer with validation
+        const customVectorTileLayer = new VectorTileLayer({
+          url: customBasemapUrl,
+        });
+
+        // Wait for layer to load before proceeding
+        await customVectorTileLayer.load();
+
+        if (!isMounted) {
+          throw new Error("Component unmounted during basemap creation");
         }
 
-        // Cleanup Legend instance
-        if (localLegend && typeof localLegend.destroy === "function") {
-          try {
-            localLegend.destroy();
-            console.log("[Map] Legend widget destroyed during cleanup");
-          } catch (legendError) {
-            console.error("[Map] Error destroying legend:", legendError);
-          }
+        // Create reference labels layer
+        const labelLayer = new VectorTileLayer({
+          portalItem: {
+            id: "694a31f545d4430fb9ad57813ffff64f",
+          },
+          title: "Reference Labels",
+        });
+
+        // Wait for label layer to load
+        await labelLayer.load();
+
+        if (!isMounted) {
+          throw new Error("Component unmounted during label layer creation");
         }
 
-        // Cleanup Label Manager (uses its own destroyLabelManager function)
-        if (typeof destroyLabelManager === "function") {
-          try {
-            destroyLabelManager();
-          } catch (labelManagerError) {
-            console.error(
-              "[Map] Error destroying label manager:",
-              labelManagerError
-            );
-          }
+        // Create basemap with validation
+        const customBasemap = new Basemap({
+          baseLayers: [customVectorTileLayer],
+          referenceLayers: [labelLayer],
+          title: "Custom Basemap",
+          id: "custom-basemap",
+        });
+
+        console.log("[Map] Custom basemap created successfully");
+        return { customBasemap, customVectorTileLayer, labelLayer };
+      } catch (error) {
+        throw new Error(`Failed to create basemap: ${error.message}`);
+      }
+    };
+
+    // Enhanced map view creation
+    const createMapView = async (Map, MapView, basemap) => {
+      try {
+        console.log("[Map] Creating map and view...");
+
+        // Validate container still exists
+        if (!mapRef.current || !isMounted) {
+          throw new Error("Map container no longer available");
         }
 
-        // Clean up site location click handler
+        const map = new Map({
+          basemap: basemap,
+        });
+
+        const view = new MapView({
+          container: mapRef.current,
+          map: map,
+          center: [-98, 39],
+          zoom: 4,
+          constraints: {
+            rotationEnabled: false,
+            minZoom: 2,
+            maxZoom: 20,
+          },
+          navigation: {
+            actionMap: { mouseWheel: { enabled: false } },
+            browserTouchPanEnabled: true,
+            momentumEnabled: true,
+            keyboardNavigation: true,
+          },
+        });
+
+        // Store view reference immediately
+        localMapView = view;
+
+        console.log("[Map] Waiting for view to be ready...");
+        await view.when();
+
+        if (!isMounted) {
+          throw new Error("Component unmounted while waiting for view");
+        }
+
+        console.log("[Map] View is ready!");
+
+        // Wait for basemap to be fully ready
+        if (view.map.basemap) {
+          await view.map.basemap.when();
+          console.log("[Map] Basemap is ready");
+        }
+
+        return view;
+      } catch (error) {
+        throw new Error(`Failed to create map view: ${error.message}`);
+      }
+    };
+
+    // Enhanced mouse wheel handler setup
+    const setupMouseWheelHandler = (view) => {
+      try {
+        console.log("[Map] Setting up mouse wheel handler...");
+
+        view.constraints.snapToZoom = false;
+
+        mouseWheelHandler = view.on("mouse-wheel", (event) => {
+          if (!isMounted) return; // Skip if component unmounted
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const state = scrollStateRef.current;
+          const now = Date.now();
+          const timeDiff = now - (state.lastScrollTime || now);
+          const scrollDeltaY = event.native.deltaY;
+          const currentDirection = scrollDeltaY < 0 ? 1 : -1;
+          const resetThreshold = 250;
+          const accelerateThreshold = 120;
+
+          if (state.timeoutId) clearTimeout(state.timeoutId);
+
+          if (
+            timeDiff < resetThreshold &&
+            currentDirection === state.lastScrollDirection &&
+            state.lastScrollDirection !== 0
+          ) {
+            if (timeDiff < accelerateThreshold) state.scrollStreak++;
+          } else {
+            state.scrollStreak = 1;
+          }
+
+          const baseZoomDelta = 0.08;
+          const streakBonus = 0.2;
+          const maxAccelerationFactor = 5.0;
+          const accelerationFactor = Math.min(
+            1 + streakBonus * Math.max(0, state.scrollStreak - 1),
+            maxAccelerationFactor
+          );
+          const finalZoomDelta =
+            baseZoomDelta * accelerationFactor * currentDirection;
+          const currentZoom = view.zoom;
+          let newZoom = Math.min(
+            Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
+            view.constraints.maxZoom
+          );
+
+          if (Math.abs(newZoom - currentZoom) > 0.001) {
+            view
+              .goTo(
+                { zoom: newZoom, center: view.center },
+                { duration: 60, easing: "linear", animate: true }
+              )
+              .catch((error) => {
+                if (error.name !== "AbortError") {
+                  console.error("[Map] goTo Error:", error);
+                }
+              });
+          }
+
+          state.lastScrollTime = now;
+          state.lastScrollDirection = currentDirection;
+          state.timeoutId = setTimeout(() => {
+            state.scrollStreak = 0;
+            state.lastScrollDirection = 0;
+            state.timeoutId = null;
+          }, resetThreshold);
+        });
+
         if (
-          siteLocationClickHandler &&
-          typeof siteLocationClickHandler.remove === "function"
+          mouseWheelHandler &&
+          typeof mouseWheelHandler.remove === "function"
         ) {
-          try {
-            siteLocationClickHandler.remove();
-            siteLocationClickHandler = null;
-          } catch (handlerError) {
-            console.error(
-              "[Map] Error removing site location click handler:",
-              handlerError
-            );
-          }
+          labelDragEventHandlers.push(mouseWheelHandler);
+          console.log("[Map] Mouse wheel handler configured successfully");
         }
+      } catch (error) {
+        console.error("[Map] Error setting up mouse wheel handler:", error);
+        // Non-critical error, continue initialization
+      }
+    };
 
-        // Clean up label drag and other event handlers
-        if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
-          try {
-            labelDragEventHandlers.forEach((handler) => {
-              if (handler && typeof handler.remove === "function") {
-                handler.remove();
+    // Enhanced scale bar creation
+    const createScaleBar = async (view, ScaleBar) => {
+      try {
+        console.log("[Map] Creating scale bar...");
+
+        if (!isMounted) return null;
+
+        const scaleBar = new ScaleBar({
+          view: view,
+          unit: "imperial",
+          style: "ruler",
+          anchor: "bottom-right",
+          visible: true,
+        });
+
+        view.ui.add(scaleBar, "bottom-right");
+        localScaleBar = scaleBar;
+
+        console.log("[Map] Scale bar added successfully");
+
+        // Apply styling with proper timing
+        const applyScaleBarStyling = () => {
+          if (!isMounted) return;
+
+          const scaleBarContainer = document.querySelector(
+            ".esri-scale-bar__container"
+          );
+          if (scaleBarContainer) {
+            scaleBarContainer.style.backgroundColor =
+              "rgba(255, 255, 255, 0.8)";
+            scaleBarContainer.style.padding = "4px";
+            scaleBarContainer.style.border = "1px solid rgba(0, 0, 0, 0.2)";
+            scaleBarContainer.style.borderRadius = "4px";
+            scaleBarContainer.style.marginBottom = "10px";
+            scaleBarContainer.style.marginRight = "10px";
+            console.log("[Map] Scale bar styling applied");
+          } else {
+            console.warn("[Map] Scale bar container not found for styling");
+          }
+        };
+
+        // Apply styling with retry logic
+        setTimeout(applyScaleBarStyling, 500);
+        setTimeout(applyScaleBarStyling, 1000); // Backup attempt
+
+        return scaleBar;
+      } catch (error) {
+        console.error("[Map] Error creating scale bar:", error);
+        // Non-critical error, return null but continue
+        return null;
+      }
+    };
+
+    // Enhanced legend creation
+    const createLegend = async (view, Legend) => {
+      try {
+        console.log("[Map] Creating legend widget...");
+
+        if (!isMounted) return null;
+
+        const legendWidget = new Legend({
+          view,
+          container: document.createElement("div"),
+          layerInfos: [],
+          visible: false,
+        });
+
+        view.ui.add(legendWidget, "bottom-left");
+        localLegend = legendWidget;
+
+        // Set legend in state with validation
+        if (isMounted && setLegend) {
+          setLegend(legendWidget);
+
+          // Apply styling with delay and validation
+          setTimeout(() => {
+            if (isMounted && legendWidget.container && styleLegend) {
+              try {
+                styleLegend(legendWidget.container);
+                console.log("[Map] Legend styling applied");
+              } catch (styleError) {
+                console.error(
+                  "[Map] Error applying legend styling:",
+                  styleError
+                );
               }
+            }
+          }, 500);
+        }
+
+        console.log("[Map] Legend widget created successfully");
+        return legendWidget;
+      } catch (error) {
+        console.error("[Map] Error creating legend:", error);
+        return null;
+      }
+    };
+
+    // Enhanced label drag handling setup
+    const setupLabelDragHandling = (view) => {
+      try {
+        if (!view || !view.map || !isMounted) {
+          console.warn(
+            "[Map] Cannot setup label drag handling - invalid view or unmounted"
+          );
+          return [];
+        }
+
+        console.log("[Map] Setting up enhanced label drag handling");
+
+        let isDraggingLabel = false;
+        let draggedLabel = null;
+        let dragStartPoint = null;
+        let originalOffset = null;
+        let originalNavState = null;
+        const handlers = [];
+
+        const pointerDownHandler = view.on("pointer-down", (event) => {
+          if (isDraggingLabel || isZoomToolActive || !isMounted) return;
+
+          view
+            .hitTest(event.screenPoint)
+            .then((response) => {
+              if (!isMounted) return;
+
+              const labelHit = response.results.find(
+                (result) =>
+                  result.graphic &&
+                  (result.graphic.symbol?.type === "text" ||
+                    result.graphic.attributes?.isLabel === true)
+              );
+
+              if (labelHit) {
+                isDraggingLabel = true;
+                draggedLabel = labelHit.graphic;
+                dragStartPoint = event.screenPoint;
+                originalOffset = {
+                  x: draggedLabel.symbol.xoffset || 0,
+                  y: draggedLabel.symbol.yoffset || 0,
+                };
+                originalNavState = {
+                  browserTouchPanEnabled:
+                    view.navigation?.browserTouchPanEnabled || true,
+                  keyboardNavigation:
+                    view.navigation?.keyboardNavigation || true,
+                };
+
+                if (view.navigation) {
+                  view.navigation.browserTouchPanEnabled = false;
+                  if (
+                    typeof view.navigation.keyboardNavigation !== "undefined"
+                  ) {
+                    view.navigation.keyboardNavigation = false;
+                  }
+                }
+
+                if (view.container) {
+                  view.container.style.cursor = "move";
+                }
+
+                event.stopPropagation();
+              }
+            })
+            .catch((error) => {
+              console.error("[Map] Error during label hit test:", error);
             });
-            labelDragEventHandlers = [];
-          } catch (dragHandlerError) {
+        });
+        handlers.push(pointerDownHandler);
+
+        const pointerMoveHandler = view.on("pointer-move", (event) => {
+          if (
+            !isDraggingLabel ||
+            !draggedLabel ||
+            !dragStartPoint ||
+            !originalOffset ||
+            !isMounted
+          )
+            return;
+
+          event.stopPropagation();
+          const dx = event.x - dragStartPoint.x;
+          const dy = event.y - dragStartPoint.y;
+          const newPosition = {
+            x: originalOffset.x + dx,
+            y: originalOffset.y - dy,
+          };
+
+          try {
+            if (draggedLabel.symbol) {
+              const newSymbol = draggedLabel.symbol.clone();
+              newSymbol.xoffset = newPosition.x;
+              newSymbol.yoffset = newPosition.y;
+              draggedLabel.symbol = newSymbol;
+
+              if (typeof view.graphics?.refresh === "function") {
+                view.graphics.refresh();
+              }
+            }
+          } catch (error) {
             console.error(
-              "[Map] Error removing event handlers:",
-              dragHandlerError
+              "[Map] Error updating label position during drag:",
+              error
             );
           }
+        });
+        handlers.push(pointerMoveHandler);
+
+        const finishDrag = (event) => {
+          if (!isDraggingLabel || !isMounted) return;
+
+          if (event) event.stopPropagation();
+
+          try {
+            if (window.labelManagerInstance) {
+              if (
+                typeof window.labelManagerInstance.updateLabelPosition ===
+                  "function" &&
+                draggedLabel
+              ) {
+                const finalPosition = {
+                  x: draggedLabel.symbol?.xoffset || 0,
+                  y: draggedLabel.symbol?.yoffset || 0,
+                };
+                window.labelManagerInstance.updateLabelPosition(
+                  draggedLabel,
+                  finalPosition
+                );
+              }
+
+              if (
+                typeof window.labelManagerInstance.savePositions === "function"
+              ) {
+                window.labelManagerInstance.savePositions(true);
+              }
+            }
+
+            if (view.container) {
+              view.container.style.cursor = "default";
+            }
+
+            if (view.navigation && originalNavState) {
+              view.navigation.browserTouchPanEnabled =
+                originalNavState.browserTouchPanEnabled;
+              if (originalNavState.keyboardNavigation !== undefined) {
+                view.navigation.keyboardNavigation =
+                  originalNavState.keyboardNavigation;
+              }
+            }
+          } catch (error) {
+            console.error("[Map] Error finishing label drag operation:", error);
+          } finally {
+            isDraggingLabel = false;
+            draggedLabel = null;
+            dragStartPoint = null;
+            originalOffset = null;
+            originalNavState = null;
+          }
+        };
+
+        const pointerUpHandler = view.on("pointer-up", finishDrag);
+        handlers.push(pointerUpHandler);
+
+        const pointerLeaveHandler = view.on("pointer-leave", finishDrag);
+        handlers.push(pointerLeaveHandler);
+
+        view.labelDragHandlers = handlers;
+        console.log(
+          "[Map] Label drag handling initialized with",
+          handlers.length,
+          "handlers"
+        );
+
+        // Expose label manager instance globally with validation
+        if (labelManagerRef.current) {
+          window.labelManagerInstance = labelManagerRef.current;
+          console.log("[Map] Exposed label manager instance globally");
         }
 
-        // --- Cleanup Zoom Tool Button's React Root ---
-        if (localZoomToolButtonRoot) {
-          try {
-            localZoomToolButtonRoot.unmount();
-          } catch (unmountError) {
-            console.error(
-              "[Map] Error unmounting zoom tool button:",
-              unmountError
-            );
+        return handlers;
+      } catch (error) {
+        console.error("[Map] Error setting up label drag handling:", error);
+        return [];
+      }
+    };
+
+    // Enhanced zoom tool button setup
+    const setupZoomToolButton = (view) => {
+      try {
+        console.log("[Map] Setting up zoom tool button...");
+
+        if (!isMounted) return null;
+
+        const zoomToolButtonContainer = document.createElement("div");
+        view.ui.add(zoomToolButtonContainer, "top-left");
+
+        if (isMounted && ReactDOM && ReactDOM.createRoot) {
+          const root = ReactDOM.createRoot(zoomToolButtonContainer);
+          localZoomToolButtonRoot = root;
+
+          if (setZoomToolButtonRoot) {
+            setZoomToolButtonRoot(root);
           }
+
+          console.log("[Map] Zoom tool button container created");
+          return root;
+        }
+
+        return null;
+      } catch (error) {
+        console.error("[Map] Error creating zoom tool button:", error);
+        return null;
+      }
+    };
+
+    // Main initialization function with better error handling and sequential execution
+    const initializeMap = async () => {
+      try {
+        console.log("[Map] Starting enhanced map initialization...");
+
+        // Validate prerequisites before starting
+        if (!validatePrerequisites()) {
+          return;
+        }
+
+        // Step 1: Import all required modules
+        const modules = await importArcGISModules();
+        if (!isMounted) return;
+
+        // Step 2: Create basemap
+        const { customBasemap } = await createBasemap(
+          modules.VectorTileLayer,
+          modules.Basemap
+        );
+        if (!isMounted) return;
+
+        // Step 3: Create map view
+        const view = await createMapView(
+          modules.Map,
+          modules.MapView,
+          customBasemap
+        );
+        if (!isMounted) return;
+
+        // Step 4: Setup mouse wheel handler
+        setupMouseWheelHandler(view);
+        if (!isMounted) return;
+
+        // Step 5: Create scale bar
+        await createScaleBar(view, modules.ScaleBar);
+        if (!isMounted) return;
+
+        // Step 6: Setup site location click handler
+        try {
+          siteLocationClickHandler = view.on(
+            "click",
+            handleSiteLocationPlacement
+          );
+          console.log("[Map] Site location click handler attached");
+        } catch (error) {
+          console.error("[Map] Error setting up site location handler:", error);
+        }
+
+        // Step 7: Setup label drag handling
+        labelDragEventHandlers = setupLabelDragHandling(view);
+        if (!isMounted) return;
+
+        // Step 8: Setup zoom tool button
+        setupZoomToolButton(view);
+        if (!isMounted) return;
+
+        // Step 9: Create legend
+        await createLegend(view, modules.Legend);
+        if (!isMounted) return;
+
+        // Step 10: Set map view in state
+        if (isMounted && setMapView) {
+          setMapView(view);
+          console.log("[Map] Map view set in state");
+        }
+
+        // Mark initialization as complete
+        initializationComplete = true;
+        console.log("[Map] Map initialization completed successfully!");
+      } catch (error) {
+        handleInitializationError(error, "main initialization");
+      }
+    };
+
+    // Enhanced cleanup function
+    const performCleanup = () => {
+      console.log("[Map] Performing comprehensive cleanup...");
+
+      // Clear any pending timeouts
+      if (initializationTimeoutId) {
+        clearTimeout(initializationTimeoutId);
+        initializationTimeoutId = null;
+      }
+
+      // Cleanup Scale Bar
+      if (localScaleBar && typeof localScaleBar.destroy === "function") {
+        try {
+          localScaleBar.destroy();
+          console.log("[Map] Scale bar destroyed");
+        } catch (error) {
+          console.error("[Map] Error destroying scale bar:", error);
+        }
+      }
+
+      // Cleanup Legend
+      if (localLegend && typeof localLegend.destroy === "function") {
+        try {
+          localLegend.destroy();
+          console.log("[Map] Legend destroyed");
+        } catch (error) {
+          console.error("[Map] Error destroying legend:", error);
+        }
+      }
+
+      // Cleanup Label Manager
+      if (typeof destroyLabelManager === "function") {
+        try {
+          destroyLabelManager();
+        } catch (error) {
+          console.error("[Map] Error destroying label manager:", error);
+        }
+      }
+
+      // Cleanup Site Location Handler
+      if (
+        siteLocationClickHandler &&
+        typeof siteLocationClickHandler.remove === "function"
+      ) {
+        try {
+          siteLocationClickHandler.remove();
+          siteLocationClickHandler = null;
+        } catch (error) {
+          console.error("[Map] Error removing site location handler:", error);
+        }
+      }
+
+      // Cleanup Event Handlers
+      if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
+        try {
+          labelDragEventHandlers.forEach((handler) => {
+            if (handler && typeof handler.remove === "function") {
+              handler.remove();
+            }
+          });
+          labelDragEventHandlers = [];
+          console.log("[Map] Event handlers cleaned up");
+        } catch (error) {
+          console.error("[Map] Error cleaning up event handlers:", error);
+        }
+      }
+
+      // Cleanup Zoom Tool Button Root
+      if (localZoomToolButtonRoot) {
+        try {
+          localZoomToolButtonRoot.unmount();
           localZoomToolButtonRoot = null;
+          console.log("[Map] Zoom tool button unmounted");
+        } catch (error) {
+          console.error("[Map] Error unmounting zoom tool button:", error);
         }
+      }
 
-        // Destroy the MapView instance to release its resources
-        if (localMapView && typeof localMapView.destroy === "function") {
-          try {
-            localMapView.destroy();
-            console.log("[Map] MapView instance destroyed.");
-          } catch (destroyError) {
-            console.error("[Map] Error destroying MapView:", destroyError);
-          }
+      // Cleanup MapView
+      if (localMapView && typeof localMapView.destroy === "function") {
+        try {
+          localMapView.destroy();
+          localMapView = null;
+          console.log("[Map] MapView destroyed");
+        } catch (error) {
+          console.error("[Map] Error destroying MapView:", error);
         }
-        localMapView = null;
+      }
 
-        console.log("[Map] Map initialization cleanup finished.");
-      };
-    }, []);
+      console.log("[Map] Cleanup completed");
+    };
 
+    // Start initialization with validation
+    if (validatePrerequisites()) {
+      initializeMap();
+    }
 
+    // Enhanced cleanup function for effect unmount
+    return () => {
+      console.log(
+        "[Map] Component unmounting or effect re-running, performing cleanup..."
+      );
+      isMounted = false;
+
+      // Perform comprehensive cleanup
+      performCleanup();
+
+      console.log("[Map] Effect cleanup finished");
+    };
+  }, []); // Empty dependency array - this effect should only run once on mount
 
   // --- Effect for Label Manager Initialization and Readiness ---
   useEffect(() => {
@@ -6680,8 +7570,6 @@ useEffect(() => {
     createLayers, // Added dependency
   ]);
 
-
-
   return (
     <div className="flex flex-col h-full">
       {/* Header Section */}
@@ -7008,6 +7896,7 @@ useEffect(() => {
         onCreateMap={handleCreateMap}
         visualizationOptions={visualizationOptions}
         areaTypes={areaTypes}
+        mapView={mapView} // <-- ADD THIS LINE
       />
     </div>
   );

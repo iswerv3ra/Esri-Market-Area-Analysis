@@ -872,7 +872,7 @@ const MAP_TYPE_DEFINITIONS = [
 
 
 // NewMapDialog Component
-const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, areaTypes }) => {
+const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, areaTypes, mapView }) => {
   const [step, setStep] = useState(1);
   const [mapName, setMapName] = useState('New Map');
   // Default to the first enabled map type, or 'heatmap' as a fallback
@@ -1126,251 +1126,196 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setIsSaving(false); if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-const handleCreateMap = async () => {
-  console.log("[NewMapDialog] Starting map creation process...");
-  
-  try {
-    // Set saving state
-    setIsSaving(true);
+  const handleCreateMap = async () => {
+    console.log("[NewMapDialog] Starting map creation process...");
     
-    // Validate required fields based on map type
-    if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
-      setFileError('Please upload a data file.');
-      setIsSaving(false);
-      return;
-    }
-    
-    if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
-      setFileError('Please select a visualization variable.');
-      setIsSaving(false);
-      return;
-    }
-    
-    // Additional validation for custom data maps
-    if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
-      if (!labelColumn && labelColumn !== 'none') {
-        setFileError('Please select a Label column or "None".');
+    try {
+      // Set saving state
+      setIsSaving(true);
+      
+      // Validate required fields based on map type
+      if ((mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') && !customData) {
+        setFileError('Please upload a data file.');
         setIsSaving(false);
         return;
       }
-      if (!latitudeColumn || !longitudeColumn) {
-        setFileError('Please select Latitude and Longitude columns.');
+      
+      if ((mapType === 'heatmap' || mapType === 'dotdensity') && !selectedVisualization) {
+        setFileError('Please select a visualization variable.');
         setIsSaving(false);
         return;
       }
-    }
+      
+      // Additional validation for custom data maps
+      if (mapType === 'comps' || mapType === 'pipeline' || mapType === 'custom') {
+        if (!labelColumn && labelColumn !== 'none') {
+          setFileError('Please select a Label column or "None".');
+          setIsSaving(false);
+          return;
+        }
+        if (!latitudeColumn || !longitudeColumn) {
+          setFileError('Please select Latitude and Longitude columns.');
+          setIsSaving(false);
+          return;
+        }
+      }
 
-    // Build map configuration based on map type
-    let mapConfiguration = {};
-    
-    if (mapType === 'heatmap' || mapType === 'dotdensity') {
-      if (mapType === 'heatmap') {
-        console.log("[NewMapDialog] Creating heat map with custom opacity preservation");
-        
-        // Get the base configuration first
-        const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
-        
-        if (visualizationConfig) {
-          mapConfiguration = {
-            ...visualizationConfig,
-            field: selectedVisualization,
-            visualizationKey: selectedVisualization,
-            type: 'class-breaks',
-            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
-          };
+      // Build map configuration based on map type
+      let mapConfiguration = {};
+      
+      if (mapType === 'heatmap' || mapType === 'dotdensity') {
+        if (mapType === 'heatmap') {
+          console.log("[NewMapDialog] Creating data-driven heat map with real ArcGIS data");
           
-          // CRITICAL FIX: Only update opacity values, preserve original break count and structure
-          if (visualizationConfig.classBreakInfos && visualizationConfig.classBreakInfos.length > 0) {
-            console.log(`[NewMapDialog] Preserving original ${visualizationConfig.classBreakInfos.length} breaks, updating opacity only`);
-            
-            // Update existing breaks with custom opacity values while preserving their structure
-            const updatedBreaks = visualizationConfig.classBreakInfos.map((originalBreak, index) => {
-              // Get the appropriate custom opacity color for this break index
-              const customColorArray = getBreakColor(index, visualizationConfig.classBreakInfos.length, 'array');
-              
-              // Preserve all original break properties, only update the color with custom opacity
-              const updatedBreak = {
-                ...originalBreak, // Preserve minValue, maxValue, label, etc.
-                symbol: {
-                  ...originalBreak.symbol, // Preserve type, style, outline, etc.
-                  color: [...customColorArray] // Only update the color with custom opacity
-                },
-                // Add metadata to preserve opacity during edits
-                preserveOpacity: true,
-                originalOpacity: customColorArray[3],
-                hasCustomOpacities: true
-              };
-              
-              console.log(`[NewMapDialog] Break ${index}: ${originalBreak.label} -> ${Math.round(customColorArray[3] * 100)}% opacity`);
-              return updatedBreak;
-            });
-            
-            mapConfiguration.classBreakInfos = updatedBreaks;
-            mapConfiguration.hasCustomOpacities = true;
-            mapConfiguration.preserveOpacity = true;
-            
-            console.log("[NewMapDialog] Updated existing breaks with custom opacity, preserved original structure");
-          } else {
-            // Fallback: if no existing breaks, generate new ones (this shouldn't happen with standard visualizations)
-            console.log("[NewMapDialog] No existing breaks found, generating new ones with 7 breaks default");
-            const customBreaks = generateGenericHeatmapClassBreaks(42, null); // Use 42 to get 7 breaks
-            mapConfiguration.classBreakInfos = customBreaks;
-            mapConfiguration.hasCustomOpacities = true;
-            mapConfiguration.preserveOpacity = true;
-          }
+          // Use the new data-driven approach for heat maps
+          mapConfiguration = await createDataDrivenHeatMap(
+            selectedVisualization, 
+            selectedAreaType, 
+            mapName,
+            mapView // <-- Pass the mapView object here
+          );
+          
+          console.log("[NewMapDialog] Data-driven heat map configuration created successfully");
+          
         } else {
-          // Fallback: create configuration with 7 breaks default
-          console.log("[NewMapDialog] No predefined config found, using 7 breaks default");
-          const customBreaks = generateGenericHeatmapClassBreaks(42, null); // Use 42 to get 7 breaks
-          
-          mapConfiguration = {
-            field: selectedVisualization,
-            visualizationKey: selectedVisualization,
-            type: 'class-breaks',
-            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract'),
-            classBreakInfos: customBreaks,
-            hasCustomOpacities: true,
-            preserveOpacity: true
-          };
+          // Dot density handling remains the same
+          const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
+          if (visualizationConfig) {
+            mapConfiguration = {
+              ...visualizationConfig,
+              field: selectedVisualization,
+              visualizationKey: selectedVisualization,
+              type: 'dot-density',
+              areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+            };
+          } else {
+            mapConfiguration = {
+              field: selectedVisualization,
+              visualizationKey: selectedVisualization,
+              type: 'dot-density',
+              areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+            };
+          }
         }
       } else {
-        // Dot density handling remains the same
-        const visualizationConfig = getInitialConfigForVisualization(selectedVisualization);
-        if (visualizationConfig) {
-          mapConfiguration = {
-            ...visualizationConfig,
-            field: selectedVisualization,
-            visualizationKey: selectedVisualization,
-            type: 'dot-density',
-            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
-          };
-        } else {
-          mapConfiguration = {
-            field: selectedVisualization,
-            visualizationKey: selectedVisualization,
-            type: 'dot-density',
-            areaType: convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract')
+        // Custom data maps configuration remains the same
+        mapConfiguration = {
+          type: mapType,
+          customData: {
+            data: customData,
+            nameColumn: labelColumn === 'none' ? null : labelColumn
+          },
+          labelColumn: labelColumn === 'none' ? null : labelColumn,
+          hasNoLabels: labelColumn === 'none',
+          hideAllLabels: labelColumn === 'none',
+          variable1Column: variable1Column,
+          variable2Column: variable2Column,
+          variable1Text: variable1Text,
+          variable2Text: variable2Text,
+          valueColumn: valueColumn1,
+          valueColumn1: valueColumn1,
+          valueColumn2: valueColumn2,
+          statusColumn: statusColumn,
+          latitudeColumn: latitudeColumn,
+          longitudeColumn: longitudeColumn,
+          labelOptions: labelOptions,
+          titleFormat: generateFormattedTitle(),
+          colorClassBreakInfos: colorClassBreakInfos,
+          sizeClassBreakInfos: sizeClassBreakInfos,
+          symbol: {
+            style: 'circle',
+            size: 10,
+            color: mapType === 'comps' ? '#800080' : '#FF0000',
+            outline: {
+              color: '#FFFFFF',
+              width: 1
+            }
+          }
+        };
+
+        // Add type-specific configurations
+        if (mapType === 'pipeline') {
+          mapConfiguration.statusMapping = {
+            'active': '#00FF00',
+            'pending': '#FFFF00',
+            'completed': '#0000FF',
+            'cancelled': '#FF0000'
           };
         }
       }
-    } else {
-      // Custom data maps configuration remains the same
-      mapConfiguration = {
+
+      // Create the map data object to pass to parent
+      const mapData = {
+        name: mapName.trim() || generateFormattedTitle(),
         type: mapType,
-        customData: {
-          data: customData,
-          nameColumn: labelColumn === 'none' ? null : labelColumn
-        },
-        labelColumn: labelColumn === 'none' ? null : labelColumn,
-        hasNoLabels: labelColumn === 'none',
-        hideAllLabels: labelColumn === 'none',
-        variable1Column: variable1Column,
-        variable2Column: variable2Column,
-        variable1Text: variable1Text,
-        variable2Text: variable2Text,
-        valueColumn: valueColumn1,
-        valueColumn1: valueColumn1,
-        valueColumn2: valueColumn2,
-        statusColumn: statusColumn,
-        latitudeColumn: latitudeColumn,
-        longitudeColumn: longitudeColumn,
-        labelOptions: labelOptions,
-        titleFormat: generateFormattedTitle(),
-        colorClassBreakInfos: colorClassBreakInfos,
-        sizeClassBreakInfos: sizeClassBreakInfos,
-        symbol: {
-          style: 'circle',
-          size: 10,
-          color: mapType === 'comps' ? '#800080' : '#FF0000',
-          outline: {
-            color: '#FFFFFF',
-            width: 1
-          }
+        visualizationType: selectedVisualization || mapType,
+        areaType: selectedAreaType,
+        layerConfiguration: mapConfiguration,
+        originalFormData: {
+          mapType,
+          selectedVisualization,
+          selectedAreaType,
+          customData,
+          labelColumn,
+          variable1Column,
+          variable2Column,
+          variable1Text,
+          variable2Text,
+          valueColumn1,
+          valueColumn2,
+          statusColumn,
+          latitudeColumn,
+          longitudeColumn,
+          labelOptions
         }
       };
 
-      // Add type-specific configurations
-      if (mapType === 'pipeline') {
-        mapConfiguration.statusMapping = {
-          'active': '#00FF00',
-          'pending': '#FFFF00',
-          'completed': '#0000FF',
-          'cancelled': '#FF0000'
-        };
+      console.log("[NewMapDialog] Saving map configuration to database...");
+
+      // Save the map configuration to database/storage
+      try {
+        const saveResult = await saveMapConfiguration(mapData);
+        console.log("[NewMapDialog] Map configuration saved:", saveResult);
+        
+        if (saveResult.success && saveResult.configId) {
+          mapData.configId = saveResult.configId;
+          mapData.mapConfigId = saveResult.configId;
+          mapData.alreadySaved = true;
+        }
+      } catch (saveError) {
+        console.error("[NewMapDialog] Error saving map configuration:", saveError);
       }
-    }
 
-    // Create the map data object to pass to parent
-    const mapData = {
-      name: mapName.trim() || generateFormattedTitle(),
-      type: mapType,
-      visualizationType: selectedVisualization || mapType,
-      areaType: selectedAreaType,
-      layerConfiguration: mapConfiguration,
-      originalFormData: {
-        mapType,
-        selectedVisualization,
-        selectedAreaType,
-        customData,
-        labelColumn,
-        variable1Column,
-        variable2Column,
-        variable1Text,
-        variable2Text,
-        valueColumn1,
-        valueColumn2,
-        statusColumn,
-        latitudeColumn,
-        longitudeColumn,
-        labelOptions
+      console.log("[NewMapDialog] Calling onCreateMap with data:", {
+        name: mapData.name,
+        type: mapData.type,
+        visualizationType: mapData.visualizationType,
+        hasCustomData: !!customData,
+        configType: mapConfiguration.type,
+        configId: mapData.configId,
+        alreadySaved: mapData.alreadySaved,
+        isDataDriven: mapConfiguration.dataOptimized || false
+      });
+
+      // Call the parent's map creation handler
+      if (onCreateMap && typeof onCreateMap === 'function') {
+        await onCreateMap(mapData);
+        console.log("[NewMapDialog] Map creation completed successfully");
+        
+        // Reset form and close dialog
+        resetForm();
+        onClose();
+      } else {
+        throw new Error("onCreateMap function not provided or invalid");
       }
-    };
-
-    console.log("[NewMapDialog] Saving map configuration to database...");
-
-    // Save the map configuration to database/storage
-    try {
-      const saveResult = await saveMapConfiguration(mapData);
-      console.log("[NewMapDialog] Map configuration saved:", saveResult);
       
-      if (saveResult.success && saveResult.configId) {
-        mapData.configId = saveResult.configId;
-        mapData.mapConfigId = saveResult.configId;
-        mapData.alreadySaved = true;
-      }
-    } catch (saveError) {
-      console.error("[NewMapDialog] Error saving map configuration:", saveError);
+    } catch (error) {
+      console.error("[NewMapDialog] Error during map creation:", error);
+      setFileError(`Failed to create map: ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
-
-    console.log("[NewMapDialog] Calling onCreateMap with data:", {
-      name: mapData.name,
-      type: mapData.type,
-      visualizationType: mapData.visualizationType,
-      hasCustomData: !!customData,
-      configType: mapConfiguration.type,
-      configId: mapData.configId,
-      alreadySaved: mapData.alreadySaved
-    });
-
-    // Call the parent's map creation handler
-    if (onCreateMap && typeof onCreateMap === 'function') {
-      await onCreateMap(mapData);
-      console.log("[NewMapDialog] Map creation completed successfully");
-      
-      // Reset form and close dialog
-      resetForm();
-      onClose();
-    } else {
-      throw new Error("onCreateMap function not provided or invalid");
-    }
-    
-  } catch (error) {
-    console.error("[NewMapDialog] Error during map creation:", error);
-    setFileError(`Failed to create map: ${error.message}`);
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   const onCancel = () => { resetForm(); onClose(); };
 
@@ -1458,6 +1403,656 @@ const handleCreateMap = async () => {
     setStep(step + 1); 
     setFileError('');
   };
+
+  // Define the 7-level color scheme
+  const colorScheme = {
+    level1: [128, 0, 128, 0.35], // Purple
+    level2: [0, 0, 139, 0.20], // Dark blue
+    level3: [135, 206, 235, 0.35], // Sky blue
+    level4: [144, 238, 144, 0.35], // Light green
+    level5: [255, 255, 144, 0.35], // Light yellow
+    level6: [255, 165, 0, 0.15], // Orange
+    level7: [255, 99, 71, 0.15], // Salmon red
+  };
+
+  /**
+   * Helper function to get color from the 7-level color scheme
+   * @param {number} index - The break index (0-based)
+   * @param {number} totalBreaks - Total number of breaks
+   * @returns {Array} - Color array [r, g, b, a]
+   */
+  const getColorFromScheme = (index, totalBreaks) => {
+    // Map the index to one of the 7 color levels
+    const colorLevel = Math.min(index + 1, 7);
+    return colorScheme[`level${colorLevel}`];
+  };
+
+  /**
+   * Generate realistic generic class breaks with proper population ranges
+   * @returns {Array} - Array of 7 class break objects with realistic population ranges
+   */
+  const generateGeneric7LevelBreaks = () => {
+    console.log(`[HeatMap] Generating 7 realistic generic breaks for population data`);
+    
+    const breaks = [];
+    const breakCount = 7;
+    
+    // Realistic population ranges for census tracts
+    const populationRanges = [
+      { min: 0, max: 500 },
+      { min: 501, max: 1500 },
+      { min: 1501, max: 3000 },
+      { min: 3001, max: 5000 },
+      { min: 5001, max: 8000 },
+      { min: 8001, max: 12000 },
+      { min: 12001, max: 50000 }
+    ];
+    
+    for (let i = 0; i < breakCount; i++) {
+      const range = populationRanges[i];
+      const colorArray = getColorFromScheme(i, breakCount);
+      
+      // Generate appropriate label
+      let label = '';
+      if (i === breakCount - 1) {
+        label = `${range.min.toLocaleString()} or more`;
+      } else {
+        label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+      }
+      
+      const breakInfo = {
+        minValue: range.min,
+        maxValue: range.max,
+        label: label,
+        symbol: {
+          type: "simple-fill",
+          style: "solid",
+          color: [...colorArray],
+          outline: {
+            color: 'rgba(255, 255, 255, 0.5)',
+            width: 0.5
+          }
+        },
+        preserveOpacity: true,
+        originalOpacity: colorArray[3],
+        hasCustomOpacities: true,
+        colorSchemeLevel: `level${Math.min(i + 1, 7)}`
+      };
+      
+      breaks.push(breakInfo);
+      console.log(`[HeatMap] Generic break ${i}: ${label} using ${breakInfo.colorSchemeLevel}`);
+    }
+    
+    console.log(`[HeatMap] Generated ${breaks.length} realistic generic breaks for population data`);
+    return breaks;
+  };
+
+
+  /**
+   * Intelligently rounds a number to a "clean" value for use in legends,
+   * making them easier for users to read and understand.
+   * @param {number} num - The number to round.
+   * @returns {number} The rounded, more readable number.
+   */
+  const smartRound = (num) => {
+    if (num <= 100) return Math.round(num); // Round to nearest integer for small numbers
+    if (num < 1000) return Math.round(num / 10) * 10; // Round to nearest 10
+    if (num < 10000) return Math.round(num / 100) * 100; // Round to nearest 100
+    if (num < 100000) return Math.round(num / 1000) * 1000; // Round to nearest 1,000
+    return Math.round(num / 5000) * 5000; // Round to nearest 5,000 for large numbers
+  };
+    
+  /**
+   * Enhanced data-driven heat map breaks that uses the URL directly from the areaType config.
+   * @param {string} fieldName - The field to analyze (e.g., "TOTPOP_CY")
+   * @param {Object} areaType - The area type object { value, label, url } from mapConfig.js
+   * @param {Object} mapView - Optional map view to limit query to current extent
+   * @return {Promise<Array>} - Promise resolving to array of class break objects
+   */
+  const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = null) => {
+    const areaTypeName = areaType?.label || 'the selected area';
+    console.log(`[DataDrivenBreaks] Starting direct analysis for ${fieldName} in ${areaTypeName}`);
+    
+    // --- CHANGE 1: Get the URL directly from the areaType object ---
+    const serviceUrl = areaType?.url;
+
+    // --- CHANGE 2: Add a guard clause to ensure the URL exists ---
+    if (!serviceUrl) {
+      console.error(`[DataDrivenBreaks] No URL defined for area type: ${areaTypeName}. Falling back to generic breaks.`);
+      return generateGeneric7LevelBreaks();
+    }
+
+    try {
+      // --- This part of the logic remains similar but no longer needs a loop ---
+      console.log(`[DataDrivenBreaks] Using configured service URL: ${serviceUrl}`);
+      
+      // Import required modules
+      const [{ default: FeatureLayer }, { default: Query }, { default: StatisticDefinition }] = await Promise.all([
+        import("@arcgis/core/layers/FeatureLayer"),
+        import("@arcgis/core/rest/support/Query"),
+        import("@arcgis/core/rest/support/StatisticDefinition")
+      ]);
+
+      // Field normalization logic (can be kept as is)
+      const normalizeFieldName = (field) => field.toUpperCase().replace(/_HEAT$/, '');
+      const normalizedFieldName = normalizeFieldName(fieldName);
+
+      const workingLayer = new FeatureLayer({
+        url: serviceUrl,
+        outFields: ["*"] 
+      });
+
+      await workingLayer.load();
+      const availableFields = workingLayer.fields.map(f => f.name);
+
+      // Field matching logic (can be kept as is, but now runs on the correct service)
+      const findBestField = (targetField, availableFields) => {
+          const target = targetField.toUpperCase();
+          const exactMatch = availableFields.find(f => f.toUpperCase() === target);
+          if (exactMatch) return exactMatch;
+          // Add more fuzzy matching if needed, but direct match is best
+          const baseName = target.replace(/_CY$/, '');
+          const fuzzyMatch = availableFields.find(f => f.toUpperCase().includes(baseName));
+          return fuzzyMatch || null;
+      };
+
+      const actualFieldName = findBestField(normalizedFieldName, availableFields);
+
+      if (!actualFieldName) {
+        console.error(`[DataDrivenBreaks] Could not find a suitable field for "${normalizedFieldName}" in the service at ${serviceUrl}.`);
+        console.log(`[DataDrivenBreaks] Available fields:`, availableFields.slice(0, 30));
+        workingLayer.destroy();
+        return generateGeneric7LevelBreaks();
+      }
+      
+      console.log(`[DataDrivenBreaks] ✅ Using matched field: ${actualFieldName}`);
+      
+      // Statistics query logic (can be kept as is)
+      const executeStatisticsQuery = async () => {
+          const statsQuery = new Query({
+              where: `${actualFieldName} IS NOT NULL AND ${actualFieldName} >= 0`,
+              returnGeometry: false,
+              outStatistics: [
+                new StatisticDefinition({ statisticType: "min", onStatisticField: actualFieldName, outStatisticFieldName: "minValue" }),
+                new StatisticDefinition({ statisticType: "max", onStatisticField: actualFieldName, outStatisticFieldName: "maxValue" }),
+                new StatisticDefinition({ statisticType: "count", onStatisticField: actualFieldName, outStatisticFieldName: "totalCount" }),
+                new StatisticDefinition({ statisticType: "avg", onStatisticField: actualFieldName, outStatisticFieldName: "avgValue" }),
+                new StatisticDefinition({ statisticType: "stddev", onStatisticField: actualFieldName, outStatisticFieldName: "stdDev" })
+              ]
+          });
+
+          let spatiallyFiltered = false;
+          if (mapView && mapView.extent) {
+              statsQuery.geometry = mapView.extent;
+              statsQuery.spatialRelationship = "intersects";
+              spatiallyFiltered = true;
+              console.log(`[DataDrivenBreaks] Query spatially filtered to current map view extent.`);
+          }
+
+          const statsResult = await workingLayer.queryFeatures(statsQuery);
+          if (!statsResult.features || statsResult.features.length === 0) throw new Error('No statistics returned.');
+          const stats = statsResult.features[0].attributes;
+          
+          // Return a clean stats object
+          return {
+              minValue: Number(stats.minValue) || 0,
+              maxValue: Number(stats.maxValue) || 0,
+              totalCount: Number(stats.totalCount) || 0,
+              avgValue: Number(stats.avgValue) || 0,
+              stdDev: Number(stats.stdDev) || 0,
+              spatiallyFiltered,
+              actualFieldUsed: actualFieldName,
+          };
+      };
+
+      const stats = await executeStatisticsQuery();
+      
+      if (stats.totalCount < 2 || stats.minValue === stats.maxValue) {
+        console.warn(`[DataDrivenBreaks] Insufficient data variation for ${actualFieldName}.`);
+        workingLayer.destroy();
+        return generateGeneric7LevelBreaks();
+      }
+      
+
+      // Replace the existing generateOptimizedBreaks function with this one
+      const generateOptimizedBreaks = (stats, breakCount = 7) => {
+        const { minValue, maxValue } = stats;
+
+        if (maxValue <= minValue) {
+            return [{ min: minValue, max: maxValue }];
+        }
+        
+        // 1. Calculate the ideal, unrounded break points between min and max
+        const idealBreakPoints = [];
+        const interval = (maxValue - minValue) / breakCount;
+        for (let i = 1; i < breakCount; i++) {
+            idealBreakPoints.push(minValue + (i * interval));
+        }
+        
+        // 2. Round each of those break points to a "clean" number
+        const roundedBreakPoints = idealBreakPoints.map(smartRound);
+        
+        // 3. Create a final list of break points including the start and end, and remove duplicates
+        const finalBreakPoints = [...new Set([minValue, ...roundedBreakPoints, maxValue])].sort((a, b) => a - b);
+        
+        // 4. Construct the final data ranges from the clean break points
+        const finalRanges = [];
+        for (let i = 0; i < finalBreakPoints.length - 1; i++) {
+            const currentBreak = Math.floor(finalBreakPoints[i]);
+            const nextBreak = Math.floor(finalBreakPoints[i+1]);
+
+            // The start of the range is the previous break's end + 1
+            const min = (i === 0) ? currentBreak : finalRanges[i-1].max + 1;
+            // The end of the range is the next clean break point
+            let max = nextBreak;
+            
+            // If this is the last range, make sure it extends to the absolute max value
+            if (i === finalBreakPoints.length - 2) {
+                max = maxValue;
+            }
+
+            // Avoid creating an invalid range if rounding caused overlaps
+            if(min >= max) {
+                continue;
+            }
+            
+            finalRanges.push({ min, max });
+        }
+        
+        // If for some reason no ranges were created, return one covering the whole set
+        if(finalRanges.length === 0){
+            return [{min: Math.floor(minValue), max: Math.ceil(maxValue)}];
+        }
+
+        console.log("[DataDrivenBreaks] Generated clean, rounded break ranges:", finalRanges);
+        return finalRanges;
+      };
+
+      const breakRanges = generateOptimizedBreaks(stats, 7);
+      
+// In NewMapDialog.jsx, inside the generateDataDrivenHeatMapBreaks function
+
+      // Class break object creation with clean labels and full metadata
+      const classBreaks = breakRanges.map((range, index) => {
+        const colorArray = getColorFromScheme(index, breakRanges.length);
+        let label = '';
+
+        // Create more readable labels for the start and end of the range
+        if (index === 0 && breakRanges.length > 1) {
+            label = `Less than ${range.max.toLocaleString()}`;
+        } else if (index === breakRanges.length - 1 && breakRanges.length > 1) {
+            label = `${range.min.toLocaleString()} or more`;
+        } else {
+            label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+        }
+
+        // Handle the case of a single break
+        if (breakRanges.length === 1) {
+            label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+        }
+        
+        return {
+          minValue: range.min,
+          maxValue: range.max,
+          label: label, // Use the new, cleaner label
+          symbol: {
+            type: "simple-fill",
+            style: "solid",
+            color: [...colorArray], // Use the dynamically generated color array
+            outline: {
+              color: 'rgba(255, 255, 255, 0.5)',
+              width: 0.5
+            }
+          },
+          // Add metadata to track how this was generated
+          dataSource: 'arcgis_query',
+          dataStats: {
+              ...stats, // Include all stats: minValue, maxValue, totalCount, etc.
+              serviceUrl: serviceUrl, // Store the URL that was successfully used
+              requestedField: fieldName, // Store the original field name requested by the user
+              generatedAt: new Date().toISOString()
+          }
+        };
+      });
+
+      // Clean up the temporary layer to free resources
+      workingLayer.destroy();
+      
+      // Return the final, well-formatted class breaks
+      return classBreaks;
+
+    } catch (error) {
+      console.error(`[DataDrivenBreaks] Critical error during analysis:`, error);
+      // Fallback to generic breaks on any failure to ensure the app doesn't crash
+      return generateGeneric7LevelBreaks(); 
+    }
+  };
+
+  /**
+   * Enhanced createDataDrivenHeatMap with map view-based optimization
+   * When called from map regeneration context, automatically uses current map view
+   */
+const createDataDrivenHeatMap = async (selectedVisualization, selectedAreaType, mapName, mapView = null, mapViewGetter = null) => {
+  console.log("[NewMapDialog] Creating enhanced data-driven heat map optimized for current map view...");
+  
+  try {
+    // Convert area type to string format
+    const areaTypeString = convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract');
+    
+    // Extract the actual field name (remove any UI suffixes like _HEAT)
+    const actualFieldName = selectedVisualization.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
+    
+    console.log(`[NewMapDialog] Processing field: ${actualFieldName}, area type: ${areaTypeString}`);
+    
+    // COMPREHENSIVE MAP VIEW DETECTION SYSTEM
+    let currentMapView = mapView;
+    let detectionMethod = 'parameter';
+    
+    if (!currentMapView) {
+      console.log(`[NewMapDialog] No mapView parameter provided, attempting comprehensive detection...`);
+      
+      // Strategy 1: Use provided getter function
+      if (mapViewGetter && typeof mapViewGetter === 'function') {
+        try {
+          currentMapView = mapViewGetter();
+          if (currentMapView && currentMapView.extent) {
+            detectionMethod = 'getter_function';
+            console.log(`[NewMapDialog] ✅ Map view obtained via getter function`);
+          }
+        } catch (e) {
+          console.warn(`[NewMapDialog] Getter function failed:`, e);
+        }
+      }
+      
+      // Strategy 2: Check React component refs and state
+      if (!currentMapView) {
+        try {
+          // Check for common React patterns
+          const reactFiberNode = document.querySelector('[data-reactroot]') || 
+                                 document.querySelector('#root') || 
+                                 document.querySelector('.map-container');
+          
+          if (reactFiberNode && reactFiberNode._reactInternalFiber) {
+            // Traverse React fiber tree to find map view
+            const findMapViewInFiber = (fiber) => {
+              if (!fiber) return null;
+              
+              // Check if this component has map view in props or state
+              if (fiber.stateNode) {
+                const state = fiber.stateNode.state || {};
+                const props = fiber.stateNode.props || {};
+                
+                if (state.mapView && state.mapView.extent) return state.mapView;
+                if (props.mapView && props.mapView.extent) return props.mapView;
+                if (state.view && state.view.extent) return state.view;
+                if (props.view && props.view.extent) return props.view;
+              }
+              
+              // Check refs
+              if (fiber.ref && fiber.ref.current && fiber.ref.current.extent) {
+                return fiber.ref.current;
+              }
+              
+              // Recursively check children
+              let child = fiber.child;
+              while (child) {
+                const result = findMapViewInFiber(child);
+                if (result) return result;
+                child = child.sibling;
+              }
+              
+              return null;
+            };
+            
+            currentMapView = findMapViewInFiber(reactFiberNode._reactInternalFiber);
+            if (currentMapView) {
+              detectionMethod = 'react_fiber';
+              console.log(`[NewMapDialog] ✅ Map view found via React fiber tree`);
+            }
+          }
+        } catch (e) {
+          console.log(`[NewMapDialog] React fiber detection failed:`, e);
+        }
+      }
+      
+      // Strategy 3: Enhanced global scope detection
+      if (!currentMapView && typeof window !== 'undefined') {
+        try {
+          // Check common global variable names
+          const globalNames = [
+            'mapView', 'view', 'map', 'esriView', 'arcgisView', 'gisView',
+            'mapComponent', 'mapInstance', 'applicationView', 'webMapView'
+          ];
+          
+          for (const name of globalNames) {
+            if (window[name] && window[name].extent) {
+              currentMapView = window[name];
+              detectionMethod = `global_${name}`;
+              console.log(`[NewMapDialog] ✅ Map view found via window.${name}`);
+              break;
+            }
+            // Check nested paths
+            if (window[name] && window[name].view && window[name].view.extent) {
+              currentMapView = window[name].view;
+              detectionMethod = `global_${name}.view`;
+              console.log(`[NewMapDialog] ✅ Map view found via window.${name}.view`);
+              break;
+            }
+          }
+          
+          // Deep scan of window object for map-like objects
+          if (!currentMapView) {
+            const scanDepth = (obj, path = '', depth = 0) => {
+              if (depth > 3 || !obj || typeof obj !== 'object') return null;
+              
+              try {
+                // Check if this object looks like a MapView
+                if (obj.extent && obj.zoom !== undefined && obj.scale !== undefined && 
+                    obj.spatialReference && typeof obj.goTo === 'function') {
+                  return obj;
+                }
+                
+                // Recursively check properties
+                for (const key in obj) {
+                  if (key.toLowerCase().includes('map') || key.toLowerCase().includes('view')) {
+                    const result = scanDepth(obj[key], `${path}.${key}`, depth + 1);
+                    if (result) return result;
+                  }
+                }
+              } catch (e) {
+                // Ignore errors during scanning
+              }
+              
+              return null;
+            };
+            
+            currentMapView = scanDepth(window);
+            if (currentMapView) {
+              detectionMethod = 'deep_scan';
+              console.log(`[NewMapDialog] ✅ Map view found via deep object scan`);
+            }
+          }
+        } catch (e) {
+          console.warn(`[NewMapDialog] Global scope detection failed:`, e);
+        }
+      }
+      
+      // Strategy 4: Check DOM for ArcGIS map containers
+      if (!currentMapView) {
+        try {
+          const mapContainers = document.querySelectorAll('[data-esri-map], .esri-view, .esri-map-view, #map, .map-container');
+          
+          for (const container of mapContainers) {
+            // Check if container has associated view
+            if (container.__esri_view) {
+              currentMapView = container.__esri_view;
+              detectionMethod = 'dom_esri_view';
+              console.log(`[NewMapDialog] ✅ Map view found via DOM __esri_view`);
+              break;
+            }
+            
+            // Check for React props/refs on container
+            const reactKey = Object.keys(container).find(key => key.startsWith('__reactInternalInstance'));
+            if (reactKey && container[reactKey]) {
+              const reactInstance = container[reactKey];
+              if (reactInstance.ref && reactInstance.ref.current && reactInstance.ref.current.extent) {
+                currentMapView = reactInstance.ref.current;
+                detectionMethod = 'dom_react_ref';
+                console.log(`[NewMapDialog] ✅ Map view found via DOM React ref`);
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[NewMapDialog] DOM detection failed:`, e);
+        }
+      }
+    }
+    
+    // VALIDATION AND LOGGING
+    if (currentMapView && currentMapView.extent) {
+      console.log(`[NewMapDialog] ✅ Map view successfully detected via: ${detectionMethod}`);
+      console.log(`[NewMapDialog] Current view covers:`, {
+        extent: {
+          xmin: Math.round(currentMapView.extent.xmin),
+          ymin: Math.round(currentMapView.extent.ymin),
+          xmax: Math.round(currentMapView.extent.xmax),
+          ymax: Math.round(currentMapView.extent.ymax)
+        },
+        zoom: currentMapView.zoom,
+        scale: Math.round(currentMapView.scale),
+        spatialReference: currentMapView.spatialReference?.wkid || 'unknown',
+        detectionMethod
+      });
+    } else {
+      console.warn(`[NewMapDialog] ❌ No map view available - will use broader area statistics (LESS OPTIMAL)`);
+      console.log(`[NewMapDialog] Detection methods attempted:`, {
+        providedParameter: !!mapView,
+        getterFunction: !!(mapViewGetter && typeof mapViewGetter === 'function'),
+        reactFiber: 'attempted',
+        globalScope: 'attempted',
+        domScan: 'attempted'
+      });
+      
+      console.log(`[NewMapDialog] 📝 To enable view-optimized statistics, consider:`);
+      console.log(`[NewMapDialog]   1. Pass mapView directly: createDataDrivenHeatMap(..., mapView)`);
+      console.log(`[NewMapDialog]   2. Use getter: createDataDrivenHeatMap(..., null, () => this.mapRef.current)`);
+      console.log(`[NewMapDialog]   3. Set global: window.mapView = your_map_view`);
+    }
+    
+    // Attempt data-driven generation with detected map view
+    const dataDrivenBreaks = await generateDataDrivenHeatMapBreaks(
+      actualFieldName, 
+      selectedAreaType, // Pass the entire object { value, label, url }
+      currentMapView
+    );
+    
+    // Enhanced validation with field matching verification
+    const isDataDriven = dataDrivenBreaks.some(b => b.dataSource === 'arcgis_query');
+    const hasReasonableRanges = dataDrivenBreaks.some(b => b.maxValue > 100);
+    const isSpatiallyOptimized = dataDrivenBreaks.some(b => b.dataStats?.spatiallyFiltered);
+    const usedCorrectField = dataDrivenBreaks.length > 0 && 
+      dataDrivenBreaks[0].dataStats && 
+      (dataDrivenBreaks[0].dataStats.fieldName === actualFieldName || 
+       dataDrivenBreaks[0].dataStats.requestedField === actualFieldName);
+    
+    console.log(`[NewMapDialog] Data-driven generation result:`, {
+      isDataDriven,
+      hasReasonableRanges,
+      isSpatiallyOptimized,
+      usedCorrectField,
+      breakCount: dataDrivenBreaks.length,
+      fieldRequested: actualFieldName,
+      fieldActuallyUsed: dataDrivenBreaks[0]?.dataStats?.fieldName,
+      firstBreak: dataDrivenBreaks[0]?.label,
+      lastBreak: dataDrivenBreaks[dataDrivenBreaks.length - 1]?.label,
+      dataRange: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
+      optimizationType: isSpatiallyOptimized ? 'Current View + 10% Buffer' : 'Broad Area Coverage',
+      mapViewDetection: detectionMethod
+    });
+    
+    // CRITICAL: Alert about field matching issues
+    if (!usedCorrectField && dataDrivenBreaks[0]?.dataStats) {
+      console.error(`[NewMapDialog] 🚨 FIELD MISMATCH DETECTED 🚨`);
+      console.error(`[NewMapDialog] Requested field: ${actualFieldName}`);
+      console.error(`[NewMapDialog] Actually used field: ${dataDrivenBreaks[0].dataStats.fieldName}`);
+      console.error(`[NewMapDialog] This will cause incorrect data visualization!`);
+    }
+    
+    // Get base configuration if available
+    const visualizationConfig = getInitialConfigForVisualization ? 
+      getInitialConfigForVisualization(selectedVisualization) || {} : 
+      {};
+    
+    // Create final configuration with comprehensive metadata
+    const mapConfiguration = {
+      ...visualizationConfig,
+      field: actualFieldName,
+      visualizationKey: selectedVisualization,
+      type: 'class-breaks',
+      areaType: areaTypeString,
+      classBreakInfos: dataDrivenBreaks,
+      hasCustomOpacities: true,
+      preserveOpacity: true,
+      dataOptimized: isDataDriven && hasReasonableRanges,
+      spatiallyOptimized: isSpatiallyOptimized,
+      fieldMatchingSuccess: usedCorrectField,
+      optimizationStats: isDataDriven ? dataDrivenBreaks[0]?.dataStats : null,
+      regenerationContext: {
+        canRegenerateWithMapView: true,
+        lastGeneratedAt: new Date().toISOString(),
+        usedMapView: !!currentMapView,
+        mapViewDetectionMethod: detectionMethod,
+        viewZoom: currentMapView?.zoom,
+        viewScale: currentMapView?.scale,
+        spatiallyFiltered: isSpatiallyOptimized,
+        fieldMatchingSuccess: usedCorrectField
+      }
+    };
+    
+    console.log(`[NewMapDialog] ✅ Successfully created heat map configuration:`, {
+      dataOptimized: mapConfiguration.dataOptimized,
+      spatiallyOptimized: mapConfiguration.spatiallyOptimized,
+      fieldMatchingSuccess: mapConfiguration.fieldMatchingSuccess,
+      usedMapView: mapConfiguration.regenerationContext.usedMapView,
+      detectionMethod,
+      breakCount: dataDrivenBreaks.length,
+      fieldCorrect: usedCorrectField,
+      rangesCovered: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
+      optimizationType: isSpatiallyOptimized ? 'Current View + 10% Buffer' : 'Broad Area Coverage'
+    });
+    
+    return mapConfiguration;
+    
+  } catch (error) {
+    console.error("[NewMapDialog] Critical error in createDataDrivenHeatMap:", error);
+    
+    // Ultimate fallback with realistic ranges
+    const fallbackBreaks = generateGeneric7LevelBreaks();
+    
+    return {
+      field: actualFieldName,
+      visualizationKey: selectedVisualization,
+      type: 'class-breaks',
+      areaType: areaTypeString,
+      classBreakInfos: fallbackBreaks,
+      hasCustomOpacities: true,
+      preserveOpacity: true,
+      dataOptimized: false,
+      spatiallyOptimized: false,
+      fieldMatchingSuccess: false,
+      optimizationStats: null,
+      regenerationContext: {
+        canRegenerateWithMapView: true,
+        lastGeneratedAt: new Date().toISOString(),
+        usedMapView: false,
+        fallbackReason: error.message,
+        mapViewDetectionMethod: 'failed'
+      }
+    };
+  }
+};
+
 
   /**
    * Enhanced prevStep function that handles backward navigation correctly
