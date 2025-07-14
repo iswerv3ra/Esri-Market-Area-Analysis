@@ -2,15 +2,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Tag, Maximize } from "lucide-react"; // Added Maximize for the new button icon
 import esriConfig from "@arcgis/core/config";
-import Map from "@arcgis/core/Map";
-import MapView from "@arcgis/core/views/MapView";
-import Zoom from "@arcgis/core/widgets/Zoom";
-import Home from "@arcgis/core/widgets/Home";
-import ScaleBar from "@arcgis/core/widgets/ScaleBar";
-import Legend from "@arcgis/core/widgets/Legend";
-import Extent from "@arcgis/core/geometry/Extent";
-import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
-import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import LabelManager from "../../services/SimplifiedLabelManager";
 import SimpleLabelDragger from "@/services/SimpleLabelDragger";
 import { useMap } from "../../contexts/MapContext";
@@ -66,6 +57,7 @@ export default function MapComponent({ onToggleLis }) {
   const isDrawingRef = useRef(false);
   const drawStartPointRef = useRef(null);
   const drawEndPointRef = useRef(null);
+  const isMapInitialized = useRef(false);
 
   const updateInProgressRef = useRef(false);
   const lastUpdateTimeRef = useRef(0);
@@ -5849,19 +5841,7 @@ useEffect(() => {
         }
       });
 
-      // Add request interceptor for debugging
-      // esriConfig.request.interceptors.push({
-      //   before: (params) => {
-      //     console.log("ArcGIS Request Interceptor:", {
-      //       url: params.url,
-      //       method: params.method,
-      //       headers: params.headers,
-      //     });
-      //   },
-      //   error: (error) => {
-      //     console.error("ArcGIS Request Error:", error);
-      //   },
-      // });
+
     } catch (error) {
       console.error("ArcGIS Configuration Error:", {
         message: error.message,
@@ -5871,644 +5851,441 @@ useEffect(() => {
     }
   }, []); // Empty deps - runs once on mount
 
-  // Map initialization effect
-  // Map initialization effect
   useEffect(() => {
-    let isMounted = true;
-    console.log("[Map] Starting map initialization...");
+      let isMounted = true;
+      console.log("[Map] Starting map initialization...");
 
-    // Use local variables within this effect's scope for instances
-    // that need to be accessed in the cleanup function
-    let localMapView = null;
-    let localZoomToolButtonRoot = null;
-    let siteLocationClickHandler = null;
-    let labelDragEventHandlers = [];
-    let localScaleBar = null; // Track scale bar instance for cleanup
-    let localLegend = null; // Track legend instance for cleanup
-    let basemapWatcher = null; // ADDED: Declare watcher variable
+      // Use local variables within this effect's scope for instances
+      // that need to be accessed in the cleanup function
+      let localMapView = null;
+      let localZoomToolButtonRoot = null;
+      let siteLocationClickHandler = null;
+      let labelDragEventHandlers = [];
+      let localScaleBar = null; // Track scale bar instance for cleanup
+      let localLegend = null; // Track legend instance for cleanup
 
-    const initializeMap = async () => {
-      try {
-        // ADDED: Create map using the basemap from state
-        const map = new Map({
-          basemap: basemapId, 
-        });
-
-        // Create view with map container
-        const view = new MapView({
-          container: mapRef.current,
-          map: map,
-          center: [-98, 39], // Default center on US
-          zoom: 4, // Default zoom
-          constraints: {
-            rotationEnabled: false,
-            minZoom: 2,
-            maxZoom: 20,
-          },
-          navigation: {
-            actionMap: { mouseWheel: { enabled: false } }, // Disable default wheel
-            browserTouchPanEnabled: true,
-            momentumEnabled: true,
-            keyboardNavigation: true,
-          },
-        });
-
-        // Store view for cleanup
-        localMapView = view;
-
-        console.log("[Map] Waiting for view to be ready...");
-        await view.when();
-        console.log("[Map] View is now ready!");
-
-        // Custom mouse wheel zoom handler with improved physics
-        view.constraints.snapToZoom = false; // Allow fractional zoom levels
-        const scrollHandler = view.on("mouse-wheel", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const state = scrollStateRef.current;
-          const now = Date.now();
-          const timeDiff = now - (state.lastScrollTime || now);
-          const scrollDeltaY = event.native.deltaY;
-          const currentDirection = scrollDeltaY < 0 ? 1 : -1; // 1 for zoom in, -1 for zoom out
-          const resetThreshold = 250, // ms to reset scroll streak
-            accelerateThreshold = 120; // ms for faster acceleration
-
-          if (state.timeoutId) clearTimeout(state.timeoutId);
-
-          if (
-            timeDiff < resetThreshold &&
-            currentDirection === state.lastScrollDirection &&
-            state.lastScrollDirection !== 0 // Ensure there was a previous direction
-          ) {
-            if (timeDiff < accelerateThreshold) state.scrollStreak++;
-            // else maintain streak but don't increment as fast
-          } else {
-            state.scrollStreak = 1; // Reset streak
-          }
-
-          const baseZoomDelta = 0.08; // Base zoom increment per scroll step
-          const streakBonus = 0.2; // How much each streak count adds to acceleration
-          const maxAccelerationFactor = 5.0;
-          const accelerationFactor = Math.min(
-            1 + streakBonus * Math.max(0, state.scrollStreak - 1),
-            maxAccelerationFactor
-          );
-          const finalZoomDelta =
-            baseZoomDelta * accelerationFactor * currentDirection;
-          const currentZoom = view.zoom;
-          let newZoom = Math.min(
-            Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
-            view.constraints.maxZoom
-          );
-
-          if (Math.abs(newZoom - currentZoom) > 0.001) {
-            // Only zoom if change is significant
-            view
-              .goTo(
-                { zoom: newZoom, center: view.center },
-                { duration: 60, easing: "linear", animate: true }
-              )
-              .catch((error) => {
-                if (error.name !== "AbortError")
-                  // Ignore AbortErrors from rapid scrolling
-                  console.error("[Map] goTo Error:", error);
-              });
-          }
-
-          state.lastScrollTime = now;
-          state.lastScrollDirection = currentDirection;
-          state.timeoutId = setTimeout(() => {
-            state.scrollStreak = 0;
-            state.lastScrollDirection = 0;
-            state.timeoutId = null;
-          }, resetThreshold);
-        });
-
-        // Store scrollHandler for cleanup
-        if (typeof scrollHandler?.remove === "function") {
-          labelDragEventHandlers.push(scrollHandler);
-        }
-
-        // IMPORTANT: Create and add ScaleBar AFTER view is ready
+      const initializeMap = async () => {
         try {
-          const { default: ScaleBar } = await import(
-            "@arcgis/core/widgets/ScaleBar"
-          );
+          // --- CORRECTED DYNAMIC IMPORTS ---
+          // This syntax correctly imports the default export (the constructor) from each module.
+          const Map = (await import("@arcgis/core/Map")).default;
+          const MapView = (await import("@arcgis/core/views/MapView")).default;
+          const Basemap = (await import("@arcgis/core/Basemap")).default;
+          const VectorTileLayer = (await import("@arcgis/core/layers/VectorTileLayer")).default;
+          const ScaleBar = (await import("@arcgis/core/widgets/ScaleBar")).default;
+          const Legend = (await import("@arcgis/core/widgets/Legend")).default;
 
-          // Create the scale bar with explicit options
-          const scaleBar = new ScaleBar({
-            view: view,
-            unit: "imperial",
-            style: "ruler", // Use ruler style for better visibility
-            anchor: "bottom-right", // Explicitly set anchor position
-            visible: true, // Ensure it's visible
+          // 1. Define the URL for your custom vector tile style.
+          const customBasemapUrl = "https://www.arcgis.com/sharing/rest/content/items/7b937cc5c7d249439c804d38cf8eb56d/resources/styles/root.json";
+          
+          // 2. Create a new VectorTileLayer for your custom basemap.
+          const customVectorTileLayer = new VectorTileLayer({
+            url: customBasemapUrl
+          });
+          
+          // 3. Create the labels-only layer.
+          const labelLayer = new VectorTileLayer({
+              portalItem: {
+                  id: "c5115f6795da4167a983f554f8a0d546" // World Reference Overlay
+              },
+              title: "Reference Labels"
           });
 
-          // Add scale bar to the bottom right of the map
-          view.ui.add(scaleBar, "bottom-right");
+          // 4. Create a Basemap object, including the reference label layer.
+          const customBasemap = new Basemap({
+            baseLayers: [customVectorTileLayer],
+            referenceLayers: [labelLayer], // This ensures labels are always on top
+            title: "Custom Basemap",
+            id: "custom-basemap"
+          });
 
-          // Store reference for cleanup
-          localScaleBar = scaleBar;
+          // 5. Create the Map instance with your custom basemap.
+          const map = new Map({
+            basemap: customBasemap,
+          });
 
-          console.log(
-            "[Map] Scale bar successfully added to bottom-right of map"
-          );
+          // Create view with map container
+          const view = new MapView({
+            container: mapRef.current,
+            map: map,
+            center: [-98, 39], // Default center on US
+            zoom: 4, // Default zoom
+            constraints: {
+              rotationEnabled: false,
+              minZoom: 2,
+              maxZoom: 20,
+            },
+            navigation: {
+              actionMap: { mouseWheel: { enabled: false } }, // Disable default wheel
+              browserTouchPanEnabled: true,
+              momentumEnabled: true,
+              keyboardNavigation: true,
+            },
+          });
 
-          // Apply custom styling to ensure visibility
-          setTimeout(() => {
-            const scaleBarContainer = document.querySelector(
-              ".esri-scale-bar__container"
-            );
-            if (scaleBarContainer) {
-              scaleBarContainer.style.backgroundColor =
-                "rgba(255, 255, 255, 0.8)";
-              scaleBarContainer.style.padding = "4px";
-              scaleBarContainer.style.border = "1px solid rgba(0, 0, 0, 0.2)";
-              scaleBarContainer.style.borderRadius = "4px";
-              scaleBarContainer.style.marginBottom = "10px";
-              scaleBarContainer.style.marginRight = "10px";
-              console.log("[Map] Applied custom styling to scale bar");
+          // Store view for cleanup
+          localMapView = view;
+
+          console.log("[Map] Waiting for view to be ready...");
+          await view.when();
+          console.log("[Map] View is now ready!");
+          
+          if (view.map.basemap) {
+            await view.map.basemap.when();
+            console.log("[Map] Your custom basemap is ready.");
+          }
+
+          // Custom mouse wheel zoom handler (code unchanged)
+          view.constraints.snapToZoom = false; 
+          const scrollHandler = view.on("mouse-wheel", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const state = scrollStateRef.current;
+            const now = Date.now();
+            const timeDiff = now - (state.lastScrollTime || now);
+            const scrollDeltaY = event.native.deltaY;
+            const currentDirection = scrollDeltaY < 0 ? 1 : -1; 
+            const resetThreshold = 250,
+              accelerateThreshold = 120; 
+
+            if (state.timeoutId) clearTimeout(state.timeoutId);
+
+            if (
+              timeDiff < resetThreshold &&
+              currentDirection === state.lastScrollDirection &&
+              state.lastScrollDirection !== 0 
+            ) {
+              if (timeDiff < accelerateThreshold) state.scrollStreak++;
             } else {
-              console.warn("[Map] Scale bar container not found for styling");
+              state.scrollStreak = 1; 
             }
-          }, 500);
-        } catch (scaleBarError) {
-          console.error("[Map] Error creating scale bar:", scaleBarError);
-        }
 
-        // Site location placement click handler
-        siteLocationClickHandler = view.on(
-          "click",
-          handleSiteLocationPlacement
-        );
+            const baseZoomDelta = 0.08; 
+            const streakBonus = 0.2;
+            const maxAccelerationFactor = 5.0;
+            const accelerationFactor = Math.min(
+              1 + streakBonus * Math.max(0, state.scrollStreak - 1),
+              maxAccelerationFactor
+            );
+            const finalZoomDelta =
+              baseZoomDelta * accelerationFactor * currentDirection;
+            const currentZoom = view.zoom;
+            let newZoom = Math.min(
+              Math.max(currentZoom + finalZoomDelta, view.constraints.minZoom),
+              view.constraints.maxZoom
+            );
 
-        // Setup label drag handling
-        try {
-          // Define a function to handle label dragging
-          const setupLabelDragHandlingFixed = (view) => {
-            if (!view || !view.map) return [];
-
-            console.log("[Map] Setting up enhanced label drag handling");
-
-            // Track if we're currently dragging a label
-            let isDraggingLabel = false;
-            let draggedLabel = null;
-            let dragStartPoint = null;
-            let originalOffset = null;
-            let originalNavState = null;
-
-            // Store handlers for proper cleanup
-            const handlers = [];
-
-            // Define pointerDownHandler properly
-            const pointerDownHandler = view.on("pointer-down", (event) => {
-              // Skip if already dragging
-              if (isDraggingLabel) return;
-
-              // Skip if zoom tool is active
-              if (isZoomToolActive) {
-                return;
-              }
-
-              // Existing label drag code...
+            if (Math.abs(newZoom - currentZoom) > 0.001) {
               view
-                .hitTest(event.screenPoint)
-                .then((response) => {
-                  const labelHit = response.results.find(
-                    (result) =>
-                      result.graphic &&
-                      (result.graphic.symbol?.type === "text" ||
-                        result.graphic.attributes?.isLabel === true)
-                  );
+                .goTo(
+                  { zoom: newZoom, center: view.center },
+                  { duration: 60, easing: "linear", animate: true }
+                )
+                .catch((error) => {
+                  if (error.name !== "AbortError")
+                    console.error("[Map] goTo Error:", error);
+                });
+            }
 
+            state.lastScrollTime = now;
+            state.lastScrollDirection = currentDirection;
+            state.timeoutId = setTimeout(() => {
+              state.scrollStreak = 0;
+              state.lastScrollDirection = 0;
+              state.timeoutId = null;
+            }, resetThreshold);
+          });
+
+          if (typeof scrollHandler?.remove === "function") {
+            labelDragEventHandlers.push(scrollHandler);
+          }
+
+          // IMPORTANT: Create and add ScaleBar AFTER view is ready
+          try {
+            const scaleBar = new ScaleBar({
+              view: view,
+              unit: "imperial",
+              style: "ruler",
+              anchor: "bottom-right",
+              visible: true,
+            });
+
+            view.ui.add(scaleBar, "bottom-right");
+            localScaleBar = scaleBar;
+            console.log("[Map] Scale bar successfully added to bottom-right of map");
+
+            // Apply custom styling (code unchanged)
+            setTimeout(() => {
+              if (!isMounted) return;
+              const scaleBarContainer = document.querySelector(".esri-scale-bar__container");
+              if (scaleBarContainer) {
+                scaleBarContainer.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
+                scaleBarContainer.style.padding = "4px";
+                scaleBarContainer.style.border = "1px solid rgba(0, 0, 0, 0.2)";
+                scaleBarContainer.style.borderRadius = "4px";
+                scaleBarContainer.style.marginBottom = "10px";
+                scaleBarContainer.style.marginRight = "10px";
+                console.log("[Map] Applied custom styling to scale bar");
+              } else {
+                console.warn("[Map] Scale bar container not found for styling");
+              }
+            }, 500);
+          } catch (scaleBarError) {
+            console.error("[Map] Error creating scale bar:", scaleBarError);
+          }
+
+          // Site location placement click handler
+          siteLocationClickHandler = view.on("click", handleSiteLocationPlacement);
+
+          // Setup label drag handling (code unchanged)
+          try {
+            const setupLabelDragHandlingFixed = (view) => {
+              if (!view || !view.map) return [];
+              console.log("[Map] Setting up enhanced label drag handling");
+              let isDraggingLabel = false, draggedLabel = null, dragStartPoint = null, originalOffset = null, originalNavState = null;
+              const handlers = [];
+
+              const pointerDownHandler = view.on("pointer-down", (event) => {
+                if (isDraggingLabel || isZoomToolActive) return;
+                view.hitTest(event.screenPoint).then((response) => {
+                  const labelHit = response.results.find(
+                    (result) => result.graphic && (result.graphic.symbol?.type === "text" || result.graphic.attributes?.isLabel === true)
+                  );
                   if (labelHit) {
-                    // Found a label - start dragging logic
                     isDraggingLabel = true;
                     draggedLabel = labelHit.graphic;
                     dragStartPoint = event.screenPoint;
-
-                    // Store original offset
-                    if (draggedLabel.symbol) {
-                      originalOffset = {
-                        x: draggedLabel.symbol.xoffset || 0,
-                        y: draggedLabel.symbol.yoffset || 0,
-                      };
-                    } else {
-                      originalOffset = { x: 0, y: 0 };
-                    }
-
-                    // Store original navigation state
-                    originalNavState = {
-                      browserTouchPanEnabled:
-                        view.navigation?.browserTouchPanEnabled || true,
-                      keyboardNavigation:
-                        view.navigation?.keyboardNavigation || true,
-                    };
-
-                    // Disable map navigation during drag
+                    originalOffset = { x: draggedLabel.symbol.xoffset || 0, y: draggedLabel.symbol.yoffset || 0 };
+                    originalNavState = { browserTouchPanEnabled: view.navigation?.browserTouchPanEnabled || true, keyboardNavigation: view.navigation?.keyboardNavigation || true };
                     if (view.navigation) {
                       view.navigation.browserTouchPanEnabled = false;
-                      if (
-                        typeof view.navigation.keyboardNavigation !==
-                        "undefined"
-                      ) {
-                        view.navigation.keyboardNavigation = false;
-                      }
+                      if (typeof view.navigation.keyboardNavigation !== "undefined") view.navigation.keyboardNavigation = false;
                     }
-
-                    // Set cursor
-                    if (view.container) {
-                      view.container.style.cursor = "move";
-                    }
-
-                    // Prevent default
+                    if (view.container) view.container.style.cursor = "move";
                     event.stopPropagation();
                   }
-                })
-                .catch((error) => {
-                  console.error("[Map] Error during label hit test:", error);
-                });
-            });
+                }).catch((error) => console.error("[Map] Error during label hit test:", error));
+              });
+              handlers.push(pointerDownHandler);
 
-            handlers.push(pointerDownHandler);
+              const pointerMoveHandler = view.on("pointer-move", (event) => {
+                if (!isDraggingLabel || !draggedLabel || !dragStartPoint || !originalOffset) return;
+                event.stopPropagation();
+                const dx = event.x - dragStartPoint.x;
+                const dy = event.y - dragStartPoint.y;
+                const newPosition = { x: originalOffset.x + dx, y: originalOffset.y - dy };
+                try {
+                  if (draggedLabel.symbol) {
+                    const newSymbol = draggedLabel.symbol.clone();
+                    newSymbol.xoffset = newPosition.x;
+                    newSymbol.yoffset = newPosition.y;
+                    draggedLabel.symbol = newSymbol;
+                    if (typeof view.graphics?.refresh === "function") view.graphics.refresh();
+                  }
+                } catch (error) { console.error("[Map] Error updating label position during drag:", error); }
+              });
+              handlers.push(pointerMoveHandler);
 
-            // Handle pointer move for drag operation
-            const pointerMoveHandler = view.on("pointer-move", (event) => {
-              if (
-                !isDraggingLabel ||
-                !draggedLabel ||
-                !dragStartPoint ||
-                !originalOffset
-              ) {
-                return;
+              const pointerUpHandler = view.on("pointer-up", (event) => {
+                if (!isDraggingLabel) return;
+                event.stopPropagation();
+                try {
+                  if (window.labelManagerInstance) {
+                    if (typeof window.labelManagerInstance.updateLabelPosition === "function" && draggedLabel) {
+                      const finalPosition = { x: draggedLabel.symbol?.xoffset || 0, y: draggedLabel.symbol?.yoffset || 0 };
+                      window.labelManagerInstance.updateLabelPosition(draggedLabel, finalPosition);
+                    }
+                    if (typeof window.labelManagerInstance.savePositions === "function") window.labelManagerInstance.savePositions(true);
+                  }
+                  if (view.container) view.container.style.cursor = "default";
+                  if (view.navigation && originalNavState) {
+                    view.navigation.browserTouchPanEnabled = originalNavState.browserTouchPanEnabled;
+                    if (originalNavState.keyboardNavigation !== undefined) view.navigation.keyboardNavigation = originalNavState.keyboardNavigation;
+                  }
+                } catch (error) { console.error("[Map] Error finishing label drag operation:", error); } 
+                finally { isDraggingLabel = false; draggedLabel = null; dragStartPoint = null; originalOffset = null; originalNavState = null; }
+              });
+              handlers.push(pointerUpHandler);
+
+              const pointerLeaveHandler = view.on("pointer-leave", (event) => {
+                if (!isDraggingLabel) return;
+                try {
+                  if (view.container) view.container.style.cursor = "default";
+                  if (view.navigation && originalNavState) {
+                    view.navigation.browserTouchPanEnabled = originalNavState.browserTouchPanEnabled;
+                    if (originalNavState.keyboardNavigation !== undefined) view.navigation.keyboardNavigation = originalNavState.keyboardNavigation;
+                  }
+                } catch (error) { console.error("[Map] Error handling pointer leave during label drag:", error); } 
+                finally { isDraggingLabel = false; draggedLabel = null; dragStartPoint = null; originalOffset = null; originalNavState = null; }
+              });
+              handlers.push(pointerLeaveHandler);
+
+              view.labelDragHandlers = handlers;
+              console.log("[Map] Label drag handling initialized with", handlers.length, "handlers");
+              if (labelManagerRef.current) {
+                window.labelManagerInstance = labelManagerRef.current;
+                console.log("[Map] Exposed label manager instance globally");
               }
+              return handlers;
+            };
+            labelDragEventHandlers = setupLabelDragHandlingFixed(view);
+          } catch (labelDragError) {
+            console.error("[Map] Error setting up label drag handling:", labelDragError);
+            labelDragEventHandlers = [];
+          }
 
-              // Prevent map interaction
-              event.stopPropagation();
-
-              // Calculate new position
-              const dx = event.x - dragStartPoint.x;
-              const dy = event.y - dragStartPoint.y;
-
-              const newPosition = {
-                x: originalOffset.x + dx,
-                y: originalOffset.y - dy, // Invert Y for correct direction
-              };
-
-              try {
-                // Update label position
-                if (draggedLabel.symbol) {
-                  const newSymbol = draggedLabel.symbol.clone();
-                  newSymbol.xoffset = newPosition.x;
-                  newSymbol.yoffset = newPosition.y;
-                  draggedLabel.symbol = newSymbol;
-
-                  // Force refresh if needed
-                  if (typeof view.graphics?.refresh === "function") {
-                    view.graphics.refresh();
-                  }
-                }
-              } catch (error) {
-                console.error(
-                  "[Map] Error updating label position during drag:",
-                  error
-                );
-              }
-            });
-
-            handlers.push(pointerMoveHandler);
-
-            // Handle pointer up to end drag operation
-            const pointerUpHandler = view.on("pointer-up", (event) => {
-              if (!isDraggingLabel) return;
-
-              // Prevent map interaction
-              event.stopPropagation();
-
-              try {
-                // Save the final position to LabelManager if available
-                if (window.labelManagerInstance) {
-                  if (
-                    typeof window.labelManagerInstance.updateLabelPosition ===
-                      "function" &&
-                    draggedLabel
-                  ) {
-                    const finalPosition = {
-                      x: draggedLabel.symbol?.xoffset || 0,
-                      y: draggedLabel.symbol?.yoffset || 0,
-                    };
-                    window.labelManagerInstance.updateLabelPosition(
-                      draggedLabel,
-                      finalPosition
-                    );
-                  }
-
-                  // Auto-save positions
-                  if (
-                    typeof window.labelManagerInstance.savePositions ===
-                    "function"
-                  ) {
-                    window.labelManagerInstance.savePositions(true);
-                  }
-                }
-
-                // Restore cursor
-                if (view.container) {
-                  view.container.style.cursor = "default";
-                }
-
-                // Restore map navigation
-                if (view.navigation && originalNavState) {
-                  view.navigation.browserTouchPanEnabled =
-                    originalNavState.browserTouchPanEnabled;
-                  if (originalNavState.keyboardNavigation !== undefined) {
-                    view.navigation.keyboardNavigation =
-                      originalNavState.keyboardNavigation;
-                  }
-                }
-              } catch (error) {
-                console.error(
-                  "[Map] Error finishing label drag operation:",
-                  error
-                );
-              } finally {
-                // Reset drag state
-                isDraggingLabel = false;
-                draggedLabel = null;
-                dragStartPoint = null;
-                originalOffset = null;
-                originalNavState = null;
-              }
-            });
-
-            handlers.push(pointerUpHandler);
-
-            // Handle pointer leave to cancel drag
-            const pointerLeaveHandler = view.on("pointer-leave", (event) => {
-              if (!isDraggingLabel) return;
-
-              try {
-                // Restore cursor
-                if (view.container) {
-                  view.container.style.cursor = "default";
-                }
-
-                // Restore map navigation
-                if (view.navigation && originalNavState) {
-                  view.navigation.browserTouchPanEnabled =
-                    originalNavState.browserTouchPanEnabled;
-                  if (originalNavState.keyboardNavigation !== undefined) {
-                    view.navigation.keyboardNavigation =
-                      originalNavState.keyboardNavigation;
-                  }
-                }
-              } catch (error) {
-                console.error(
-                  "[Map] Error handling pointer leave during label drag:",
-                  error
-                );
-              } finally {
-                // Reset drag state
-                isDraggingLabel = false;
-                draggedLabel = null;
-                dragStartPoint = null;
-                originalOffset = null;
-                originalNavState = null;
-              }
-            });
-
-            handlers.push(pointerLeaveHandler);
-
-            // Store handlers on view for cleanup
-            view.labelDragHandlers = handlers;
-
-            console.log(
-              "[Map] Label drag handling initialized with",
-              handlers.length,
-              "handlers"
-            );
-
-            // Make the Label Manager instance globally available
-            if (labelManagerRef.current) {
-              window.labelManagerInstance = labelManagerRef.current;
-              console.log("[Map] Exposed label manager instance globally");
+          // Zoom Tool Button Integration (code unchanged)
+          try {
+            const zoomToolButtonContainer = document.createElement("div");
+            view.ui.add(zoomToolButtonContainer, "top-left");
+            if (isMounted) {
+              const root = ReactDOM.createRoot(zoomToolButtonContainer);
+              localZoomToolButtonRoot = root;
+              setZoomToolButtonRoot(root);
             }
+          } catch (buttonError) {
+            console.error("[Map] Error creating zoom tool button:", buttonError);
+          }
 
-            return handlers;
-          };
-
-          // Call the fixed function
-          labelDragEventHandlers = setupLabelDragHandlingFixed(view);
-        } catch (labelDragError) {
-          console.error(
-            "[Map] Error setting up label drag handling:",
-            labelDragError
-          );
-          labelDragEventHandlers = [];
-        }
-
-        // --- Zoom Tool Button Integration ---
-        try {
-          // Create a container for the button and add it to the map UI
-          const zoomToolButtonContainer = document.createElement("div");
-          view.ui.add(zoomToolButtonContainer, "top-left");
+          // Initialize Legend widget (code unchanged)
+          try {
+            const legendWidget = new Legend({
+              view,
+              container: document.createElement("div"),
+              layerInfos: [],
+              visible: false,
+            });
+            view.ui.add(legendWidget, "bottom-left");
+            localLegend = legendWidget;
+            if (isMounted) {
+              setLegend(legendWidget);
+              setTimeout(() => {
+                if (isMounted && legendWidget.container) styleLegend(legendWidget.container);
+              }, 500);
+              console.log("[Map] Legend widget initialized in bottom-left position");
+            }
+          } catch (legendError) {
+            console.error("[Map] Error initializing legend widget:", legendError);
+          }
 
           if (isMounted) {
-            // Create the React root for the button
-            const root = ReactDOM.createRoot(zoomToolButtonContainer);
-            // Store in local var and state
-            localZoomToolButtonRoot = root;
-            setZoomToolButtonRoot(root);
+            setMapView(view);
           }
-        } catch (buttonError) {
-          console.error("[Map] Error creating zoom tool button:", buttonError);
+        } catch (error) {
+          console.error("[Map] Critical error during map initialization:", error);
         }
-        // --- End Zoom Tool Button Integration ---
+      };
 
-        // Initialize Legend widget - position in BOTTOM LEFT
-        // IMPORTANT: For Core Map, we create the legend but start with visibility=false
-        try {
-          const { default: Legend } = await import(
-            "@arcgis/core/widgets/Legend"
-          );
+      // Start initialization only if map container is available
+      if (mapRef.current) {
+        initializeMap();
+      } else {
+        console.error(
+          "[Map] mapRef.current is not available for initialization."
+        );
+      }
 
-          // Get the active tab to determine if we're on the Core Map
-          const activeTabId = activeTab || 1; // Default to Core Map if not set
-          const isCoreMappVisible = activeTabId === 1;
+      // --- Cleanup Function (unchanged) ---
+      return () => {
+        console.log(
+          "[Map] Component unmounting or re-running effect, performing cleanup..."
+        );
+        isMounted = false; // Prevent state updates after unmount/during cleanup
 
-          // Create legend with visibility set to false for Core Map
-          const legendWidget = new Legend({
-            view,
-            container: document.createElement("div"),
-            layerInfos: [],
-            visible: false, // Always start hidden, will be shown if needed
-          });
+        // Cleanup Scale Bar instance
+        if (localScaleBar && typeof localScaleBar.destroy === "function") {
+          try {
+            localScaleBar.destroy();
+            console.log("[Map] Scale bar destroyed during cleanup");
+          } catch (scaleBarError) {
+            console.error("[Map] Error destroying scale bar:", scaleBarError);
+          }
+        }
 
-          // Add to BOTTOM LEFT position
-          view.ui.add(legendWidget, "bottom-left");
+        // Cleanup Legend instance
+        if (localLegend && typeof localLegend.destroy === "function") {
+          try {
+            localLegend.destroy();
+            console.log("[Map] Legend widget destroyed during cleanup");
+          } catch (legendError) {
+            console.error("[Map] Error destroying legend:", legendError);
+          }
+        }
 
-          // Store for cleanup
-          localLegend = legendWidget;
-
-          if (isMounted) {
-            setLegend(legendWidget);
-
-            // Apply initial styling after a short delay, but only if not on Core Map
-            setTimeout(() => {
-              if (legendWidget.container) {
-                // Apply styling but keep visibility according to current tab
-                styleLegend(legendWidget.container);
-
-                // The actual visibility is managed by the other effects and functions
-                // that update the legend based on the active tab and visualization type
-                console.log(
-                  `[Map] Legend initialized with visibility: ${legendWidget.visible}`
-                );
-              }
-            }, 500);
-
-            console.log(
-              "[Map] Legend widget initialized in bottom-left position"
+        // Cleanup Label Manager (uses its own destroyLabelManager function)
+        if (typeof destroyLabelManager === "function") {
+          try {
+            destroyLabelManager();
+          } catch (labelManagerError) {
+            console.error(
+              "[Map] Error destroying label manager:",
+              labelManagerError
             );
           }
-        } catch (legendError) {
-          console.error("[Map] Error initializing legend widget:", legendError);
         }
 
-        // Trigger market area loading/rendering if ready
-        if (isMounted) {
-          // Set view in context or state
-          setMapView(view);
-
-          // Notify of successful map ready state
-          if (typeof onMapReady === "function") {
-            try {
-              onMapReady(view);
-              console.log("[Map] onMapReady callback executed successfully");
-            } catch (mapReadyError) {
-              console.error(
-                "[Map] Error in onMapReady callback:",
-                mapReadyError
-              );
-            }
+        // Clean up site location click handler
+        if (
+          siteLocationClickHandler &&
+          typeof siteLocationClickHandler.remove === "function"
+        ) {
+          try {
+            siteLocationClickHandler.remove();
+            siteLocationClickHandler = null;
+          } catch (handlerError) {
+            console.error(
+              "[Map] Error removing site location click handler:",
+              handlerError
+            );
           }
         }
-      } catch (error) {
-        console.error("[Map] Critical error during map initialization:", error);
-      }
-    };
 
-    // Start initialization if map container is available
-    if (mapRef.current) {
-      initializeMap();
-    } else {
-      console.error(
-        "[Map] mapRef.current is not available for initialization."
-      );
-    }
-
-    // --- Cleanup Function ---
-    return () => {
-      console.log(
-        "[Map] Component unmounting or re-running effect, performing cleanup..."
-      );
-      isMounted = false; // Prevent state updates after unmount/during cleanup
-
-      // Cleanup Scale Bar instance
-      if (localScaleBar && typeof localScaleBar.destroy === "function") {
-        try {
-          localScaleBar.destroy();
-          console.log("[Map] Scale bar destroyed during cleanup");
-        } catch (scaleBarError) {
-          console.error("[Map] Error destroying scale bar:", scaleBarError);
+        // Clean up label drag and other event handlers
+        if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
+          try {
+            labelDragEventHandlers.forEach((handler) => {
+              if (handler && typeof handler.remove === "function") {
+                handler.remove();
+              }
+            });
+            labelDragEventHandlers = [];
+          } catch (dragHandlerError) {
+            console.error(
+              "[Map] Error removing event handlers:",
+              dragHandlerError
+            );
+          }
         }
-      }
 
-      // Cleanup Legend instance
-      if (localLegend && typeof localLegend.destroy === "function") {
-        try {
-          localLegend.destroy();
-          console.log("[Map] Legend widget destroyed during cleanup");
-        } catch (legendError) {
-          console.error("[Map] Error destroying legend:", legendError);
+        // --- Cleanup Zoom Tool Button's React Root ---
+        if (localZoomToolButtonRoot) {
+          try {
+            localZoomToolButtonRoot.unmount();
+          } catch (unmountError) {
+            console.error(
+              "[Map] Error unmounting zoom tool button:",
+              unmountError
+            );
+          }
+          localZoomToolButtonRoot = null;
         }
-      }
 
-      // Cleanup Label Manager (uses its own destroyLabelManager function)
-      if (typeof destroyLabelManager === "function") {
-        try {
-          destroyLabelManager();
-        } catch (labelManagerError) {
-          console.error(
-            "[Map] Error destroying label manager:",
-            labelManagerError
-          );
+        // Destroy the MapView instance to release its resources
+        if (localMapView && typeof localMapView.destroy === "function") {
+          try {
+            localMapView.destroy();
+            console.log("[Map] MapView instance destroyed.");
+          } catch (destroyError) {
+            console.error("[Map] Error destroying MapView:", destroyError);
+          }
         }
-      }
+        localMapView = null;
 
-      // Clean up site location click handler
-      if (
-        siteLocationClickHandler &&
-        typeof siteLocationClickHandler.remove === "function"
-      ) {
-        try {
-          siteLocationClickHandler.remove();
-          siteLocationClickHandler = null;
-          console.log("[Map] Site location click handler removed.");
-        } catch (handlerError) {
-          console.error(
-            "[Map] Error removing site location click handler:",
-            handlerError
-          );
-        }
-      }
+        console.log("[Map] Map initialization cleanup finished.");
+      };
+    }, []);
 
-      // Clean up label drag handlers (this will also clean up the basemapWatcher)
-      if (labelDragEventHandlers && labelDragEventHandlers.length > 0) {
-        try {
-          labelDragEventHandlers.forEach((handler) => {
-            if (handler && typeof handler.remove === "function") {
-              handler.remove();
-            }
-          });
-          labelDragEventHandlers = []; // Clear the array
-          console.log("[Map] Event handlers (including basemap watcher) removed.");
-        } catch (dragHandlerError) {
-          console.error(
-            "[Map] Error removing event handlers:",
-            dragHandlerError
-          );
-        }
-      }
 
-      // --- Cleanup Zoom Tool Button's React Root ---
-      if (localZoomToolButtonRoot) {
-        try {
-          localZoomToolButtonRoot.unmount();
-          console.log("[Map] ZoomToolButton React root unmounted.");
-        } catch (unmountError) {
-          console.error(
-            "[Map] Error unmounting zoom tool button:",
-            unmountError
-          );
-        }
-        localZoomToolButtonRoot = null; // Clear local ref
-      }
-
-      // Destroy the MapView instance to release its resources
-      if (localMapView && typeof localMapView.destroy === "function") {
-        try {
-          localMapView.destroy();
-          console.log("[Map] MapView instance destroyed.");
-        } catch (destroyError) {
-          console.error("[Map] Error destroying MapView:", destroyError);
-        }
-      }
-      localMapView = null; // Clear local ref
-
-      console.log("[Map] Map initialization cleanup finished.");
-    };
-  }, []);
 
   // --- Effect for Label Manager Initialization and Readiness ---
   useEffect(() => {

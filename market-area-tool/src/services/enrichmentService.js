@@ -711,7 +711,6 @@ export const analysisCategories = {
       { id: "householdsbysize.FAM2PERS10", label: "2010 Family HHs: 2-Person" },
       { id: "householdsbysize.NF1PERS10", label: "2010 Nonfamily HHs: 1-Person" },
       { id: "householdsbysize.NF2PERS10", label: "2010 Nonfamily HHs: 2-Person" },
-
       // Tapestry Segments
       { id: "tapestryhouseholdsNEW.THH01", label: "2024 HHs in Tapestry Seg 1A" },
       { id: "tapestryhouseholdsNEW.THH02", label: "2024 HHs in Tapestry Seg 1B" },
@@ -2135,12 +2134,23 @@ export class EnrichmentService {
         attributes: s.attributes,
       }));
 
+      // --- Start of API Parameters ---
       const params = new URLSearchParams();
       params.append("f", "json");
       params.append("token", token);
       params.append("studyAreas", JSON.stringify(studyAreasPayload));
       params.append("analysisVariables", JSON.stringify(selectedVariables));
       params.append("returnGeometry", "false");
+
+      // *** MODIFICATION: Explicitly set the data collection and hierarchy ***
+      // This forces the API to use the esri2024 data vintage.
+      // This vintage contains 2023 current-year estimates and 2028 future-year projections.
+      const useDataObject = {
+        sourceCountry: "US",
+        hierarchy: "esri2024" // Forcing the 2024 data vintage as requested
+      };
+      params.append("useData", JSON.stringify(useDataObject));
+      // --- End of API Parameters ---
 
       const response = await fetch(enrichmentUrl, {
         method: "POST",
