@@ -7570,209 +7570,212 @@ export default function MapComponent({ onToggleLis }) {
     createLayers, // Added dependency
   ]);
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header Section */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
-        <div className="flex items-center justify-between">
-          {/* Left Side: Basemap Selector, Tabs, and New Map button */}
-          <div className="flex items-center space-x-4">
-            <div className="flex space-x-2 overflow-x-auto">
-              {/* Map through tabs */}
-              {tabs.map((tab) => (
-                <div key={tab.id} className="flex items-center">
-                  <div
-                    onClick={() => handleTabClick(tab.id)}
-                    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
-                      tab.active
-                        ? "bg-blue-500 dark:bg-blue-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
-                  >
-                    {tab.isEditing ? (
-                      // Input field for renaming tab
-                      <input
-                        type="text"
-                        defaultValue={tab.name}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                        onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
-                        onBlur={(e) => handleNameChange(tab.id, e.target.value)}
-                        className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
-                        autoFocus
-                      />
-                    ) : (
-                      // Display tab name and controls
-                      <div className="flex items-center">
-                        <span>{tab.name}</span>
-                        {/* Show controls only for non-core tabs */}
-                        {tab.id !== 1 && (
-                          <>
-                            {/* Edit Tab Name Icon (Pencil) */}
-                            <div
-                              onClick={(e) => startEditing(tab.id, e)}
-                              className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                              title="Edit tab name"
+return (
+  <div className="flex flex-col h-full">
+    {/* Header Section */}
+    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 h-16 flex items-center">
+      <div className="flex items-center justify-between space-x-4 w-full">
+        {/* Left Side: Tabs and New Map button */}
+        <div className="flex flex-1 items-center space-x-4 overflow-hidden">
+          {/* Scrolling Tab Container */}
+          <div className="flex items-center space-x-2 overflow-x-auto whitespace-nowrap py-1">
+            {/* Map through tabs */}
+            {tabs.map((tab) => (
+              <div key={tab.id} className="inline-flex items-center">
+                <div
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg focus:outline-none transition-colors cursor-pointer ${
+                    tab.active
+                      ? "bg-blue-500 dark:bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {tab.isEditing ? (
+                    // Input field for renaming tab
+                    <input
+                      type="text"
+                      defaultValue={tab.name}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
+                      onKeyDown={(e) => handleNameKeyDown(tab.id, e)}
+                      onBlur={(e) => handleNameChange(tab.id, e.target.value)}
+                      className="bg-transparent border-none focus:outline-none text-inherit w-24 px-1"
+                      autoFocus
+                    />
+                  ) : (
+                    // Display tab name and controls
+                    <div className="flex items-center">
+                      <span>{tab.name}</span>
+                      {/* Show controls only for non-core tabs */}
+                      {tab.id !== 1 && (
+                        <>
+                          {/* Edit Tab Name Icon (Pencil) */}
+                          <div
+                            onClick={(e) => startEditing(tab.id, e)}
+                            className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                            title="Edit tab name"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                />
-                              </svg>
-                            </div>
-                            {/* Delete Tab Icon (X) */}
-                            <div
-                              onClick={(e) => deleteTab(tab.id, e)}
-                              className="ml-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
-                              title="Delete map"
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                              />
+                            </svg>
+                          </div>
+                          {/* Delete Tab Icon (X) */}
+                          <div
+                            onClick={(e) => deleteTab(tab.id, e)}
+                            className="ml-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                            title="Delete map"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-              {/* New Map Button */}
-              <button
-                onClick={addNewTab}
-                className="px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
-              >
-                + New Map
-              </button>
-            </div>
+              </div>
+            ))}
           </div>
 
-          {/* Right Side: Conditional Dropdowns, Edit Button, Save Button */}
-          <div className="flex items-center space-x-2">
-            {/* IIFE to manage scope and conditional rendering */}
-            {activeTab !== 1 &&
-              (() => {
-                const activeTabData = tabs.find((tab) => tab.id === activeTab);
-                const activeVisOption = visualizationOptions.find(
-                  (opt) => opt.value === activeTabData?.visualizationType
-                );
-                const showDropdowns =
-                  activeVisOption &&
-                  (activeVisOption.type === "class-breaks" ||
-                    activeVisOption.type === "dot-density");
-                const showEditButton = activeTab !== 1;
+          {/* New Map Button */}
+          <button
+            onClick={addNewTab}
+            className="flex-shrink-0 px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded cursor-pointer transition-colors duration-200 ease-in-out"
+          >
+            + New Map
+          </button>
+        </div>
 
-                // Determine filter category based on visualization type
-                let filterCategory = null;
-                if (activeVisOption) {
-                  switch (activeVisOption.type) {
-                    case "class-breaks":
-                      filterCategory = "Heat Map";
-                      break;
-                    case "dot-density":
-                      filterCategory = "Dot Density Map";
-                      break;
-                    default:
-                      filterCategory = null;
-                  }
+        {/* Right Side: Conditional Dropdowns, Edit Button, Save Button */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          {/* IIFE to manage scope and conditional rendering */}
+          {activeTab !== 1 &&
+            (() => {
+              const activeTabData = tabs.find((tab) => tab.id === activeTab);
+              const activeVisOption = visualizationOptions.find(
+                (opt) => opt.value === activeTabData?.visualizationType
+              );
+              const showDropdowns =
+                activeVisOption &&
+                (activeVisOption.type === "class-breaks" ||
+                  activeVisOption.type === "dot-density");
+              const showEditButton = activeTab !== 1;
+
+              // Determine filter category based on visualization type
+              let filterCategory = null;
+              if (activeVisOption) {
+                switch (activeVisOption.type) {
+                  case "class-breaks":
+                    filterCategory = "Heat Map";
+                    break;
+                  case "dot-density":
+                    filterCategory = "Dot Density Map";
+                    break;
+                  default:
+                    filterCategory = null;
                 }
+              }
 
-                return (
-                  <>
-                    {showDropdowns && (
-                      <>
-                        <select
-                          value={
-                            activeTabData?.areaType?.value || areaTypes[0].value
-                          }
-                          onChange={(e) => {
-                            const newAreaType = areaTypes.find(
-                              (type) => type.value === parseInt(e.target.value)
-                            );
-                            handleAreaTypeChange(activeTab, newAreaType);
-                          }}
-                          className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
-                                  bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
-                                  text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
-                                  focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          {areaTypes.map((type) => (
-                            <option key={type.value} value={type.value}>
-                              {type.label}
-                            </option>
-                          ))}
-                        </select>
+              return (
+                <>
+                  {showDropdowns && (
+                    <>
+                      <select
+                        value={
+                          activeTabData?.areaType?.value || areaTypes[0].value
+                        }
+                        onChange={(e) => {
+                          const newAreaType = areaTypes.find(
+                            (type) => type.value === parseInt(e.target.value)
+                          );
+                          handleAreaTypeChange(activeTab, newAreaType);
+                        }}
+                        className="block w-36 rounded-md border border-gray-300 dark:border-gray-600
+                                bg-white dark:bg-gray-700 py-2 px-3 text-sm font-medium
+                                text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2
+                                focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {areaTypes.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
 
-                        <SearchableDropdown
-                          options={visualizationOptions}
-                          value={activeTabData?.visualizationType || ""}
-                          onChange={(newValue) =>
-                            handleVisualizationChange(activeTab, newValue)
-                          }
-                          placeholder={
-                            filterCategory
-                              ? `Select ${filterCategory.toLowerCase()}`
-                              : "Select visualization"
-                          }
-                          searchPlaceholder={
-                            filterCategory
-                              ? `Search ${filterCategory.toLowerCase()}s...`
-                              : "Search visualizations..."
-                          }
-                          className="w-56"
-                          filterCategory={filterCategory}
-                        />
-                      </>
-                    )}
+                      <SearchableDropdown
+                        options={visualizationOptions}
+                        value={activeTabData?.visualizationType || ""}
+                        onChange={(newValue) =>
+                          handleVisualizationChange(activeTab, newValue)
+                        }
+                        placeholder={
+                          filterCategory
+                            ? `Select ${filterCategory.toLowerCase()}`
+                            : "Select visualization"
+                        }
+                        searchPlaceholder={
+                          filterCategory
+                            ? `Search ${filterCategory.toLowerCase()}s...`
+                            : "Search visualizations..."
+                        }
+                        className="w-56"
+                        filterCategory={filterCategory}
+                      />
+                    </>
+                  )}
 
-                    {showEditButton && (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={openLayerPropertiesEditor}
-                          className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
-                          title="Edit layer properties"
-                        >
-                          Edit Map/Legend
-                        </button>
-                        <button
-                          onClick={openLabelEditor}
-                          className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
-                          title="Edit map labels"
-                          disabled={!isLabelManagerReady}
-                        >
-                          <Tag className="h-3.5 w-3.5 mr-1" />
-                          Edit Labels
-                        </button>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-          </div>
+                  {showEditButton && (
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={openLayerPropertiesEditor}
+                        className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none"
+                        title="Edit layer properties"
+                      >
+                        Edit Map/Legend
+                      </button>
+                      <button
+                        onClick={openLabelEditor}
+                        className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none flex items-center"
+                        title="Edit map labels"
+                        disabled={!isLabelManagerReady}
+                      >
+                        <Tag className="h-3.5 w-3.5 mr-1" />
+                        Edit Labels
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
         </div>
       </div>
+    </div>
+      
 
       {/* Main Map Area */}
       <div className="flex flex-1 overflow-hidden relative">

@@ -131,12 +131,13 @@ function InnerLayout() {
         {/* Market Areas sidebar - increased width from 350px to 440px (25% increase) */}
         <div 
           className={`
-            absolute right-0 top-[53.5px] w-[440px] h-[calc(100%-54px)]
+            absolute right-0 top-[63.5px] w-[440px] h-[calc(100%-54px)]
             bg-[#1a202c]
             shadow-lg
             transition-transform duration-300 ease-in-out z-30
             ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}
             border-t border-gray-700
+            pt-4
           `}
           style={{
             pointerEvents: 'auto' // Ensure click events work

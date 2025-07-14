@@ -563,84 +563,64 @@ const saveMapConfigurationToLocalStorage = async (mapData) => {
   }
 };
 
-// Save configuration to the database
 const saveMapConfigurationToDatabase = async (mapData) => {
   const projectId = getProjectId();
-  if (!projectId) throw new Error("No project ID available for saving configuration.");
-  // console.log("[NewMapDialog] Starting database save for project:", projectId);
+  if (!projectId) {
+    throw new Error("No project ID available for saving configuration.");
+  }
+
+  console.log("[NewMapDialog] Creating new configuration in database for project:", projectId);
+
   try {
-    const existingConfigsResponse = await mapConfigurationsAPI.getAll(projectId);
-    const existingConfigs = existingConfigsResponse?.data || [];
-    // console.log("[NewMapDialog] Found existing configurations:", existingConfigs.length);
-    
-    // Try to find existing config by tab_name and visualization_type (original map type)
-    let targetConfig = existingConfigs.find(config => 
-        config.tab_name === mapData.name && 
-        config.visualization_type === mapData.type // mapData.type is original map type
-    );
-
-    if (!targetConfig) {
-      // Fallback: if only one config of this original map type exists, update it
-      const sameTypeConfigs = existingConfigs.filter(config => config.visualization_type === mapData.type);
-      if (sameTypeConfigs.length === 1) {
-        targetConfig = sameTypeConfigs[0];
-        // console.log("[NewMapDialog] Found config by unique original type match:", targetConfig.id);
-      }
-    } else {
-        // console.log("[NewMapDialog] Found config by name and original type:", targetConfig.id);
-    }
-
-    if (targetConfig?.id) {
-      // console.log("[NewMapDialog] Deleting existing config:", targetConfig.id);
-      try {
-        await mapConfigurationsAPI.delete(targetConfig.id);
-        // console.log("[NewMapDialog] Successfully deleted existing config");
-      } catch (deleteError) {
-        console.warn("[NewMapDialog] Failed to delete existing config, continuing with create:", deleteError.message);
-      }
-    }
     const configDataForApi = {
       project_id: projectId,
-      project: projectId, 
+      project: projectId,
       tab_name: mapData.name || `${mapData.type} Map`,
       visualization_type: mapData.type, // Save the original mapType ('heatmap', 'comps', etc.)
-      area_type: mapData.layerConfiguration?.areaType || // Use areaType from layerConfig
-                   (mapData.type === 'heatmap' || mapData.type === 'dotdensity' 
+      area_type: mapData.layerConfiguration?.areaType ||
+                   (mapData.type === 'heatmap' || mapData.type === 'dotdensity'
                     ? convertAreaTypeToString(mapData.areaType?.value || mapData.areaType || 'tract')
                     : 'custom'),
       layer_configuration: mapData.layerConfiguration || {},
-      order: targetConfig?.order ?? existingConfigs.length
+      order: mapData.order || 0
     };
-    // console.log("[NewMapDialog] Configuration data prepared for API:", configDataForApi);
+
     const cleanedConfigData = cleanObject(configDataForApi);
     if (!cleanedConfigData.project_id && projectId) cleanedConfigData.project_id = projectId;
     if (!cleanedConfigData.project && projectId) cleanedConfigData.project = projectId;
-    
+
     const apiValidationPayload = {
       ...cleanedConfigData,
-      layer_configuration: JSON.stringify(cleanedConfigData.layer_configuration) 
+      layer_configuration: JSON.stringify(cleanedConfigData.layer_configuration)
     };
+
     const validationErrors = validateConfigurationData(apiValidationPayload);
-    if (validationErrors.length > 0) throw new Error(`Configuration validation failed: ${validationErrors.join(', ')}`);
-    
-    // console.log("[NewMapDialog] Creating new config with validated data (sending object for layer_configuration)");
-    const createResponse = await mapConfigurationsAPI.create(projectId, cleanedConfigData); // Send object for layer_configuration
+    if (validationErrors.length > 0) {
+      throw new Error(`Configuration validation failed: ${validationErrors.join(', ')}`);
+    }
+
+    console.log("[NewMapDialog] Calling create API with validated data.");
+    const createResponse = await mapConfigurationsAPI.create(projectId, cleanedConfigData);
 
     if (createResponse.data?.id) {
-      // console.log("[NewMapDialog] Database save successful:", { configId: createResponse.data.id, status: createResponse.status });
-      return { success: true, type: targetConfig ? 'recreate' : 'create', configId: createResponse.data.id, action: targetConfig ? 'updated' : 'created' };
+      console.log("[NewMapDialog] Database create successful:", { configId: createResponse.data.id, status: createResponse.status });
+      return { success: true, type: 'create', configId: createResponse.data.id, action: 'created' };
     } else {
-      throw new Error("Database API returned no configuration ID");
+      throw new Error("Database API returned no configuration ID after creation");
     }
   } catch (apiError) {
-    console.error("[NewMapDialog] Database API error:", apiError);
+    console.error("[NewMapDialog] Database API error during create:", apiError);
     if (apiError.response) {
-      // console.error("[NewMapDialog] API Error Details:", { status: apiError.response.status, data: apiError.response.data });
-      if (apiError.response.status === 400) {
-        const validationData = apiError.response.data;
-        let errorMessage = "Database validation failed: ";
-        Object.keys(validationData).forEach(key => { errorMessage += `${key}: ${JSON.stringify(validationData[key])}. `; });
-        throw new Error(errorMessage || `Validation error: ${JSON.stringify(validationData)}`);
+      console.error("[NewMapDialog] API Error Details:", { status: apiError.response.status, data: apiError.response.data });
+      const validationData = apiError.response.data;
+      let errorMessage = "Database validation failed: ";
+      if (typeof validationData === 'object' && validationData !== null) {
+        Object.keys(validationData).forEach(key => {
+          errorMessage += `${key}: ${JSON.stringify(validationData[key])}. `;
+        });
+        throw new Error(errorMessage);
+      } else {
+        throw new Error(`Database save failed: ${apiError.message}`);
       }
     }
     throw new Error(`Database save failed: ${apiError.message}`);
@@ -1404,15 +1384,15 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     setFileError('');
   };
 
-  // Define the 7-level color scheme
+// Define the 7-level color scheme
   const colorScheme = {
-    level1: [128, 0, 128, 0.35], // Purple
-    level2: [0, 0, 139, 0.20], // Dark blue
+    level1: [128, 0, 128, 0.15], // Purple
+    level2: [0, 0, 139, 0.15], // Dark blue
     level3: [135, 206, 235, 0.35], // Sky blue
     level4: [144, 238, 144, 0.35], // Light green
     level5: [255, 255, 144, 0.35], // Light yellow
-    level6: [255, 165, 0, 0.15], // Orange
-    level7: [255, 99, 71, 0.15], // Salmon red
+    level6: [255, 165, 0, 0.20], // Orange
+    level7: [255, 99, 71, 0.35], // Salmon red
   };
 
   /**
@@ -1487,14 +1467,13 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
     return breaks;
   };
 
-
   /**
    * Intelligently rounds a number to a "clean" value for use in legends,
    * making them easier for users to read and understand.
    * @param {number} num - The number to round.
    * @returns {number} The rounded, more readable number.
    */
-  const smartRound = (num) => {
+  const smartRoundInLegend = (num) => { // Renamed to avoid clash
     if (num <= 100) return Math.round(num); // Round to nearest integer for small numbers
     if (num < 1000) return Math.round(num / 10) * 10; // Round to nearest 10
     if (num < 10000) return Math.round(num / 100) * 100; // Round to nearest 100
@@ -1511,7 +1490,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
    */
   const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = null) => {
     const areaTypeName = areaType?.label || 'the selected area';
-    console.log(`[DataDrivenBreaks] Starting direct analysis for ${fieldName} in ${areaTypeName}`);
+    console.log(`[DataDrivenBreaks] Starting quantile-based analysis for ${fieldName} in ${areaTypeName}`);
     
     // --- CHANGE 1: Get the URL directly from the areaType object ---
     const serviceUrl = areaType?.url;
@@ -1612,66 +1591,253 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
         workingLayer.destroy();
         return generateGeneric7LevelBreaks();
       }
-      
+        
+      const generateOptimizedBreaks = async (stats, workingLayer, actualFieldName, mapView, breakCount = 7) => {
+        const { minValue, maxValue, totalCount } = stats;
 
-      // Replace the existing generateOptimizedBreaks function with this one
-      const generateOptimizedBreaks = (stats, breakCount = 7) => {
-        const { minValue, maxValue } = stats;
-
-        if (maxValue <= minValue) {
-            return [{ min: minValue, max: maxValue }];
+        if (maxValue <= minValue || totalCount < breakCount) {
+            console.warn(`[DataDrivenBreaks] Insufficient data variation or count for quantile breaks, using simple range.`);
+            // Apply appropriate rounding to fallback range
+            const range = maxValue - minValue;
+            const smartMin = range > 10 ? smartRoundInLegend(minValue) : Math.round(minValue * 10) / 10; // Use smartRoundInLegend
+            const smartMax = range > 10 ? smartRoundInLegend(maxValue) : Math.round(maxValue * 10) / 10; // Use smartRoundInLegend
+            return [{ min: smartMin, max: smartMax }];
         }
-        
-        // 1. Calculate the ideal, unrounded break points between min and max
-        const idealBreakPoints = [];
-        const interval = (maxValue - minValue) / breakCount;
-        for (let i = 1; i < breakCount; i++) {
-            idealBreakPoints.push(minValue + (i * interval));
-        }
-        
-        // 2. Round each of those break points to a "clean" number
-        const roundedBreakPoints = idealBreakPoints.map(smartRound);
-        
-        // 3. Create a final list of break points including the start and end, and remove duplicates
-        const finalBreakPoints = [...new Set([minValue, ...roundedBreakPoints, maxValue])].sort((a, b) => a - b);
-        
-        // 4. Construct the final data ranges from the clean break points
-        const finalRanges = [];
-        for (let i = 0; i < finalBreakPoints.length - 1; i++) {
-            const currentBreak = Math.floor(finalBreakPoints[i]);
-            const nextBreak = Math.floor(finalBreakPoints[i+1]);
 
-            // The start of the range is the previous break's end + 1
-            const min = (i === 0) ? currentBreak : finalRanges[i-1].max + 1;
-            // The end of the range is the next clean break point
-            let max = nextBreak;
+        console.log(`[DataDrivenBreaks] Querying all ${totalCount} values for quantile calculation...`);
+        
+        // Query all actual values from the layer for quantile calculation
+        const valuesQuery = new Query({
+            where: `${actualFieldName} IS NOT NULL AND ${actualFieldName} >= 0`,
+            returnGeometry: false,
+            outFields: [actualFieldName],
+            orderByFields: [`${actualFieldName} ASC`] // Pre-sort on server side for efficiency
+        });
+
+        // Apply same spatial filtering as statistics query if map view is available
+        if (mapView && mapView.extent) {
+            valuesQuery.geometry = mapView.extent;
+            valuesQuery.spatialRelationship = "intersects";
+        }
+
+        const valuesResult = await workingLayer.queryFeatures(valuesQuery);
+        
+        if (!valuesResult.features || valuesResult.features.length < breakCount) {
+            console.warn(`[DataDrivenBreaks] Insufficient features returned for quantile breaks (${valuesResult.features?.length || 0}), falling back to equal intervals.`);
             
-            // If this is the last range, make sure it extends to the absolute max value
-            if (i === finalBreakPoints.length - 2) {
-                max = maxValue;
+            // Create 7 equal interval breaks with appropriate rounding
+            const dataRange = maxValue - minValue;
+            const interval = dataRange / 7;
+            const intervalBreaks = [];
+            
+            // Determine appropriate decimal precision based on data range
+            let decimalPlaces = 0;
+            if (dataRange < 10) {
+                decimalPlaces = 1; // Use 1 decimal place for small ranges
+            } else if (dataRange < 100) {
+                decimalPlaces = 0; // Use whole numbers for medium ranges
             }
+            
+            // Create break points for equal intervals
+            const breakPoints = [minValue];
+            for (let i = 1; i < 7; i++) {
+                const rawPoint = minValue + (i * interval);
+                const roundedPoint = decimalPlaces > 0 ? 
+                    Math.round(rawPoint * Math.pow(10, decimalPlaces)) / Math.pow(10, decimalPlaces) :
+                    smartRoundInLegend(rawPoint); // Use smartRoundInLegend
+                breakPoints.push(roundedPoint);
+            }
+            breakPoints.push(maxValue);
+            
+            // Remove duplicates and ensure we have enough unique points
+            const uniquePoints = [...new Set(breakPoints)].sort((a, b) => a - b);
+            
+            // If we still don't have enough unique points, create micro-intervals
+            if (uniquePoints.length < 3) {
+                console.log(`[DataDrivenBreaks] Creating micro-intervals for very small data range`);
+                const microInterval = dataRange / 6;
+                const microBreaks = [];
+                for (let i = 0; i < 7; i++) {
+                    const point = minValue + (i * microInterval);
+                    const roundedPoint = Math.round(point * 100) / 100; // 2 decimal places for micro-intervals
+                    microBreaks.push(roundedPoint);
+                }
+                // Create overlapping ranges from micro-intervals
+                const overlappingRanges = [];
+                for (let i = 0; i < microBreaks.length - 1; i++) {
+                    overlappingRanges.push({ min: microBreaks[i], max: microBreaks[i + 1] });
+                }
+                return overlappingRanges;
+            }
+            
+            // Create overlapping ranges from break points
+            const overlappingRanges = [];
+            for (let i = 0; i < uniquePoints.length - 1; i++) {
+                overlappingRanges.push({ min: uniquePoints[i], max: uniquePoints[i + 1] });
+            }
+            
+            return overlappingRanges;
+        }
 
-            // Avoid creating an invalid range if rounding caused overlaps
-            if(min >= max) {
+        // Extract and sort all values (server should have pre-sorted, but ensure it)
+        const allValues = valuesResult.features
+            .map(feature => Number(feature.attributes[actualFieldName]))
+            .filter(value => !isNaN(value) && value >= 0)
+            .sort((a, b) => a - b);
+
+        const actualCount = allValues.length;
+        console.log(`[DataDrivenBreaks] Processing ${actualCount} sorted values for quantile breaks`);
+
+        // Calculate quantile break points (percentiles) - Always aim for 7 breaks
+        const targetBreakCount = 7;
+        const quantileBreakPoints = [];
+        
+        for (let i = 1; i < targetBreakCount; i++) {
+            const percentile = i / targetBreakCount;
+            let index = Math.floor(percentile * actualCount);
+            
+            // Ensure we don't exceed array bounds
+            if (index >= actualCount) index = actualCount - 1;
+            if (index < 0) index = 0;
+            
+            const breakValue = allValues[index];
+            quantileBreakPoints.push(breakValue);
+        }
+
+        // Create the complete set of break points including min and max
+        const rawBreakPoints = [minValue, ...quantileBreakPoints, maxValue];
+        
+        console.log(`[DataDrivenBreaks] Raw quantile break points:`, rawBreakPoints);
+        
+        // Determine data range and appropriate rounding strategy
+        const dataRange = maxValue - minValue;
+        let processedBreakPoints;
+        
+        if (dataRange <= 10) {
+            // Small ranges: Use 1 decimal place to preserve granularity
+            console.log(`[DataDrivenBreaks] Small range detected (${dataRange}), using 1 decimal place precision`);
+            processedBreakPoints = rawBreakPoints.map(value => Math.round(value * 10) / 10);
+        } else if (dataRange <= 100) {
+            // Medium ranges: Use whole numbers
+            console.log(`[DataDrivenBreaks] Medium range detected (${dataRange}), using whole number precision`);
+            processedBreakPoints = rawBreakPoints.map(value => Math.round(value));
+        } else {
+            // Large ranges: Use smart rounding
+            console.log(`[DataDrivenBreaks] Large range detected (${dataRange}), using smart rounding`);
+            processedBreakPoints = rawBreakPoints.map(value => smartRoundInLegend(value)); // Use smartRoundInLegend
+        }
+        
+        // Remove duplicates and sort
+        let uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
+        
+        console.log(`[DataDrivenBreaks] Processed break points:`, uniqueBreakPoints);
+        
+        // If we lost too many break points due to rounding, use higher precision
+        if (uniqueBreakPoints.length < 4) {
+            console.log(`[DataDrivenBreaks] Too few unique break points after rounding, using higher precision`);
+            if (dataRange <= 10) {
+                // Use 2 decimal places for very small ranges
+                processedBreakPoints = rawBreakPoints.map(value => Math.round(value * 100) / 100);
+            } else {
+                // Use 1 decimal place for other small ranges
+                processedBreakPoints = rawBreakPoints.map(value => Math.round(value * 10) / 10);
+            }
+            uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
+            console.log(`[DataDrivenBreaks] Higher precision break points:`, uniqueBreakPoints);
+        }
+        
+        // If we still don't have enough points, create evenly distributed points
+        if (uniqueBreakPoints.length < 4) {
+            console.log(`[DataDrivenBreaks] Still insufficient break points, creating evenly distributed points`);
+            const evenlySpacedPoints = [];
+            const step = dataRange / 6; // Create 7 points (6 intervals)
+            
+            for (let i = 0; i <= 6; i++) {
+                const point = minValue + (i * step);
+                const precisionPoint = dataRange < 1 ? 
+                    Math.round(point * 1000) / 1000 : // 3 decimal places for very small ranges
+                    dataRange < 10 ? 
+                        Math.round(point * 100) / 100 : // 2 decimal places for small ranges
+                        Math.round(point * 10) / 10; // 1 decimal place for medium ranges
+                evenlySpacedPoints.push(precisionPoint);
+            }
+            
+            uniqueBreakPoints = [...new Set(evenlySpacedPoints)].sort((a, b) => a - b);
+            console.log(`[DataDrivenBreaks] Evenly distributed break points:`, uniqueBreakPoints);
+        }
+
+        // Create overlapping ranges from break points
+        // Each range starts at break point i and ends at break point i+1
+        // This creates natural overlap where ranges share boundary values
+        const overlappingRanges = [];
+        for (let i = 0; i < uniqueBreakPoints.length - 1; i++) {
+            const min = uniqueBreakPoints[i];
+            const max = uniqueBreakPoints[i + 1];
+            
+            // Ensure we don't create invalid ranges where min >= max
+            if (min < max) {
+                overlappingRanges.push({ min: min, max: max });
+            } else if (min === max) {
+                // If min equals max, create a single-value range
+                overlappingRanges.push({ min: min, max: max });
+            }
+        }
+
+        // Validate ranges and ensure proper overlapping
+        const validatedRanges = [];
+        for (let i = 0; i < overlappingRanges.length; i++) {
+            const range = overlappingRanges[i];
+            
+            // Skip invalid ranges where min > max
+            if (range.min > range.max) {
+                console.warn(`[DataDrivenBreaks] Skipping invalid range: ${range.min} to ${range.max}`);
                 continue;
             }
             
-            finalRanges.push({ min, max });
-        }
-        
-        // If for some reason no ranges were created, return one covering the whole set
-        if(finalRanges.length === 0){
-            return [{min: Math.floor(minValue), max: Math.ceil(maxValue)}];
+            validatedRanges.push(range);
         }
 
-        console.log("[DataDrivenBreaks] Generated clean, rounded break ranges:", finalRanges);
-        return finalRanges;
+        // Calculate actual feature counts per range for validation
+        const rangeCounts = validatedRanges.map(range => {
+            const count = allValues.filter(value => 
+                value >= range.min && value <= range.max
+            ).length;
+            return { ...range, featureCount: count };
+        });
+
+        const featuresPerBin = actualCount / targetBreakCount;
+        console.log(`[DataDrivenBreaks] Smart rounded overlapping quantile ranges with feature counts:`, rangeCounts);
+        console.log(`[DataDrivenBreaks] Expected features per range: ~${Math.round(featuresPerBin)}`);
+        console.log(`[DataDrivenBreaks] Generated ${validatedRanges.length} breaks (target: ${targetBreakCount})`);
+
+        // Verify ranges are overlapping correctly
+        for (let i = 0; i < validatedRanges.length - 1; i++) {
+            const current = validatedRanges[i];
+            const next = validatedRanges[i + 1];
+            
+            if (current.max === next.min) {
+                console.log(`[DataDrivenBreaks] ✅ Ranges ${i} and ${i + 1} properly overlap at value ${current.max}`);
+            } else if (current.max < next.min) {
+                console.warn(`[DataDrivenBreaks] Gap detected between ranges: ${current.max} to ${next.min} (gap: ${next.min - current.max})`);
+            } else {
+                console.warn(`[DataDrivenBreaks] Unexpected overlap between ranges: ${current.max} to ${next.min}`);
+            }
+        }
+
+        // Return just the ranges without the counts (for compatibility with existing code)
+        const finalValidatedRanges = validatedRanges.length > 0 ? validatedRanges : [{ 
+            min: dataRange > 10 ? smartRoundInLegend(minValue) : Math.round(minValue * 10) / 10, // Use smartRoundInLegend
+            max: dataRange > 10 ? smartRoundInLegend(maxValue) : Math.round(maxValue * 10) / 10  // Use smartRoundInLegend
+        }];
+        
+        console.log("[DataDrivenBreaks] Generated smart rounded overlapping quantile-based break ranges:", finalValidatedRanges);
+        return finalValidatedRanges;
       };
 
-      const breakRanges = generateOptimizedBreaks(stats, 7);
-      
-// In NewMapDialog.jsx, inside the generateDataDrivenHeatMapBreaks function
 
+      // Call the updated function with additional parameters needed for quantile calculation
+      const breakRanges = await generateOptimizedBreaks(stats, workingLayer, actualFieldName, mapView, 7);
+      
       // Class break object creation with clean labels and full metadata
       const classBreaks = breakRanges.map((range, index) => {
         const colorArray = getColorFromScheme(index, breakRanges.length);
@@ -1688,7 +1854,7 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
 
         // Handle the case of a single break
         if (breakRanges.length === 1) {
-            label = `${range.min.toLocaleString()} - ${range.max.toLocaleString()}`;
+            label = `${range.min.toLocaleString()}${range.min !== range.max ? ` - ${range.max.toLocaleString()}` : ''}`;
         }
         
         return {
@@ -1705,11 +1871,13 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
             }
           },
           // Add metadata to track how this was generated
-          dataSource: 'arcgis_query',
+          dataSource: 'arcgis_query_quantile',
           dataStats: {
               ...stats, // Include all stats: minValue, maxValue, totalCount, etc.
               serviceUrl: serviceUrl, // Store the URL that was successfully used
               requestedField: fieldName, // Store the original field name requested by the user
+              breakType: 'quantile', // Indicate this uses quantile breaks
+              usedSmartRounding: true, // Flag indicating smart rounding was applied
               generatedAt: new Date().toISOString()
           }
         };
@@ -1722,337 +1890,349 @@ const NewMapDialog = ({ isOpen, onClose, onCreateMap, visualizationOptions, area
       return classBreaks;
 
     } catch (error) {
-      console.error(`[DataDrivenBreaks] Critical error during analysis:`, error);
+      console.error(`[DataDrivenBreaks] Critical error during quantile analysis:`, error);
       // Fallback to generic breaks on any failure to ensure the app doesn't crash
       return generateGeneric7LevelBreaks(); 
     }
   };
 
   /**
-   * Enhanced createDataDrivenHeatMap with map view-based optimization
+   * Enhanced createDataDrivenHeatMap with map view-based optimization and quantile breaks
    * When called from map regeneration context, automatically uses current map view
    */
-const createDataDrivenHeatMap = async (selectedVisualization, selectedAreaType, mapName, mapView = null, mapViewGetter = null) => {
-  console.log("[NewMapDialog] Creating enhanced data-driven heat map optimized for current map view...");
-  
-  try {
-    // Convert area type to string format
-    const areaTypeString = convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract');
+  const createDataDrivenHeatMap = async (selectedVisualization, selectedAreaType, mapName, mapView = null, mapViewGetter = null) => {
+    console.log("[NewMapDialog] Creating enhanced data-driven heat map with quantile breaks optimized for current map view...");
     
-    // Extract the actual field name (remove any UI suffixes like _HEAT)
-    const actualFieldName = selectedVisualization.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
-    
-    console.log(`[NewMapDialog] Processing field: ${actualFieldName}, area type: ${areaTypeString}`);
-    
-    // COMPREHENSIVE MAP VIEW DETECTION SYSTEM
-    let currentMapView = mapView;
-    let detectionMethod = 'parameter';
-    
-    if (!currentMapView) {
-      console.log(`[NewMapDialog] No mapView parameter provided, attempting comprehensive detection...`);
+    try {
+      // Convert area type to string format
+      const areaTypeString = convertAreaTypeToString(selectedAreaType?.value || selectedAreaType || 'tract');
       
-      // Strategy 1: Use provided getter function
-      if (mapViewGetter && typeof mapViewGetter === 'function') {
-        try {
-          currentMapView = mapViewGetter();
-          if (currentMapView && currentMapView.extent) {
-            detectionMethod = 'getter_function';
-            console.log(`[NewMapDialog] ✅ Map view obtained via getter function`);
-          }
-        } catch (e) {
-          console.warn(`[NewMapDialog] Getter function failed:`, e);
-        }
-      }
+      // Extract the actual field name (remove any UI suffixes like _HEAT)
+      const actualFieldName = selectedVisualization.replace(/_HEAT$|_DOT$|_VIZ$|_MAP$/g, '');
       
-      // Strategy 2: Check React component refs and state
+      console.log(`[NewMapDialog] Processing field: ${actualFieldName}, area type: ${areaTypeString}`);
+      
+      // COMPREHENSIVE MAP VIEW DETECTION SYSTEM
+      let currentMapView = mapView;
+      let detectionMethod = 'parameter';
+      
       if (!currentMapView) {
-        try {
-          // Check for common React patterns
-          const reactFiberNode = document.querySelector('[data-reactroot]') || 
-                                 document.querySelector('#root') || 
-                                 document.querySelector('.map-container');
-          
-          if (reactFiberNode && reactFiberNode._reactInternalFiber) {
-            // Traverse React fiber tree to find map view
-            const findMapViewInFiber = (fiber) => {
-              if (!fiber) return null;
-              
-              // Check if this component has map view in props or state
-              if (fiber.stateNode) {
-                const state = fiber.stateNode.state || {};
-                const props = fiber.stateNode.props || {};
-                
-                if (state.mapView && state.mapView.extent) return state.mapView;
-                if (props.mapView && props.mapView.extent) return props.mapView;
-                if (state.view && state.view.extent) return state.view;
-                if (props.view && props.view.extent) return props.view;
-              }
-              
-              // Check refs
-              if (fiber.ref && fiber.ref.current && fiber.ref.current.extent) {
-                return fiber.ref.current;
-              }
-              
-              // Recursively check children
-              let child = fiber.child;
-              while (child) {
-                const result = findMapViewInFiber(child);
-                if (result) return result;
-                child = child.sibling;
-              }
-              
-              return null;
-            };
-            
-            currentMapView = findMapViewInFiber(reactFiberNode._reactInternalFiber);
-            if (currentMapView) {
-              detectionMethod = 'react_fiber';
-              console.log(`[NewMapDialog] ✅ Map view found via React fiber tree`);
+        console.log(`[NewMapDialog] No mapView parameter provided, attempting comprehensive detection...`);
+        
+        // Strategy 1: Use provided getter function
+        if (mapViewGetter && typeof mapViewGetter === 'function') {
+          try {
+            currentMapView = mapViewGetter();
+            if (currentMapView && currentMapView.extent) {
+              detectionMethod = 'getter_function';
+              console.log(`[NewMapDialog] ✅ Map view obtained via getter function`);
             }
+          } catch (e) {
+            console.warn(`[NewMapDialog] Getter function failed:`, e);
           }
-        } catch (e) {
-          console.log(`[NewMapDialog] React fiber detection failed:`, e);
         }
-      }
-      
-      // Strategy 3: Enhanced global scope detection
-      if (!currentMapView && typeof window !== 'undefined') {
-        try {
-          // Check common global variable names
-          const globalNames = [
-            'mapView', 'view', 'map', 'esriView', 'arcgisView', 'gisView',
-            'mapComponent', 'mapInstance', 'applicationView', 'webMapView'
-          ];
-          
-          for (const name of globalNames) {
-            if (window[name] && window[name].extent) {
-              currentMapView = window[name];
-              detectionMethod = `global_${name}`;
-              console.log(`[NewMapDialog] ✅ Map view found via window.${name}`);
-              break;
-            }
-            // Check nested paths
-            if (window[name] && window[name].view && window[name].view.extent) {
-              currentMapView = window[name].view;
-              detectionMethod = `global_${name}.view`;
-              console.log(`[NewMapDialog] ✅ Map view found via window.${name}.view`);
-              break;
-            }
-          }
-          
-          // Deep scan of window object for map-like objects
-          if (!currentMapView) {
-            const scanDepth = (obj, path = '', depth = 0) => {
-              if (depth > 3 || !obj || typeof obj !== 'object') return null;
-              
-              try {
-                // Check if this object looks like a MapView
-                if (obj.extent && obj.zoom !== undefined && obj.scale !== undefined && 
-                    obj.spatialReference && typeof obj.goTo === 'function') {
-                  return obj;
+        
+        // Strategy 2: Check React component refs and state
+        if (!currentMapView) {
+          try {
+            // Check for common React patterns
+            const reactFiberNode = document.querySelector('[data-reactroot]') || 
+                                  document.querySelector('#root') || 
+                                  document.querySelector('.map-container');
+            
+            if (reactFiberNode && reactFiberNode._reactInternalFiber) {
+              // Traverse React fiber tree to find map view
+              const findMapViewInFiber = (fiber) => {
+                if (!fiber) return null;
+                
+                // Check if this component has map view in props or state
+                if (fiber.stateNode) {
+                  const state = fiber.stateNode.state || {};
+                  const props = fiber.stateNode.props || {};
+                  
+                  if (state.mapView && state.mapView.extent) return state.mapView;
+                  if (props.mapView && props.mapView.extent) return props.mapView;
+                  if (state.view && state.view.extent) return state.view;
+                  if (props.view && props.view.extent) return props.view;
                 }
                 
-                // Recursively check properties
-                for (const key in obj) {
-                  if (key.toLowerCase().includes('map') || key.toLowerCase().includes('view')) {
-                    const result = scanDepth(obj[key], `${path}.${key}`, depth + 1);
-                    if (result) return result;
-                  }
+                // Check refs
+                if (fiber.ref && fiber.ref.current && fiber.ref.current.extent) {
+                  return fiber.ref.current;
                 }
-              } catch (e) {
-                // Ignore errors during scanning
-              }
+                
+                // Recursively check children
+                let child = fiber.child;
+                while (child) {
+                  const result = findMapViewInFiber(child);
+                  if (result) return result;
+                  child = child.sibling;
+                }
+                
+                return null;
+              };
               
-              return null;
-            };
-            
-            currentMapView = scanDepth(window);
-            if (currentMapView) {
-              detectionMethod = 'deep_scan';
-              console.log(`[NewMapDialog] ✅ Map view found via deep object scan`);
+              currentMapView = findMapViewInFiber(reactFiberNode._reactInternalFiber);
+              if (currentMapView) {
+                detectionMethod = 'react_fiber';
+                console.log(`[NewMapDialog] ✅ Map view found via React fiber tree`);
+              }
             }
+          } catch (e) {
+            console.log(`[NewMapDialog] React fiber detection failed:`, e);
           }
-        } catch (e) {
-          console.warn(`[NewMapDialog] Global scope detection failed:`, e);
         }
-      }
-      
-      // Strategy 4: Check DOM for ArcGIS map containers
-      if (!currentMapView) {
-        try {
-          const mapContainers = document.querySelectorAll('[data-esri-map], .esri-view, .esri-map-view, #map, .map-container');
-          
-          for (const container of mapContainers) {
-            // Check if container has associated view
-            if (container.__esri_view) {
-              currentMapView = container.__esri_view;
-              detectionMethod = 'dom_esri_view';
-              console.log(`[NewMapDialog] ✅ Map view found via DOM __esri_view`);
-              break;
-            }
+        
+        // Strategy 3: Enhanced global scope detection
+        if (!currentMapView && typeof window !== 'undefined') {
+          try {
+            // Check common global variable names
+            const globalNames = [
+              'mapView', 'view', 'map', 'esriView', 'arcgisView', 'gisView',
+              'mapComponent', 'mapInstance', 'applicationView', 'webMapView'
+            ];
             
-            // Check for React props/refs on container
-            const reactKey = Object.keys(container).find(key => key.startsWith('__reactInternalInstance'));
-            if (reactKey && container[reactKey]) {
-              const reactInstance = container[reactKey];
-              if (reactInstance.ref && reactInstance.ref.current && reactInstance.ref.current.extent) {
-                currentMapView = reactInstance.ref.current;
-                detectionMethod = 'dom_react_ref';
-                console.log(`[NewMapDialog] ✅ Map view found via DOM React ref`);
+            for (const name of globalNames) {
+              if (window[name] && window[name].extent) {
+                currentMapView = window[name];
+                detectionMethod = `global_${name}`;
+                console.log(`[NewMapDialog] ✅ Map view found via window.${name}`);
+                break;
+              }
+              // Check nested paths
+              if (window[name] && window[name].view && window[name].view.extent) {
+                currentMapView = window[name].view;
+                detectionMethod = `global_${name}.view`;
+                console.log(`[NewMapDialog] ✅ Map view found via window.${name}.view`);
                 break;
               }
             }
+            
+            // Deep scan of window object for map-like objects
+            if (!currentMapView) {
+              const scanDepth = (obj, path = '', depth = 0) => {
+                if (depth > 3 || !obj || typeof obj !== 'object') return null;
+                
+                try {
+                  // Check if this object looks like a MapView
+                  if (obj.extent && obj.zoom !== undefined && obj.scale !== undefined && 
+                      obj.spatialReference && typeof obj.goTo === 'function') {
+                    return obj;
+                  }
+                  
+                  // Recursively check properties
+                  for (const key in obj) {
+                    if (key.toLowerCase().includes('map') || key.toLowerCase().includes('view')) {
+                      const result = scanDepth(obj[key], `${path}.${key}`, depth + 1);
+                      if (result) return result;
+                    }
+                  }
+                } catch (e) {
+                  // Ignore errors during scanning
+                }
+                
+                return null;
+              };
+              
+              currentMapView = scanDepth(window);
+              if (currentMapView) {
+                detectionMethod = 'deep_scan';
+                console.log(`[NewMapDialog] ✅ Map view found via deep object scan`);
+              }
+            }
+          } catch (e) {
+            console.warn(`[NewMapDialog] Global scope detection failed:`, e);
           }
-        } catch (e) {
-          console.warn(`[NewMapDialog] DOM detection failed:`, e);
+        }
+        
+        // Strategy 4: Check DOM for ArcGIS map containers
+        if (!currentMapView) {
+          try {
+            const mapContainers = document.querySelectorAll('[data-esri-map], .esri-view, .esri-map-view, #map, .map-container');
+            
+            for (const container of mapContainers) {
+              // Check if container has associated view
+              if (container.__esri_view) {
+                currentMapView = container.__esri_view;
+                detectionMethod = 'dom_esri_view';
+                console.log(`[NewMapDialog] ✅ Map view found via DOM __esri_view`);
+                break;
+              }
+              
+              // Check for React props/refs on container
+              const reactKey = Object.keys(container).find(key => key.startsWith('__reactInternalInstance'));
+              if (reactKey && container[reactKey]) {
+                const reactInstance = container[reactKey];
+                if (reactInstance.ref && reactInstance.ref.current && reactInstance.ref.current.extent) {
+                  currentMapView = reactInstance.ref.current;
+                  detectionMethod = 'dom_react_ref';
+                  console.log(`[NewMapDialog] ✅ Map view found via DOM React ref`);
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`[NewMapDialog] DOM detection failed:`, e);
+          }
         }
       }
-    }
-    
-    // VALIDATION AND LOGGING
-    if (currentMapView && currentMapView.extent) {
-      console.log(`[NewMapDialog] ✅ Map view successfully detected via: ${detectionMethod}`);
-      console.log(`[NewMapDialog] Current view covers:`, {
-        extent: {
-          xmin: Math.round(currentMapView.extent.xmin),
-          ymin: Math.round(currentMapView.extent.ymin),
-          xmax: Math.round(currentMapView.extent.xmax),
-          ymax: Math.round(currentMapView.extent.ymax)
-        },
-        zoom: currentMapView.zoom,
-        scale: Math.round(currentMapView.scale),
-        spatialReference: currentMapView.spatialReference?.wkid || 'unknown',
-        detectionMethod
-      });
-    } else {
-      console.warn(`[NewMapDialog] ❌ No map view available - will use broader area statistics (LESS OPTIMAL)`);
-      console.log(`[NewMapDialog] Detection methods attempted:`, {
-        providedParameter: !!mapView,
-        getterFunction: !!(mapViewGetter && typeof mapViewGetter === 'function'),
-        reactFiber: 'attempted',
-        globalScope: 'attempted',
-        domScan: 'attempted'
+      
+      // VALIDATION AND LOGGING
+      if (currentMapView && currentMapView.extent) {
+        console.log(`[NewMapDialog] ✅ Map view successfully detected via: ${detectionMethod}`);
+        console.log(`[NewMapDialog] Current view covers:`, {
+          extent: {
+            xmin: Math.round(currentMapView.extent.xmin),
+            ymin: Math.round(currentMapView.extent.ymin),
+            xmax: Math.round(currentMapView.extent.xmax),
+            ymax: Math.round(currentMapView.extent.ymax)
+          },
+          zoom: currentMapView.zoom,
+          scale: Math.round(currentMapView.scale),
+          spatialReference: currentMapView.spatialReference?.wkid || 'unknown',
+          detectionMethod
+        });
+      } else {
+        console.warn(`[NewMapDialog] ❌ No map view available - will use broader area statistics (LESS OPTIMAL)`);
+        console.log(`[NewMapDialog] Detection methods attempted:`, {
+          providedParameter: !!mapView,
+          getterFunction: !!(mapViewGetter && typeof mapViewGetter === 'function'),
+          reactFiber: 'attempted',
+          globalScope: 'attempted',
+          domScan: 'attempted'
+        });
+        
+        console.log(`[NewMapDialog] 📝 To enable view-optimized quantile statistics, consider:`);
+        console.log(`[NewMapDialog]   1. Pass mapView directly: createDataDrivenHeatMap(..., mapView)`);
+        console.log(`[NewMapDialog]   2. Use getter: createDataDrivenHeatMap(..., null, () => this.mapRef.current)`);
+        console.log(`[NewMapDialog]   3. Set global: window.mapView = your_map_view`);
+      }
+      
+      // Attempt quantile-based data-driven generation with detected map view
+      const dataDrivenBreaks = await generateDataDrivenHeatMapBreaks(
+        actualFieldName, 
+        selectedAreaType, // Pass the entire object { value, label, url }
+        currentMapView
+      );
+      
+      // Enhanced validation with field matching verification
+      const isDataDriven = dataDrivenBreaks.some(b => b.dataSource === 'arcgis_query_quantile');
+      const hasReasonableRanges = dataDrivenBreaks.some(b => b.maxValue > 100);
+      const isSpatiallyOptimized = dataDrivenBreaks.some(b => b.dataStats?.spatiallyFiltered);
+      const usedCorrectField = dataDrivenBreaks.length > 0 && 
+        dataDrivenBreaks[0].dataStats && 
+        (dataDrivenBreaks[0].dataStats.fieldName === actualFieldName || 
+        dataDrivenBreaks[0].dataStats.requestedField === actualFieldName);
+      const usedSmartRounding = dataDrivenBreaks.some(b => b.dataStats?.usedSmartRounding);
+      
+      console.log(`[NewMapDialog] Quantile-based data-driven generation result:`, {
+        isDataDriven,
+        hasReasonableRanges,
+        isSpatiallyOptimized,
+        usedCorrectField,
+        usedSmartRounding,
+        breakCount: dataDrivenBreaks.length,
+        fieldRequested: actualFieldName,
+        fieldActuallyUsed: dataDrivenBreaks[0]?.dataStats?.fieldName,
+        breakType: 'quantile',
+        firstBreak: dataDrivenBreaks[0]?.label,
+        lastBreak: dataDrivenBreaks[dataDrivenBreaks.length - 1]?.label,
+        dataRange: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
+        optimizationType: isSpatiallyOptimized ? 'Current View + Quantile Distribution + Smart Rounding' : 'Broad Area + Quantile Distribution + Smart Rounding',
+        mapViewDetection: detectionMethod
       });
       
-      console.log(`[NewMapDialog] 📝 To enable view-optimized statistics, consider:`);
-      console.log(`[NewMapDialog]   1. Pass mapView directly: createDataDrivenHeatMap(..., mapView)`);
-      console.log(`[NewMapDialog]   2. Use getter: createDataDrivenHeatMap(..., null, () => this.mapRef.current)`);
-      console.log(`[NewMapDialog]   3. Set global: window.mapView = your_map_view`);
-    }
-    
-    // Attempt data-driven generation with detected map view
-    const dataDrivenBreaks = await generateDataDrivenHeatMapBreaks(
-      actualFieldName, 
-      selectedAreaType, // Pass the entire object { value, label, url }
-      currentMapView
-    );
-    
-    // Enhanced validation with field matching verification
-    const isDataDriven = dataDrivenBreaks.some(b => b.dataSource === 'arcgis_query');
-    const hasReasonableRanges = dataDrivenBreaks.some(b => b.maxValue > 100);
-    const isSpatiallyOptimized = dataDrivenBreaks.some(b => b.dataStats?.spatiallyFiltered);
-    const usedCorrectField = dataDrivenBreaks.length > 0 && 
-      dataDrivenBreaks[0].dataStats && 
-      (dataDrivenBreaks[0].dataStats.fieldName === actualFieldName || 
-       dataDrivenBreaks[0].dataStats.requestedField === actualFieldName);
-    
-    console.log(`[NewMapDialog] Data-driven generation result:`, {
-      isDataDriven,
-      hasReasonableRanges,
-      isSpatiallyOptimized,
-      usedCorrectField,
-      breakCount: dataDrivenBreaks.length,
-      fieldRequested: actualFieldName,
-      fieldActuallyUsed: dataDrivenBreaks[0]?.dataStats?.fieldName,
-      firstBreak: dataDrivenBreaks[0]?.label,
-      lastBreak: dataDrivenBreaks[dataDrivenBreaks.length - 1]?.label,
-      dataRange: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
-      optimizationType: isSpatiallyOptimized ? 'Current View + 10% Buffer' : 'Broad Area Coverage',
-      mapViewDetection: detectionMethod
-    });
-    
-    // CRITICAL: Alert about field matching issues
-    if (!usedCorrectField && dataDrivenBreaks[0]?.dataStats) {
-      console.error(`[NewMapDialog] 🚨 FIELD MISMATCH DETECTED 🚨`);
-      console.error(`[NewMapDialog] Requested field: ${actualFieldName}`);
-      console.error(`[NewMapDialog] Actually used field: ${dataDrivenBreaks[0].dataStats.fieldName}`);
-      console.error(`[NewMapDialog] This will cause incorrect data visualization!`);
-    }
-    
-    // Get base configuration if available
-    const visualizationConfig = getInitialConfigForVisualization ? 
-      getInitialConfigForVisualization(selectedVisualization) || {} : 
-      {};
-    
-    // Create final configuration with comprehensive metadata
-    const mapConfiguration = {
-      ...visualizationConfig,
-      field: actualFieldName,
-      visualizationKey: selectedVisualization,
-      type: 'class-breaks',
-      areaType: areaTypeString,
-      classBreakInfos: dataDrivenBreaks,
-      hasCustomOpacities: true,
-      preserveOpacity: true,
-      dataOptimized: isDataDriven && hasReasonableRanges,
-      spatiallyOptimized: isSpatiallyOptimized,
-      fieldMatchingSuccess: usedCorrectField,
-      optimizationStats: isDataDriven ? dataDrivenBreaks[0]?.dataStats : null,
-      regenerationContext: {
-        canRegenerateWithMapView: true,
-        lastGeneratedAt: new Date().toISOString(),
-        usedMapView: !!currentMapView,
-        mapViewDetectionMethod: detectionMethod,
-        viewZoom: currentMapView?.zoom,
-        viewScale: currentMapView?.scale,
-        spatiallyFiltered: isSpatiallyOptimized,
-        fieldMatchingSuccess: usedCorrectField
+      // CRITICAL: Alert about field matching issues
+      if (!usedCorrectField && dataDrivenBreaks[0]?.dataStats) {
+        console.error(`[NewMapDialog] 🚨 FIELD MISMATCH DETECTED 🚨`);
+        console.error(`[NewMapDialog] Requested field: ${actualFieldName}`);
+        console.error(`[NewMapDialog] Actually used field: ${dataDrivenBreaks[0].dataStats.fieldName}`);
+        console.error(`[NewMapDialog] This will cause incorrect data visualization!`);
       }
-    };
-    
-    console.log(`[NewMapDialog] ✅ Successfully created heat map configuration:`, {
-      dataOptimized: mapConfiguration.dataOptimized,
-      spatiallyOptimized: mapConfiguration.spatiallyOptimized,
-      fieldMatchingSuccess: mapConfiguration.fieldMatchingSuccess,
-      usedMapView: mapConfiguration.regenerationContext.usedMapView,
-      detectionMethod,
-      breakCount: dataDrivenBreaks.length,
-      fieldCorrect: usedCorrectField,
-      rangesCovered: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
-      optimizationType: isSpatiallyOptimized ? 'Current View + 10% Buffer' : 'Broad Area Coverage'
-    });
-    
-    return mapConfiguration;
-    
-  } catch (error) {
-    console.error("[NewMapDialog] Critical error in createDataDrivenHeatMap:", error);
-    
-    // Ultimate fallback with realistic ranges
-    const fallbackBreaks = generateGeneric7LevelBreaks();
-    
-    return {
-      field: actualFieldName,
-      visualizationKey: selectedVisualization,
-      type: 'class-breaks',
-      areaType: areaTypeString,
-      classBreakInfos: fallbackBreaks,
-      hasCustomOpacities: true,
-      preserveOpacity: true,
-      dataOptimized: false,
-      spatiallyOptimized: false,
-      fieldMatchingSuccess: false,
-      optimizationStats: null,
-      regenerationContext: {
-        canRegenerateWithMapView: true,
-        lastGeneratedAt: new Date().toISOString(),
-        usedMapView: false,
-        fallbackReason: error.message,
-        mapViewDetectionMethod: 'failed'
-      }
-    };
-  }
-};
-
+      
+      // Get base configuration if available
+      const visualizationConfig = getInitialConfigForVisualization ? 
+        getInitialConfigForVisualization(selectedVisualization) || {} : 
+        {};
+      
+      // Create final configuration with comprehensive metadata
+      const mapConfiguration = {
+        ...visualizationConfig,
+        field: actualFieldName,
+        visualizationKey: selectedVisualization,
+        type: 'class-breaks',
+        areaType: areaTypeString,
+        classBreakInfos: dataDrivenBreaks,
+        hasCustomOpacities: true,
+        preserveOpacity: true,
+        dataOptimized: isDataDriven && hasReasonableRanges,
+        spatiallyOptimized: isSpatiallyOptimized,
+        fieldMatchingSuccess: usedCorrectField,
+        usedSmartRounding: usedSmartRounding,
+        breakType: 'quantile',
+        optimizationStats: isDataDriven ? dataDrivenBreaks[0]?.dataStats : null,
+        regenerationContext: {
+          canRegenerateWithMapView: true,
+          lastGeneratedAt: new Date().toISOString(),
+          usedMapView: !!currentMapView,
+          mapViewDetectionMethod: detectionMethod,
+          viewZoom: currentMapView?.zoom,
+          viewScale: currentMapView?.scale,
+          spatiallyFiltered: isSpatiallyOptimized,
+          fieldMatchingSuccess: usedCorrectField,
+          usedSmartRounding: usedSmartRounding,
+          breakMethod: 'quantile'
+        }
+      };
+      
+      console.log(`[NewMapDialog] ✅ Successfully created quantile-based heat map configuration:`, {
+        dataOptimized: mapConfiguration.dataOptimized,
+        spatiallyOptimized: mapConfiguration.spatiallyOptimized,
+        fieldMatchingSuccess: mapConfiguration.fieldMatchingSuccess,
+        usedSmartRounding: mapConfiguration.usedSmartRounding,
+        usedMapView: mapConfiguration.regenerationContext.usedMapView,
+        detectionMethod,
+        breakCount: dataDrivenBreaks.length,
+        breakType: 'quantile',
+        fieldCorrect: usedCorrectField,
+        rangesCovered: `${dataDrivenBreaks[0]?.minValue} to ${dataDrivenBreaks[dataDrivenBreaks.length - 1]?.maxValue}`,
+        optimizationType: isSpatiallyOptimized ? 'Current View + Quantile Distribution + Smart Rounding' : 'Broad Area + Quantile Distribution + Smart Rounding'
+      });
+      
+      return mapConfiguration;
+      
+    } catch (error) {
+      console.error("[NewMapDialog] Critical error in createDataDrivenHeatMap:", error);
+      
+      // Ultimate fallback with realistic ranges
+      const fallbackBreaks = generateGeneric7LevelBreaks();
+      
+      return {
+        field: actualFieldName,
+        visualizationKey: selectedVisualization,
+        type: 'class-breaks',
+        areaType: areaTypeString,
+        classBreakInfos: fallbackBreaks,
+        hasCustomOpacities: true,
+        preserveOpacity: true,
+        dataOptimized: false,
+        spatiallyOptimized: false,
+        fieldMatchingSuccess: false,
+        usedSmartRounding: false,
+        breakType: 'fallback',
+        optimizationStats: null,
+        regenerationContext: {
+          canRegenerateWithMapView: true,
+          lastGeneratedAt: new Date().toISOString(),
+          usedMapView: false,
+          fallbackReason: error.message,
+          mapViewDetectionMethod: 'failed',
+          usedSmartRounding: false,
+          breakMethod: 'fallback'
+        }
+      };
+    }
+  };
 
   /**
    * Enhanced prevStep function that handles backward navigation correctly
@@ -2183,7 +2363,17 @@ const createDataDrivenHeatMap = async (selectedVisualization, selectedAreaType, 
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Visualization Variable</label>
                   <select 
                     value={selectedVisualization} 
-                    onChange={(e) => setSelectedVisualization(e.target.value)} 
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setSelectedVisualization(newValue);
+                      // If mapName is still the default, auto-update it to the selected visualization's label
+                      if (mapName === 'New Map' && newValue) {
+                        const vizOption = visualizationOptions.find(opt => opt.value === newValue);
+                        if (vizOption) {
+                          setMapName(vizOption.label);
+                        }
+                      }
+                    }} 
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
                     disabled={isSaving}
                   >
@@ -2458,8 +2648,7 @@ const createDataDrivenHeatMap = async (selectedVisualization, selectedAreaType, 
             {isSaving ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 Creating & Saving...
               </>
