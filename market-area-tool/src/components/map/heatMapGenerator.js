@@ -437,9 +437,12 @@ const smartRoundInLegend = (num) => {
   return Math.round(num / 5000) * 5000; // Round to nearest 5,000 for large numbers
 };
 
+
 /**
  * Enhanced data-driven heat map breaks that uses the URL directly from the areaType config
  * with intelligent value formatting based on field type detection
+ * 
+ * FIXED: Last break now uses actual maxValue instead of null for proper ArcGIS rendering
  * 
  * @param {string} fieldName - The field to analyze (e.g., "TOTPOP_CY")
  * @param {Object} areaType - The area type object { value, label, url } from mapConfig.js
@@ -544,258 +547,260 @@ const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = nu
       workingLayer.destroy();
       return generateGeneric7LevelBreaks(valueFormat);
     }
-      
-
+        
     const generateOptimizedBreaks = async (stats, workingLayer, actualFieldName, mapView, breakCount = 7) => {
-        const { minValue, maxValue, totalCount } = stats;
-        
-        // Create a high buffer value to ensure no map gaps for outliers
-        let bufferMaxValue;
-        const valueFormat = getValueFormat(actualFieldName);
-        const fieldType = actualFieldName.toLowerCase();
-        
-        // Set appropriate buffer based on field type and data magnitude
-        if (valueFormat === valueFormats.age) {
-            // For age, add 20-30 years buffer
-            bufferMaxValue = maxValue + 25;
-            bufferMaxValue = Math.ceil(bufferMaxValue / 5) * 5; // Round to nearest 5
-        } else if (valueFormat === valueFormats.totalHouseholds || valueFormat === valueFormats.totalPopulation || 
-                fieldType.includes('housing') || fieldType.includes('units')) {
-            // For housing/population, add significant buffer
-            if (maxValue < 1000) {
-                bufferMaxValue = maxValue + 2000;
-            } else if (maxValue < 5000) {
-                bufferMaxValue = maxValue + 5000;
-            } else {
-                bufferMaxValue = maxValue + 10000;
-            }
-            bufferMaxValue = Math.ceil(bufferMaxValue / 100) * 100; // Round to nearest 100
-        } else if (valueFormat === valueFormats.income || valueFormat === valueFormats.homeValue) {
-            // For financial data, add substantial buffer
-            if (maxValue < 50000) {
-                bufferMaxValue = maxValue + 100000;
-            } else if (maxValue < 200000) {
-                bufferMaxValue = maxValue + 200000;
-            } else {
-                bufferMaxValue = maxValue + 500000;
-            }
-            bufferMaxValue = Math.ceil(bufferMaxValue / 5000) * 5000; // Round to nearest 5K
-        } else if (valueFormat === valueFormats.percentage || valueFormat === valueFormats.growth) {
-            // For percentages, buffer to 100% or add 20%
-            bufferMaxValue = Math.min(100, maxValue + 20);
-            bufferMaxValue = Math.ceil(bufferMaxValue / 5) * 5; // Round to nearest 5%
-        } else {
-            // Default buffer - double the max value or add significant amount
-            bufferMaxValue = Math.max(maxValue * 2, maxValue + 1000);
-            if (bufferMaxValue >= 10000) {
-                bufferMaxValue = Math.ceil(bufferMaxValue / 1000) * 1000;
-            } else if (bufferMaxValue >= 1000) {
-                bufferMaxValue = Math.ceil(bufferMaxValue / 100) * 100;
-            } else {
-                bufferMaxValue = Math.ceil(bufferMaxValue / 10) * 10;
-            }
-        }
-        
-        console.log(`[DataDrivenBreaks] EVEN DISTRIBUTION: Creating 6 even quantile ranges from ${minValue} to ${maxValue}, then buffer range from ${maxValue} to ${bufferMaxValue}`);
-        console.log(`[DataDrivenBreaks] This ensures even color distribution with high buffer to catch outliers`);
+      const { minValue, maxValue, totalCount } = stats;
+      
+      // Get absolute field bounds to ensure complete map coverage
+      const getAbsoluteFieldBounds = (fieldName) => {
+          const fieldType = fieldName.toLowerCase();
+          const valueFormat = getValueFormat(fieldName);
+          
+          // Set absolute minimums (usually 0 for most demographic data)
+          let absoluteMin = 0;
+          
+          // Set reasonable absolute maximums based on field type
+          let absoluteMax;
+          if (valueFormat === valueFormats.age) {
+              absoluteMax = 100; // Age rarely goes above 100
+          } else if (valueFormat === valueFormats.percentage || valueFormat === valueFormats.growth) {
+              absoluteMax = 100; // Percentages cap at 100%
+          } else if (valueFormat === valueFormats.income) {
+              absoluteMax = 1000000; // $1M+ income threshold
+          } else if (valueFormat === valueFormats.homeValue) {
+              absoluteMax = 5000000; // $5M+ home value threshold
+          } else if (fieldType.includes('population') || fieldType.includes('households')) {
+              // For population/household counts, use a generous upper bound
+              absoluteMax = Math.max(maxValue * 3, 100000);
+          } else {
+              // For other numeric fields, use a generous multiplier
+              absoluteMax = Math.max(maxValue * 2, 50000);
+          }
+          
+          return { absoluteMin, absoluteMax };
+      };
+      
+      const { absoluteMin, absoluteMax } = getAbsoluteFieldBounds(actualFieldName);
+      
+      console.log(`[DataDrivenBreaks] QUANTILE DISTRIBUTION: Creating ${breakCount} ranges`);
+      console.log(`[DataDrivenBreaks] Data range: ${minValue} to ${maxValue}`);
+      console.log(`[DataDrivenBreaks] Absolute bounds: ${absoluteMin} to ${absoluteMax} (ensures complete map coverage)`);
 
-        if (maxValue <= minValue || totalCount < breakCount) {
-            console.warn(`[DataDrivenBreaks] Insufficient data variation or count for quantile breaks, using simple range with buffer.`);
-            return [{ min: minValue, max: bufferMaxValue }];
-        }
+      if (maxValue <= minValue || totalCount < breakCount) {
+          console.warn(`[DataDrivenBreaks] Insufficient data variation or count for quantile breaks, using simple range.`);
+          return [{ min: absoluteMin, max: absoluteMax }];
+      }
 
-        console.log(`[DataDrivenBreaks] Querying all ${totalCount} values for even quantile distribution...`);
-        
-        const valuesQuery = new Query({
-            where: `${actualFieldName} IS NOT NULL AND ${actualFieldName} >= 0`,
-            returnGeometry: false,
-            outFields: [actualFieldName],
-            orderByFields: [`${actualFieldName} ASC`]
-        });
+      console.log(`[DataDrivenBreaks] Querying all ${totalCount} values for quantile distribution...`);
+      
+      const valuesQuery = new Query({
+          where: `${actualFieldName} IS NOT NULL AND ${actualFieldName} >= 0`,
+          returnGeometry: false,
+          outFields: [actualFieldName],
+          orderByFields: [`${actualFieldName} ASC`]
+      });
 
-        if (mapView && mapView.extent) {
-            valuesQuery.geometry = mapView.extent;
-            valuesQuery.spatialRelationship = "intersects";
-        }
+      if (mapView && mapView.extent) {
+          valuesQuery.geometry = mapView.extent;
+          valuesQuery.spatialRelationship = "intersects";
+      }
 
-        const valuesResult = await workingLayer.queryFeatures(valuesQuery);
-        
-        if (!valuesResult.features || valuesResult.features.length < 6) {
-            console.warn(`[DataDrivenBreaks] Insufficient features for quantile breaks, using equal intervals with buffer.`);
-            
-            // Create 6 equal intervals from actual data, then buffer range
-            const dataRange = maxValue - minValue;
-            const interval = dataRange / 6;
-            
-            const breakPoints = [minValue];
-            for (let i = 1; i <= 6; i++) {
-                const point = minValue + (i * interval);
-                const roundedPoint = smartRoundInLegend(point);
-                breakPoints.push(roundedPoint);
-            }
-            breakPoints.push(bufferMaxValue); // Add buffer max
-            
-            const overlappingRanges = [];
-            for (let i = 0; i < breakPoints.length - 1; i++) {
-                overlappingRanges.push({ 
-                    min: breakPoints[i], 
-                    max: breakPoints[i + 1]
-                });
-            }
-            
-            return overlappingRanges;
-        }
+      const valuesResult = await workingLayer.queryFeatures(valuesQuery);
+      
+      if (!valuesResult.features || valuesResult.features.length < breakCount) {
+          console.warn(`[DataDrivenBreaks] Insufficient features for quantile breaks, using equal intervals.`);
+          
+          // Create equal intervals within actual data range, but extend bounds
+          const dataRange = maxValue - minValue;
+          const interval = dataRange / (breakCount - 2); // -2 because first and last ranges extend beyond data
+          
+          const breakPoints = [absoluteMin];
+          
+          // Add interior break points based on actual data
+          for (let i = 1; i < breakCount - 1; i++) {
+              const point = minValue + ((i - 1) * interval);
+              const roundedPoint = smartRoundInLegend(point);
+              breakPoints.push(roundedPoint);
+          }
+          
+          breakPoints.push(absoluteMax); // Use absolute max for complete coverage
+          
+          const overlappingRanges = [];
+          for (let i = 0; i < breakPoints.length - 1; i++) {
+              overlappingRanges.push({ 
+                  min: breakPoints[i], 
+                  max: breakPoints[i + 1]
+              });
+          }
+          
+          return overlappingRanges;
+      }
 
-        const allValues = valuesResult.features
-            .map(feature => Number(feature.attributes[actualFieldName]))
-            .filter(value => !isNaN(value) && value >= 0)
-            .sort((a, b) => a - b);
+      const allValues = valuesResult.features
+          .map(feature => Number(feature.attributes[actualFieldName]))
+          .filter(value => !isNaN(value) && value >= 0)
+          .sort((a, b) => a - b);
 
-        const actualCount = allValues.length;
-        console.log(`[DataDrivenBreaks] Processing ${actualCount} sorted values for even quantile distribution with buffer`);
+      const actualCount = allValues.length;
+      console.log(`[DataDrivenBreaks] Processing ${actualCount} sorted values for quantile distribution`);
 
-        // Create exactly 6 quantile break points for even distribution
-        // This creates 6 evenly distributed ranges, then we'll add the buffer range
-        const quantileBreakPoints = [];
-        for (let i = 1; i < 6; i++) {
-            const percentile = i / 6; // Divide into 6 equal parts
-            let index = Math.floor(percentile * actualCount);
-            
-            if (index >= actualCount) index = actualCount - 1;
-            if (index < 0) index = 0;
-            
-            const breakValue = allValues[index];
-            quantileBreakPoints.push(breakValue);
-        }
+      // Create quantile break points for the middle ranges (not including absolute bounds)
+      const quantileBreakPoints = [];
+      for (let i = 1; i < breakCount - 1; i++) {
+          const percentile = i / (breakCount - 1); // Adjust for the fact that we're adding absolute bounds
+          let index = Math.floor(percentile * actualCount);
+          
+          if (index >= actualCount) index = actualCount - 1;
+          if (index < 0) index = 0;
+          
+          const breakValue = allValues[index];
+          quantileBreakPoints.push(breakValue);
+      }
 
-        // Create break points: minValue + 5 quantile points + actualMaxValue + bufferMaxValue
-        // This creates 7 ranges: 6 evenly distributed + 1 buffer range
-        const rawBreakPoints = [minValue, ...quantileBreakPoints, maxValue, bufferMaxValue];
-        
-        console.log(`[DataDrivenBreaks] Raw even quantile break points with buffer:`, rawBreakPoints);
-        console.log(`[DataDrivenBreaks] Ranges 1-6 are evenly distributed, Range 7 is buffer from ${maxValue} to ${bufferMaxValue}`);
-        
-        // Apply smart rounding to make clean break points
-        const dataRange = maxValue - minValue;
-        let processedBreakPoints;
-        
-        if (dataRange <= 10) {
-            // Small range - use 1 decimal place for precision
-            processedBreakPoints = rawBreakPoints.slice(0, -1).map(value => Math.round(value * 10) / 10);
-            processedBreakPoints.push(bufferMaxValue); // Keep buffer max as already rounded
-        } else if (dataRange <= 100) {
-            // Medium range - use whole numbers
-            processedBreakPoints = rawBreakPoints.slice(0, -1).map(value => Math.round(value));
-            processedBreakPoints.push(bufferMaxValue);
-        } else {
-            // Large range - use smart rounding
-            processedBreakPoints = rawBreakPoints.slice(0, -1).map(value => smartRoundInLegend(value));
-            processedBreakPoints.push(bufferMaxValue);
-        }
-        
-        // Remove duplicates and sort
-        let uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
-        
-        console.log(`[DataDrivenBreaks] Processed break points with even distribution + buffer:`, uniqueBreakPoints);
-        
-        // Handle case where rounding created too few unique points
-        if (uniqueBreakPoints.length < 4) {
-            console.log(`[DataDrivenBreaks] Too few unique break points after rounding, using higher precision`);
-            if (dataRange <= 10) {
-                processedBreakPoints = rawBreakPoints.slice(0, -1).map(value => Math.round(value * 100) / 100);
-                processedBreakPoints.push(bufferMaxValue);
-            } else {
-                processedBreakPoints = rawBreakPoints.slice(0, -1).map(value => Math.round(value * 10) / 10);
-                processedBreakPoints.push(bufferMaxValue);
-            }
-            uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
-        }
-        
-        // Create exactly 7 ranges from the break points
-        const overlappingRanges = [];
-        for (let i = 0; i < uniqueBreakPoints.length - 1; i++) {
-            const min = uniqueBreakPoints[i];
-            const max = uniqueBreakPoints[i + 1];
-            
-            if (min < max) {
-                overlappingRanges.push({ 
-                    min: min, 
-                    max: max
-                });
-            }
-        }
+      // Create break points: absoluteMin + quantile points + absoluteMax
+      const rawBreakPoints = [absoluteMin, ...quantileBreakPoints, absoluteMax];
+      
+      console.log(`[DataDrivenBreaks] Raw break points with absolute bounds:`, rawBreakPoints);
+      console.log(`[DataDrivenBreaks] First range: ${absoluteMin} to ${quantileBreakPoints[0]} (covers below data minimum)`);
+      console.log(`[DataDrivenBreaks] Last range: ${quantileBreakPoints[quantileBreakPoints.length - 1]} to ${absoluteMax} (covers above data maximum)`);
+      
+      // Apply smart rounding to quantile points only (preserve absolute bounds)
+      const dataRange = maxValue - minValue;
+      let processedBreakPoints = [absoluteMin]; // Keep absolute min as-is
+      
+      let roundedQuantilePoints;
+      if (dataRange <= 10) {
+          // Small range - use 1 decimal place for precision
+          roundedQuantilePoints = quantileBreakPoints.map(value => Math.round(value * 10) / 10);
+      } else if (dataRange <= 100) {
+          // Medium range - use whole numbers
+          roundedQuantilePoints = quantileBreakPoints.map(value => Math.round(value));
+      } else {
+          // Large range - use smart rounding
+          roundedQuantilePoints = quantileBreakPoints.map(value => smartRoundInLegend(value));
+      }
+      
+      processedBreakPoints.push(...roundedQuantilePoints);
+      processedBreakPoints.push(absoluteMax); // Keep absolute max as-is
+      
+      // Remove duplicates and sort
+      let uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
+      
+      console.log(`[DataDrivenBreaks] Processed break points with absolute bounds:`, uniqueBreakPoints);
+      
+      // Handle case where rounding created too few unique points
+      if (uniqueBreakPoints.length < 4) {
+          console.log(`[DataDrivenBreaks] Too few unique break points after rounding, using higher precision`);
+          processedBreakPoints = [absoluteMin];
+          
+          if (dataRange <= 10) {
+              roundedQuantilePoints = quantileBreakPoints.map(value => Math.round(value * 100) / 100);
+          } else {
+              roundedQuantilePoints = quantileBreakPoints.map(value => Math.round(value * 10) / 10);
+          }
+          
+          processedBreakPoints.push(...roundedQuantilePoints);
+          processedBreakPoints.push(absoluteMax);
+          uniqueBreakPoints = [...new Set(processedBreakPoints)].sort((a, b) => a - b);
+      }
+      
+      // Create ranges from the break points
+      const overlappingRanges = [];
+      for (let i = 0; i < uniqueBreakPoints.length - 1; i++) {
+          const min = uniqueBreakPoints[i];
+          const max = uniqueBreakPoints[i + 1];
+          
+          if (min < max) {
+              overlappingRanges.push({ 
+                  min: min, 
+                  max: max
+              });
+          }
+      }
+      
+      // CRITICAL: Ensure the last range uses the absolute maximum
+      if (overlappingRanges.length > 0) {
+          const lastRange = overlappingRanges[overlappingRanges.length - 1];
+          const firstRange = overlappingRanges[0];
+          
+          // Force absolute bounds on first and last ranges
+          firstRange.min = absoluteMin;
+          lastRange.max = absoluteMax;
+          
+          console.log(`[DataDrivenBreaks] FORCED absolute bounds:`);
+          console.log(`[DataDrivenBreaks] - First range: ${absoluteMin} to ${firstRange.max}`);
+          console.log(`[DataDrivenBreaks] - Last range: ${lastRange.min} to ${absoluteMax}`);
+      }
 
-        // Ensure we have exactly 7 ranges - if we have fewer, split the largest range
-        while (overlappingRanges.length < 7) {
-            // Find the largest range and split it
-            let largestRangeIndex = 0;
-            let largestRangeSize = 0;
-            
-            for (let i = 0; i < overlappingRanges.length; i++) {
-                const rangeSize = overlappingRanges[i].max - overlappingRanges[i].min;
-                if (rangeSize > largestRangeSize) {
-                    largestRangeSize = rangeSize;
-                    largestRangeIndex = i;
-                }
-            }
-            
-            // Split the largest range in half
-            const rangeToSplit = overlappingRanges[largestRangeIndex];
-            const midPoint = (rangeToSplit.min + rangeToSplit.max) / 2;
-            const roundedMidPoint = smartRoundInLegend(midPoint);
-            
-            // Replace the large range with two smaller ranges
-            overlappingRanges.splice(largestRangeIndex, 1, 
-                { min: rangeToSplit.min, max: roundedMidPoint },
-                { min: roundedMidPoint, max: rangeToSplit.max }
-            );
-        }
+      // Ensure we have the desired number of ranges
+      while (overlappingRanges.length < breakCount && overlappingRanges.length > 0) {
+          // Find the largest range (excluding the first and last which are our buffer ranges)
+          let largestRangeIndex = 1; // Start from index 1 to avoid splitting the bottom buffer
+          let largestRangeSize = 0;
+          
+          const endIndex = Math.min(overlappingRanges.length - 1, overlappingRanges.length - 1); // Avoid last range too
+          for (let i = 1; i < endIndex; i++) {
+              const rangeSize = overlappingRanges[i].max - overlappingRanges[i].min;
+              if (rangeSize > largestRangeSize) {
+                  largestRangeSize = rangeSize;
+                  largestRangeIndex = i;
+              }
+          }
+          
+          // Split the largest range in half
+          const rangeToSplit = overlappingRanges[largestRangeIndex];
+          const midPoint = (rangeToSplit.min + rangeToSplit.max) / 2;
+          const roundedMidPoint = smartRoundInLegend(midPoint);
+          
+          // Replace the large range with two smaller ranges
+          overlappingRanges.splice(largestRangeIndex, 1, 
+              { min: rangeToSplit.min, max: roundedMidPoint },
+              { min: roundedMidPoint, max: rangeToSplit.max }
+          );
+      }
 
-        // If we have more than 7 ranges, keep the first 7
-        if (overlappingRanges.length > 7) {
-            overlappingRanges.splice(7);
-        }
+      // If we have more than desired ranges, keep the first ones
+      if (overlappingRanges.length > breakCount) {
+          overlappingRanges.splice(breakCount);
+      }
 
-        // Count features in each range for validation
-        const rangeCounts = overlappingRanges.map((range, index) => {
-            const count = allValues.filter(value => value >= range.min && value <= range.max).length;
-            const isBufferRange = index === overlappingRanges.length - 1;
-            return { ...range, featureCount: count, isBufferRange };
-        });
+      // FINAL PROTECTION: Always ensure absolute bounds are preserved
+      if (overlappingRanges.length > 0) {
+          overlappingRanges[0].min = absoluteMin;
+          overlappingRanges[overlappingRanges.length - 1].max = absoluteMax;
+          
+          console.log(`[DataDrivenBreaks] FINAL PROTECTION applied:`);
+          console.log(`[DataDrivenBreaks] - First range: ${absoluteMin} to ${overlappingRanges[0].max}`);
+          console.log(`[DataDrivenBreaks] - Last range: ${overlappingRanges[overlappingRanges.length - 1].min} to ${absoluteMax}`);
+      }
 
-        const dataRanges = rangeCounts.slice(0, 6);
-        const bufferRange = rangeCounts[6];
-        
-        console.log(`[DataDrivenBreaks] Even quantile distribution complete:`, {
-            dataRanges: dataRanges.length,
-            bufferRange: bufferRange ? 'yes' : 'no',
-            avgFeaturesPerDataRange: Math.round(dataRanges.reduce((sum, r) => sum + r.featureCount, 0) / dataRanges.length),
-            bufferRangeFeatures: bufferRange?.featureCount || 0
-        });
-        console.log(`[DataDrivenBreaks] Generated ${overlappingRanges.length} ranges with even distribution (1-6) plus buffer range (7)`);
-        console.log(`[DataDrivenBreaks] Buffer range catches outliers from ${bufferRange?.min} to ${bufferRange?.max}`);
+      console.log("[DataDrivenBreaks] Final ranges with absolute bounds:", overlappingRanges);
+      return overlappingRanges;
+  };
 
-        console.log("[DataDrivenBreaks] Final even quantile ranges with buffer:", overlappingRanges);
-        return overlappingRanges;
-    };
     const breakRanges = await generateOptimizedBreaks(stats, workingLayer, actualFieldName, mapView, 7);
     
-    // Create class break objects with proper formatting
-    // Create class break objects with proper formatting
+    // FIXED: Create class break objects with proper maxValue for all breaks including the last one
     const classBreaks = breakRanges.map((range, index) => {
     const colorArray = getColorFromScheme(index, breakRanges.length);
     
     // Use the enhanced formatting function for labels
     const label = createFormattedLabel(range.min, range.max, index, breakRanges.length, valueFormat);
     
-    // For the last break, set maxValue to null to ensure "or more" behavior
+    // *** CRITICAL FIX: Always use the actual range.max value for ArcGIS renderer ***
+    // Keep the "or more" label for UI display, but provide real maxValue for renderer
     const isLastBreak = index === breakRanges.length - 1;
-    const maxValue = isLastBreak ? null : range.max;
+    const maxValue = range.max; // ALWAYS use the actual max value from the range
+    
+    // Store the absolute maximum for reference and label generation
+    const absoluteMax = range.max;
+    
+    console.log(`[DataDrivenBreaks] FIXED: Break ${index + 1}: min=${range.min}, max=${maxValue} (was null for last break)`);
     
     return {
         minValue: range.min,
-        maxValue: maxValue,
-        label: label,
+        maxValue: maxValue, // FIXED: Now always has a real numeric value
+        label: label, // This will still show "X or more" for the last break
         symbol: {
         type: "simple-fill",
         style: "solid",
@@ -807,6 +812,10 @@ const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = nu
         },
         dataSource: 'arcgis_query_quantile',
         valueFormat: valueFormat,
+        // Store metadata about this being the last break
+        isLastBreak: isLastBreak,
+        absoluteMax: absoluteMax, // Store the absolute max for reference
+        // Enhanced metadata
         dataStats: {
             ...stats,
             serviceUrl: serviceUrl,
@@ -814,15 +823,18 @@ const generateDataDrivenHeatMapBreaks = async (fieldName, areaType, mapView = nu
             breakType: 'quantile',
             usedSmartRounding: true,
             valueFormat: valueFormat,
-            generatedAt: new Date().toISOString()
+            generatedAt: new Date().toISOString(),
+            // Add fix metadata
+            hasFixedMaxValue: true,
+            originalMaxValueWasNull: isLastBreak, // Track which break was originally null
         }
     };
     });
 
     workingLayer.destroy();
     
-    console.log(`[DataDrivenBreaks] Successfully generated ${classBreaks.length} class breaks with proper value formatting`);
-    console.log(`[DataDrivenBreaks] Sample formatted labels:`, classBreaks.slice(0, 3).map(b => b.label));
+    console.log(`[DataDrivenBreaks] FIXED: Successfully generated ${classBreaks.length} class breaks with proper maxValue for all breaks`);
+    console.log(`[DataDrivenBreaks] Sample fixed breaks:`, classBreaks.slice(-2).map(b => `${b.minValue}-${b.maxValue}: ${b.label}`));
     
     return classBreaks;
 

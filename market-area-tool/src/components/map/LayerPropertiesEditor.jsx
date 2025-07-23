@@ -283,6 +283,96 @@ const LayerPropertiesEditor = ({
     }
   };
 
+
+/**
+ * FIXED: Ensures class break infos maintain their absolute bounds for proper UI display AND ArcGIS rendering
+ * This prevents the ColorBreakEditor from showing truncated ranges and ensures ArcGIS gets proper maxValues
+ */
+const validateClassBreaksForDisplay = (classBreakInfos, fieldName) => {
+  if (!classBreakInfos || !Array.isArray(classBreakInfos) || classBreakInfos.length === 0) {
+    return classBreakInfos;
+  }
+
+  console.log("[LayerPropertiesEditor] FIXED: Validating class breaks for display:", {
+    fieldName,
+    originalBreaks: classBreakInfos.map(b => `${b.minValue} to ${b.maxValue} (${b.label})`)
+  });
+
+  // Create a copy to avoid mutating the original
+  const validatedBreaks = classBreakInfos.map((breakInfo, index) => {
+    const isLastBreak = index === classBreakInfos.length - 1;
+    let validatedBreak = { ...breakInfo };
+
+    // CRITICAL FIX: Handle the last break maxValue issue
+    if (isLastBreak && (breakInfo.maxValue === null || breakInfo.maxValue === undefined)) {
+      // Try to get the absolute max from various sources
+      let absoluteMax = 100; // Default fallback
+
+      // Check if we have absolute bounds stored in the break metadata
+      if (breakInfo._absoluteMax) {
+        absoluteMax = breakInfo._absoluteMax;
+      }
+      // Check if we have dataStats with absolute bounds
+      else if (breakInfo.dataStats && breakInfo.dataStats.absoluteMax) {
+        absoluteMax = breakInfo.dataStats.absoluteMax;
+      }
+      // Check if there's an absoluteMax property (from the fixed heatMapGenerator)
+      else if (breakInfo.absoluteMax) {
+        absoluteMax = breakInfo.absoluteMax;
+      }
+      // Check if we have value format info to determine appropriate max
+      else if (breakInfo.valueFormat) {
+        const format = breakInfo.valueFormat;
+        if (format.suffix === ' yrs') {
+          absoluteMax = 100; // Age
+        } else if (format.suffix === '%') {
+          absoluteMax = 100; // Percentage
+        } else if (format.prefix === '$') {
+          absoluteMax = fieldName?.toLowerCase().includes('income') ? 1000000 : 5000000;
+        } else {
+          // For other types, use a reasonable multiplier of the previous break's max
+          const previousBreak = classBreakInfos[index - 1];
+          if (previousBreak && previousBreak.maxValue) {
+            absoluteMax = Math.max(previousBreak.maxValue * 3, 50000);
+          }
+        }
+      }
+
+      // FIXED: Always set a real maxValue for ArcGIS renderer
+      validatedBreak.maxValue = absoluteMax;
+      validatedBreak._displayMaxValue = absoluteMax; // Store for reference
+      validatedBreak._wasFixedFromNull = true; // Track that this was fixed
+      
+      console.log(`[LayerPropertiesEditor] FIXED: Set real maxValue for last break: ${absoluteMax} (was null)`);
+    }
+
+    // Ensure first break starts at appropriate minimum
+    if (index === 0 && (breakInfo.minValue === null || breakInfo.minValue === undefined)) {
+      validatedBreak.minValue = 0;
+      validatedBreak._displayMinValue = 0;
+      validatedBreak._wasFixedFromNull = true;
+    }
+
+    // Store additional metadata for debugging
+    if (isLastBreak) {
+      validatedBreak._isLastBreak = true;
+      validatedBreak._originalMaxValue = breakInfo.maxValue; // Preserve original
+    }
+
+    return validatedBreak;
+  });
+
+  console.log("[LayerPropertiesEditor] FIXED: Validated breaks for display:", {
+    validatedBreaks: validatedBreaks.map(b => {
+      const fixedNote = b._wasFixedFromNull ? ' (FIXED)' : '';
+      return `${b.minValue} to ${b.maxValue} (${b.label})${fixedNote}`;
+    })
+  });
+
+  return validatedBreaks;
+};
+
+
   const handleClose = () => {
     if (isLabelEditMode && labelManager) {
       try {
@@ -534,7 +624,14 @@ const LayerPropertiesEditor = ({
     }
 
     if (effectiveType === "class-breaks" || rendererType === "class-breaks") {
-      const breaks = getConfigProp(currentConfig, "classBreakInfos", []);
+      const originalBreaks = getConfigProp(currentConfig, "classBreakInfos", []);
+      
+      // VALIDATE BREAKS FOR PROPER DISPLAY
+      const validatedBreaks = validateClassBreaksForDisplay(originalBreaks, 
+        getConfigProp(currentConfig, "field", "") || 
+        getConfigProp(currentConfig, "visualizationKey", "")?.replace("_HEAT", "") || 
+        visualizationType?.replace("_HEAT", "")
+      );
       
       // COMPREHENSIVE DEBUG LOGGING - Let's see what's actually in the configuration
       console.log("LayerPropsEditor: === COMPREHENSIVE FORMAT DETECTION DEBUG ===");
@@ -548,14 +645,23 @@ const LayerPropertiesEditor = ({
         classBreakInfosLength: currentConfig.classBreakInfos?.length || 0
       });
       
-      if (breaks.length > 0) {
+      if (validatedBreaks.length > 0) {
         console.log("LayerPropsEditor: First break structure:", {
-          hasValueFormat: !!breaks[0].valueFormat,
-          valueFormat: breaks[0].valueFormat,
-          hasDataStats: !!breaks[0].dataStats,
-          dataStats: breaks[0].dataStats,
-          label: breaks[0].label,
-          keys: Object.keys(breaks[0])
+          hasValueFormat: !!validatedBreaks[0].valueFormat,
+          valueFormat: validatedBreaks[0].valueFormat,
+          hasDataStats: !!validatedBreaks[0].dataStats,
+          dataStats: validatedBreaks[0].dataStats,
+          label: validatedBreaks[0].label,
+          minValue: validatedBreaks[0].minValue,
+          maxValue: validatedBreaks[0].maxValue,
+          keys: Object.keys(validatedBreaks[0])
+        });
+        
+        console.log("LayerPropsEditor: Last break structure:", {
+          label: validatedBreaks[validatedBreaks.length - 1].label,
+          minValue: validatedBreaks[validatedBreaks.length - 1].minValue,
+          maxValue: validatedBreaks[validatedBreaks.length - 1].maxValue,
+          _displayMaxValue: validatedBreaks[validatedBreaks.length - 1]._displayMaxValue
         });
       }
       
@@ -570,20 +676,20 @@ const LayerPropertiesEditor = ({
         console.log("LayerPropsEditor: ✅ Using stored valueFormat from currentConfig:", format);
       }
       // Priority 2: Check if any classBreakInfo has valueFormat stored
-      else if (breaks.length > 0 && breaks[0].valueFormat && typeof breaks[0].valueFormat === 'object' && breaks[0].valueFormat.prefix !== undefined) {
-        format = breaks[0].valueFormat;
+      else if (validatedBreaks.length > 0 && validatedBreaks[0].valueFormat && typeof validatedBreaks[0].valueFormat === 'object' && validatedBreaks[0].valueFormat.prefix !== undefined) {
+        format = validatedBreaks[0].valueFormat;
         formatSource = 'breaks[0].valueFormat';
         console.log("LayerPropsEditor: ✅ Using valueFormat from first classBreakInfo:", format);
       }
       // Priority 3: Check if any break has dataStats with valueFormat
-      else if (breaks.length > 0 && breaks[0].dataStats && breaks[0].dataStats.valueFormat && typeof breaks[0].dataStats.valueFormat === 'object' && breaks[0].dataStats.valueFormat.prefix !== undefined) {
-        format = breaks[0].dataStats.valueFormat;
+      else if (validatedBreaks.length > 0 && validatedBreaks[0].dataStats && validatedBreaks[0].dataStats.valueFormat && typeof validatedBreaks[0].dataStats.valueFormat === 'object' && validatedBreaks[0].dataStats.valueFormat.prefix !== undefined) {
+        format = validatedBreaks[0].dataStats.valueFormat;
         formatSource = 'breaks[0].dataStats.valueFormat';
         console.log("LayerPropsEditor: ✅ Using valueFormat from dataStats:", format);
       }
       // Priority 4: Try to detect format from existing labels (if they have $ or % signs)
-      else if (breaks.length > 0) {
-        const sampleLabels = breaks.slice(0, 3).map(b => b.label || '').join(' ');
+      else if (validatedBreaks.length > 0) {
+        const sampleLabels = validatedBreaks.slice(0, 3).map(b => b.label || '').join(' ');
         console.log("LayerPropsEditor: Analyzing sample labels for format clues:", sampleLabels);
         
         if (sampleLabels.includes('$')) {
@@ -605,7 +711,7 @@ const LayerPropertiesEditor = ({
         }
       }
       
-      // Priority 5: Enhanced field name derivation using the improved getValueFormat function
+      // Priority 5: Enhanced field name derivation
       if (formatSource === 'default') {
         const fieldName = getConfigProp(currentConfig, "field", "") || 
                         getConfigProp(currentConfig, "visualizationKey", "")?.replace("_HEAT", "") || 
@@ -614,27 +720,46 @@ const LayerPropertiesEditor = ({
         if (fieldName) {
           console.log("LayerPropsEditor: Attempting enhanced field name analysis for:", fieldName);
           
-          // Import the enhanced getValueFormat function
-          try {
-            // Use the enhanced getValueFormat function with better pattern matching
-            const enhancedFormat = getValueFormat(fieldName);
-            if (enhancedFormat && enhancedFormat !== valueFormats.default) {
-              format = enhancedFormat;
-              formatSource = `enhanced field analysis (${fieldName})`;
-              console.log("LayerPropsEditor: ✅ Enhanced field analysis succeeded:", fieldName, "->", format);
-            } else {
-              console.log("LayerPropsEditor: Enhanced field analysis returned default for:", fieldName);
-            }
-          } catch (error) {
-            console.warn("LayerPropsEditor: Error in enhanced field analysis:", error);
-            
-            // Fallback to original logic
-            const formatKeyBase = fieldName.toLowerCase();
+          // Enhanced field name analysis
+          const formatKeyBase = fieldName.toLowerCase();
+          
+          // Age fields
+          if (formatKeyBase.includes('age') || formatKeyBase.includes('medage')) {
+            format = valueFormats.age;
+            formatSource = `field analysis (age): ${fieldName}`;
+          }
+          // Income fields
+          else if (formatKeyBase.includes('income') || formatKeyBase.includes('inc') || formatKeyBase.includes('earning')) {
+            format = valueFormats.income;
+            formatSource = `field analysis (income): ${fieldName}`;
+          }
+          // Percentage fields
+          else if (formatKeyBase.includes('pct') || formatKeyBase.includes('percent') || formatKeyBase.includes('rate')) {
+            format = valueFormats.percentage;
+            formatSource = `field analysis (percentage): ${fieldName}`;
+          }
+          // Home value fields
+          else if (formatKeyBase.includes('value') || formatKeyBase.includes('val')) {
+            format = valueFormats.homeValue;
+            formatSource = `field analysis (home value): ${fieldName}`;
+          }
+          // Population fields
+          else if (formatKeyBase.includes('pop') || formatKeyBase.includes('population')) {
+            format = valueFormats.totalPopulation;
+            formatSource = `field analysis (population): ${fieldName}`;
+          }
+          // Household fields
+          else if (formatKeyBase.includes('hh') || formatKeyBase.includes('household')) {
+            format = valueFormats.totalHouseholds;
+            formatSource = `field analysis (households): ${fieldName}`;
+          }
+          else {
             const formatKey = Object.keys(valueFormats).find((key) => formatKeyBase.includes(key.toLowerCase())) || "default";
             format = valueFormats[formatKey] || valueFormats.default;
             formatSource = `fallback field analysis (${fieldName} -> ${formatKey})`;
-            console.log("LayerPropsEditor: Using fallback field analysis:", fieldName, "->", formatKey, "->", format);
           }
+          
+          console.log("LayerPropsEditor: Field analysis result:", fieldName, "->", formatSource, "->", format);
         } else {
           console.log("LayerPropsEditor: No field name available for format detection");
         }
@@ -650,18 +775,29 @@ const LayerPropertiesEditor = ({
       console.log("LayerPropsEditor: === FINAL FORMAT SELECTION ===");
       console.log("LayerPropsEditor: Selected format:", format);
       console.log("LayerPropsEditor: Format source:", formatSource);
-      console.log("LayerPropsEditor: Format will show as:", 
-        format.prefix === '$' ? '$1,000 - Dollar amounts' :
-        format.suffix === '%' ? '1.0% - Percentage format' :
-        format.suffix === '/sq mi' ? '1,000 - Density per sq mi' :
-        format.suffix === ' yrs' ? '1.0 - Age in years' :
-        '1,000 - Whole numbers with commas'
-      );
       console.log("LayerPropsEditor: === END FORMAT DETECTION DEBUG ===");
       
-      const configForEditor = { ...currentConfig, type: "class-breaks", classBreakInfos: breaks };
-      return <ColorBreakEditor breaks={configForEditor.classBreakInfos} onBreaksChange={(newBreaks) => handleConfigChange({ ...configForEditor, classBreakInfos: newBreaks })} visualizationType={visualizationType} valueFormat={format} />;
+      // Create config with validated breaks
+      const configForEditor = { 
+        ...currentConfig, 
+        type: "class-breaks", 
+        classBreakInfos: validatedBreaks // Use validated breaks with absolute bounds
+      };
+      
+      return (
+        <ColorBreakEditor 
+          breaks={configForEditor.classBreakInfos} 
+          onBreaksChange={(newBreaks) => {
+            // When breaks change, preserve absolute bounds
+            const updatedBreaks = validateClassBreaksForDisplay(newBreaks, getConfigProp(currentConfig, "field", ""));
+            handleConfigChange({ ...configForEditor, classBreakInfos: updatedBreaks });
+          }} 
+          visualizationType={visualizationType} 
+          valueFormat={format} 
+        />
+      );
     }
+
 
     return (
       <div className="p-4 text-gray-500 dark:text-gray-400">
