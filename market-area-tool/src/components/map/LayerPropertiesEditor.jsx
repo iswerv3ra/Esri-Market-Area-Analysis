@@ -513,8 +513,8 @@ const LayerPropertiesEditor = ({
     }
     // Comps maps or simple custom maps (single symbol or single value class breaks)
     if ((effectiveType === "comp") || (effectiveType === "custom" && (rendererType === "simple" || rendererType === "classBreaks"))) {
-         // PointStyleEditor might need to handle classBreaks for comps if valueColumn1 is used.
-         // For now, it assumes simple symbol or that classBreakInfos are directly in config for comps.
+        // PointStyleEditor might need to handle classBreaks for comps if valueColumn1 is used.
+        // For now, it assumes simple symbol or that classBreakInfos are directly in config for comps.
       return <PointStyleEditor config={currentConfig} onChange={handleConfigChange} onPreview={onPreview} mapType={effectiveType} onClose={onClose} />;
     }
 
@@ -535,9 +535,130 @@ const LayerPropertiesEditor = ({
 
     if (effectiveType === "class-breaks" || rendererType === "class-breaks") {
       const breaks = getConfigProp(currentConfig, "classBreakInfos", []);
-      const formatKeyBase = (visualizationType?.replace("_HEAT", "") || getConfigProp(currentConfig, "field", "")).toLowerCase();
-      const formatKey = Object.keys(valueFormats).find((key) => formatKeyBase.includes(key.toLowerCase())) || "default";
-      const format = valueFormats[formatKey] || valueFormats.default;
+      
+      // COMPREHENSIVE DEBUG LOGGING - Let's see what's actually in the configuration
+      console.log("LayerPropsEditor: === COMPREHENSIVE FORMAT DETECTION DEBUG ===");
+      console.log("LayerPropsEditor: currentConfig structure:", {
+        hasValueFormat: !!currentConfig.valueFormat,
+        valueFormat: currentConfig.valueFormat,
+        field: currentConfig.field,
+        visualizationKey: currentConfig.visualizationKey,
+        keys: Object.keys(currentConfig),
+        hasClassBreakInfos: !!currentConfig.classBreakInfos,
+        classBreakInfosLength: currentConfig.classBreakInfos?.length || 0
+      });
+      
+      if (breaks.length > 0) {
+        console.log("LayerPropsEditor: First break structure:", {
+          hasValueFormat: !!breaks[0].valueFormat,
+          valueFormat: breaks[0].valueFormat,
+          hasDataStats: !!breaks[0].dataStats,
+          dataStats: breaks[0].dataStats,
+          label: breaks[0].label,
+          keys: Object.keys(breaks[0])
+        });
+      }
+      
+      // ENHANCED FORMAT DETECTION with comprehensive priority system
+      let format = valueFormats.default;
+      let formatSource = 'default';
+      
+      // Priority 1: Check if format is stored directly in the currentConfig (from map generation)
+      if (currentConfig.valueFormat && typeof currentConfig.valueFormat === 'object' && currentConfig.valueFormat.prefix !== undefined) {
+        format = currentConfig.valueFormat;
+        formatSource = 'currentConfig.valueFormat';
+        console.log("LayerPropsEditor: ✅ Using stored valueFormat from currentConfig:", format);
+      }
+      // Priority 2: Check if any classBreakInfo has valueFormat stored
+      else if (breaks.length > 0 && breaks[0].valueFormat && typeof breaks[0].valueFormat === 'object' && breaks[0].valueFormat.prefix !== undefined) {
+        format = breaks[0].valueFormat;
+        formatSource = 'breaks[0].valueFormat';
+        console.log("LayerPropsEditor: ✅ Using valueFormat from first classBreakInfo:", format);
+      }
+      // Priority 3: Check if any break has dataStats with valueFormat
+      else if (breaks.length > 0 && breaks[0].dataStats && breaks[0].dataStats.valueFormat && typeof breaks[0].dataStats.valueFormat === 'object' && breaks[0].dataStats.valueFormat.prefix !== undefined) {
+        format = breaks[0].dataStats.valueFormat;
+        formatSource = 'breaks[0].dataStats.valueFormat';
+        console.log("LayerPropsEditor: ✅ Using valueFormat from dataStats:", format);
+      }
+      // Priority 4: Try to detect format from existing labels (if they have $ or % signs)
+      else if (breaks.length > 0) {
+        const sampleLabels = breaks.slice(0, 3).map(b => b.label || '').join(' ');
+        console.log("LayerPropsEditor: Analyzing sample labels for format clues:", sampleLabels);
+        
+        if (sampleLabels.includes('$')) {
+          format = valueFormats.income;
+          formatSource = 'detected from labels ($)';
+          console.log("LayerPropsEditor: ✅ Detected currency format from labels");
+        } else if (sampleLabels.includes('%')) {
+          format = valueFormats.percentage;
+          formatSource = 'detected from labels (%)';
+          console.log("LayerPropsEditor: ✅ Detected percentage format from labels");
+        } else if (sampleLabels.includes('/sq mi')) {
+          format = valueFormats.density;
+          formatSource = 'detected from labels (/sq mi)';
+          console.log("LayerPropsEditor: ✅ Detected density format from labels");
+        } else if (sampleLabels.includes(' yrs')) {
+          format = valueFormats.age;
+          formatSource = 'detected from labels (yrs)';
+          console.log("LayerPropsEditor: ✅ Detected age format from labels");
+        }
+      }
+      
+      // Priority 5: Enhanced field name derivation using the improved getValueFormat function
+      if (formatSource === 'default') {
+        const fieldName = getConfigProp(currentConfig, "field", "") || 
+                        getConfigProp(currentConfig, "visualizationKey", "")?.replace("_HEAT", "") || 
+                        visualizationType?.replace("_HEAT", "") || "";
+        
+        if (fieldName) {
+          console.log("LayerPropsEditor: Attempting enhanced field name analysis for:", fieldName);
+          
+          // Import the enhanced getValueFormat function
+          try {
+            // Use the enhanced getValueFormat function with better pattern matching
+            const enhancedFormat = getValueFormat(fieldName);
+            if (enhancedFormat && enhancedFormat !== valueFormats.default) {
+              format = enhancedFormat;
+              formatSource = `enhanced field analysis (${fieldName})`;
+              console.log("LayerPropsEditor: ✅ Enhanced field analysis succeeded:", fieldName, "->", format);
+            } else {
+              console.log("LayerPropsEditor: Enhanced field analysis returned default for:", fieldName);
+            }
+          } catch (error) {
+            console.warn("LayerPropsEditor: Error in enhanced field analysis:", error);
+            
+            // Fallback to original logic
+            const formatKeyBase = fieldName.toLowerCase();
+            const formatKey = Object.keys(valueFormats).find((key) => formatKeyBase.includes(key.toLowerCase())) || "default";
+            format = valueFormats[formatKey] || valueFormats.default;
+            formatSource = `fallback field analysis (${fieldName} -> ${formatKey})`;
+            console.log("LayerPropsEditor: Using fallback field analysis:", fieldName, "->", formatKey, "->", format);
+          }
+        } else {
+          console.log("LayerPropsEditor: No field name available for format detection");
+        }
+      }
+      
+      // FINAL VALIDATION AND LOGGING
+      if (!format || typeof format !== 'object') {
+        console.warn("LayerPropsEditor: Invalid format detected, using default:", format);
+        format = valueFormats.default;
+        formatSource = 'forced default (invalid format)';
+      }
+      
+      console.log("LayerPropsEditor: === FINAL FORMAT SELECTION ===");
+      console.log("LayerPropsEditor: Selected format:", format);
+      console.log("LayerPropsEditor: Format source:", formatSource);
+      console.log("LayerPropsEditor: Format will show as:", 
+        format.prefix === '$' ? '$1,000 - Dollar amounts' :
+        format.suffix === '%' ? '1.0% - Percentage format' :
+        format.suffix === '/sq mi' ? '1,000 - Density per sq mi' :
+        format.suffix === ' yrs' ? '1.0 - Age in years' :
+        '1,000 - Whole numbers with commas'
+      );
+      console.log("LayerPropsEditor: === END FORMAT DETECTION DEBUG ===");
+      
       const configForEditor = { ...currentConfig, type: "class-breaks", classBreakInfos: breaks };
       return <ColorBreakEditor breaks={configForEditor.classBreakInfos} onBreaksChange={(newBreaks) => handleConfigChange({ ...configForEditor, classBreakInfos: newBreaks })} visualizationType={visualizationType} valueFormat={format} />;
     }

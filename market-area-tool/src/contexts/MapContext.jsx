@@ -1941,7 +1941,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
         return;
       }
 
-      // Log layer position in map
       if (selectionGraphicsLayerRef.current) {
         const layerIndex = mapView.map.layers.indexOf(
           selectionGraphicsLayerRef.current
@@ -1968,7 +1967,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           import("@arcgis/core/geometry/Point"),
         ]);
 
-        // Extract coordinates
         let centerLon, centerLat;
         if (
           point.center.longitude !== undefined &&
@@ -2028,7 +2026,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           }
         }
 
-        // Remove existing radius graphics for this market area
         if (marketAreaId) {
           const existingRadiusGraphics =
             selectionGraphicsLayerRef.current.graphics.filter(
@@ -2058,7 +2055,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
         const borderWidth =
           style?.borderWidth !== undefined ? style.borderWidth : 2;
 
-        // Generate circles for each radius
         for (let i = 0; i < point.radii.length; i++) {
           const radiusMiles = point.radii[i];
           const radiusMeters = radiusMiles * 1609.34;
@@ -2076,14 +2072,18 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
             continue;
           }
 
+          // **START CORRECTION**
+          // Corrected symbol definition to handle zero-width borders properly.
           const symbol = {
             type: "simple-fill",
             color: [...fillRgb, fillOpacity],
             outline: {
               color: outlineRgb,
               width: borderWidth,
+              style: borderWidth > 0 ? "solid" : "none", // Set style to "none" if width is 0
             },
           };
+          // **END CORRECTION**
 
           const graphic = new Graphic({
             geometry: polygon,
@@ -2105,7 +2105,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           );
         }
 
-        // Log final state after adding graphics
         console.log(
           `🔍 [LAYER ORDER DEBUG] Completed drawing radius for market area ${marketAreaId}:`,
           {
@@ -3868,6 +3867,7 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
     [transformDriveTimePoint, drawDriveTimePolygon]
   );
 
+
   const updateFeatureStyles = useCallback(
     async (features, styles, featureType, immediate = false) => {
       console.log("🔍 [LAYER ORDER DEBUG] updateFeatureStyles - Starting style update");
@@ -3944,14 +3944,16 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           marketAreaCount: Object.keys(featuresByMarketArea).length,
           marketAreaIds: Object.keys(featuresByMarketArea),
         });
-
-        // Enhanced style processing with forced visibility
+        
+        // **START CORRECTION**
+        // Corrected style processing to allow for full transparency and no borders.
         const processedStyles = {
-          fill: styles.fill || "#0078D4",
-          fillOpacity: Math.max(0.1, styles.fillOpacity || 0.35), // Ensure minimum visibility
-          outline: styles.outline || "#0078D4", 
-          outlineWidth: Math.max(1, styles.outlineWidth || 2), // Ensure minimum outline width
+            fill: styles.fill || "#0078D4",
+            fillOpacity: styles.noFill ? 0 : (styles.fillOpacity !== undefined ? styles.fillOpacity : 0.35),
+            outline: styles.outline || "#0078D4",
+            outlineWidth: styles.noBorder ? 0 : (styles.outlineWidth !== undefined ? styles.outlineWidth : 2),
         };
+        // **END CORRECTION**
 
         console.log("🔍 [LAYER ORDER DEBUG] Processed styles for visibility:", {
           originalStyles: styles,
@@ -3960,11 +3962,10 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           outlineWidthIncreased: processedStyles.outlineWidth > (styles.outlineWidth || 0),
         });
 
-        // Handle existing graphics preservation with better market area isolation
+        // Enhanced graphics preservation
         const marketAreaIds = new Set(Object.keys(featuresByMarketArea));
         const existingGraphics = selectionGraphicsLayerRef.current.graphics.toArray();
         
-        // Separate graphics more precisely
         const marketAreaGraphicsToRemove = existingGraphics.filter((g) => 
           marketAreaIds.has(g.attributes?.marketAreaId) && 
           (g.attributes?.FEATURE_TYPE === featureType || immediate)
@@ -3982,7 +3983,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           immediate,
         });
 
-        // Remove only specific graphics we're replacing
         if (marketAreaGraphicsToRemove.length > 0) {
           selectionGraphicsLayerRef.current.removeMany(marketAreaGraphicsToRemove);
           console.log(`🔍 [LAYER ORDER DEBUG] Removed ${marketAreaGraphicsToRemove.length} existing graphics`);
@@ -3990,7 +3990,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
 
         const newGraphics = [];
 
-        // Process each market area's features with enhanced geometry handling
         for (const [marketAreaId, maFeatures] of Object.entries(featuresByMarketArea)) {
           console.log("🔍 [LAYER ORDER DEBUG] Processing market area features:", {
             marketAreaId,
@@ -3998,7 +3997,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
             featureType,
           });
 
-          // Get high resolution features with better error handling
           let highResPolygons = [];
 
           try {
@@ -4012,15 +4010,9 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
                 const queryClauses = maFeatures
                   .map((f) => {
                     if (featureType === "zip") {
-                      if (f.attributes.ZCTA5) {
-                        return `ZIP = '${f.attributes.ZCTA5}'`;
-                      }
-                      if (f.attributes.name && /^\d{5}(-\d{4})?$/.test(f.attributes.name)) {
-                        return `ZIP = '${f.attributes.name}'`;
-                      }
-                      if (f.attributes.id && /^\d{5}(-\d{4})?$/.test(f.attributes.id)) {
-                        return `ZIP = '${f.attributes.id}'`;
-                      }
+                      if (f.attributes.ZCTA5) return `ZIP = '${f.attributes.ZCTA5}'`;
+                      if (f.attributes.name && /^\d{5}(-\d{4})?$/.test(f.attributes.name)) return `ZIP = '${f.attributes.name}'`;
+                      if (f.attributes.id && /^\d{5}(-\d{4})?$/.test(f.attributes.id)) return `ZIP = '${f.attributes.id}'`;
                       return "";
                     }
 
@@ -4066,7 +4058,6 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
             console.warn("🔍 [LAYER ORDER DEBUG] Error fetching high-res features:", error);
           }
 
-          // Enhanced fallback to original geometries
           if (highResPolygons.length === 0) {
             console.log("🔍 [LAYER ORDER DEBUG] Using original geometries with validation");
             highResPolygons = maFeatures
@@ -4083,15 +4074,9 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
                   };
 
                   if (feature.geometry.rings) {
-                    return new Polygon({
-                      ...geomConfig,
-                      rings: feature.geometry.rings,
-                    });
+                    return new Polygon({ ...geomConfig, rings: feature.geometry.rings });
                   } else if (feature.geometry.type === "polygon") {
-                    return new Polygon({
-                      ...geomConfig,
-                      rings: feature.geometry.rings || feature.geometry.coordinates,
-                    });
+                    return new Polygon({ ...geomConfig, rings: feature.geometry.rings || feature.geometry.coordinates });
                   }
                 } catch (error) {
                   console.error("🔍 [LAYER ORDER DEBUG] Error creating polygon:", error);
@@ -4108,13 +4093,7 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           }
 
           try {
-            // Create unified boundary with enhanced error handling
-            let unifiedGeometry;
-            if (highResPolygons.length === 1) {
-              unifiedGeometry = highResPolygons[0];
-            } else {
-              unifiedGeometry = union(highResPolygons);
-            }
+            let unifiedGeometry = highResPolygons.length === 1 ? highResPolygons[0] : union(highResPolygons);
 
             if (!unifiedGeometry) {
               console.warn(`🔍 [LAYER ORDER DEBUG] Union failed for market area ${marketAreaId}`);
@@ -4125,23 +4104,14 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
             const totalArea = Math.abs(planarArea(simplifiedGeometry));
             const minHoleArea = totalArea * 0.001;
 
-            const rings = simplifiedGeometry.rings;
-            const { exteriorRings, holeRings } = rings.reduce(
+            const { exteriorRings, holeRings } = simplifiedGeometry.rings.reduce(
               (acc, ring) => {
-                const ringPolygon = new Polygon({
-                  rings: [ring],
-                  spatialReference: mapView.spatialReference,
-                  type: "polygon",
-                });
-
+                const ringPolygon = new Polygon({ rings: [ring], spatialReference: mapView.spatialReference, type: "polygon" });
                 const area = planarArea(ringPolygon);
                 const perimeter = planarLength(ringPolygon);
 
-                if (area > 0) {
-                  acc.exteriorRings.push(ring);
-                } else if (Math.abs(area) > minHoleArea && perimeter > 100) {
-                  acc.holeRings.push(ring);
-                }
+                if (area > 0) acc.exteriorRings.push(ring);
+                else if (Math.abs(area) > minHoleArea && perimeter > 100) acc.holeRings.push(ring);
                 return acc;
               },
               { exteriorRings: [], holeRings: [] }
@@ -4153,100 +4123,50 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
               totalArea,
             });
 
-            // Enhanced fill graphic with guaranteed visibility
             const fillSymbol = {
               type: "simple-fill",
-              color: [
-                ...hexToRgb(processedStyles.fill), 
-                processedStyles.fillOpacity
-              ],
-              outline: {
-                color: [0, 0, 0, 0], // Transparent outline for fill graphic
-                width: 0,
-              },
-              // Add additional properties to ensure rendering
+              color: [...hexToRgb(processedStyles.fill), processedStyles.fillOpacity],
+              outline: { color: [0, 0, 0, 0], width: 0 },
               style: "solid",
             };
 
-            const fillGeometry = new Polygon({
-              rings: [...exteriorRings, ...holeRings],
-              spatialReference: mapView.spatialReference,
-              type: "polygon",
-            });
-
+            const fillGeometry = new Polygon({ rings: [...exteriorRings, ...holeRings], spatialReference: mapView.spatialReference, type: "polygon" });
             const fillGraphic = new Graphic({
               geometry: fillGeometry,
               symbol: fillSymbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-                isUnified: true,
-                isFill: true,
-                renderOrder: 1, // Lower number = rendered first (behind)
-                ...maFeatures[0].attributes,
-              },
+              attributes: { marketAreaId, FEATURE_TYPE: featureType, isUnified: true, isFill: true, renderOrder: 1, ...maFeatures[0].attributes },
             });
-
             newGraphics.push(fillGraphic);
 
-            // Enhanced outline graphics with guaranteed visibility
+            // **START CORRECTION**
+            // Corrected outline symbol to handle zero-width borders.
             const outlineSymbol = {
               type: "simple-fill",
               color: [0, 0, 0, 0], // Transparent fill
               outline: {
-                color: [...hexToRgb(processedStyles.outline), 1], // Full opacity outline
+                color: [...hexToRgb(processedStyles.outline), 1],
                 width: processedStyles.outlineWidth,
-                style: "solid",
+                style: processedStyles.outlineWidth > 0 ? "solid" : "none", // Set style to none if width is 0
               },
-              style: "solid",
+              style: "none", // Fill style should be none for an outline-only symbol
             };
+            // **END CORRECTION**
 
-            // Add exterior outline
-            const exteriorGeometry = new Polygon({
-              rings: exteriorRings,
-              spatialReference: mapView.spatialReference,
-              type: "polygon",
-            });
-
+            const exteriorGeometry = new Polygon({ rings: exteriorRings, spatialReference: mapView.spatialReference, type: "polygon" });
             const exteriorOutlineGraphic = new Graphic({
               geometry: exteriorGeometry,
               symbol: outlineSymbol,
-              attributes: {
-                marketAreaId,
-                FEATURE_TYPE: featureType,
-                isUnified: true,
-                isOutline: true,
-                isExterior: true,
-                renderOrder: 2, // Higher number = rendered last (on top)
-                ...maFeatures[0].attributes,
-              },
+              attributes: { marketAreaId, FEATURE_TYPE: featureType, isUnified: true, isOutline: true, isExterior: true, renderOrder: 2, ...maFeatures[0].attributes },
             });
-
             newGraphics.push(exteriorOutlineGraphic);
 
-            // Add hole outlines
             holeRings.forEach((holeRing, index) => {
-              const holeGeometry = new Polygon({
-                rings: [holeRing],
-                spatialReference: mapView.spatialReference,
-                type: "polygon",
-              });
-
+              const holeGeometry = new Polygon({ rings: [holeRing], spatialReference: mapView.spatialReference, type: "polygon" });
               const holeOutlineGraphic = new Graphic({
                 geometry: holeGeometry,
                 symbol: outlineSymbol,
-                attributes: {
-                  marketAreaId,
-                  FEATURE_TYPE: featureType,
-                  isUnified: true,
-                  isOutline: true,
-                  isHole: true,
-                  holeIndex: index,
-                  renderOrder: 2,
-                  ...maFeatures[0].attributes,
-                },
+                attributes: { marketAreaId, FEATURE_TYPE: featureType, isUnified: true, isOutline: true, isHole: true, holeIndex: index, renderOrder: 2, ...maFeatures[0].attributes },
               });
-
               newGraphics.push(holeOutlineGraphic);
             });
 
@@ -4258,36 +4178,22 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           }
         }
 
-        // Add all new graphics with verification
         if (newGraphics.length > 0) {
           console.log(`🔍 [LAYER ORDER DEBUG] Adding ${newGraphics.length} new styled graphics to layer`);
-          
-          // Sort graphics by render order to ensure proper layering
           newGraphics.sort((a, b) => (a.attributes.renderOrder || 0) - (b.attributes.renderOrder || 0));
-          
           selectionGraphicsLayerRef.current.addMany(newGraphics);
-          
-          // Verify graphics were added successfully
+
           setTimeout(() => {
             const finalGraphicsCount = selectionGraphicsLayerRef.current.graphics.length;
             const layerStillVisible = selectionGraphicsLayerRef.current.visible;
             const layerStillAtCorrectIndex = mapView.map.layers.indexOf(selectionGraphicsLayerRef.current);
-            
             console.log("🔍 [LAYER ORDER DEBUG] Graphics addition verification:", {
               finalGraphicsCount,
               layerStillVisible,
               layerStillAtCorrectIndex,
               newGraphicsAdded: newGraphics.length,
-              graphicsWithAttributes: selectionGraphicsLayerRef.current.graphics.toArray().map(g => ({
-                marketAreaId: g.attributes?.marketAreaId,
-                featureType: g.attributes?.FEATURE_TYPE,
-                renderOrder: g.attributes?.renderOrder,
-                isOutline: g.attributes?.isOutline,
-                symbolType: g.symbol?.type
-              }))
             });
 
-            // Force layer refresh if needed
             if (!layerStillVisible) {
               selectionGraphicsLayerRef.current.visible = true;
               console.log("🔍 [LAYER ORDER DEBUG] Re-enabled layer visibility after graphics addition");
@@ -4295,16 +4201,12 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           }, 100);
         }
 
-        // Final state logging with enhanced detail
         const finalLayerIndex = mapView.map.layers.indexOf(selectionGraphicsLayerRef.current);
         console.log("🔍 [LAYER ORDER DEBUG] Final style update state:", {
           graphicsLayerIndex: finalLayerIndex,
           totalGraphicsInLayer: selectionGraphicsLayerRef.current.graphics.length,
           newGraphicsAdded: newGraphics.length,
           totalMapLayers: mapView.map.layers.length,
-          layerVisible: selectionGraphicsLayerRef.current.visible,
-          layerOpacity: selectionGraphicsLayerRef.current.opacity,
-          basemapReferenceLayersCount: mapView.map.basemap.referenceLayers.length,
         });
 
       } catch (error) {
