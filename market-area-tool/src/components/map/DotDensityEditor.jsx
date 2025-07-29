@@ -40,21 +40,39 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     return 1; // Default for unknown area types
   };
 
-  // Generate default legend label based on dot value
-  const getDefaultLegendLabel = (dotValue) => {
-    return `${dotValue} People per Dot`;
+  // Generate default legend label with new format: "Number per dot (Base label)"
+  const getDefaultLegendLabel = (dotValue, baseLabel = 'People') => {
+    return `${dotValue} per dot (${baseLabel})`;
   };
 
-  // Extract base label from full constructed label (removes number and "per Dot")
+  // Extract base label from full constructed label (handles both old and new formats)
   const extractBaseLabel = (fullLabel) => {
     if (!fullLabel) return 'People';
-    // Remove leading number and trailing "per Dot" pattern
-    return fullLabel.replace(/^\d+\s+/, '').replace(/\s+per\s+Dot$/i, '') || 'People';
+    
+    // Handle new format: "100 per dot (People)"
+    const newFormatMatch = fullLabel.match(/^\d+\s+per\s+dot\s*\(([^)]+)\)$/i);
+    if (newFormatMatch) {
+      return newFormatMatch[1].trim();
+    }
+    
+    // Handle old format: "100 People per Dot" (for backward compatibility)
+    const oldFormatMatch = fullLabel.replace(/^\d+\s+/, '').replace(/\s+per\s+dot$/i, '');
+    if (oldFormatMatch && oldFormatMatch !== fullLabel) {
+      return oldFormatMatch.trim();
+    }
+    
+    // If no pattern matches, return the full label as base (user custom format)
+    return fullLabel.trim() || 'People';
   };
 
-  // Construct full label from dot value and base description
+  // Construct full label from dot value and base description using new format
   const constructFullLabel = (dotValue, baseDescription) => {
-    return `${dotValue} ${baseDescription} per Dot`;
+    return `${dotValue} per dot (${baseDescription})`;
+  };
+
+  // Check if label follows the default format pattern
+  const isDefaultFormatLabel = (label) => {
+    return /^\d+\s+per\s+dot\s*\([^)]+\)$/i.test(label);
   };
 
   // --- State Synchronization & Safe Config ---
@@ -89,9 +107,12 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       // Ensure essential fields exist even if original was partial
       field: attr.field || config.field || 'value',
       color: attr.color || '#E60049',
-      label: attr.label || getDefaultLegendLabel(actualValue), // Use full label as default
-      baseLabel: attr.baseLabel || extractBaseLabel(attr.label) || extractBaseLabel(config.label) || 'People', // Store base description separately
-      value: index === 0 ? actualValue : (attr.value !== undefined ? attr.value : actualValue) // Sync first attribute, keep others if they exist
+      // For user-modified labels, preserve exactly as entered. For others, use default format.
+      label: attr.isUserModified ? (attr.userOriginalLabel || attr.label) : (attr.label || getDefaultLegendLabel(actualValue)),
+      baseLabel: attr.baseLabel || (attr.isUserModified ? 'People' : extractBaseLabel(attr.label)) || extractBaseLabel(config.label) || 'People',
+      value: index === 0 ? actualValue : (attr.value !== undefined ? attr.value : actualValue), // Sync first attribute, keep others if they exist
+      isUserModified: attr.isUserModified || false, // Preserve user-modified flag
+      userOriginalLabel: attr.userOriginalLabel // Preserve original user input
     }))
   };
 
@@ -104,11 +125,19 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       setLocalDotValue(safeConfig.dotValue);
     }
     if (localLegendLabel === null) {
-      // Use the full constructed label, ensuring it matches current dot value
       const attr = safeConfig.attributes[0];
-      const baseDescription = attr?.baseLabel || extractBaseLabel(attr?.label) || 'People';
-      const fullLabel = constructFullLabel(safeConfig.dotValue, baseDescription);
-      setLocalLegendLabel(fullLabel);
+      
+      // If there's a user-modified label, use exactly what they entered
+      if (attr?.isUserModified && attr?.userOriginalLabel) {
+        setLocalLegendLabel(attr.userOriginalLabel);
+      } else if (attr?.isUserModified && attr?.label) {
+        setLocalLegendLabel(attr.label); // Fallback to stored label
+      } else {
+        // Use the full constructed label for system-generated labels
+        const baseDescription = attr?.baseLabel || extractBaseLabel(attr?.label) || 'People';
+        const fullLabel = constructFullLabel(safeConfig.dotValue, baseDescription);
+        setLocalLegendLabel(fullLabel);
+      }
     }
   }, [safeConfig.dotSize, safeConfig.dotValue, safeConfig.attributes, localDotSize, localDotValue, localLegendLabel]);
 
@@ -175,18 +204,28 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       if (key === 'dotValue') {
         updatedConfig.attributes = updatedConfig.attributes.map((attr, index) => {
           if (index === 0) {
-            // For the first attribute, update value and reconstruct the legend label
-            const currentBaseLabel = attr.baseLabel || extractBaseLabel(attr.label) || 'People';
-            const newFullLabel = constructFullLabel(clampedValue, currentBaseLabel);
+            // NEVER modify user-entered labels - check multiple protection flags
+            const currentLabel = attr.label || '';
+            let newLabel = currentLabel;
             
-            // Update local legend label state to reflect the change
-            setLocalLegendLabel(newFullLabel);
+            // Check if this label was manually entered by the user - if so, NEVER touch it
+            if (!attr.isUserModified && !attr.userOriginalLabel && isDefaultFormatLabel(currentLabel)) {
+              // It's an auto-generated default format label, so reconstruct it with new dot value
+              const currentBaseLabel = attr.baseLabel || extractBaseLabel(currentLabel) || 'People';
+              newLabel = constructFullLabel(clampedValue, currentBaseLabel);
+              
+              // Update local legend label state to reflect the change
+              setLocalLegendLabel(newLabel);
+            }
+            // If it's user-modified in ANY way, keep the original label completely unchanged
             
             return {
               ...attr,
               value: clampedValue,
-              label: newFullLabel,
-              baseLabel: currentBaseLabel // Keep the base description for future reconstructions
+              label: newLabel, // This will be unchanged for user-modified labels
+              baseLabel: attr.baseLabel || extractBaseLabel(currentLabel) || 'People',
+              isUserModified: attr.isUserModified, // Preserve the user-modified flag
+              userOriginalLabel: attr.userOriginalLabel // Preserve original user input
             };
           } else {
             // For other attributes, just update value if it exists
@@ -250,26 +289,33 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       // Create a deep clone for the update
       const updatedConfig = JSON.parse(JSON.stringify(safeConfig));
 
-      // Use the full legend label exactly as entered by the user
-      const fullLabel = value || getDefaultLegendLabel(safeConfig.dotValue);
+      // Use the full legend label EXACTLY as entered by the user - NO MODIFICATIONS WHATSOEVER
+      const exactUserLabel = value || getDefaultLegendLabel(safeConfig.dotValue);
       
-      // Extract the base description from the user's input for future reconstructions
-      const baseDescription = extractBaseLabel(fullLabel);
+      // Mark this as user-modified so it won't be auto-updated when dot value changes
+      const isUserModified = true;
 
       // Update the label in the first attribute
       if (updatedConfig.attributes && updatedConfig.attributes.length > 0) {
-        updatedConfig.attributes[0].label = fullLabel;
-        updatedConfig.attributes[0].baseLabel = baseDescription; // Store for future dot value changes
+        updatedConfig.attributes[0].label = exactUserLabel; // Store exactly what user typed
+        updatedConfig.attributes[0].isUserModified = isUserModified; // Flag to prevent auto-updates
+        updatedConfig.attributes[0].userOriginalLabel = exactUserLabel; // Store original for absolute protection
+        // Don't extract or modify baseLabel for user-entered labels - keep existing or set default
+        if (!updatedConfig.attributes[0].baseLabel) {
+          updatedConfig.attributes[0].baseLabel = 'People'; // Safe default, don't extract from user input
+        }
       } else {
         // Handle case where attributes might be missing (should be rare with safeConfig)
         updatedConfig.attributes = [{ 
           ...(safeConfig.attributes[0] || {}), 
-          label: fullLabel,
-          baseLabel: baseDescription
+          label: exactUserLabel,
+          isUserModified: isUserModified,
+          userOriginalLabel: exactUserLabel,
+          baseLabel: 'People' // Safe default
         }];
       }
 
-      console.log("DotDensityEditor: Updated legend label to", fullLabel, "Base description:", baseDescription, "Updating config:", updatedConfig);
+      console.log("DotDensityEditor: Updated legend label to EXACT user input:", exactUserLabel, "Marked as user-modified:", isUserModified);
 
       // Propagate changes up
       onChange(updatedConfig);
@@ -296,7 +342,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   const displayDotSize = localDotSize !== null ? localDotSize : safeConfig.dotSize;
   const displayDotValue = localDotValue !== null ? localDotValue : safeConfig.dotValue;
   
-  // For legend label, show the full constructed label including number and "per Dot"
+  // For legend label, show the current label (custom or default format)
   const getCurrentFullLabel = () => {
     if (localLegendLabel !== null) {
       return localLegendLabel;
@@ -304,20 +350,29 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     
     const attr = safeConfig.attributes[0];
     if (attr?.label) {
-      // If we have a stored label, check if it needs to be reconstructed with current dot value
-      const currentDotValueInLabel = attr.label.match(/^(\d+)\s/);
-      const currentDotValue = displayDotValue;
-      
-      if (currentDotValueInLabel && parseInt(currentDotValueInLabel[1]) !== currentDotValue) {
-        // Reconstruct with current dot value
-        const baseDescription = attr.baseLabel || extractBaseLabel(attr.label);
-        return constructFullLabel(currentDotValue, baseDescription);
+      // If the label was manually entered by the user, NEVER modify it - return exactly as stored
+      if (attr.isUserModified) {
+        return attr.userOriginalLabel || attr.label; // Use the preserved original if available
       }
       
-      return attr.label;
+      // Only auto-update if it's a system-generated default format label
+      const currentLabel = attr.label;
+      const currentDotValue = displayDotValue;
+      
+      if (isDefaultFormatLabel(currentLabel)) {
+        // Extract the number from the current label
+        const labelNumberMatch = currentLabel.match(/^(\d+)\s+per\s+dot/i);
+        if (labelNumberMatch && parseInt(labelNumberMatch[1]) !== currentDotValue) {
+          // Reconstruct with current dot value
+          const baseDescription = attr.baseLabel || extractBaseLabel(currentLabel);
+          return constructFullLabel(currentDotValue, baseDescription);
+        }
+      }
+      
+      return currentLabel;
     }
     
-    // Fallback to default construction
+    // Fallback to default construction with new format
     return getDefaultLegendLabel(displayDotValue);
   };
   
@@ -387,7 +442,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
        {/* Legend Label (Shows Full Constructed Label) */}
        <div className="space-y-1">
           <label htmlFor="legend-label" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-            Legend Label
+            Dot Label
           </label>
           <input
             id="legend-label"
@@ -395,13 +450,13 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
             value={displayLegendLabel}
             onChange={(e) => handleLegendLabelChange(e.target.value)}
             onBlur={(e) => handleLegendLabelChange(e.target.value, true)} // Apply changes immediately on blur
-            placeholder="e.g., 100 Total Households per Dot"
+            placeholder="e.g., 100 per dot (Total Households)"
             className="w-full p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white
                      border border-gray-300 dark:border-gray-700 rounded
                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400"
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Edit the complete legend text. When you change the dot value above, the number will automatically update while preserving your description.
+            Edit the complete legend text. Default format updates automatically with dot value changes, but custom formats are preserved.
           </p>
        </div>
 
