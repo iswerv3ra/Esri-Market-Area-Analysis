@@ -41,13 +41,15 @@ const SortableItem = ({
     transition,
   };
 
-  // Updated to include drivetime type
+  // Calculate count based on market area type
   const count =
     marketArea.ma_type === "radius"
       ? marketArea.radius_points?.length || 0
       : marketArea.ma_type === "drivetime"
         ? marketArea.drive_time_points?.length || 0
-        : marketArea.locations?.length || 0;
+        : marketArea.ma_type === "site_location"
+          ? 1 // Site location typically has just one point
+          : marketArea.locations?.length || 0;
 
   return (
     <div
@@ -108,7 +110,8 @@ const SortableItem = ({
   );
 };
 
-export default function MarketAreaList({ onClose, onEdit }) {
+// Removed onClose parameter as this component should always stay open
+export default function MarketAreaList({ onEdit }) {
   const { projectId } = useParams();
   const {
     marketAreas = [],
@@ -121,14 +124,16 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
   const {
     drawRadius,
-    drawDriveTimePolygon, // Add this from MapContext
+    drawDriveTimePolygon,
+    drawSiteLocation,
     updateFeatureStyles,
     clearSelection,
     hideAllFeatureLayers,
     clearMarketAreaGraphics,
+    extractSiteLocationInfo,
   } = useMap();
 
-  // Add ref to track editing state
+  // Track editing state
   const isEditingRef = useRef(false);
 
   // Transformer for radius points
@@ -164,7 +169,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
     }
   }, []);
 
-  // New transformer for drive time points
+  // Transformer for drive time points
   const transformDriveTimePoint = useMemo(() => (point, marketAreaId) => {
     try {
       if (!point.center) {
@@ -267,8 +272,20 @@ export default function MarketAreaList({ onClose, onEdit }) {
               }
             }
           }
+          // Handle site location market areas
+          else if (marketArea.ma_type === "site_location") {
+            const siteData = extractSiteLocationInfo(marketArea);
+            if (siteData) {
+              await drawSiteLocation(
+                siteData,
+                marketArea.style_settings,
+                marketArea.id,
+                marketArea.order
+              );
+            }
+          }
           else if (marketArea.locations) {
-            // Add the validation check like in your other functions
+            // Validate features before adding
             const validFeatures = marketArea.locations
               .filter(loc => loc.geometry && (loc.geometry.rings || loc.geometry.paths))
               .map((loc) => ({
@@ -282,7 +299,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
           
             if (validFeatures.length > 0) {
               await updateFeatureStyles(
-                validFeatures, // Now correctly using the defined variable
+                validFeatures,
                 {
                   fill: marketArea.style_settings?.fillColor || "#0078D4",
                   fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.35),
@@ -316,10 +333,13 @@ export default function MarketAreaList({ onClose, onEdit }) {
     transformDriveTimePoint,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     updateFeatureStyles
   ]);
 
-  // Improved handleToggleVisibility function with better state management
+// src/components/market-areas/MarketAreaList.jsx
+
   const handleToggleVisibility = useCallback(async (marketArea) => {
     if (!marketArea) return;
 
@@ -327,32 +347,24 @@ export default function MarketAreaList({ onClose, onEdit }) {
     const isVisible = visibleMarketAreaIds.includes(id);
 
     try {
-      // Log the toggle action
       console.log(`${isVisible ? 'Hiding' : 'Showing'} market area ${id} of type ${marketArea.ma_type}`);
 
-      // Important: Update state FIRST before making graphics changes
-      // This ensures the visibleMarketAreaIds is updated before any drawing effects run
       const newVisibleIds = isVisible
         ? visibleMarketAreaIds.filter((currentId) => currentId !== id)
         : [...visibleMarketAreaIds, id];
 
-      // Set new visibility state immediately to avoid race conditions
       setVisibleMarketAreaIds(newVisibleIds);
       localStorage.setItem(
         `marketAreas.${projectId}.visible`,
         JSON.stringify(newVisibleIds)
       );
 
-      // Always fully clear graphics for this market area specifically
       await clearMarketAreaGraphics(id);
 
-      // If hiding, we're done - don't draw anything new
       if (isVisible) {
         return;
       }
 
-      // If showing, directly draw just this market area (don't rely on the effect)
-      // This provides immediate visual feedback
       try {
         if (marketArea.ma_type === "radius" && marketArea.radius_points) {
           let radiusPoints;
@@ -399,18 +411,14 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
           if (!driveTimePoints && marketArea.geometry) {
             try {
-              // Try to extract points from geometry
               const geo = marketArea.geometry;
               if (geo.rings && geo.rings.length > 0) {
-                // Calculate a simple centroid
                 const points = geo.rings[0];
                 let sumX = 0, sumY = 0;
-
                 for (const point of points) {
                   sumX += point[0];
                   sumY += point[1];
                 }
-
                 driveTimePoints = [{
                   center: {
                     longitude: sumX / points.length,
@@ -432,7 +440,6 @@ export default function MarketAreaList({ onClose, onEdit }) {
           for (const point of points) {
             const transformedPoint = transformDriveTimePoint(point, marketArea.id);
             if (transformedPoint) {
-              // Create a clean point object that will work with drawDriveTimePolygon
               const cleanPoint = {
                 center: {
                   longitude: transformedPoint.center.longitude,
@@ -458,14 +465,28 @@ export default function MarketAreaList({ onClose, onEdit }) {
             }
           }
         }
+        else if (marketArea.ma_type === "site_location") {
+          const siteData = extractSiteLocationInfo(marketArea);
+          if (siteData) {
+            await drawSiteLocation(
+              siteData,
+              {
+                fillColor: marketArea.style_settings?.fillColor || "#FFC000",
+                fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.8),
+                borderColor: marketArea.style_settings?.borderColor || "#000000",
+                borderWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 1)
+              },
+              marketArea.id,
+              marketArea.order || 0
+            );
+          } else {
+            console.warn(`[MarketAreaList] Site location market area ${id} has no valid site data`);
+          }
+        }
         else if (marketArea.locations && marketArea.locations.length > 0) {
-          // Only include locations with valid geometry to avoid the Accessor errors
-          const validLocations = marketArea.locations.filter(loc =>
-            loc.geometry && (loc.geometry.rings || loc.geometry.paths)
-          );
-
-          if (validLocations.length > 0) {
-            const validFeatures = validLocations.map((loc) => ({
+          const validFeatures = marketArea.locations
+            .filter(loc => loc.geometry && Array.isArray(loc.geometry.rings) && loc.geometry.rings.length > 0)
+            .map((loc) => ({
               geometry: loc.geometry,
               attributes: {
                 id: loc.id,
@@ -474,6 +495,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
               },
             }));
 
+          if (validFeatures.length > 0) {
             await updateFeatureStyles(
               validFeatures,
               {
@@ -491,7 +513,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
       }
     } catch (error) {
       console.error("[MarketAreaList] Toggle visibility error:", error);
-      toast.error("Failed to toggle market area visibility");
+      console.error("Failed to toggle market area visibility");
     }
   }, [
     visibleMarketAreaIds,
@@ -501,8 +523,11 @@ export default function MarketAreaList({ onClose, onEdit }) {
     transformDriveTimePoint,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
+    extractSiteLocationInfo,
     updateFeatureStyles,
   ]);
+  
   const handleEdit = useCallback((marketArea) => {
     if (!marketArea) return;
 
@@ -600,7 +625,7 @@ export default function MarketAreaList({ onClose, onEdit }) {
 
       // Process each market area, but ONLY if it's in the visibleMarketAreaIds
       for (const marketArea of sortedMarketAreas) {
-        // IMPORTANT: Double-check that this market area is still supposed to be visible
+        // Double-check that this market area is still supposed to be visible
         // This prevents race conditions when toggling visibility rapidly
         if (!visibleMarketAreaIds.includes(marketArea.id)) {
           console.log(`[MarketAreaList] Skipping hidden market area: ${marketArea.id}`);
@@ -721,32 +746,62 @@ export default function MarketAreaList({ onClose, onEdit }) {
               }
             }
           }
-          else if (marketArea.locations && marketArea.locations.length > 0) {
-            // Double-check geometry validity to fix the Accessor errors
-            const validFeatures = marketArea.locations
-              .filter(loc => loc.geometry && (loc.geometry.rings || loc.geometry.paths))
-              .map((loc) => ({
-                geometry: loc.geometry,
-                attributes: {
-                  id: loc.id,
-                  marketAreaId: marketArea.id,
-                  order: marketArea.order,
-                },
-              }));
-
-            if (validFeatures.length > 0) {
-              await updateFeatureStyles(
-                validFeatures,
+          // Handle site location market areas
+          else if (marketArea.ma_type === "site_location") {
+            console.log("[MarketAreaList] Processing site location market area:", marketArea.id);
+            
+            // Extract site location information
+            const siteData = extractSiteLocationInfo(marketArea);
+            
+            if (siteData && siteData.point) {
+              console.log("[MarketAreaList] Drawing site location:", {
+                id: marketArea.id,
+                point: siteData.point,
+                size: siteData.size,
+                color: siteData.color
+              });
+              
+              await drawSiteLocation(
+                siteData,
                 {
-                  fill: marketArea.style_settings?.fillColor || "#0078D4",
-                  fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.35),
-                  outline: marketArea.style_settings?.borderColor || "#0078D4",
-                  outlineWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 3),
+                  fillColor: marketArea.style_settings?.fillColor || siteData.color || "#FFC000",
+                  fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.8),
+                  borderColor: marketArea.style_settings?.borderColor || "#000000",
+                  borderWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 1)
                 },
-                marketArea.ma_type
+                marketArea.id,
+                marketArea.order || 0
               );
+            } else {
+              console.warn(`[MarketAreaList] Site location market area ${marketArea.id} has no valid site data`);
             }
           }
+          else if (marketArea.locations && marketArea.locations.length > 0) {
+              const validFeatures = marketArea.locations
+                .filter(loc => loc.geometry && Array.isArray(loc.geometry.rings) && loc.geometry.rings.length > 0) // Using the more robust filter from last time
+                .map((loc) => ({
+                  geometry: loc.geometry,
+                  attributes: {
+                    id: loc.id,
+                    marketAreaId: marketArea.id,
+                    order: marketArea.order,
+                  },
+                }));
+
+              // FIX: Check the correct variable, 'validFeatures'.
+              if (validFeatures.length > 0) {
+                await updateFeatureStyles(
+                  validFeatures,
+                  {
+                    fill: marketArea.style_settings?.fillColor || "#0078D4",
+                    fillOpacity: marketArea.style_settings?.noFill ? 0 : (marketArea.style_settings?.fillOpacity || 0.35),
+                    outline: marketArea.style_settings?.borderColor || "#0078D4",
+                    outlineWidth: marketArea.style_settings?.noBorder ? 0 : (marketArea.style_settings?.borderWidth || 3),
+                  },
+                  marketArea.ma_type
+                );
+              }
+            }
         } catch (error) {
           console.error(`[MarketAreaList] Error drawing market area ${marketArea.id}:`, error);
         }
@@ -761,14 +816,16 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return () => clearTimeout(timeoutId);
   }, [
     marketAreas,
-    visibleMarketAreaIds, // This dependency is crucial
+    visibleMarketAreaIds,
     hideAllFeatureLayers,
     clearMarketAreaGraphics,
     drawRadius,
     drawDriveTimePolygon,
+    drawSiteLocation,
     updateFeatureStyles,
     transformRadiusPoint,
     transformDriveTimePoint,
+    extractSiteLocationInfo,
   ]);
 
   useEffect(() => {
@@ -792,8 +849,9 @@ export default function MarketAreaList({ onClose, onEdit }) {
     return <div className="p-4 text-red-600">{error}</div>;
   }
 
+  // Added permanent display styles to ensure the component always stays open
   return (
-    <div className="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow">
+    <div className="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow h-full">
       <div className="p-2 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={handleToggleAll}

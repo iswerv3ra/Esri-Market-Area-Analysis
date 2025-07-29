@@ -8,6 +8,7 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.http import HttpResponse
 from datetime import timedelta, datetime
+from django.http import Http404
 from .models import (
     Project, 
     MarketArea, 
@@ -16,25 +17,164 @@ from .models import (
     ColorKey, 
     TcgTheme, 
     EnrichmentUsage,
-    MapConfiguration
+    MapConfiguration,
+    LabelPosition
 )
 from .serializers import (
-    UserSerializer, 
-    ProjectListSerializer, 
-    ProjectDetailSerializer, 
-    MarketAreaSerializer, 
-    StylePresetSerializer, 
-    VariablePresetSerializer, 
-    ColorKeySerializer, 
-    TcgThemeSerializer, 
-    AdminUserSerializer,
-    AdminUserUpdateSerializer, 
-    PasswordResetSerializer, 
-    EnrichmentUsageSerializer,
-    MapConfigurationSerializer
+    UserSerializer, ProjectListSerializer, ProjectDetailSerializer,
+    MarketAreaSerializer, StylePresetSerializer, VariablePresetSerializer,
+    ColorKeySerializer, TcgThemeSerializer, AdminUserSerializer,
+    AdminUserUpdateSerializer, PasswordResetSerializer, EnrichmentUsageSerializer,
+    MapConfigurationSerializer, LabelPositionSerializer
 )
 from decimal import Decimal, ROUND_HALF_UP
 import csv
+import json
+
+
+class LabelPositionViewSet(viewsets.ModelViewSet):
+    serializer_class = LabelPositionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        project_id = self.request.query_params.get('project')
+        map_config_id = self.request.query_params.get('map_configuration')
+        
+        queryset = LabelPosition.objects.all()
+        
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+            
+        if map_config_id:
+            queryset = queryset.filter(map_configuration_id=map_config_id)
+            
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+        
+        
+    @action(detail=False, methods=['post'])
+    def reset_all(self, request):
+        """
+        Reset all label positions for a project
+        """
+        try:
+            project_id = request.query_params.get('project')
+            if not project_id:
+                return Response({
+                    'error': 'Project ID is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            map_config_id = request.query_params.get('map_configuration')
+                
+            # Delete all label positions for this project
+            queryset = LabelPosition.objects.filter(project_id=project_id)
+            if map_config_id:
+                queryset = queryset.filter(map_configuration_id=map_config_id)
+                
+            count = queryset.count()
+            queryset.delete()
+                
+            return Response({
+                'success': True,
+                'message': f'Successfully reset {count} label positions'
+            }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': 'Failed to reset label positions',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)     
+        
+        
+    @action(detail=False, methods=['post'])
+    def batch_save(self, request):
+        """
+        Batch save multiple label positions
+        """
+        try:
+            project_id = request.data.get('project_id')
+            map_config_id = request.data.get('map_configuration_id')
+            labels = request.data.get('labels', [])
+            
+            if not project_id or not labels:
+                return Response({
+                    'error': 'Missing required fields',
+                    'required': ['project_id', 'labels']
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            try:
+                project = Project.objects.get(id=project_id)
+            except Project.DoesNotExist:
+                return Response({
+                    'error': f'Project with ID {project_id} does not exist'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+            map_config = None
+            if map_config_id:
+                try:
+                    map_config = MapConfiguration.objects.get(id=map_config_id)
+                except MapConfiguration.DoesNotExist:
+                    return Response({
+                        'error': f'MapConfiguration with ID {map_config_id} does not exist'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Process each label
+            results = []
+            for label_data in labels:
+                label_id = label_data.get('label_id')
+                if not label_id:
+                    continue
+                    
+                # Try to find existing label position
+                try:
+                    label_position = LabelPosition.objects.get(
+                        project=project,
+                        label_id=label_id
+                    )
+                    # Update existing
+                    label_position.x_offset = label_data.get('x_offset', label_position.x_offset)
+                    label_position.y_offset = label_data.get('y_offset', label_position.y_offset)
+                    label_position.font_size = label_data.get('font_size', label_position.font_size)
+                    label_position.text = label_data.get('text', label_position.text)
+                    label_position.visibility = label_data.get('visibility', label_position.visibility)
+                    if map_config:
+                        label_position.map_configuration = map_config
+                    label_position.save()
+                except LabelPosition.DoesNotExist:
+                    # Create new
+                    label_position = LabelPosition.objects.create(
+                        project=project,
+                        map_configuration=map_config,
+                        label_id=label_id,
+                        x_offset=label_data.get('x_offset', 0),
+                        y_offset=label_data.get('y_offset', 0),
+                        font_size=label_data.get('font_size', 10),
+                        text=label_data.get('text', ''),
+                        visibility=label_data.get('visibility', True),
+                        created_by=request.user
+                    )
+                
+                results.append({
+                    'id': str(label_position.id),
+                    'label_id': label_position.label_id,
+                    'updated': True
+                })
+            
+            return Response({
+                'success': True,
+                'message': f'Successfully processed {len(results)} label positions',
+                'results': results
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Failed to process label positions',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 class ColorKeyViewSet(viewsets.ModelViewSet):
@@ -552,29 +692,39 @@ class MapConfigurationViewSet(viewsets.ModelViewSet):
         return MapConfiguration.objects.all().order_by('order') # Ensure consistent ordering
 
     def create(self, request, *args, **kwargs):
-        # Optional: Add logging here too if creation seems problematic
+        # Detailed logging for debugging
         print(f"[Backend View] Received create request data: {request.data}")
+        
         try:
-            # The existing create logic seems okay, but ensure project ID lookup is robust
-            project_id = request.data.get('project') # Or 'project_id' depending on serializer/frontend
+            # The project ID must be present
+            project_id = request.data.get('project')
             if not project_id:
                 return Response({"detail": "Project ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Optional: Check if project exists before proceeding with serializer
+            # Check if project exists
             try:
-                 Project.objects.get(id=project_id)
+                Project.objects.get(id=project_id)
             except Project.DoesNotExist:
-                 return Response({"detail": f"Project with ID {project_id} not found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"detail": f"Project with ID {project_id} not found."}, status=status.HTTP_404_NOT_FOUND)
 
-            # Your existing logic (delete if same name exists, then create)
-            # tab_name = request.data.get('tab_name')
-            # existing_config = MapConfiguration.objects.filter(project_id=project_id, tab_name=tab_name).first()
-            # if existing_config:
-            #     print(f"[Backend View] Deleting existing config with same name: {tab_name} for project {project_id}")
-            #     existing_config.delete()
+            # Handle layer_configuration if it's stringified JSON
+            data = request.data.copy()
+            if 'layer_configuration' in data and isinstance(data['layer_configuration'], str):
+                try:
+                    # Try to parse it to validate, but keep as string for the serializer
+                    json.loads(data['layer_configuration'])
+                except json.JSONDecodeError as e:
+                    return Response({"detail": f"Invalid JSON in layer_configuration: {str(e)}"}, 
+                                status=status.HTTP_400_BAD_REQUEST)
 
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+            # Process the serializer
+            serializer = self.get_serializer(data=data)
+            
+            # Detailed validation error logging
+            if not serializer.is_valid():
+                print(f"[Backend View] Serializer validation errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
             self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
             print(f"[Backend View] Successfully created MapConfiguration: {serializer.data}")
@@ -584,7 +734,7 @@ class MapConfigurationViewSet(viewsets.ModelViewSet):
             print(f"[Backend View] Error in MapConfigurationViewSet.create: {str(e)}")
             import traceback
             print(traceback.format_exc())
-            # Return a more specific error if possible (e.g., from serializer validation)
+            # Return a more specific error if possible
             error_detail = getattr(e, 'detail', str(e))
             status_code = getattr(e, 'status_code', status.HTTP_400_BAD_REQUEST)
             return Response({"detail": error_detail}, status=status_code)
