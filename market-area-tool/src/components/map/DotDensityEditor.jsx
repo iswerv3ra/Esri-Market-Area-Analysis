@@ -40,6 +40,23 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
     return 1; // Default for unknown area types
   };
 
+  // Generate default legend label based on dot value
+  const getDefaultLegendLabel = (dotValue) => {
+    return `${dotValue} People per Dot`;
+  };
+
+  // Extract base label from full constructed label (removes number and "per Dot")
+  const extractBaseLabel = (fullLabel) => {
+    if (!fullLabel) return 'People';
+    // Remove leading number and trailing "per Dot" pattern
+    return fullLabel.replace(/^\d+\s+/, '').replace(/\s+per\s+Dot$/i, '') || 'People';
+  };
+
+  // Construct full label from dot value and base description
+  const constructFullLabel = (dotValue, baseDescription) => {
+    return `${dotValue} ${baseDescription} per Dot`;
+  };
+
   // --- State Synchronization & Safe Config ---
   // Ensure attributes array exists and has at least one element
   const safeAttributes = (config.attributes && Array.isArray(config.attributes) && config.attributes.length > 0)
@@ -72,7 +89,8 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       // Ensure essential fields exist even if original was partial
       field: attr.field || config.field || 'value',
       color: attr.color || '#E60049',
-      label: attr.label || config.label || attr.field || config.field || 'Data',
+      label: attr.label || getDefaultLegendLabel(actualValue), // Use full label as default
+      baseLabel: attr.baseLabel || extractBaseLabel(attr.label) || extractBaseLabel(config.label) || 'People', // Store base description separately
       value: index === 0 ? actualValue : (attr.value !== undefined ? attr.value : actualValue) // Sync first attribute, keep others if they exist
     }))
   };
@@ -86,7 +104,11 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       setLocalDotValue(safeConfig.dotValue);
     }
     if (localLegendLabel === null) {
-      setLocalLegendLabel(safeConfig.attributes[0]?.label || 'Data');
+      // Use the full constructed label, ensuring it matches current dot value
+      const attr = safeConfig.attributes[0];
+      const baseDescription = attr?.baseLabel || extractBaseLabel(attr?.label) || 'People';
+      const fullLabel = constructFullLabel(safeConfig.dotValue, baseDescription);
+      setLocalLegendLabel(fullLabel);
     }
   }, [safeConfig.dotSize, safeConfig.dotValue, safeConfig.attributes, localDotSize, localDotValue, localLegendLabel]);
 
@@ -149,12 +171,31 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       // Update the specific key
       updatedConfig[key] = clampedValue;
 
-      // Special handling for dotValue - needs to sync with attributes
+      // Special handling for dotValue - needs to sync with attributes and reconstruct legend
       if (key === 'dotValue') {
-        updatedConfig.attributes = updatedConfig.attributes.map((attr, index) => ({
-          ...attr,
-          value: index === 0 ? clampedValue : (attr.value !== undefined ? attr.value : clampedValue) // Sync first attribute's value
-        }));
+        updatedConfig.attributes = updatedConfig.attributes.map((attr, index) => {
+          if (index === 0) {
+            // For the first attribute, update value and reconstruct the legend label
+            const currentBaseLabel = attr.baseLabel || extractBaseLabel(attr.label) || 'People';
+            const newFullLabel = constructFullLabel(clampedValue, currentBaseLabel);
+            
+            // Update local legend label state to reflect the change
+            setLocalLegendLabel(newFullLabel);
+            
+            return {
+              ...attr,
+              value: clampedValue,
+              label: newFullLabel,
+              baseLabel: currentBaseLabel // Keep the base description for future reconstructions
+            };
+          } else {
+            // For other attributes, just update value if it exists
+            return {
+              ...attr,
+              value: attr.value !== undefined ? attr.value : clampedValue
+            };
+          }
+        });
       }
 
       console.log(`DotDensityEditor: Updated ${key} to`, clampedValue, "Updating config:", updatedConfig);
@@ -209,15 +250,26 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
       // Create a deep clone for the update
       const updatedConfig = JSON.parse(JSON.stringify(safeConfig));
 
+      // Use the full legend label exactly as entered by the user
+      const fullLabel = value || getDefaultLegendLabel(safeConfig.dotValue);
+      
+      // Extract the base description from the user's input for future reconstructions
+      const baseDescription = extractBaseLabel(fullLabel);
+
       // Update the label in the first attribute
       if (updatedConfig.attributes && updatedConfig.attributes.length > 0) {
-        updatedConfig.attributes[0].label = value || 'Data'; // Fallback to 'Data' if empty
+        updatedConfig.attributes[0].label = fullLabel;
+        updatedConfig.attributes[0].baseLabel = baseDescription; // Store for future dot value changes
       } else {
         // Handle case where attributes might be missing (should be rare with safeConfig)
-        updatedConfig.attributes = [{ ...(safeConfig.attributes[0] || {}), label: value || 'Data' }];
+        updatedConfig.attributes = [{ 
+          ...(safeConfig.attributes[0] || {}), 
+          label: fullLabel,
+          baseLabel: baseDescription
+        }];
       }
 
-      console.log("DotDensityEditor: Updated legend label to", value, "Updating config:", updatedConfig);
+      console.log("DotDensityEditor: Updated legend label to", fullLabel, "Base description:", baseDescription, "Updating config:", updatedConfig);
 
       // Propagate changes up
       onChange(updatedConfig);
@@ -243,7 +295,33 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   // Get display values (local state if available, otherwise from config)
   const displayDotSize = localDotSize !== null ? localDotSize : safeConfig.dotSize;
   const displayDotValue = localDotValue !== null ? localDotValue : safeConfig.dotValue;
-  const displayLegendLabel = localLegendLabel !== null ? localLegendLabel : (safeConfig.attributes[0]?.label || 'Data');
+  
+  // For legend label, show the full constructed label including number and "per Dot"
+  const getCurrentFullLabel = () => {
+    if (localLegendLabel !== null) {
+      return localLegendLabel;
+    }
+    
+    const attr = safeConfig.attributes[0];
+    if (attr?.label) {
+      // If we have a stored label, check if it needs to be reconstructed with current dot value
+      const currentDotValueInLabel = attr.label.match(/^(\d+)\s/);
+      const currentDotValue = displayDotValue;
+      
+      if (currentDotValueInLabel && parseInt(currentDotValueInLabel[1]) !== currentDotValue) {
+        // Reconstruct with current dot value
+        const baseDescription = attr.baseLabel || extractBaseLabel(attr.label);
+        return constructFullLabel(currentDotValue, baseDescription);
+      }
+      
+      return attr.label;
+    }
+    
+    // Fallback to default construction
+    return getDefaultLegendLabel(displayDotValue);
+  };
+  
+  const displayLegendLabel = getCurrentFullLabel();
 
   return (
     <div className="space-y-4">
@@ -306,7 +384,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
          <p className="text-xs text-gray-500 dark:text-gray-400">Choose the color for the dots.</p>
       </div>
 
-       {/* Legend Label (Now Editable) */}
+       {/* Legend Label (Shows Full Constructed Label) */}
        <div className="space-y-1">
           <label htmlFor="legend-label" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Legend Label
@@ -317,12 +395,14 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
             value={displayLegendLabel}
             onChange={(e) => handleLegendLabelChange(e.target.value)}
             onBlur={(e) => handleLegendLabelChange(e.target.value, true)} // Apply changes immediately on blur
-            placeholder="Enter legend label"
+            placeholder="e.g., 100 Total Households per Dot"
             className="w-full p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white
                      border border-gray-300 dark:border-gray-700 rounded
                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400"
           />
-           <p className="text-xs text-gray-500 dark:text-gray-400">Label shown in the map legend.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Edit the complete legend text. When you change the dot value above, the number will automatically update while preserving your description.
+          </p>
        </div>
 
     </div>
