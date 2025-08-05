@@ -11,6 +11,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
   const [localDotSize, setLocalDotSize] = useState(null);
   const [localDotValue, setLocalDotValue] = useState(null);
   const [localLegendLabel, setLocalLegendLabel] = useState(null);
+  const SIMPLE_LABEL_FORMAT = true; // Toggle for simple labels
 
   // --- Cleanup timeouts on unmount ---
   useEffect(() => {
@@ -42,8 +43,12 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
 
   // Generate default legend label with new format: "Number per dot (Base label)"
   const getDefaultLegendLabel = (dotValue, baseLabel = 'People') => {
+    if (SIMPLE_LABEL_FORMAT) {
+      return `${dotValue} per dot`;
+    }
     return `${dotValue} per dot (${baseLabel})`;
   };
+
 
   // Extract base label from full constructed label (handles both old and new formats)
   const extractBaseLabel = (fullLabel) => {
@@ -67,6 +72,9 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
 
   // Construct full label from dot value and base description using new format
   const constructFullLabel = (dotValue, baseDescription) => {
+    if (SIMPLE_LABEL_FORMAT) {
+      return `${dotValue} per dot`;
+    }
     return `${dotValue} per dot (${baseDescription})`;
   };
 
@@ -210,11 +218,7 @@ const DotDensityEditor = ({ config, onChange, selectedAreaType, onPreview }) => 
             
             // Check if this label was manually entered by the user - if so, NEVER touch it
             if (!attr.isUserModified && !attr.userOriginalLabel && isDefaultFormatLabel(currentLabel)) {
-              // It's an auto-generated default format label, so reconstruct it with new dot value
-              const currentBaseLabel = attr.baseLabel || extractBaseLabel(currentLabel) || 'People';
-              newLabel = constructFullLabel(clampedValue, currentBaseLabel);
-              
-              // Update local legend label state to reflect the change
+              newLabel = `${clampedValue} per dot`; // Simple format without base description
               setLocalLegendLabel(newLabel);
             }
             // If it's user-modified in ANY way, keep the original label completely unchanged
