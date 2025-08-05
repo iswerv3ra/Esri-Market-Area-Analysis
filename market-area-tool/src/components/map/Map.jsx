@@ -2739,27 +2739,200 @@ export default function MapComponent({ onToggleLis }) {
   };
 
   const handleAreaTypeChange = async (tabId, newAreaType) => {
-    // Make async
     console.log(`Area type changed for tab ${tabId} to:`, newAreaType);
 
-    // Update the area type for the specific tab
-    const newTabs = tabs.map((tab) =>
-      tab.id === tabId
-        ? {
-            ...tab,
-            areaType: newAreaType,
-          }
-        : tab
-    );
-    setTabs(newTabs);
+    // Find the tab that's being changed
+    const targetTab = tabs.find((tab) => tab.id === tabId);
+    if (!targetTab) {
+      console.error(`[AreaChange] Tab ${tabId} not found`);
+      return;
+    }
 
     // Update the general selectedAreaType state if the changed tab is the active one
     if (tabId === activeTab) {
       setSelectedAreaType(newAreaType);
     }
 
+    // Check if this is a heat map that needs break recalculation
+    const isHeatMap = targetTab.visualizationType && (
+      targetTab.layerConfiguration?.type === 'class-breaks' ||
+      targetTab.visualizationType.endsWith('_HEAT') ||
+      (targetTab.layerConfiguration?.classBreakInfos && 
+      Array.isArray(targetTab.layerConfiguration.classBreakInfos))
+    );
+
+    let updatedLayerConfiguration = targetTab.layerConfiguration;
+
+    // Recalculate breaks for heat maps when area type changes
+    if (isHeatMap && targetTab.visualizationType) {
+      console.log(`[AreaChange] Heat map detected for tab ${tabId}, recalculating breaks for new area type:`, newAreaType);
+      
+      try {
+        setIsConfigLoading(true);
+
+        // Get current map view for spatial optimization
+        const currentMapView = mapView || 
+                              mapViewRef?.current || 
+                              view || 
+                              window.mapView || 
+                              null;
+
+        // Determine spatial optimization strategy based on NEW area type
+        const areaTypeValue = newAreaType?.value || newAreaType;
+        let spatialOptimizationConfig = {
+          enforceSevenBreaks: true,
+          extendMaxValue: true,
+          useSmartRounding: true,
+          spatialOptimization: false // Default to disabled
+        };
+
+        // Configure spatial optimization based on NEW area type and zoom level
+        if (currentMapView && currentMapView.extent) {
+          const currentZoom = currentMapView.zoom;
+          
+          // Area type specific spatial optimization rules
+          switch (areaTypeValue) {
+            case 'county':
+            case 11:
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 6;
+              spatialOptimizationConfig.bufferMultiplier = 2.0;
+              break;
+              
+            case 'place':
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 8;
+              spatialOptimizationConfig.bufferMultiplier = 3.0;
+              spatialOptimizationConfig.useExtendedExtent = true;
+              break;
+              
+            case 'cbsa':
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 7;
+              spatialOptimizationConfig.bufferMultiplier = 2.5;
+              spatialOptimizationConfig.useExtendedExtent = true;
+              break;
+              
+            case 'state':
+              spatialOptimizationConfig.spatialOptimization = false;
+              break;
+              
+            case 'tract':
+            case 12:
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 9;
+              spatialOptimizationConfig.bufferMultiplier = 1.5;
+              break;
+              
+            case 'block_group':
+            case 150:
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 10;
+              spatialOptimizationConfig.bufferMultiplier = 1.2;
+              break;
+              
+            case 'zip':
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 8;
+              spatialOptimizationConfig.bufferMultiplier = 1.8;
+              break;
+              
+            default:
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 10;
+              spatialOptimizationConfig.bufferMultiplier = 1.5;
+          }
+
+          console.log(`[AreaChange] Spatial optimization config for NEW area type ${areaTypeValue}:`, {
+            enabled: spatialOptimizationConfig.spatialOptimization,
+            currentZoom,
+            bufferMultiplier: spatialOptimizationConfig.bufferMultiplier,
+            useExtendedExtent: spatialOptimizationConfig.useExtendedExtent
+          });
+        }
+
+        // Recalculate breaks using the enhanced HeatmapGenerator with NEW area type
+        const recalculatedConfig = await createDataDrivenHeatMap(
+          targetTab.visualizationType, // The visualization field name
+          newAreaType, // The NEW area type configuration
+          `${targetTab.name} Heat Map`, // Descriptive map name
+          currentMapView, // Current map view for spatial optimization
+          () => mapViewRef?.current || view || window.mapView, // Getter function fallback
+          spatialOptimizationConfig // Area-type-aware spatial optimization configuration
+        );
+
+        if (recalculatedConfig && recalculatedConfig.classBreakInfos) {
+          updatedLayerConfiguration = {
+            ...recalculatedConfig,
+            // Preserve any custom settings from the original config
+            ...targetTab.layerConfiguration,
+            // Override with the new calculated values
+            classBreakInfos: recalculatedConfig.classBreakInfos,
+            areaType: convertAreaTypeToString(newAreaType?.value || newAreaType),
+            field: recalculatedConfig.field,
+            type: recalculatedConfig.type,
+            // Update optimization metadata
+            dataOptimized: recalculatedConfig.dataOptimized,
+            spatiallyOptimized: recalculatedConfig.spatiallyOptimized,
+            breakType: recalculatedConfig.breakType,
+            valueFormat: recalculatedConfig.valueFormat,
+            lastRecalculated: new Date().toISOString(),
+            recalculatedForAreaType: areaTypeValue
+          };
+
+          console.log(`[AreaChange] Successfully recalculated ${recalculatedConfig.classBreakInfos.length} breaks for area type ${areaTypeValue}`);
+        } else {
+          console.warn(`[AreaChange] Failed to recalculate breaks, keeping existing configuration`);
+          // Fall back to just updating the area type in existing config
+          updatedLayerConfiguration = {
+            ...targetTab.layerConfiguration,
+            areaType: convertAreaTypeToString(newAreaType?.value || newAreaType)
+          };
+        }
+
+        setIsConfigLoading(false);
+      } catch (error) {
+        console.error(`[AreaChange] Error recalculating breaks for new area type:`, error);
+        setIsConfigLoading(false);
+        
+        // Fall back to just updating the area type in existing config
+        updatedLayerConfiguration = {
+          ...targetTab.layerConfiguration,
+          areaType: convertAreaTypeToString(newAreaType?.value || newAreaType),
+          recalculationError: error.message,
+          lastRecalculationAttempt: new Date().toISOString()
+        };
+      }
+    } else if (updatedLayerConfiguration) {
+      // For non-heat maps, just update the area type in the configuration
+      updatedLayerConfiguration = {
+        ...targetTab.layerConfiguration,
+        areaType: convertAreaTypeToString(newAreaType?.value || newAreaType)
+      };
+    }
+
+    // Update the area type for the specific tab with the updated configuration
+    const newTabs = tabs.map((tab) =>
+      tab.id === tabId
+        ? {
+            ...tab,
+            areaType: newAreaType,
+            layerConfiguration: updatedLayerConfiguration,
+            lastAreaTypeChange: new Date().toISOString()
+          }
+        : tab
+    );
+    setTabs(newTabs);
+
+    // Update layer configurations state if this is the active tab
+    if (tabId === activeTab && targetTab.visualizationType && updatedLayerConfiguration) {
+      setLayerConfigurations((prev) => ({
+        ...prev,
+        [targetTab.visualizationType]: {
+          ...updatedLayerConfiguration,
+          lastUpdated: new Date().toISOString(),
+          tabId: tabId,
+          associatedTab: targetTab.name,
+          areaTypeRecalculated: isHeatMap
+        },
+      }));
+    }
+
     // --- Update visualization and legend only if the changed tab is active ---
-    const activeTabData = newTabs.find((tab) => tab.id === activeTab); // Use activeTab here
+    const activeTabData = newTabs.find((tab) => tab.id === activeTab);
 
     // Proceed only if the *active* tab is the one that was changed AND it has a visualization
     if (
@@ -2778,7 +2951,6 @@ export default function MapComponent({ onToggleLis }) {
       // --- Layer Removal ---
       const layersToRemove = [];
       mapView.map.layers.forEach((layer) => {
-        // FIX: Use optional chaining
         if (layer && layer.isVisualizationLayer === true) {
           layersToRemove.push(layer);
         }
@@ -2791,10 +2963,10 @@ export default function MapComponent({ onToggleLis }) {
       }
       // --- End Layer Removal ---
 
-      // Create the new layer with the updated area type
+      // Create the new layer with the updated configuration (which now has recalculated breaks for heat maps)
       const newLayer = await createLayers(
         vizType, // Use normalized type
-        activeTabData.layerConfiguration, // Use the config from the tab
+        updatedLayerConfiguration, // Use the UPDATED config with recalculated breaks
         initialLayerConfigurations, // Base configs
         newAreaType // Pass the NEW area type
       );
@@ -2804,13 +2976,21 @@ export default function MapComponent({ onToggleLis }) {
         (newLayer instanceof FeatureLayer || newLayer instanceof GraphicsLayer)
       ) {
         console.log(
-          `[AreaChange] Created new layer: "${newLayer.title}". Adding to map.`
+          `[AreaChange] Created new layer: "${newLayer.title}" with ${
+            isHeatMap ? 'recalculated breaks for' : 'updated'
+          } area type.`
         );
-        // *** Direct property assignment (already done in createLayers) ***
+        
+        // Set visualization properties
         newLayer.isVisualizationLayer = true;
-        // newLayer.visualizationType set in createLayers
+        newLayer.visualizationType = vizType;
 
         mapView.map.add(newLayer, 0); // Add new layer
+
+        // Store layer reference
+        if (activeLayersRef.current) {
+          activeLayersRef.current[activeTab] = newLayer;
+        }
 
         // Update legend only for standard types
         const specialTypes = ["pipe", "comp", "custom"];
@@ -2832,6 +3012,11 @@ export default function MapComponent({ onToggleLis }) {
               },
             ];
             legend.visible = !isEditorOpen && !isLabelEditorOpen; // Show if NO editor is open
+            
+            // Apply styling after legend update
+            if (legend.container) {
+              styleLegend(legend.container);
+            }
           } catch (layerError) {
             console.error(
               "[AreaChange] Error waiting for FeatureLayer or updating legend:",
@@ -2858,7 +3043,6 @@ export default function MapComponent({ onToggleLis }) {
       );
     }
   };
-
 
   const handleVisualizationChange = async (tabId, newValue) => {
     if (!newValue) {
@@ -2888,7 +3072,7 @@ export default function MapComponent({ onToggleLis }) {
     let newConfig;
     setIsConfigLoading(true);
 
-    // Use enhanced HeatmapGenerator for heat maps (class-breaks) with 2x max value extension
+    // Use enhanced HeatmapGenerator for heat maps (class-breaks) with area-type-aware spatial optimization
     if (vizOption.type === 'class-breaks') {
       console.log(`[VIZ CHANGE] Heat Map selected. Using enhanced HeatmapGenerator for: ${newValue}`);
       
@@ -2905,26 +3089,96 @@ export default function MapComponent({ onToggleLis }) {
             zoom: currentMapView.zoom,
             scale: Math.round(currentMapView.scale),
             extentWidth: Math.round(currentMapView.extent.width),
-            extentHeight: Math.round(currentMapView.extent.height)
+            extentHeight: Math.round(currentMapView.extent.height),
+            areaType: activeTabData.areaType?.value || activeTabData.areaType
           });
         } else {
           console.log(`[VIZ CHANGE] No map view available - using broad area analysis`);
         }
 
-        // Use enhanced data-driven heat map generator with 2x max value extension
+        // Determine spatial optimization strategy based on area type
+        const areaTypeValue = activeTabData.areaType?.value || activeTabData.areaType;
+        let spatialOptimizationConfig = {
+          enforceSevenBreaks: true,
+          extendMaxValue: true,
+          useSmartRounding: true,
+          spatialOptimization: false // Default to disabled
+        };
+
+        // Configure spatial optimization based on area type and zoom level
+        if (currentMapView && currentMapView.extent) {
+          const currentZoom = currentMapView.zoom;
+          
+          // Area type specific spatial optimization rules
+          switch (areaTypeValue) {
+            case 'county':
+            case 11:
+              // Counties: Enable spatial optimization only when zoomed in enough
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 6;
+              spatialOptimizationConfig.bufferMultiplier = 2.0; // Large buffer for counties
+              break;
+              
+            case 'place':
+              // Places: Very conservative spatial optimization - only at high zoom levels
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 8;
+              spatialOptimizationConfig.bufferMultiplier = 3.0; // Extra large buffer for places
+              spatialOptimizationConfig.useExtendedExtent = true; // Use much larger extent
+              break;
+              
+            case 'cbsa':
+              // CBSAs (Metropolitan areas): Similar to places, conservative approach
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 7;
+              spatialOptimizationConfig.bufferMultiplier = 2.5;
+              spatialOptimizationConfig.useExtendedExtent = true;
+              break;
+              
+            case 'state':
+              // States: Disable spatial optimization entirely - too large
+              spatialOptimizationConfig.spatialOptimization = false;
+              break;
+              
+            case 'tract':
+            case 12:
+              // Census tracts: Enable spatial optimization at moderate zoom
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 9;
+              spatialOptimizationConfig.bufferMultiplier = 1.5;
+              break;
+              
+            case 'block_group':
+            case 150:
+              // Block groups: Enable spatial optimization at higher zoom
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 10;
+              spatialOptimizationConfig.bufferMultiplier = 1.2;
+              break;
+              
+            case 'zip':
+              // ZIP codes: Moderate spatial optimization
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 8;
+              spatialOptimizationConfig.bufferMultiplier = 1.8;
+              break;
+              
+            default:
+              // Unknown area type: Conservative approach
+              spatialOptimizationConfig.spatialOptimization = currentZoom >= 10;
+              spatialOptimizationConfig.bufferMultiplier = 1.5;
+          }
+
+          console.log(`[VIZ CHANGE] Spatial optimization config for area type ${areaTypeValue}:`, {
+            enabled: spatialOptimizationConfig.spatialOptimization,
+            currentZoom,
+            bufferMultiplier: spatialOptimizationConfig.bufferMultiplier,
+            useExtendedExtent: spatialOptimizationConfig.useExtendedExtent
+          });
+        }
+
+        // Use enhanced data-driven heat map generator with area-type-aware spatial optimization
         newConfig = await createDataDrivenHeatMap(
           newValue, // The visualization field name (e.g., "MEDHINC_CY_HEAT")
           activeTabData.areaType, // The current area type configuration
           `${activeTabData.name} Heat Map`, // Descriptive map name
           currentMapView, // Current map view for spatial optimization
           () => mapViewRef?.current || view || window.mapView, // Getter function fallback
-          {
-            // Optional: Pass additional configuration options
-            enforceSevenBreaks: true, // Ensure exactly 7 color breaks
-            extendMaxValue: true, // Enable 2x max value extension
-            useSmartRounding: true, // Enable intelligent value rounding
-            spatialOptimization: !!currentMapView // Enable spatial filtering if map view available
-          }
+          spatialOptimizationConfig // Area-type-aware spatial optimization configuration
         );
         
         console.log(`[VIZ CHANGE] Enhanced HeatmapGenerator completed successfully:`, {
@@ -2936,9 +3190,11 @@ export default function MapComponent({ onToggleLis }) {
           breakCount: newConfig.classBreakInfos?.length || 0,
           breakType: newConfig.breakType,
           valueFormat: newConfig.valueFormat,
+          areaType: areaTypeValue,
+          spatialOptimizationEnabled: spatialOptimizationConfig.spatialOptimization,
           optimizationType: newConfig.spatiallyOptimized ? 
-            'Current View + Quantile + 2x Extension + Smart Formatting' : 
-            'Broad Area + Quantile + 2x Extension + Smart Formatting'
+            `Current View + Quantile + 2x Extension + Smart Formatting (${areaTypeValue} optimized)` : 
+            `Broad Area + Quantile + 2x Extension + Smart Formatting (${areaTypeValue} no spatial filter)`
         });
 
         // Validate the generated configuration
@@ -3086,7 +3342,8 @@ export default function MapComponent({ onToggleLis }) {
                 spatiallyOptimized: newConfig.spatiallyOptimized || false,
                 usedSmartRounding: newConfig.usedSmartRounding || false,
                 hasProperFormatting: newConfig.hasProperFormatting || false,
-                breakType: newConfig.breakType || 'unknown'
+                breakType: newConfig.breakType || 'unknown',
+                areaTypeOptimized: true // Flag indicating area-type-aware optimization was used
               }
             }
           : tab
@@ -3100,7 +3357,8 @@ export default function MapComponent({ onToggleLis }) {
           ...newConfig,
           lastUpdated: new Date().toISOString(),
           tabId: tabId,
-          associatedTab: activeTabData.name
+          associatedTab: activeTabData.name,
+          areaTypeOptimized: true
         },
       }));
 
@@ -3110,7 +3368,9 @@ export default function MapComponent({ onToggleLis }) {
         type: newConfig.type,
         breakCount: newConfig.classBreakInfos?.length || 0,
         optimization: newConfig.dataOptimized ? 'optimized' : 'static',
-        breakType: newConfig.breakType
+        breakType: newConfig.breakType,
+        areaType: activeTabData.areaType?.value || activeTabData.areaType,
+        spatialOptimization: newConfig.spatiallyOptimized ? 'enabled' : 'disabled'
       });
     } else {
       console.error(`[VIZ CHANGE] Failed to generate any configuration for: ${newValue}`);
@@ -5176,136 +5436,265 @@ export default function MapComponent({ onToggleLis }) {
                 }
               }
             } else if (showStandardLegend || isStandardViz) {
-              // Handle standard legend for feature layers
-              try {
-                const currentConfig = activeTabData?.layerConfiguration;
-                let displayTitle = newLayer.title || effectiveType;
+          try {
+            const currentConfig = activeTabData?.layerConfiguration;
+            let displayTitle = newLayer.title || effectiveType;
 
-                // Check if this is a property edit to avoid overwriting user changes
-                const isPropertyEdit = (currentConfig && typeof currentConfig.decimalPlaces !== "undefined") ||
-                                    (currentConfig && currentConfig.legendTitle);
+            // Check if this is a property edit to avoid overwriting user changes
+            const isPropertyEdit = (currentConfig && typeof currentConfig.decimalPlaces !== "undefined") ||
+                                (currentConfig && currentConfig.legendTitle);
 
-                if (isPropertyEdit) {
-                  console.log(`[updateVisualizationAndLegend] Property edit detected. Bypassing visualization lookup.`);
-                  displayTitle = currentConfig.legendTitle || newLayer.title || effectiveType;
-                  console.log(`[updateVisualizationAndLegend] Using title from edited config: "${displayTitle}"`);
-                } else {
-                  // Use visualization option lookup for initial load/new selections
-                  const matchingVisualizationOption = findVisualizationOption(currentConfig, effectiveType, activeTabData);
+            if (isPropertyEdit) {
+              console.log(`[updateVisualizationAndLegend] Property edit detected. Bypassing visualization lookup.`);
+              displayTitle = currentConfig.legendTitle || newLayer.title || effectiveType;
+              console.log(`[updateVisualizationAndLegend] Using title from edited config: "${displayTitle}"`);
+            } else {
+              // Use visualization option lookup for initial load/new selections
+              const matchingVisualizationOption = findVisualizationOption(currentConfig, effectiveType, activeTabData);
 
-                  if (matchingVisualizationOption && matchingVisualizationOption.label) {
-                    displayTitle = matchingVisualizationOption.label;
-                    console.log(`[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`);
-                  } else {
-                    console.log(`[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`);
-                  }
-                }
-
-                console.log(`[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${newLayer.title || effectiveType}" (displaying as: "${displayTitle}")`);
-
-                // Set the layer's title property directly
-                newLayer.title = displayTitle;
-                console.log(`[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`);
-
-                // Set the legend layerInfos
-                legend.layerInfos = [
-                  {
-                    layer: newLayer,
-                    title: displayTitle,
-                    hideLayersNotInCurrentView: false,
-                  },
-                ];
-
-                // Force legend refresh
-                if (legend.refresh && typeof legend.refresh === "function") {
-                  legend.refresh();
-                  console.log(`[updateVisualizationAndLegend] Forced legend refresh`);
-                }
-
-                setLegendVisibility(legend, true);
-
-                // Apply custom styling
-                if (legend.container) {
-                  styleLegend(legend.container);
-
-                  // Add CSS to hide layer subtitle and clean up appearance
-                  const style = document.createElement("style");
-                  style.textContent = `
-                    .esri-legend__layer-caption,
-                    .esri-legend__layer-title,
-                    .esri-legend__layer-child-title {
-                      display: none !important;
-                    }
-                    .esri-legend__service {
-                      margin-top: 0 !important;
-                      margin-bottom: 0 !important;
-                      padding: 0 !important;
-                    }
-                    .esri-legend__layer-table {
-                      margin-top: 0 !important;
-                      margin-bottom: 0 !important;
-                      padding: 0 !important;
-                    }
-                    .esri-legend {
-                      padding: 8px !important;
-                      margin: 0 !important;
-                      width: fit-content !important;
-                      min-width: auto !important;
-                      max-width: none !important;
-                    }
-                    .esri-legend__layer {
-                      margin: 0 !important;
-                      padding: 0 !important;
-                    }
-                    .esri-legend__layer-body {
-                      margin: 0 !important;
-                      padding: 0 !important;
-                    }
-                    .esri-legend__layer-table tbody {
-                      margin: 0 !important;
-                      padding: 0 !important;
-                    }
-                    .esri-legend__layer-table tr {
-                      margin: 0 !important;
-                      padding: 2px 0 !important;
-                    }
-                    .esri-legend__layer-table td {
-                      padding: 2px 4px !important;
-                      margin: 0 !important;
-                    }
-                    .esri-legend__symbol {
-                      margin-right: 6px !important;
-                      margin-left: 0 !important;
-                    }
-                    .esri-legend__layer-cell--symbols {
-                      padding-right: 6px !important;
-                      padding-left: 0 !important;
-                    }
-                    .esri-legend__layer-cell--info {
-                      padding-left: 6px !important;
-                      padding-right: 0 !important;
-                    }
-                  `;
-
-                  // Remove existing style first
-                  const existingStyle = legend.container.querySelector("#legend-subtitle-hide-style");
-                  if (existingStyle) {
-                    existingStyle.remove();
-                  }
-
-                  // Add new style
-                  style.id = "legend-subtitle-hide-style";
-                  legend.container.appendChild(style);
-
-                  console.log(`[updateVisualizationAndLegend] Applied CSS to hide legend subtitle and remove extra white space`);
-                }
-                setCustomLegendContent(null);
-
-                console.log(`[updateVisualizationAndLegend] Successfully displayed standard legend for ${effectiveType} with title "${displayTitle}"`);
-              } catch (layerError) {
-                console.error("[updateVisualizationAndLegend] Error updating legend:", layerError);
-                setLegendVisibility(legend, false);
+              if (matchingVisualizationOption && matchingVisualizationOption.label) {
+                displayTitle = matchingVisualizationOption.label;
+                console.log(`[updateVisualizationAndLegend] Using visualization option label: "${displayTitle}" (matched by ${matchingVisualizationOption.value})`);
+              } else {
+                console.log(`[updateVisualizationAndLegend] Using default title: "${displayTitle}" (no visualization option match found)`);
               }
+            }
+
+            console.log(`[updateVisualizationAndLegend] Updating standard Esri legend for layer: "${newLayer.title || effectiveType}" (displaying as: "${displayTitle}")`);
+
+            // Set the layer's title property directly
+            newLayer.title = displayTitle;
+            console.log(`[updateVisualizationAndLegend] Set layer.title to: "${displayTitle}"`);
+
+            // Set the legend layerInfos
+            legend.layerInfos = [
+              {
+                layer: newLayer,
+                title: displayTitle,
+                hideLayersNotInCurrentView: false,
+              },
+            ];
+
+            // Force legend refresh
+            if (legend.refresh && typeof legend.refresh === "function") {
+              legend.refresh();
+              console.log(`[updateVisualizationAndLegend] Forced legend refresh`);
+            }
+
+            setLegendVisibility(legend, true);
+
+            // Apply custom styling and handle dot-density specific formatting
+            if (legend.container) {
+              styleLegend(legend.container);
+
+              // For dot-density, add the dot format as secondary content
+              if (currentConfig?.type === "dot-density" && currentConfig) {
+                const dotValue = currentConfig.dotValue || 50;
+                const baseLabel = currentConfig.attributes?.[0]?.label || "units";
+                const dotFormat = `${dotValue} ${baseLabel} per Dot`;
+                
+                console.log(`[updateVisualizationAndLegend] Setting up dot-density legend formatting:`, {
+                  variableName: displayTitle,
+                  dotFormat,
+                  dotValue,
+                  baseLabel
+                });
+
+                // Use multiple attempts with longer delays to ensure legend DOM is ready
+                const attemptLegendModification = (attempt = 1, maxAttempts = 5) => {
+                  const delay = attempt * 200; // 200ms, 400ms, 600ms, 800ms, 1000ms
+                  
+                  setTimeout(() => {
+                    if (!legend.container) {
+                      console.warn(`[updateVisualizationAndLegend] Attempt ${attempt}: Legend container not found`);
+                      return;
+                    }
+
+                    console.log(`[updateVisualizationAndLegend] Attempt ${attempt}: Searching for legend elements`);
+                    
+                    // Log all available elements for debugging
+                    const allElements = legend.container.querySelectorAll('*');
+                    console.log(`[updateVisualizationAndLegend] Found ${allElements.length} elements in legend container`);
+                    
+                    // Try multiple selectors
+                    const possibleSelectors = [
+                      '.esri-legend__layer-cell--info',
+                      '.esri-legend__layer-body',
+                      '.esri-legend__service-label',
+                      '.esri-legend__layer'
+                    ];
+                    
+                    let legendInfo = null;
+                    for (const selector of possibleSelectors) {
+                      legendInfo = legend.container.querySelector(selector);
+                      if (legendInfo) {
+                        console.log(`[updateVisualizationAndLegend] Found element with selector: ${selector}`);
+                        break;
+                      }
+                    }
+
+                    if (legendInfo) {
+                      // Create a wrapper div to contain both title and dot format
+                      const wrapperDiv = document.createElement('div');
+                      wrapperDiv.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 2px; color: #111827;">${displayTitle}</div>
+                        <div style="font-size: 0.875rem; color: #4B5563; font-weight: bold;">${dotFormat}</div>
+                      `;
+                      
+                      // Replace the content
+                      legendInfo.innerHTML = '';
+                      legendInfo.appendChild(wrapperDiv);
+                      
+                      console.log(`[updateVisualizationAndLegend] SUCCESS: Added dot-density format below title: "${displayTitle}" -> "${dotFormat}"`);
+                      return; // Success, don't try again
+                    }
+                    
+                    // Try table caption approach as fallback
+                    const layerTable = legend.container.querySelector('.esri-legend__layer-table');
+                    if (layerTable) {
+                      console.log(`[updateVisualizationAndLegend] Trying table caption approach`);
+                      
+                      // Remove existing caption first
+                      const existingCaption = layerTable.querySelector('caption');
+                      if (existingCaption) {
+                        existingCaption.remove();
+                      }
+                      
+                      // Create new caption with dot format
+                      const caption = document.createElement('caption');
+                      caption.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 2px; color: #111827;">${displayTitle}</div>
+                        <div style="font-size: 0.875rem; color: #4B5563; font-weight: bold;">${dotFormat}</div>
+                      `;
+                      caption.style.display = 'table-caption';
+                      caption.style.captionSide = 'top';
+                      caption.style.textAlign = 'left';
+                      caption.style.padding = '4px';
+                      caption.style.marginBottom = '4px';
+                      
+                      layerTable.insertBefore(caption, layerTable.firstChild);
+                      
+                      console.log(`[updateVisualizationAndLegend] SUCCESS: Added dot-density caption with dual format`);
+                      return; // Success, don't try again
+                    }
+                    
+                    // If we still haven't found anything and have attempts left, try again
+                    if (attempt < maxAttempts) {
+                      console.log(`[updateVisualizationAndLegend] Attempt ${attempt} failed, trying again...`);
+                      attemptLegendModification(attempt + 1, maxAttempts);
+                    } else {
+                      console.error(`[updateVisualizationAndLegend] All ${maxAttempts} attempts failed to modify legend DOM`);
+                    }
+                  }, delay);
+                };
+
+                // Start the modification attempts
+                attemptLegendModification();
+              }
+
+              // Add CSS for legend styling
+              const isDotDensity = (currentConfig?.type === "dot-density");
+              const style = document.createElement("style");
+              style.textContent = `
+                .esri-legend {
+                  padding: 8px !important;
+                  margin: 0 !important;
+                  width: fit-content !important;
+                  min-width: auto !important;
+                  max-width: none !important;
+                }
+                .esri-legend__layer {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .esri-legend__layer-body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .esri-legend__layer-table {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .esri-legend__layer-table tbody {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .esri-legend__layer-table tr {
+                  margin: 0 !important;
+                  padding: 2px 0 !important;
+                }
+                .esri-legend__layer-table td {
+                  padding: 2px 4px !important;
+                  margin: 0 !important;
+                }
+                .esri-legend__symbol {
+                  margin-right: 6px !important;
+                  margin-left: 0 !important;
+                }
+                .esri-legend__layer-cell--symbols {
+                  padding-right: 6px !important;
+                  padding-left: 0 !important;
+                }
+                .esri-legend__layer-cell--info {
+                  padding-left: 6px !important;
+                  padding-right: 0 !important;
+                }
+                
+                ${isDotDensity ? `
+                /* Custom styling for dot-density legends */
+                .esri-legend__layer-table caption {
+                  display: table-caption !important;
+                  caption-side: top !important;
+                  text-align: left !important;
+                  padding: 4px !important;
+                  margin-bottom: 4px !important;
+                }
+                ` : ''}
+                
+                /* Hide default layer title elements for cleaner display */
+                .esri-legend__layer-caption,
+                .esri-legend__layer-title,
+                .esri-legend__layer-child-title,
+                .esri-legend__layer-child-title span,
+                .esri-legend__layer-table thead,
+                .esri-legend__layer-table thead tr,
+                .esri-legend__layer-table thead th {
+                  display: none !important;
+                }
+                
+                .esri-legend__service {
+                  margin-top: 0 !important;
+                  margin-bottom: 0 !important;
+                  padding: 0 !important;
+                }
+              `;
+
+              // Remove existing style first
+              const existingStyle = legend.container.querySelector("#legend-subtitle-hide-style");
+              if (existingStyle) {
+                existingStyle.remove();
+              }
+
+              // Add new style
+              style.id = "legend-subtitle-hide-style";
+              legend.container.appendChild(style);
+
+              console.log(`[updateVisualizationAndLegend] Applied CSS for ${currentConfig?.type || effectiveType} legend display`);
+              
+              // Force legend visibility for dot-density after applying styles
+              if (isDotDensity) {
+                setLegendVisibility(legend, true);
+                console.log(`[updateVisualizationAndLegend] Ensured dot-density legend visibility`);
+              }
+            }
+            
+            setCustomLegendContent(null);
+
+            console.log(`[updateVisualizationAndLegend] Successfully displayed standard legend for ${currentConfig?.type || effectiveType} with title "${displayTitle}"`);
+          } catch (layerError) {
+            console.error("[updateVisualizationAndLegend] Error updating legend:", layerError);
+            setLegendVisibility(legend, false);
+          }
             } else {
               // Hide legend for other cases
               console.log("[updateVisualizationAndLegend] Hiding standard Esri legend");
