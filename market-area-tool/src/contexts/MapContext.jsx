@@ -1577,27 +1577,37 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
       });
 
       try {
-        if (!selectionGraphicsLayerRef.current) {
-          console.error(
-            "🔍 [LAYER ORDER DEBUG] Selection graphics layer not initialized"
-          );
-          return;
+        // CRITICAL: Add comprehensive null checks at the beginning
+        if (!mapView) {
+          console.error("🔍 [LAYER ORDER DEBUG] MapView is not available - cannot draw drive time polygon");
+          throw new Error("MapView is not initialized");
         }
 
-        // Log current layer position
-        const layerIndex = mapView.map.layers.indexOf(
-          selectionGraphicsLayerRef.current
-        );
+        if (!mapView.map) {
+          console.error("🔍 [LAYER ORDER DEBUG] MapView.map is not available - cannot draw drive time polygon");
+          throw new Error("Map is not initialized on MapView");
+        }
+
+        if (!selectionGraphicsLayerRef.current) {
+          console.error("🔍 [LAYER ORDER DEBUG] Selection graphics layer not initialized");
+          throw new Error("Selection graphics layer is not available");
+        }
+
+        // Verify mapView is ready before proceeding
+        if (mapView.destroyed) {
+          console.error("🔍 [LAYER ORDER DEBUG] MapView has been destroyed");
+          throw new Error("MapView has been destroyed");
+        }
+
+        // Log current layer position with safe access
+        const layerIndex = mapView.map.layers.indexOf(selectionGraphicsLayerRef.current);
         console.log("🔍 [LAYER ORDER DEBUG] Graphics layer current position:", {
           index: layerIndex,
           totalLayers: mapView.map.layers.length,
         });
 
         if (!point || (!point.polygon && !point.center)) {
-          console.error(
-            "🔍 [LAYER ORDER DEBUG] Invalid drive time point:",
-            point
-          );
+          console.error("🔍 [LAYER ORDER DEBUG] Invalid drive time point:", point);
           return;
         }
 
@@ -1605,32 +1615,24 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
 
         if (!polygon && point.center) {
           try {
-            console.log(
-              "🔍 [LAYER ORDER DEBUG] Calculating drive time polygon for:",
-              {
-                longitude: point.center.longitude,
-                latitude: point.center.latitude,
-                minutes: point.travelTimeMinutes || point.timeRanges?.[0] || 15,
-              }
-            );
+            console.log("🔍 [LAYER ORDER DEBUG] Calculating drive time polygon for:", {
+              longitude: point.center.longitude,
+              latitude: point.center.latitude,
+              minutes: point.travelTimeMinutes || point.timeRanges?.[0] || 15,
+            });
             polygon = await calculateDriveTimePolygon({
               center: point.center,
               travelTimeMinutes:
                 point.travelTimeMinutes || point.timeRanges?.[0] || 15,
             });
           } catch (calcError) {
-            console.error(
-              "🔍 [LAYER ORDER DEBUG] Error calculating drive time polygon:",
-              calcError
-            );
+            console.error("🔍 [LAYER ORDER DEBUG] Error calculating drive time polygon:", calcError);
             return;
           }
         }
 
         if (!polygon) {
-          console.error(
-            "🔍 [LAYER ORDER DEBUG] No polygon found or calculated for drive time point"
-          );
+          console.error("🔍 [LAYER ORDER DEBUG] No polygon found or calculated for drive time point");
           return;
         }
 
@@ -1646,27 +1648,23 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           import("@arcgis/core/symbols/SimpleLineSymbol"),
         ]);
 
-        console.log(
-          "🔍 [LAYER ORDER DEBUG] Drawing drive time polygon with styles:",
-          {
-            fillColor: styleSettings.fillColor,
-            fillOpacity: styleSettings.fillOpacity,
-            borderColor: styleSettings.borderColor,
-            borderWidth: styleSettings.borderWidth,
-            isNoFill: styleSettings.fillOpacity === 0,
-            isNoBorder: styleSettings.borderWidth === 0,
-          }
-        );
+        console.log("🔍 [LAYER ORDER DEBUG] Drawing drive time polygon with styles:", {
+          fillColor: styleSettings.fillColor,
+          fillOpacity: styleSettings.fillOpacity,
+          borderColor: styleSettings.borderColor,
+          borderWidth: styleSettings.borderWidth,
+          isNoFill: styleSettings.fillOpacity === 0,
+          isNoBorder: styleSettings.borderWidth === 0,
+        });
 
         // Remove existing drive time graphics for this market area
         if (marketAreaId !== "temporary") {
-          const existingGraphics =
-            selectionGraphicsLayerRef.current.graphics.filter(
-              (g) =>
-                g.attributes?.marketAreaId === marketAreaId &&
-                (g.attributes?.FEATURE_TYPE === "drivetime" ||
-                  g.attributes?.FEATURE_TYPE === "drivetime_point")
-            );
+          const existingGraphics = selectionGraphicsLayerRef.current.graphics.filter(
+            (g) =>
+              g.attributes?.marketAreaId === marketAreaId &&
+              (g.attributes?.FEATURE_TYPE === "drivetime" ||
+                g.attributes?.FEATURE_TYPE === "drivetime_point")
+          );
 
           if (existingGraphics.length > 0) {
             console.log(
@@ -1693,6 +1691,7 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           }),
         });
 
+        // Ensure polygon is properly formatted
         if (!(polygon instanceof Polygon)) {
           if (polygon.rings || polygon.paths) {
             polygon = new Polygon({
@@ -1700,10 +1699,7 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
               spatialReference: polygon.spatialReference || { wkid: 4326 },
             });
           } else {
-            console.error(
-              "🔍 [LAYER ORDER DEBUG] Invalid polygon format:",
-              polygon
-            );
+            console.error("🔍 [LAYER ORDER DEBUG] Invalid polygon format:", polygon);
             return;
           }
         }
@@ -1722,30 +1718,28 @@ const ensureValidGeometry = async (geometry, spatialReference) => {
           },
         });
 
+        // Final safety check before adding to layer
+        if (!selectionGraphicsLayerRef.current || selectionGraphicsLayerRef.current.destroyed) {
+          console.error("🔍 [LAYER ORDER DEBUG] Graphics layer became unavailable during polygon creation");
+          throw new Error("Graphics layer is no longer available");
+        }
+
         selectionGraphicsLayerRef.current.add(polygonGraphic);
 
-        console.log(
-          "🔍 [LAYER ORDER DEBUG] Added drive time polygon graphic:",
-          {
-            marketAreaId,
-            totalGraphicsNow: selectionGraphicsLayerRef.current.graphics.length,
-            graphicsLayerIndex: mapView.map.layers.indexOf(
-              selectionGraphicsLayerRef.current
-            ),
-            symbolType: fillSymbol.type,
-          }
-        );
+        console.log("🔍 [LAYER ORDER DEBUG] Added drive time polygon graphic:", {
+          marketAreaId,
+          totalGraphicsNow: selectionGraphicsLayerRef.current.graphics.length,
+          graphicsLayerIndex: mapView.map.layers.indexOf(selectionGraphicsLayerRef.current),
+          symbolType: fillSymbol.type,
+        });
 
         return polygon;
       } catch (error) {
-        console.error(
-          "🔍 [LAYER ORDER DEBUG] Error drawing drive time polygon:",
-          error
-        );
+        console.error("🔍 [LAYER ORDER DEBUG] Error drawing drive time polygon:", error);
         throw error;
       }
     },
-    [selectionGraphicsLayerRef, calculateDriveTimePolygon]
+    [selectionGraphicsLayerRef, calculateDriveTimePolygon, mapView] // Added mapView to dependencies
   );
 
   // Helper function to create a fallback buffer
